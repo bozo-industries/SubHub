@@ -8,8 +8,15 @@
     <string name="tab_browser">BROWSER</string>
     <string name="tab_help">HELP</string>
     <string name="reconstruction_title">HUMAN-EDITABLE FOUNDATION</string>
-    <string name="reconstruction_body">This screen is compiled from ordinary Android source. The capture, detector, tracker, overlay, browser, export, and statistics modules will be restored behind this interface in tested milestones.</string>
+    <string name="reconstruction_body">This screen and the protection pipeline are compiled from ordinary Android source. Screen capture stays on device and requires Android’s visible consent prompt.</string>
     <string name="start_protection">START PROTECTION</string>
-    <string name="foundation_ready">FOUNDATION READY</string>
-    <string name="foundation_status">The source project works. Detection is the next reconstruction milestone.</string>
+    <string name="stop_protection">STOP PROTECTION</string>
+    <string name="overlay_permission_needed">Allow BetaSafe to display censor blocks over other apps.</string>
+    <string name="capture_cancelled">Screen capture was not granted.</string>
+    <string name="notification_channel_name">Active protection</string>
+    <string name="notification_title">BetaSafe protection active</string>
+    <string name="notification_text">On-device censoring is watching the shared screen.</string>
+    <string name="notification_stop">Stop</string>
+    <string name="blocked_label">BLOCKED</string>
+    <string name="foundation_ready">PROTECTION PIPELINE READY</string>
 </resources>
