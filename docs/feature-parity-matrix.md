@@ -54,12 +54,12 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | Session trend visualization | `SessionTrendView` | Working custom on-device chart with accessible content description; API 35 UI emulator-validated |
 | Milestones | `MilestoneManager` | All 20 recovered thresholds implemented, including major-milestone notices |
 | Achievements, progress, unlock dialogs, badge saving | `AchievementManager`, badge assets | All 42 recovered conditions implemented with persistent unlock/pending-notice state; optional licensed badges privately imported and MediaStore/SAF saving supported; API 35 catalog UI emulator-validated |
-| Popup Storm with folders, presets, bursts, bounce, denial effects | `popup/*`, `PopupStormActivity` | To implement with photosensitivity acknowledgement and a persistent stop control |
+| Popup Storm with folders, presets, bursts, bounce, denial effects | `popup/*`, `PopupStormActivity` | Working with all four recovered presets, bounded SAF/private-folder scanning, a generated built-in sample, fade/rotation/bounce, burst ramps, denial blur/pixelation/captions, detection cover/avoid positioning, separate touch-modal popup windows, explicit photosensitivity acknowledgement, and an independent always-visible stop control; API 35 live overlay workflow validated |
 | Help/onboarding/permission repair/app shortcuts | `MainActivity` and layout/resource IDs | To implement |
 
 ## Licensed visual assets
 
-The APK contains the logo/background, category/style/tab/status icons, and eight badge images. `Import-PrivateModelAssets.ps1` currently imports the two detector models and eight licensed achievement badges into ignored local asset paths. The remaining decorative resource import is pending. Runtime code tolerates missing badges so ordinary source builds remain reproducible; detector models remain required only when protection or image analysis is started.
+The maintained app now includes original, generated BetaSafe artwork: a purple demoness guardian, a wide grungy gothic header, and a Popup Storm guardian-shield sample. These files are project-owned and tracked. `Import-PrivateModelAssets.ps1` separately imports the two detector models and eight licensed achievement badges from the purchased APK into ignored local paths. Runtime code tolerates missing badges so ordinary source builds remain reproducible; detector models remain required only when protection or image analysis is started.
 
 ## Completion rule
 

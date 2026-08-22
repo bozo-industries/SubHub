@@ -18,6 +18,7 @@ import com.betasafe.app.detection.ObjectTracker;
 import com.betasafe.app.detection.TrackedObject;
 import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
+import com.betasafe.app.popup.PopupStormManager;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.AchievementManager;
@@ -65,6 +66,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 this, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY);
         overlay.setAppearance(settings.loadAppearance());
         overlay.show();
+        PopupStormManager.get().start(this);
         stats.startSession();
         running = true;
 
@@ -139,6 +141,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             Bitmap overlayFrame = frame.copy(Bitmap.Config.ARGB_8888, false);
             int width = frame.getWidth();
             int height = frame.getHeight();
+            PopupStormManager.get().updateTrackedObjects(tracks, width, height);
             DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
                     DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
             String diagnosticText = diagnosticsOverlayText(diagnostics);
@@ -172,6 +175,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         detectorConfig = config;
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
+        PopupStormManager.get().reloadSettings(this);
     }
 
     @Override
@@ -210,6 +214,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (stats != null) stats.endSession();
         if (detector != null) detector.close();
         if (overlay != null) overlay.close();
+        PopupStormManager.get().stop();
         super.onDestroy();
     }
 }

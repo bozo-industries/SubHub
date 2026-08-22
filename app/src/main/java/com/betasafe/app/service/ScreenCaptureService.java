@@ -33,6 +33,7 @@ import com.betasafe.app.detection.ObjectTracker;
 import com.betasafe.app.detection.TrackedObject;
 import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
+import com.betasafe.app.popup.PopupStormManager;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.AchievementManager;
@@ -129,6 +130,7 @@ public final class ScreenCaptureService extends Service {
         overlay = new OverlayController(this);
         overlay.setAppearance(settings.loadAppearance());
         overlay.show();
+        PopupStormManager.get().start(this);
         executor.execute(this::startPipeline);
         return START_NOT_STICKY;
     }
@@ -172,6 +174,7 @@ public final class ScreenCaptureService extends Service {
         detectorConfig = config;
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
+        PopupStormManager.get().reloadSettings(this);
     }
 
     private void processFrame() {
@@ -190,6 +193,7 @@ public final class ScreenCaptureService extends Service {
             }
             int width = capture.getCaptureWidth();
             int height = capture.getCaptureHeight();
+            PopupStormManager.get().updateTrackedObjects(tracks, width, height);
             DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
                     DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
             String diagnosticText = diagnosticsOverlayText(diagnostics);
@@ -287,6 +291,7 @@ public final class ScreenCaptureService extends Service {
         if (capture != null) capture.close();
         if (detector != null) detector.close();
         if (overlay != null) overlay.close();
+        PopupStormManager.get().stop();
         if (projection != null) projection.stop();
         stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();

@@ -67,4 +67,4 @@ JADX emitted method-level errors in application code including `MainActivity`, `
 
 ## Recommended next phase
 
-Use the clean source tree for maintained changes. Continue the remaining parity work—safely constrained Popup Storm behavior, help/onboarding, localization, and optional licensed decorative asset import—then complete broad emulator and physical Android 15/16 validation before adding the separately designed consent-based commitment lock.
+Use the clean source tree for maintained changes. Continue the remaining parity work—help/onboarding, localization, and broader integration of the new project-owned visual identity—then complete broad emulator and physical Android 15/16 validation before adding the separately designed consent-based commitment lock.

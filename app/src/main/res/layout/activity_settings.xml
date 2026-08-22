@@ -578,6 +578,12 @@
                 android:text="@string/manage_packs" />
 
             <Button
+                android:id="@+id/button_popup_storm"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="@string/manage_popup_storm" />
+
+            <Button
                 android:id="@+id/button_diagnostics"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
