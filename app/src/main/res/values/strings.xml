@@ -37,5 +37,11 @@
     <string name="category_buttocks">Buttocks</string>
     <string name="category_anus">Anus</string>
     <string name="settings_saved">Changes apply live while protection is running.</string>
+    <string name="browser_title">SAFE BROWSER</string>
+    <string name="browser_back">‹</string>
+    <string name="browser_forward">›</string>
+    <string name="browser_go">GO</string>
+    <string name="browser_address_hint">Search or enter address</string>
+    <string name="browser_protected">PRE-BLUR + AD BLOCKING ACTIVE</string>
     <string name="foundation_ready">PROTECTION PIPELINE READY</string>
 </resources>
