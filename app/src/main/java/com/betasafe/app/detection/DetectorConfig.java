@@ -18,6 +18,11 @@ public final class DetectorConfig {
     private final float captureScale;
     private final int inferenceResolution;
     private final String modelFilename;
+    private final int idleThresholdFrames;
+    private final float renderAlpha;
+    private final float velocitySmoothing;
+    private final float maxExtrapolationMs;
+    private final boolean detectCovered;
 
     private DetectorConfig(Builder builder) {
         enabledCategories = Collections.unmodifiableSet(new LinkedHashSet<>(builder.enabledCategories));
@@ -32,6 +37,11 @@ public final class DetectorConfig {
         captureScale = builder.captureScale;
         inferenceResolution = builder.inferenceResolution;
         modelFilename = builder.modelFilename;
+        idleThresholdFrames = builder.idleThresholdFrames;
+        renderAlpha = builder.renderAlpha;
+        velocitySmoothing = builder.velocitySmoothing;
+        maxExtrapolationMs = builder.maxExtrapolationMs;
+        detectCovered = builder.detectCovered;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -47,6 +57,11 @@ public final class DetectorConfig {
     public float getCaptureScale() { return captureScale; }
     public int getInferenceResolution() { return inferenceResolution; }
     public String getModelFilename() { return modelFilename; }
+    public int getIdleThresholdFrames() { return idleThresholdFrames; }
+    public float getRenderAlpha() { return renderAlpha; }
+    public float getVelocitySmoothing() { return velocitySmoothing; }
+    public float getMaxExtrapolationMs() { return maxExtrapolationMs; }
+    public boolean isDetectCovered() { return detectCovered; }
 
     public static final class Builder {
         private Set<String> enabledCategories = NudeNetClassCatalog.DEFAULT_ENABLED;
@@ -61,6 +76,11 @@ public final class DetectorConfig {
         private float captureScale = 0.5f;
         private int inferenceResolution = 320;
         private String modelFilename = "320n_fp16.onnx";
+        private int idleThresholdFrames = 25;
+        private float renderAlpha = 0.75f;
+        private float velocitySmoothing = 0.55f;
+        private float maxExtrapolationMs = 180f;
+        private boolean detectCovered;
 
         public Builder enabledCategories(Set<String> value) { enabledCategories = value; return this; }
         public Builder confidenceThreshold(float value) { confidenceThreshold = value; return this; }
@@ -74,6 +94,11 @@ public final class DetectorConfig {
         public Builder captureScale(float value) { captureScale = value; return this; }
         public Builder inferenceResolution(int value) { inferenceResolution = value; return this; }
         public Builder modelFilename(String value) { modelFilename = value; return this; }
+        public Builder idleThresholdFrames(int value) { idleThresholdFrames = value; return this; }
+        public Builder renderAlpha(float value) { renderAlpha = value; return this; }
+        public Builder velocitySmoothing(float value) { velocitySmoothing = value; return this; }
+        public Builder maxExtrapolationMs(float value) { maxExtrapolationMs = value; return this; }
+        public Builder detectCovered(boolean value) { detectCovered = value; return this; }
 
         public DetectorConfig build() {
             if (enabledCategories == null || modelFilename == null || modelFilename.trim().isEmpty()) {
@@ -81,7 +106,10 @@ public final class DetectorConfig {
             }
             if (confidenceThreshold < 0f || confidenceThreshold > 1f
                     || trackingSmoothing <= 0f || trackingSmoothing > 1f
-                    || inferenceResolution <= 0 || captureScale <= 0f || captureScale > 1f) {
+                    || inferenceResolution <= 0 || captureScale <= 0f || captureScale > 1f
+                    || renderAlpha < 0f || renderAlpha > 1f
+                    || velocitySmoothing < 0f || velocitySmoothing > 1f
+                    || idleThresholdFrames < 0 || maxExtrapolationMs < 0f) {
                 throw new IllegalArgumentException("Detector configuration is out of range");
             }
             return new DetectorConfig(this);

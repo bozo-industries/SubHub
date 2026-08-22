@@ -7,10 +7,10 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | Feature | APK evidence | BetaSafe status |
 | --- | --- | --- |
 | 18-class NudeNet-compatible ONNX detector | `DetectionEngine`, two 320-series models | Working and API 35 device-validated |
-| Low/Medium/High/Ultra performance presets | `DetectionPresets`, `PresetInfo` | To implement |
+| Low/Medium/High/Ultra performance presets | `DetectionPresets`, `PresetInfo` | Implemented from recovered values; emulator recheck pending |
 | MediaProjection whole-screen capture | `ScreenCaptureService` | Working and device-validated |
 | Accessibility screenshot capture | `ScreenshotAccessibilityService`, `canTakeScreenshot=true` | To implement |
-| Object tracking and motion prediction | `ObjectTracker`, `TrackedObject` | Working core; preset tuning remains |
+| Object tracking and motion prediction | `ObjectTracker`, `TrackedObject` | Working with preset-specific velocity tuning |
 | Touch-through overlay censoring | `OverlayController`, `CensorBoxView` | Working core |
 | Solid, pixelate, blur, custom, static, glitch, tape, and error-popup styles | `CensorEffects`, settings resource IDs | Box/pixelate/blur/bar baseline; remaining real effects to implement |
 | Border classic/glow/gradient/rainbow and animation | `CensorBoxView`, border resources/preferences | To implement |

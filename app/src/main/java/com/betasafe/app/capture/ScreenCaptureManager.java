@@ -25,11 +25,15 @@ public final class ScreenCaptureManager implements AutoCloseable {
             int screenWidth,
             int screenHeight,
             int densityDpi,
-            int inferenceResolution) {
+            int inferenceResolution,
+            float captureScale) {
         this.projection = projection;
         this.densityDpi = densityDpi;
         int maximum = Math.max(screenWidth, screenHeight);
-        float scale = (float) Math.min(Math.max(inferenceResolution * 2, 720), maximum) / maximum;
+        int targetMaximum = Math.min(
+                maximum,
+                Math.max(inferenceResolution, Math.round(maximum * captureScale)));
+        float scale = (float) targetMaximum / maximum;
         captureWidth = Math.max(32, (int) (screenWidth * scale));
         captureHeight = Math.max(32, (int) (screenHeight * scale));
     }
