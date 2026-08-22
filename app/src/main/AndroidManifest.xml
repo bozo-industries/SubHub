@@ -35,6 +35,10 @@
             android:name=".browser.BrowserActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".capture.CustomImagesActivity"
+            android:exported="false" />
+
         <service
             android:name=".service.ScreenCaptureService"
             android:exported="false"

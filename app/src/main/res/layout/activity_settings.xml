@@ -88,6 +88,46 @@
                     android:buttonTint="@color/accent"
                     android:text="@string/style_bar"
                     android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_custom"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/style_custom"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_static"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/style_static"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_glitch"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/style_glitch"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_tape"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/style_tape"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_error"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/style_error"
+                    android:textColor="@color/text_primary" />
             </RadioGroup>
 
             <TextView
@@ -113,6 +153,29 @@
                 android:progressTint="@color/accent"
                 android:thumbTint="@color/accent" />
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/censor_padding"
+                android:textColor="@color/text_secondary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/padding_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/accent"
+                android:textStyle="bold" />
+
+            <SeekBar
+                android:id="@+id/padding_seek"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="50"
+                android:progressTint="@color/accent"
+                android:thumbTint="@color/accent" />
+
             <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/switch_border"
                 android:layout_width="match_parent"
@@ -126,6 +189,99 @@
                 android:layout_height="52dp"
                 android:text="@string/show_text"
                 android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_animate_border"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="@string/animate_border"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/border_effect"
+                android:textColor="@color/text_secondary"
+                android:textStyle="bold" />
+
+            <RadioGroup
+                android:id="@+id/border_effect_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <RadioButton
+                    android:id="@+id/radio_border_classic"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/border_classic"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_border_glow"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/border_glow"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_border_gradient"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/border_gradient"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_border_rainbow"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/border_rainbow"
+                    android:textColor="@color/text_primary" />
+            </RadioGroup>
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_reverse"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="@string/reverse_mode"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/reverse_strength"
+                android:textColor="@color/text_secondary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/reverse_strength_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/accent"
+                android:textStyle="bold" />
+
+            <SeekBar
+                android:id="@+id/reverse_strength_seek"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:min="1"
+                android:progressTint="@color/accent"
+                android:thumbTint="@color/accent" />
+
+            <Button
+                android:id="@+id/button_custom_images"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_primary_button"
+                android:text="@string/manage_custom_images"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <LinearLayout
@@ -159,6 +315,52 @@
                 android:layout_height="wrap_content"
                 android:textColor="@color/accent"
                 android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/performance_preset"
+                android:textColor="@color/text_secondary"
+                android:textStyle="bold" />
+
+            <RadioGroup
+                android:id="@+id/preset_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <RadioButton
+                    android:id="@+id/radio_preset_low"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/preset_low"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_preset_medium"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/preset_medium"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_preset_high"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/preset_high"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/radio_preset_ultra"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/preset_ultra"
+                    android:textColor="@color/text_primary" />
+            </RadioGroup>
 
             <SeekBar
                 android:id="@+id/confidence_seek"
@@ -211,6 +413,139 @@
                 android:layout_height="48dp"
                 android:text="@string/category_anus"
                 android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_faces"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/category_faces"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_male_chest"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/category_male_chest"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_belly"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/category_belly"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_feet"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/category_feet"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_armpits"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/category_armpits"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_covered"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/category_covered"
+                android:textColor="@color/text_primary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.1"
+                android:text="@string/phrases_title"
+                android:textColor="@color/accent"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_phrase_short"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/phrase_short"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_phrase_denial"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/phrase_denial"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_phrase_humiliation"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/phrase_humiliation"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_phrase_edge"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/phrase_edge"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_phrase_findom"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/phrase_findom"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_phrase_ntr"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/phrase_ntr"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_phrase_gooner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/phrase_gooner"
+                android:textColor="@color/text_primary" />
+
+            <EditText
+                android:id="@+id/custom_phrases"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_card"
+                android:gravity="top|start"
+                android:hint="@string/custom_phrases_hint"
+                android:inputType="textMultiLine"
+                android:maxLength="1000"
+                android:padding="12dp"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted" />
+
+            <Button
+                android:id="@+id/button_save_phrases"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_primary_button"
+                android:text="@string/save_phrases"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <TextView

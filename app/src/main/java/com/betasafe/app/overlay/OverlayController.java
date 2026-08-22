@@ -1,6 +1,7 @@
 package com.betasafe.app.overlay;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
 import android.view.Gravity;
 import android.view.WindowManager;
@@ -39,8 +40,12 @@ public final class OverlayController implements AutoCloseable {
         attached = true;
     }
 
-    public void update(List<TrackedObject> tracks, int captureWidth, int captureHeight) {
-        view.setTracks(tracks, captureWidth, captureHeight);
+    public void update(
+            List<TrackedObject> tracks,
+            int captureWidth,
+            int captureHeight,
+            Bitmap frame) {
+        view.setTracks(tracks, captureWidth, captureHeight, frame);
     }
 
     public void setAppearance(CensorAppearance appearance) {
@@ -50,6 +55,7 @@ public final class OverlayController implements AutoCloseable {
     @Override
     public void close() {
         if (attached) windowManager.removeView(view);
+        else view.release();
         attached = false;
     }
 }
