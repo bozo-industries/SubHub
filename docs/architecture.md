@@ -8,7 +8,10 @@ This map is statically derived from Beta Blocker Android 1.67. JADX paths are re
 MainActivity
   |-- MediaProjection consent -> ScreenCaptureService
   |                              -> ScreenCaptureManager
-  |-- Accessibility capture  -> ScreenshotAccessibilityService
+  |-- App Mode configuration -> AppModeManager
+  |-- Accessibility events   -> ScreenshotAccessibilityService
+                                 |-- all external apps, or
+                                 |-- selected launcher packages
                                   |
                                   v
                            DetectionEngine
@@ -24,6 +27,10 @@ MainActivity
 `DetectionEngine` accepts screen bitmaps, runs an 18-class detector, applies confidence filtering/NMS, and produces bounding boxes. The tracker stabilizes detections between frames. Rendering is split between system overlays and image/export rendering.
 
 The clean source implements both capture branches as ordinary Java source under `app/src/main/java/com/betasafe/app`. Android's own consent dialog authorizes every MediaProjection session, while Android's accessibility settings control the alternate screenshot service. Export rendering and reverse censoring are also maintained source. The app does not silently grant or retain platform capture authority.
+
+`AppModeManager` persists whether automatic recognition is armed, whether every external app or only a selected package set is watched, and whether that armed preference should survive reboot. `ScreenshotAccessibilityService` consumes only window-state package transitions. In selected-app mode, leaving the active package cancels screenshot scheduling and closes inference-adjacent UI/state; the Accessibility binding stays available for the next package transition without running the detector. Input-method transitions are ignored so opening a keyboard does not falsely suspend recognition.
+
+`BootReceiver` is non-exported and performs no capture. At boot or package replacement it restores only the user's armed preference and, when a prior MediaProjection session was desired, posts a visible notification that returns to the app for fresh Android approval. Its Disarm action clears both automatic recognition and pending session intent.
 
 ## High-value code areas
 
@@ -82,6 +89,12 @@ The maintained header and Help surfaces use the project-owned gothic header and 
 `CommitmentManager` stores only pact timestamps, bounded duration, a random salt, and a PBKDF2-HMAC-SHA256 keeper-code hash in the app's private settings. `CommitmentActivity` provides the setup ceremony, live countdown, keeper release, and a permanently reachable two-step safety release. While active, entry to censor settings and browser-shield configuration routes to the pact screen. Protection stopping remains fully operational through the main UI and foreground-service notification.
 
 This is intentionally an app-local consent ritual rather than a device-security primitive. The manifest has no Device Admin receiver. Android uninstall, app-data clearing, system controls, and immediate protection stop remain available, and the UI states those boundaries before activation and while the pact is active.
+
+## Device Admin and restart boundary
+
+Device Admin is deliberately absent. It is an enterprise policy surface, not a keepalive mechanism, foreground-app signal, or capture grant. Adding uninstall friction would not make recognition more reliable and would weaken BetaSafe's unconditional safety release. Modern Android also requires a new MediaProjection consent token for every capture session and prevents target-35 apps from starting a MediaProjection foreground service from `BOOT_COMPLETED`.
+
+The maintained design therefore separates restartable intent from non-restartable capture authority: Accessibility app mode may resume because the user enabled that service in Android settings, while whole-screen MediaProjection resumes only after the user taps the visible notification and approves Android's system dialog again.
 
 ## Recommended next phase
 

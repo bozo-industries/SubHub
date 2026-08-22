@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="28dp">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="205dp">
+
+            <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:alpha="0.72" android:contentDescription="@null" android:scaleType="centerCrop" android:src="@drawable/betasafe_gothic_header" />
+            <View android:layout_width="match_parent" android:layout_height="match_parent" android:background="#550D0D14" />
+            <TextView android:id="@+id/button_back" android:layout_width="wrap_content" android:layout_height="48dp" android:layout_gravity="top|start" android:layout_marginStart="20dp" android:layout_marginTop="8dp" android:gravity="center_vertical" android:text="@string/back" android:textColor="@color/accent" android:textStyle="bold" />
+            <ImageView android:layout_width="145dp" android:layout_height="155dp" android:layout_gravity="bottom|start" android:contentDescription="@string/popup_guardian_desc" android:scaleType="centerInside" android:src="@drawable/betasafe_demoness_guardian" />
+
+            <LinearLayout android:layout_width="220dp" android:layout_height="wrap_content" android:layout_gravity="center_vertical|end" android:layout_marginEnd="22dp" android:orientation="vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:letterSpacing="0.1" android:text="@string/app_mode_title" android:textColor="@color/text_primary" android:textSize="21sp" android:textStyle="bold" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="@string/app_mode_subtitle" android:textColor="@color/text_secondary" android:textSize="11sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="20dp" android:layout_marginTop="16dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="18dp">
+            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/app_mode_service_title" />
+            <TextView android:id="@+id/service_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="@color/text_primary" android:textStyle="bold" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/app_mode_service_body" android:textColor="@color/text_secondary" android:textSize="11sp" />
+            <Button android:id="@+id/button_accessibility_settings" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="12dp" android:background="@drawable/bg_primary_button" android:text="@string/app_mode_open_accessibility" android:textColor="@color/text_primary" android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="20dp" android:layout_marginTop="12dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="18dp">
+            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/app_mode_rules_title" />
+            <CheckBox android:id="@+id/armed" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="8dp" android:buttonTint="@color/accent" android:text="@string/app_mode_armed" android:textColor="@color/text_primary" />
+            <RadioGroup android:id="@+id/mode_group" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                <RadioButton android:id="@+id/mode_always" android:layout_width="match_parent" android:layout_height="52dp" android:buttonTint="@color/accent" android:text="@string/app_mode_always" android:textColor="@color/text_primary" />
+                <RadioButton android:id="@+id/mode_selected" android:layout_width="match_parent" android:layout_height="52dp" android:buttonTint="@color/accent" android:text="@string/app_mode_selected" android:textColor="@color/text_primary" />
+            </RadioGroup>
+            <CheckBox android:id="@+id/auto_resume" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:buttonTint="@color/accent" android:text="@string/app_mode_auto_resume" android:textColor="@color/text_secondary" android:textSize="11sp" />
+            <Button android:id="@+id/button_save" android:layout_width="match_parent" android:layout_height="54dp" android:layout_marginTop="12dp" android:background="@drawable/bg_primary_button" android:text="@string/app_mode_save" android:textColor="@color/text_primary" android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/app_list_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="20dp" android:layout_marginTop="12dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="18dp">
+            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/app_mode_choose_apps" />
+            <TextView android:id="@+id/selected_count" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textColor="@color/text_secondary" android:textSize="11sp" />
+            <ProgressBar android:id="@+id/loading_apps" style="?android:attr/progressBarStyleSmall" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:layout_marginTop="16dp" />
+            <LinearLayout android:id="@+id/app_list" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="vertical" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="20dp" android:layout_marginTop="12dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="18dp">
+            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/app_mode_platform_title" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/app_mode_platform_body" android:textColor="@color/text_secondary" android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

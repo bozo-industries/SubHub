@@ -10,7 +10,7 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 
 ## Evidence
 
-- A clean `testDebugUnitTest`, `assembleDebug`, `lintDebug`, 26-test `connectedDebugAndroidTest`, `assembleRelease`, and `lintRelease` run completed successfully.
+- A clean `testDebugUnitTest`, `assembleDebug`, `lintDebug`, 35-test `connectedDebugAndroidTest`, `assembleRelease`, and `lintRelease` run completed successfully.
 - A streamed `adb install -r` completed successfully.
 - Main, Settings, and Browser screens launched through normal in-app navigation with no fatal exception.
 - The first-run disclosure, gothic/demoness shell, ten-section Help screen, permission status/repair controls, and complete 11-choice language dialog rendered correctly.
@@ -29,6 +29,9 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - Stopping from the app removed `ScreenCaptureService` and persisted the protected-session duration.
 - Log review found no `FATAL EXCEPTION`, pipeline-start failure, or frame-processing failure.
 - The release merged manifest contained neither a cleartext override nor any Device Admin surface; the debug APK verified with its normal v2 debug signature.
+- The new purple-demoness App Mode screen rendered correctly with its Android-service status, all/selected mode controls, auto-resume disclosure, save action, real launcher icons, and exact package labels.
+- App-mode instrumentation verified persisted selected-package state, auto-resume enabled/disabled boot behavior, explicit notification Disarm clearing both Accessibility and MediaProjection intent, launcher-only package discovery, and a non-exported boot receiver.
+- With Calendar as the sole watched package, the live Accessibility service activated recognition on Calendar, loaded the licensed FP16 detector through NNAPI, processed a 1080×2400 frame in 77 ms, ignored its own overlay window event, and suspended immediately when Android Settings became foreground.
 
 Notification and overlay grants were pre-authorized with ADB on this dedicated emulator so the test could focus on capture consent and runtime behavior. A normal installation still uses the explicit in-app permission flow.
 

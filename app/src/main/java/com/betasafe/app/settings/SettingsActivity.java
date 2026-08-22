@@ -11,6 +11,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.betasafe.app.R;
+import com.betasafe.app.appmode.AppModeActivity;
 import com.betasafe.app.capture.CustomImagesActivity;
 import com.betasafe.app.commitment.CommitmentActivity;
 import com.betasafe.app.commitment.CommitmentManager;
@@ -180,6 +181,8 @@ public final class SettingsActivity extends AppCompatActivity {
                 startActivity(new Intent(this, DiagnosticsActivity.class)));
         binding.buttonCommitment.setOnClickListener(view ->
                 startActivity(new Intent(this, CommitmentActivity.class)));
+        binding.buttonAppMode.setOnClickListener(view ->
+                startActivity(new Intent(this, AppModeActivity.class)));
     }
 
     private void applyLockState() {

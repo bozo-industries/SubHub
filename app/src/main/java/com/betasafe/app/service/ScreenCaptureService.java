@@ -25,6 +25,8 @@ import androidx.core.app.NotificationCompat;
 
 import com.betasafe.app.MainActivity;
 import com.betasafe.app.R;
+import com.betasafe.app.appmode.ProtectionSessionManager;
+import com.betasafe.app.appmode.ResumeNotificationManager;
 import com.betasafe.app.capture.ScreenCaptureManager;
 import com.betasafe.app.detection.Detection;
 import com.betasafe.app.detection.DetectionEngine;
@@ -99,6 +101,8 @@ public final class ScreenCaptureService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) return START_NOT_STICKY;
         if (ACTION_STOP.equals(intent.getAction())) {
+            ProtectionSessionManager.markMediaProjectionExplicitlyStopped(this);
+            ResumeNotificationManager.cancel(this);
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -127,6 +131,7 @@ public final class ScreenCaptureService extends Service {
         }, mainHandler);
 
         running = true;
+        ProtectionSessionManager.markMediaProjectionStarted(this);
         stats.startSession();
         overlay = new OverlayController(this);
         overlay.setAppearance(settings.loadAppearance());
