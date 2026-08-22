@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BetaSafe</string>
+    <string name="header_title">BETASAFE</string>
+    <string name="header_subtitle">SOURCE RECONSTRUCTION</string>
+    <string name="tab_home">HOME</string>
+    <string name="tab_settings">SETTINGS</string>
+    <string name="tab_browser">BROWSER</string>
+    <string name="tab_help">HELP</string>
+    <string name="reconstruction_title">HUMAN-EDITABLE FOUNDATION</string>
+    <string name="reconstruction_body">This screen is compiled from ordinary Android source. The capture, detector, tracker, overlay, browser, export, and statistics modules will be restored behind this interface in tested milestones.</string>
+    <string name="start_protection">START PROTECTION</string>
+    <string name="foundation_ready">FOUNDATION READY</string>
+    <string name="foundation_status">The source project works. Detection is the next reconstruction milestone.</string>
+</resources>

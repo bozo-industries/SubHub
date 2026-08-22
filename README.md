@@ -2,6 +2,8 @@
 
 BetaSafe is a private Android reverse-engineering workspace for the licensed Beta Blocker 1.67 APK. The immediate goal is a reliable modification loop, not a premature source rewrite.
 
+The primary workstream is now a clean, human-editable Android source reconstruction under `app/`. Raw JADX output remains private reference material; tracked code is written and maintained as ordinary source. See [Reconstruction Roadmap](docs/reconstruction-roadmap.md).
+
 The repository contains only sanitized notes and repeatable tooling. The purchased APK, decompiled code, model files, signing keys, and rebuilt APKs stay outside version control in the adjacent private workspace:
 
 ```text

@@ -28,8 +28,10 @@ local.properties
 build/
 dist/
 .gradle/
+**/build/
 *.log
 .jolli/
+local.properties
 
 # IDE / OS
 .idea/
