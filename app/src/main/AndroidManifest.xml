@@ -62,6 +62,17 @@
         <activity android:name=".popup.PopupStormActivity" android:exported="false" />
         <activity android:name=".help.HelpActivity" android:exported="false" />
         <activity android:name=".commitment.CommitmentActivity" android:exported="false" />
+        <activity
+            android:name=".penance.PenanceActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="betasafe" android:host="paypal" />
+            </intent-filter>
+        </activity>
 
         <service
             android:name=".service.ScreenCaptureService"

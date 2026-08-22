@@ -19,6 +19,7 @@ import com.betasafe.app.detection.TrackedObject;
 import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.popup.PopupStormManager;
+import com.betasafe.app.penance.PenanceManager;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.AchievementManager;
@@ -128,9 +129,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             List<Detection> detections = detector.detect(frame);
             List<TrackedObject> tracks = tracker.update(detections);
             DetectorConfig currentConfig = detectorConfig;
-            boolean recordedBlocks = stats.onTracks(tracks, currentConfig == null
+            int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
                     ? null : currentConfig.getEnabledCategories());
-            if (recordedBlocks) {
+            if (recordedBlocks > 0) {
+                new PenanceManager(this).recordStrikes(recordedBlocks, System.currentTimeMillis());
                 new AchievementManager(this).checkAchievements(stats.load());
             }
             if (firstFrameReported.compareAndSet(false, true)) {

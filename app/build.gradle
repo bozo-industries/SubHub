@@ -21,6 +21,15 @@ android {
         buildConfig true
     }
 
+    buildTypes {
+        debug {
+            buildConfigField 'String', 'PAYPAL_BACKEND_URL', '"http://10.0.2.2:8787"'
+        }
+        release {
+            buildConfigField 'String', 'PAYPAL_BACKEND_URL', '""'
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17

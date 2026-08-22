@@ -69,18 +69,27 @@ public final class StatsRepository {
     }
 
     public boolean onTracks(List<TrackedObject> tracks) {
-        return onTrackIds(trackIds(tracks), null);
+        return recordTracks(tracks, null) > 0;
     }
 
     public boolean onTracks(List<TrackedObject> tracks, Set<String> enabledCategories) {
-        return onTrackIds(trackIds(tracks), enabledCategories);
+        return recordTracks(tracks, enabledCategories) > 0;
     }
 
     public boolean onTrackIds(List<Integer> trackIds, Set<String> enabledCategories) {
+        return recordTrackIds(trackIds, enabledCategories) > 0;
+    }
+
+    /** Records new tracker IDs and returns their exact count for bounded downstream ledgers. */
+    public int recordTracks(List<TrackedObject> tracks, Set<String> enabledCategories) {
+        return recordTrackIds(trackIds(tracks), enabledCategories);
+    }
+
+    public int recordTrackIds(List<Integer> trackIds, Set<String> enabledCategories) {
         synchronized (SESSION_LOCK) {
             int added = 0;
             for (Integer id : trackIds) if (id != null && SEEN_TRACK_IDS.add(id)) added++;
-            if (added == 0) return false;
+            if (added == 0) return 0;
             sessionBlocks += added;
             SharedPreferences.Editor edit = preferences.edit()
                     .putLong(KEY_TOTAL_BLOCKS, preferences.getLong(KEY_TOTAL_BLOCKS, 0) + added);
@@ -94,7 +103,7 @@ public final class StatsRepository {
                         preferences.getLong(KEY_ALL_CATEGORIES_CENSORS, 0) + added);
             }
             edit.apply();
-            return true;
+            return added;
         }
     }
 
