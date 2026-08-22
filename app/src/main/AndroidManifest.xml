@@ -43,6 +43,14 @@
             android:name=".capture.ExportActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".profiles.ProfilesActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".pack.PacksActivity"
+            android:exported="false" />
+
         <service
             android:name=".service.ScreenCaptureService"
             android:exported="false"

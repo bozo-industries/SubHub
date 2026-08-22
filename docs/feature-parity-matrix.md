@@ -37,10 +37,11 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 
 | Feature | APK evidence | BetaSafe status |
 | --- | --- | --- |
-| Named settings profiles | `ProfileManager` | To implement |
-| `.bbpack` import/install/activate/deactivate/delete | `PackManager`, `PacksActivity` | To implement with Zip Slip/size/path validation |
-| Signed-pack verification and manifests | `PackVerifier`, `PackManifest` | To implement and label digest verification accurately |
-| Pack-controlled locked settings and restoration | `LockedSettings`, preference backups | To implement; this is configuration locking, not uninstall resistance |
+| Named settings profiles | `ProfileManager` | Working with typed save/load/delete and a 50-profile bound; API 35 screen emulator-validated |
+| Versioned settings backup | Profile/configuration preferences | Working JSON export/import with a 256 KiB input bound; private images, models, browser data, and secrets excluded |
+| `.bbpack` import/install/activate/deactivate/delete | `PackManager`, `PacksActivity` | Working in private storage with canonical path, entry-count, per-entry, archive, and extracted-size limits; traversal rejection instrumented and API 35 screen emulator-validated |
+| Pack manifest integrity verification | `PackVerifier`, `PackManifest` | Working with recovered canonical SHA-256 behavior and re-verification of installed manifests; accurately labeled as an integrity digest, not publisher authentication |
+| Pack-controlled locked settings and restoration | `LockedSettings`, preference backups | Working with typed pre-activation backups and deactivation restoration; this is configuration locking, not uninstall resistance |
 | Diagnostics counters and performance overlay | `DiagnosticsCollector`, port-8765 server | To implement in-app/loopback-only; unsafe unauthenticated LAN exposure will not be reproduced |
 | Language selection | `LocaleHelper`, language resource names | To implement for recovered app-owned translations |
 
