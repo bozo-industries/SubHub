@@ -1,0 +1,38 @@
+# Purchased and generated Android artifacts
+*.apk
+*.idsig
+*.apks
+*.aab
+*.xapk
+*.dex
+
+# Decompiled/private working trees
+BetaSafe-private/
+private/
+work/
+decoded/
+jadx/
+apktool/
+captures/
+*.har
+
+# Signing material and local configuration
+*.jks
+*.keystore
+*.p12
+local.properties
+.env
+.env.*
+
+# Build/tool state
+build/
+dist/
+.gradle/
+*.log
+.jolli/
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
