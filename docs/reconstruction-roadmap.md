@@ -17,8 +17,8 @@ The reconstruction initially targets SDK 35 because that is the installed local 
 
 ## Parity milestones
 
-1. Compiling styled application shell.
-2. Detector models, class mapping, preprocessing, ONNX execution, postprocessing, and unit tests.
+1. Compiling styled application shell. **Complete.**
+2. Detector models, class mapping, preprocessing, ONNX execution, postprocessing, and unit tests. **Core implementation complete; device inference validation pending.**
 3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering.
 4. Settings, censor styles, custom images, reverse censoring, and export rendering.
 5. Safe browser, tabs, bookmarks/incognito behavior, DOM censoring, and ad blocking.
@@ -28,4 +28,4 @@ The reconstruction initially targets SDK 35 because that is the installed local 
 
 ## Artifact boundary
 
-Model files will be injected from a user-owned private location during local builds and will not be committed. The tracked project must remain buildable enough to run unit tests and assemble a shell without private assets; detector tasks will fail with a clear message until assets are supplied.
+Model files are injected from a user-owned APK by `scripts/Import-PrivateModelAssets.ps1` and are not committed. The tracked project still runs unit tests and assembles without them; runtime detector initialization reports a clear missing-model failure until they are supplied.

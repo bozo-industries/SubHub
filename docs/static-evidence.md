@@ -23,7 +23,16 @@ Original artifact SHA-256:
 | Existing artifacts | Inspected APK metadata, manifest, ZIP contents, signatures, DEX, native libraries, and resources | Package/version, permissions, single DEX, ONNX assets/runtime, debug signer, supported ABIs | Static metadata does not prove runtime behavior |
 | Minimal raw request | Not attempted | Not needed for the requested rebuild workspace | No authenticated product API was identified |
 | Proxy capture | Not attempted | Avoided because static analysis answered the current questions | Browser traffic remains unobserved |
-| Static analysis | APKTool and JADX private output | Capture/inference/render flow, settings/statistics storage, browser URLs, local diagnostics server | Some methods require smali because JADX failed to reconstruct them |
+| Static analysis | APKTool, normal JADX, simple-mode JADX, and smali private output | Capture/inference/render flow, tensor decoding, settings/statistics storage, browser URLs, local diagnostics server | Smali remains authoritative where high-level output is inconsistent |
+
+## Detector reconstruction evidence
+
+- A second JADX pass in simple mode recovered linear control flow for the primary detector method that normal mode could not reconstruct.
+- Smali cross-checking established top-left letterboxing, RGB float normalization, NCHW input layout, class-aware confidence filtering, same-category NMS, cross-category overlap suppression, and eye-band derivation from face boxes.
+- The model output class order has 18 entries and the output tensor contains 22 features: four box values followed by 18 class scores.
+- Desktop ONNX Runtime loaded the private FP16 model and proved the signature `images: [batch, 3, height, width] -> output0: [batch, 22, candidates]`.
+- A zero-frame 320×320 inference completed with output shape `[1, 22, 2100]`, confirming the reconstructed tensor assumptions independently of the decompiler.
+- The clean implementation is ordinary Java under `app/src/main/java/com/betasafe/app/detection`; synthetic unit tests cover geometry, output decoding, NMS, track identity, and expiry.
 
 ## Endpoint evidence ledger
 
