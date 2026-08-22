@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat;
 
 import com.betasafe.app.databinding.ActivityMainBinding;
 import com.betasafe.app.browser.BrowserActivity;
+import com.betasafe.app.appmode.AppModeActivity;
 import com.betasafe.app.capture.ExportActivity;
 import com.betasafe.app.commitment.CommitmentActivity;
 import com.betasafe.app.commitment.CommitmentManager;
@@ -27,7 +28,6 @@ import com.betasafe.app.penance.PenanceActivity;
 import com.betasafe.app.penance.PenanceManager;
 import com.betasafe.app.penance.PenanceSnapshot;
 import com.betasafe.app.service.ScreenCaptureService;
-import com.betasafe.app.service.ScreenshotAccessibilityService;
 import com.betasafe.app.settings.SettingsActivity;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.StatsSnapshot;
@@ -78,8 +78,8 @@ public final class MainActivity extends AppCompatActivity {
                 ignored -> continueStartFlow());
 
         binding.buttonProtection.setOnClickListener(this::toggleProtection);
-        binding.buttonAccessibilityCapture.setOnClickListener(view -> startActivity(
-                new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        binding.buttonAccessibilityCapture.setOnClickListener(view ->
+                startActivity(new Intent(this, AppModeActivity.class)));
         binding.tabHome.setOnClickListener(view -> selectTab(binding.tabHome, R.string.tab_home));
         binding.tabSettings.setOnClickListener(view -> openSettings());
         binding.tabBrowser.setOnClickListener(
@@ -137,11 +137,6 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void toggleProtection(View view) {
-        if (ScreenshotAccessibilityService.isRunning()) {
-            showStatus(R.string.accessibility_capture_disable_hint);
-            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-            return;
-        }
         if (ScreenCaptureService.isRunning()) {
             startService(ScreenCaptureService.stopIntent(this));
             updateProtectionButton(false);
@@ -195,8 +190,7 @@ public final class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         if (binding != null) {
-            updateProtectionButton(ScreenCaptureService.isRunning()
-                    || ScreenshotAccessibilityService.isRunning());
+            updateProtectionButton(ScreenCaptureService.isRunning());
             StatsSnapshot stats = new StatsRepository(this).load();
             binding.statsBlocks.setText(String.valueOf(stats.getTotalBlocks()));
             binding.statsTime.setText(StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds()));
