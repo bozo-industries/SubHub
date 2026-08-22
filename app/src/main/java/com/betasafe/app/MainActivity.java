@@ -23,6 +23,9 @@ import com.betasafe.app.browser.BrowserActivity;
 import com.betasafe.app.capture.ExportActivity;
 import com.betasafe.app.commitment.CommitmentActivity;
 import com.betasafe.app.commitment.CommitmentManager;
+import com.betasafe.app.penance.PenanceActivity;
+import com.betasafe.app.penance.PenanceManager;
+import com.betasafe.app.penance.PenanceSnapshot;
 import com.betasafe.app.service.ScreenCaptureService;
 import com.betasafe.app.service.ScreenshotAccessibilityService;
 import com.betasafe.app.settings.SettingsActivity;
@@ -94,6 +97,8 @@ public final class MainActivity extends AppCompatActivity {
         binding.onboardingDismiss.setOnClickListener(view -> markOnboardingSeen());
         binding.buttonCommitmentView.setOnClickListener(view ->
                 startActivity(new Intent(this, CommitmentActivity.class)));
+        binding.buttonPenanceView.setOnClickListener(view ->
+                startActivity(new Intent(this, PenanceActivity.class)));
         boolean seen = getSharedPreferences(SettingsRepository.PREFERENCES_NAME, MODE_PRIVATE)
                 .getBoolean("has_seen_onboarding", false);
         binding.onboardingCard.setVisibility(seen ? View.GONE : View.VISIBLE);
@@ -203,6 +208,13 @@ public final class MainActivity extends AppCompatActivity {
                         CommitmentActivity.formatDuration(
                                 CommitmentManager.remainingMillis(this))));
             }
+            PenanceSnapshot penance = new PenanceManager(this).snapshot(System.currentTimeMillis());
+            binding.penanceStatus.setText(penance.isEnabled()
+                    ? getString(R.string.penance_home_status,
+                            PenanceManager.formatMoney(penance.getDueCents()),
+                            PenanceManager.formatMoney(penance.getMercyCents()),
+                            PenanceManager.formatMoney(penance.getPaidCents()))
+                    : getString(R.string.penance_home_inactive));
             showProgressUnlocks(stats);
         }
     }

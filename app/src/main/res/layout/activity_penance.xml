@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="28dp">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="205dp">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:alpha="0.72"
+                android:contentDescription="@null"
+                android:scaleType="centerCrop"
+                android:src="@drawable/betasafe_gothic_header" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#550D0D14" />
+
+            <TextView
+                android:id="@+id/button_back"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_gravity="top|start"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:text="@string/back"
+                android:textColor="@color/accent"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:layout_width="145dp"
+                android:layout_height="155dp"
+                android:layout_gravity="bottom|start"
+                android:contentDescription="@string/popup_guardian_desc"
+                android:scaleType="centerInside"
+                android:src="@drawable/betasafe_demoness_guardian" />
+
+            <LinearLayout
+                android:layout_width="220dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical|end"
+                android:layout_marginEnd="22dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.1"
+                    android:text="@string/penance_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="21sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:text="@string/penance_subtitle"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/penance_balance_label" />
+
+            <TextView
+                android:id="@+id/due_amount"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:letterSpacing="0.08"
+                android:textColor="@color/text_primary"
+                android:textSize="38sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <TextView android:id="@+id/mercy_amount" style="@style/Widget.BetaSafe.Statistic" android:layout_width="0dp" android:layout_weight="1" />
+                <TextView android:id="@+id/checkout_amount" style="@style/Widget.BetaSafe.Statistic" android:layout_width="0dp" android:layout_weight="1" />
+                <TextView android:id="@+id/paid_amount" style="@style/Widget.BetaSafe.Statistic" android:layout_width="0dp" android:layout_weight="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView style="@style/Widget.BetaSafe.StatisticLabel" android:layout_width="0dp" android:layout_weight="1" android:text="@string/penance_mercy_label" />
+                <TextView style="@style/Widget.BetaSafe.StatisticLabel" android:layout_width="0dp" android:layout_weight="1" android:text="@string/penance_checkout_label" />
+                <TextView style="@style/Widget.BetaSafe.StatisticLabel" android:layout_width="0dp" android:layout_weight="1" android:text="@string/penance_paid_label" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/penance_rules_title" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/penance_rules_body" android:textColor="@color/text_secondary" android:textSize="11sp" />
+
+            <CheckBox
+                android:id="@+id/ledger_enabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:buttonTint="@color/accent"
+                android:text="@string/penance_enabled"
+                android:textColor="@color/text_primary" />
+
+            <EditText android:id="@+id/strike_amount" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:hint="@string/penance_strike_hint" android:inputType="numberDecimal" android:paddingHorizontal="14dp" android:textColor="@color/text_primary" android:textColorHint="@color/text_muted" />
+            <EditText android:id="@+id/daily_cap" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:hint="@string/penance_daily_hint" android:inputType="numberDecimal" android:paddingHorizontal="14dp" android:textColor="@color/text_primary" android:textColorHint="@color/text_muted" />
+            <EditText android:id="@+id/weekly_cap" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:hint="@string/penance_weekly_hint" android:inputType="numberDecimal" android:paddingHorizontal="14dp" android:textColor="@color/text_primary" android:textColorHint="@color/text_muted" />
+            <EditText android:id="@+id/mercy_minutes" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:hint="@string/penance_mercy_hint" android:inputType="number" android:paddingHorizontal="14dp" android:textColor="@color/text_primary" android:textColorHint="@color/text_muted" />
+            <EditText android:id="@+id/backend_url" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:hint="@string/penance_backend_hint" android:inputType="textUri" android:paddingHorizontal="14dp" android:textColor="@color/text_primary" android:textColorHint="@color/text_muted" />
+
+            <CheckBox
+                android:id="@+id/payment_consent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:buttonTint="@color/accent"
+                android:text="@string/penance_consent"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/button_save_rules"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_primary_button"
+                android:text="@string/penance_save_rules"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/penance_checkout_title" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/penance_checkout_body" android:textColor="@color/text_secondary" android:textSize="11sp" />
+            <TextView android:id="@+id/payment_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:gravity="center" android:textColor="@color/accent" android:textStyle="bold" />
+            <Button android:id="@+id/button_settle" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="12dp" android:background="@drawable/bg_primary_button" android:text="@string/penance_settle" android:textColor="@color/text_primary" android:textStyle="bold" />
+            <Button android:id="@+id/button_resume_checkout" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="8dp" android:text="@string/penance_resume" android:visibility="gone" />
+            <Button android:id="@+id/button_cancel_checkout" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="8dp" android:text="@string/penance_cancel_checkout" android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/penance_mercy_title" />
+            <Button android:id="@+id/button_forgive_latest" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="10dp" android:text="@string/penance_forgive_latest" />
+            <TextView android:id="@+id/button_clear_unpaid" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="10dp" android:background="@drawable/bg_card" android:clickable="true" android:focusable="true" android:gravity="center" android:text="@string/penance_clear_unpaid" android:textColor="@color/accent" android:textStyle="bold" />
+            <Button android:id="@+id/button_test_strike" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="8dp" android:text="@string/penance_test_strike" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/penance_history_title" />
+            <TextView android:id="@+id/history" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:lineSpacingExtra="4dp" android:textColor="@color/text_secondary" android:textSize="11sp" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="@string/penance_security_note" android:textColor="@color/text_muted" android:textSize="10sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
