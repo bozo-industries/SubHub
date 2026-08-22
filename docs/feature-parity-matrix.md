@@ -24,14 +24,14 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | Feature | APK evidence | BetaSafe status |
 | --- | --- | --- |
 | Hardened WebView, mixed-content/file isolation, Safe Browsing | `MainActivity.setupWebView` | Working |
-| DOM pre-blur, selector filter, background stripping | `DomController` | Pre-blur working; toggles/remaining filters to implement |
+| DOM pre-blur, selector filter, background stripping | `DomController` | Working with per-feature shield toggles; API 35 dialog and injection flow emulator-validated |
 | Request ad blocking | `AdBlocker` | Working baseline |
-| Multiple tabs and per-tab close/switch | `BrowserTab`, tab strip | To implement |
-| Incognito tab behavior | `BrowserTab.isIncognito` | To implement without claiming OS-level profile isolation |
-| Bookmarks | `browser_bookmarks` preferences | To implement |
-| Search suggestions | Google Firefox suggestion endpoint | To implement with bounded/redacted requests |
-| File and image downloads; censor-before-save | WebView download handler | To implement |
-| Full-screen media | WebChromeClient custom-view methods | To implement |
+| Multiple tabs and per-tab close/switch | `BrowserTab`, tab strip | Working; three-tab normal/private switch flow emulator-validated |
+| Incognito tab behavior | `BrowserTab.isIncognito` | Implemented as accurately labeled private tabs with DOM storage/form/cache/history retention disabled; Android WebView cookie-jar limitation is disclosed |
+| Bookmarks | `browser_bookmarks` preferences | Working local add/open/remove/deduplicate store; instrumented persistence contract added |
+| Search suggestions | Google Firefox suggestion endpoint | Implemented as opt-in only, HTTPS, 3-second timeouts, 64 KiB response cap, and five-result cap |
+| File and image downloads; censor-before-save | WebView download handler | Implemented with DownloadManager and a 25 MiB bounded on-device censor-before-save route; live remote-download check pending |
+| Full-screen media | WebChromeClient custom-view methods | Implemented; live media-site check pending |
 
 ## Configuration and extensions
 
