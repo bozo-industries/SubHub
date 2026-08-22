@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat;
 
 import com.betasafe.app.databinding.ActivityMainBinding;
 import com.betasafe.app.service.ScreenCaptureService;
+import com.betasafe.app.settings.SettingsActivity;
 import com.google.android.material.snackbar.Snackbar;
 
 /** Main source UI and explicit permission flow for starting on-device protection. */
@@ -61,7 +62,8 @@ public final class MainActivity extends AppCompatActivity {
 
         binding.buttonProtection.setOnClickListener(this::toggleProtection);
         binding.tabHome.setOnClickListener(view -> selectTab(binding.tabHome, R.string.tab_home));
-        binding.tabSettings.setOnClickListener(view -> selectTab(binding.tabSettings, R.string.tab_settings));
+        binding.tabSettings.setOnClickListener(
+                view -> startActivity(new Intent(this, SettingsActivity.class)));
         binding.tabBrowser.setOnClickListener(view -> selectTab(binding.tabBrowser, R.string.tab_browser));
         binding.tabHelp.setOnClickListener(view -> selectTab(binding.tabHelp, R.string.tab_help));
     }

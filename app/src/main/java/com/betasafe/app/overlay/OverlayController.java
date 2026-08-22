@@ -6,6 +6,7 @@ import android.view.Gravity;
 import android.view.WindowManager;
 
 import com.betasafe.app.detection.TrackedObject;
+import com.betasafe.app.settings.CensorAppearance;
 
 import java.util.List;
 
@@ -40,6 +41,10 @@ public final class OverlayController implements AutoCloseable {
 
     public void update(List<TrackedObject> tracks, int captureWidth, int captureHeight) {
         view.setTracks(tracks, captureWidth, captureHeight);
+    }
+
+    public void setAppearance(CensorAppearance appearance) {
+        view.setAppearance(appearance);
     }
 
     @Override
