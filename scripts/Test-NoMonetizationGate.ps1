@@ -6,9 +6,12 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $resolvedPrivateRoot = [IO.Path]::GetFullPath($PrivateRoot)
-$smaliRoot = Join-Path $resolvedPrivateRoot 'apktool\smali'
-if (-not (Test-Path -LiteralPath $smaliRoot -PathType Container)) {
-    throw "No decoded smali tree found at: $smaliRoot"
+$apktoolRoot = Join-Path $resolvedPrivateRoot 'apktool'
+$smaliRoots = @(Get-ChildItem -LiteralPath $apktoolRoot -Directory -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -like 'smali*'
+})
+if ($smaliRoots.Count -eq 0) {
+    throw "No decoded smali trees found at: $apktoolRoot"
 }
 
 $rgInfo = Get-Command 'rg' -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -38,15 +41,17 @@ $indicators = @(
 
 $findings = @()
 foreach ($indicator in $indicators) {
-    $matchesForIndicator = @(& $rgInfo.Source -n -i -F --glob '*.smali' $indicator $smaliRoot 2>$null)
-    $rgExit = $LASTEXITCODE
-    if ($rgExit -notin @(0, 1)) {
-        throw "rg failed while checking '$indicator' with exit code $rgExit."
-    }
-    foreach ($matchLine in $matchesForIndicator) {
-        $findings += [pscustomobject]@{
-            Indicator = $indicator
-            Evidence = $matchLine
+    foreach ($smaliRoot in $smaliRoots) {
+        $matchesForIndicator = @(& $rgInfo.Source -n -i -F --glob '*.smali' $indicator $smaliRoot.FullName 2>$null)
+        $rgExit = $LASTEXITCODE
+        if ($rgExit -notin @(0, 1)) {
+            throw "rg failed while checking '$indicator' in '$($smaliRoot.Name)' with exit code $rgExit."
+        }
+        foreach ($matchLine in $matchesForIndicator) {
+            $findings += [pscustomobject]@{
+                Indicator = $indicator
+                Evidence = $matchLine
+            }
         }
     }
 }
@@ -58,4 +63,4 @@ if ($findings.Count -gt 0) {
     throw "Monetization-gate audit failed: $summary. Review the decoded tree before building."
 }
 
-Write-Host "Monetization-gate audit passed: $($indicators.Count) indicators absent."
+Write-Host "Monetization-gate audit passed: $($indicators.Count) indicators absent across $($smaliRoots.Count) DEX tree(s)."
