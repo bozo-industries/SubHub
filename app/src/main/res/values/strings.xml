@@ -43,5 +43,9 @@
     <string name="browser_go">GO</string>
     <string name="browser_address_hint">Search or enter address</string>
     <string name="browser_protected">PRE-BLUR + AD BLOCKING ACTIVE</string>
+    <string name="stats_title">LIFETIME PROTECTION</string>
+    <string name="stats_blocks">BLOCKS</string>
+    <string name="stats_time">PROTECTED</string>
+    <string name="stats_sessions">SESSIONS</string>
     <string name="foundation_ready">PROTECTION PIPELINE READY</string>
 </resources>

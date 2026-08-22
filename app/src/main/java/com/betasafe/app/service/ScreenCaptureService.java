@@ -33,6 +33,7 @@ import com.betasafe.app.detection.ObjectTracker;
 import com.betasafe.app.detection.TrackedObject;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.settings.SettingsRepository;
+import com.betasafe.app.stats.StatsRepository;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -62,6 +63,7 @@ public final class ScreenCaptureService extends Service {
     private ObjectTracker tracker;
     private OverlayController overlay;
     private SettingsRepository settings;
+    private StatsRepository stats;
 
     public static Intent startIntent(Context context, int resultCode, Intent resultData) {
         return new Intent(context, ScreenCaptureService.class)
@@ -82,6 +84,7 @@ public final class ScreenCaptureService extends Service {
         createNotificationChannel();
         executor = Executors.newSingleThreadScheduledExecutor();
         settings = new SettingsRepository(this);
+        stats = new StatsRepository(this);
         settings.preferences().registerOnSharedPreferenceChangeListener(settingsListener);
     }
 
@@ -117,6 +120,7 @@ public final class ScreenCaptureService extends Service {
         }, mainHandler);
 
         running = true;
+        stats.startSession();
         overlay = new OverlayController(this);
         overlay.setAppearance(settings.loadAppearance());
         overlay.show();
@@ -161,6 +165,7 @@ public final class ScreenCaptureService extends Service {
             if (frame == null) return;
             List<Detection> detections = detector.detect(frame);
             List<TrackedObject> tracks = tracker.update(detections);
+            stats.onTracks(tracks);
             int width = capture.getCaptureWidth();
             int height = capture.getCaptureHeight();
             mainHandler.post(() -> {
@@ -226,6 +231,7 @@ public final class ScreenCaptureService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        if (stats != null) stats.endSession();
         if (settings != null) {
             settings.preferences().unregisterOnSharedPreferenceChangeListener(settingsListener);
         }

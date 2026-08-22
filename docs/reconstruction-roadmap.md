@@ -22,7 +22,7 @@ The reconstruction initially targets SDK 35 because that is the installed local 
 3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering. **MediaProjection path implemented; device validation and accessibility path pending.**
 4. Settings, censor styles, custom images, reverse censoring, and export rendering.
 5. Safe browser, tabs, bookmarks/incognito behavior, DOM censoring, and ad blocking. **Single-tab hardened browser, DOM pre-blur, and ad blocking implemented; tab/bookmark/incognito parity pending.**
-6. Statistics, achievements, profiles, packs, diagnostics, and popup features.
+6. Statistics, achievements, profiles, packs, diagnostics, and popup features. **Local session/block/time statistics implemented; remaining feature groups pending.**
 7. Device/emulator parity testing and performance presets.
 8. Consent-based commitment lock, only after the reconstructed app works.
 
