@@ -91,6 +91,32 @@
     <string name="browser_go">GO</string>
     <string name="browser_address_hint">Search or enter address</string>
     <string name="browser_protected">PRE-BLUR + AD BLOCKING ACTIVE</string>
+    <string name="browser_new_tab">+</string>
+    <string name="browser_private">PRIVATE</string>
+    <string name="browser_private_notice">PRIVATE* — CACHE/HISTORY OFF</string>
+    <string name="browser_private_title">PRIVATE WEBVIEW TAB</string>
+    <string name="browser_private_explanation">Private tabs disable DOM storage, form saving, cache retention, and retained history, then clear their WebView when closed. Android WebView still uses a process-wide first-party cookie jar, so this is not a separate browser profile.</string>
+    <string name="browser_private_open">OPEN PRIVATE TAB</string>
+    <string name="browser_tab_private_title">◆ %1$s</string>
+    <string name="browser_tab_limit">Twelve tabs is the current limit.</string>
+    <string name="browser_bookmarks">BOOKMARKS</string>
+    <string name="browser_shields">SHIELDS</string>
+    <string name="browser_add_bookmark">ADD CURRENT</string>
+    <string name="browser_remove_bookmark">REMOVE…</string>
+    <string name="browser_no_bookmarks">No bookmarks yet.</string>
+    <string name="browser_image_download">IMAGE DOWNLOAD</string>
+    <string name="browser_censor_and_save">CENSOR &amp; SAVE</string>
+    <string name="browser_download_original">DOWNLOAD ORIGINAL</string>
+    <string name="browser_download_started">Download started.</string>
+    <string name="browser_censoring_download">Downloading and censoring on device…</string>
+    <string name="browser_censored_saved">Censored image saved to Pictures/BetaSafe/Browser.</string>
+    <string name="browser_download_failed">Download could not be completed.</string>
+    <string-array name="browser_shield_options">
+        <item>Pre-blur page images and video</item>
+        <item>Remove CSS background images</item>
+        <item>Use site-specific sensitive-media filters</item>
+        <item>Online search suggestions (sends typed queries to Google)</item>
+    </string-array>
     <string name="stats_title">LIFETIME PROTECTION</string>
     <string name="stats_blocks">BLOCKS</string>
     <string name="stats_time">PROTECTED</string>

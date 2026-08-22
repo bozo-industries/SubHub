@@ -19,6 +19,7 @@ public final class StatsRepository {
     private static final String KEY_PEAK_SESSION_BLOCKS = "peak_session_blocks";
     private static final String KEY_LONGEST_SESSION = "longest_session_seconds";
     private static final String KEY_EXPORTED_IMAGES = "exported_images_count";
+    private static final String KEY_BROWSER_PAGES = "browser_pages_visited";
 
     private final SharedPreferences preferences;
     private final Set<Integer> seenTrackIds = new HashSet<>();
@@ -88,5 +89,11 @@ public final class StatsRepository {
         preferences.edit().putInt(
                 KEY_EXPORTED_IMAGES,
                 preferences.getInt(KEY_EXPORTED_IMAGES, 0) + count).apply();
+    }
+
+    public synchronized void addBrowserPage() {
+        preferences.edit().putInt(
+                KEY_BROWSER_PAGES,
+                preferences.getInt(KEY_BROWSER_PAGES, 0) + 1).apply();
     }
 }
