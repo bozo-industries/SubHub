@@ -24,7 +24,7 @@ Detailed evidence and completion status are maintained in [Feature Parity Matrix
 3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering. **Both consent-driven capture paths, tracking, and overlays are implemented and API 35 device-validated.**
 4. Settings, censor styles, custom images, reverse censoring, and export rendering. **Implemented; expanded live visual-corpus validation remains.**
 5. Safe browser, tabs, bookmarks/incognito behavior, DOM censoring, and ad blocking. **Implemented, including bounded downloads and accurately disclosed private-tab limits; broader live-site validation remains.**
-6. Statistics, achievements, profiles, packs, diagnostics, and popup features. **Statistics, 20 milestones, 42 achievements, profiles, hardened packs, and local-only diagnostics are implemented and API 35 validated; Popup Storm remains pending.**
+6. Statistics, achievements, profiles, packs, diagnostics, and popup features. **Statistics, 20 milestones, 42 achievements, profiles, hardened packs, local-only diagnostics, and safely constrained Popup Storm are implemented and API 35 validated.**
 7. Device/emulator parity testing and performance presets. **Baseline API 35 smoke test complete; physical-device and wider performance coverage remain.**
 8. Consent-based commitment lock, only after the reconstructed app works.
 

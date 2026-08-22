@@ -21,6 +21,7 @@ import com.betasafe.app.pack.LockedSettings;
 import com.betasafe.app.pack.PackManager;
 import com.betasafe.app.pack.PacksActivity;
 import com.betasafe.app.profiles.ProfilesActivity;
+import com.betasafe.app.popup.PopupStormActivity;
 import com.betasafe.app.stats.StatsRepository;
 
 import java.util.LinkedHashSet;
@@ -171,6 +172,8 @@ public final class SettingsActivity extends AppCompatActivity {
                 startActivity(new Intent(this, ProfilesActivity.class)));
         binding.buttonPacks.setOnClickListener(view ->
                 startActivity(new Intent(this, PacksActivity.class)));
+        binding.buttonPopupStorm.setOnClickListener(view ->
+                startActivity(new Intent(this, PopupStormActivity.class)));
         binding.buttonDiagnostics.setOnClickListener(view ->
                 startActivity(new Intent(this, DiagnosticsActivity.class)));
     }

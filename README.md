@@ -4,7 +4,7 @@ BetaSafe is a private Android reconstruction workspace for the licensed Beta Blo
 
 The primary workstream is now a clean, human-editable Android source reconstruction under `app/`. Raw JADX output remains private reference material; tracked code is written and maintained as ordinary source. See [Reconstruction Roadmap](docs/reconstruction-roadmap.md).
 
-The repository contains only sanitized notes and repeatable tooling. The purchased APK, decompiled code, model files, signing keys, and rebuilt APKs stay outside version control in the adjacent private workspace:
+The repository contains sanitized notes, repeatable tooling, maintained source, and original project-owned art. The purchased APK, decompiled code, vendor art, model files, signing keys, and rebuilt APKs stay outside version control in the adjacent private workspace:
 
 ```text
 C:\Users\user\Code\BetaSafe-private\
@@ -22,7 +22,8 @@ C:\Users\user\Code\BetaSafe-private\
 - JADX 1.5.5: usable, with method-level failures that require smali fallback
 - Monetization-gate audit: no billing/paywall/entitlement code found; every scripted build rechecks this invariant
 - Clean source baseline: builds, installs, and runs independently as `com.betasafe.app`
-- API 35 emulator smoke test: passed for UI, persisted settings, WebView, MediaProjection consent, NNAPI inference, overlay service, and clean stop
+- API 35 emulator suite: passed for UI/settings, browser workflows, both consent-driven capture modes, NNAPI inference, censor overlays/export, profiles/packs, diagnostics, statistics/achievements, Popup Storm, and clean stop behavior
+- Visual identity: original generated purple-demoness guardian, gothic header, and Popup Storm sample are tracked project assets; vendor badges and detector models remain private imports
 
 A patched APK signed with a new local key cannot update an installation signed by the vendor key. Export any settings you need before uninstalling the original, or change the package ID so both builds can coexist. Keep the same private local key for every later BetaSafe update.
 
@@ -73,7 +74,7 @@ $env:BETASAFE_KEY_PASSWORD = '<private value>'
 Remove-Item Env:\BETASAFE_KEYSTORE_PASSWORD, Env:\BETASAFE_KEY_PASSWORD
 ```
 
-See [Architecture](docs/architecture.md) for code maps and [Static Evidence](docs/static-evidence.md) for the redacted extraction record.
+See [Architecture](docs/architecture.md) for code maps, [Generated Visual Assets](docs/generated-assets.md) for art provenance and prompt summaries, and [Static Evidence](docs/static-evidence.md) for the redacted extraction record.
 
 ## Boundaries
 

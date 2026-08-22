@@ -57,4 +57,12 @@
         <item name="android:textSize">9sp</item>
         <item name="android:textStyle">bold</item>
     </style>
+
+    <style name="Widget.BetaSafe.SectionHeader" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/accent</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
 </resources>
