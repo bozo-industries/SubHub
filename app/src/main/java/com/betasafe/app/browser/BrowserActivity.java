@@ -53,7 +53,6 @@ import com.betasafe.app.stats.StatsRepository;
 import org.json.JSONArray;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -487,27 +486,9 @@ public final class BrowserActivity extends AppCompatActivity {
     }
 
     private byte[] downloadBounded(String url, String userAgent) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        connection.setConnectTimeout(10000);
-        connection.setReadTimeout(15000);
-        connection.setInstanceFollowRedirects(true);
-        if (userAgent != null) connection.setRequestProperty("User-Agent", userAgent);
         String cookies = CookieManager.getInstance().getCookie(url);
-        if (cookies != null) connection.setRequestProperty("Cookie", cookies);
-        try (InputStream input = connection.getInputStream();
-             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[8192];
-            int total = 0;
-            int read;
-            while ((read = input.read(buffer)) >= 0) {
-                total += read;
-                if (total > MAX_IMAGE_DOWNLOAD_BYTES) throw new IllegalArgumentException("Image too large");
-                output.write(buffer, 0, read);
-            }
-            return output.toByteArray();
-        } finally {
-            connection.disconnect();
-        }
+        return BoundedHttpClient.download(
+                url, userAgent, cookies, MAX_IMAGE_DOWNLOAD_BYTES);
     }
 
     private void saveCensoredDownload(Bitmap bitmap) throws Exception {
@@ -548,7 +529,7 @@ public final class BrowserActivity extends AppCompatActivity {
         }
     }
 
-    private void showFullscreen(View view, WebChromeClient.CustomViewCallback callback) {
+    void showFullscreen(View view, WebChromeClient.CustomViewCallback callback) {
         if (fullscreenView != null) hideFullscreen();
         fullscreenView = view;
         fullscreenCallback = callback;
@@ -557,7 +538,7 @@ public final class BrowserActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     }
 
-    private void hideFullscreen() {
+    void hideFullscreen() {
         if (fullscreenView == null) return;
         binding.browserRoot.removeView(fullscreenView);
         fullscreenView = null;
