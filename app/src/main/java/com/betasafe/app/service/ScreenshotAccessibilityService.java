@@ -16,6 +16,7 @@ import com.betasafe.app.detection.DetectionEngine;
 import com.betasafe.app.detection.DetectorConfig;
 import com.betasafe.app.detection.ObjectTracker;
 import com.betasafe.app.detection.TrackedObject;
+import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** User-enabled screenshot capture mode backed by Android's accessibility consent screen. */
 public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final String TAG = "ScreenshotA11y";
+    private static final String DIAGNOSTICS_MODE = "Accessibility screenshot";
     private static volatile boolean running;
 
     private final AtomicBoolean processing = new AtomicBoolean();
@@ -72,8 +74,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void initializePipeline() {
         try {
             DetectorConfig config = settings.loadDetectorConfig();
+            DiagnosticsRepository.begin(DIAGNOSTICS_MODE, config.getInferenceResolution());
             detector = new DetectionEngine(this, config);
             detector.initialize();
+            DiagnosticsRepository.ready(DIAGNOSTICS_MODE, detector.getActiveProvider(),
+                    detector.getActiveModel(), config.getInferenceResolution());
             tracker = new ObjectTracker(config);
             worker.scheduleWithFixedDelay(
                     this::requestScreenshot,
@@ -81,6 +86,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     Math.max(500, config.getDetectionIntervalMs()),
                     TimeUnit.MILLISECONDS);
         } catch (Exception error) {
+            DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
             Log.e(TAG, "Could not initialize accessibility capture", error);
             disableSelf();
         }
@@ -97,6 +103,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
             @Override
             public void onFailure(int errorCode) {
+                DiagnosticsRepository.failCode(
+                        DIAGNOSTICS_MODE, "Screenshot error", errorCode);
                 Log.w(TAG, "Accessibility screenshot failed with code " + errorCode);
                 processing.set(false);
             }
@@ -123,11 +131,18 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             Bitmap overlayFrame = frame.copy(Bitmap.Config.ARGB_8888, false);
             int width = frame.getWidth();
             int height = frame.getHeight();
+            DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
+                    DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
+            String diagnosticText = diagnosticsOverlayText(diagnostics);
             main.post(() -> {
-                if (overlay != null) overlay.update(tracks, width, height, overlayFrame);
+                if (overlay != null) {
+                    overlay.setDiagnostics(diagnosticText);
+                    overlay.update(tracks, width, height, overlayFrame);
+                }
                 else overlayFrame.recycle();
             });
         } catch (Exception error) {
+            DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
             Log.w(TAG, "Could not process accessibility screenshot", error);
         } finally {
             if (frame != null && !frame.isRecycled()) frame.recycle();
@@ -140,7 +155,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void reloadSettings() {
         if (settings == null) return;
         main.post(() -> {
-            if (overlay != null) overlay.setAppearance(settings.loadAppearance());
+            if (overlay != null) {
+                overlay.setAppearance(settings.loadAppearance());
+                overlay.setDiagnostics(diagnosticsOverlayText());
+            }
         });
         DetectorConfig config = settings.loadDetectorConfig();
         if (detector != null) detector.setConfig(config);
@@ -162,9 +180,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         // Android may temporarily interrupt feedback; the scheduled capture loop remains owned here.
     }
 
+    private String diagnosticsOverlayText() {
+        return diagnosticsOverlayText(DiagnosticsRepository.snapshot());
+    }
+
+    private String diagnosticsOverlayText(DiagnosticsRepository.Snapshot snapshot) {
+        return settings != null && settings.preferences().getBoolean(
+                DiagnosticsRepository.PREF_OVERLAY, false)
+                ? DiagnosticsRepository.overlayText(snapshot) : "";
+    }
+
     @Override
     public void onDestroy() {
         running = false;
+        DiagnosticsRepository.stop(DIAGNOSTICS_MODE);
         if (settings != null) {
             settings.preferences().unregisterOnSharedPreferenceChangeListener(listener);
         }

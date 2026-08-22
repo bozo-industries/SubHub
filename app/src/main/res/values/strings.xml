@@ -86,6 +86,17 @@
     <string name="delete">DELETE</string>
     <string name="settings_saved">Changes apply live while protection is running.</string>
     <string name="configuration_title">CONFIGURATION</string>
+    <string name="manage_diagnostics">LOCAL DIAGNOSTICS</string>
+    <string name="diagnostics_title">DIAGNOSTICS</string>
+    <string name="diagnostics_desc">Live, process-local health information. No diagnostics server is opened, and no URLs, phrases, private files, or secrets are collected.</string>
+    <string name="diagnostics_runtime">RUNTIME</string>
+    <string name="diagnostics_performance">PERFORMANCE</string>
+    <string name="diagnostics_configuration">DETECTOR CONFIGURATION</string>
+    <string name="diagnostics_permissions">PERMISSIONS &amp; SERVICES</string>
+    <string name="diagnostics_build">BUILD &amp; DEVICE</string>
+    <string name="diagnostics_overlay">Touch-through performance overlay</string>
+    <string name="diagnostics_overlay_desc">Shows provider, inference time, region count, and frame size while protection is running. It never accepts touches.</string>
+    <string name="diagnostics_refresh">REFRESH NOW</string>
     <string name="manage_profiles">PROFILES &amp; SETTINGS BACKUP</string>
     <string name="manage_packs">CONFIGURATION PACKS</string>
     <string name="pack_lock_status">Active pack controls %1$d setting(s).</string>

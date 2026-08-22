@@ -31,6 +31,7 @@ import com.betasafe.app.detection.DetectionEngine;
 import com.betasafe.app.detection.DetectorConfig;
 import com.betasafe.app.detection.ObjectTracker;
 import com.betasafe.app.detection.TrackedObject;
+import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
@@ -50,6 +51,7 @@ public final class ScreenCaptureService extends Service {
     private static final String ACTION_STOP = "com.betasafe.app.action.STOP";
     private static final String EXTRA_RESULT_CODE = "projection_result_code";
     private static final String EXTRA_RESULT_DATA = "projection_result_data";
+    private static final String DIAGNOSTICS_MODE = "MediaProjection";
     private static volatile boolean running;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -132,8 +134,11 @@ public final class ScreenCaptureService extends Service {
     private void startPipeline() {
         try {
             DetectorConfig config = settings.loadDetectorConfig();
+            DiagnosticsRepository.begin(DIAGNOSTICS_MODE, config.getInferenceResolution());
             detector = new DetectionEngine(this, config);
             detector.initialize();
+            DiagnosticsRepository.ready(DIAGNOSTICS_MODE, detector.getActiveProvider(),
+                    detector.getActiveModel(), config.getInferenceResolution());
             tracker = new ObjectTracker(config);
 
             DisplayInfo display = displayInfo();
@@ -151,6 +156,7 @@ public final class ScreenCaptureService extends Service {
                     Math.max(16, config.getDetectionIntervalMs()),
                     TimeUnit.MILLISECONDS);
         } catch (Exception error) {
+            DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
             Log.e(TAG, "Could not start on-device protection", error);
             stopSelf();
         }
@@ -158,6 +164,7 @@ public final class ScreenCaptureService extends Service {
 
     private void reloadSettings() {
         if (overlay != null) overlay.setAppearance(settings.loadAppearance());
+        if (overlay != null) overlay.setDiagnostics(diagnosticsOverlayText());
         DetectorConfig config = settings.loadDetectorConfig();
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
@@ -174,6 +181,9 @@ public final class ScreenCaptureService extends Service {
             stats.onTracks(tracks);
             int width = capture.getCaptureWidth();
             int height = capture.getCaptureHeight();
+            DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
+                    DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
+            String diagnosticText = diagnosticsOverlayText(diagnostics);
             Bitmap overlayFrame = frame.copy(Bitmap.Config.ARGB_8888, false);
             if (firstFrameReported.compareAndSet(false, true)) {
                 Log.i(TAG, "First frame processed with "
@@ -182,10 +192,14 @@ public final class ScreenCaptureService extends Service {
                         + width + "x" + height);
             }
             mainHandler.post(() -> {
-                if (overlay != null) overlay.update(tracks, width, height, overlayFrame);
+                if (overlay != null) {
+                    overlay.setDiagnostics(diagnosticText);
+                    overlay.update(tracks, width, height, overlayFrame);
+                }
                 else overlayFrame.recycle();
             });
         } catch (Exception error) {
+            DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
             Log.w(TAG, "Frame processing failed", error);
         } finally {
             if (frame != null) frame.recycle();
@@ -211,6 +225,16 @@ public final class ScreenCaptureService extends Service {
         @SuppressWarnings("deprecation")
         Intent value = source.getParcelableExtra(EXTRA_RESULT_DATA);
         return value;
+    }
+
+    private String diagnosticsOverlayText() {
+        return diagnosticsOverlayText(DiagnosticsRepository.snapshot());
+    }
+
+    private String diagnosticsOverlayText(DiagnosticsRepository.Snapshot snapshot) {
+        return settings != null && settings.preferences().getBoolean(
+                DiagnosticsRepository.PREF_OVERLAY, false)
+                ? DiagnosticsRepository.overlayText(snapshot) : "";
     }
 
     private Notification buildNotification() {
@@ -245,6 +269,7 @@ public final class ScreenCaptureService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        DiagnosticsRepository.stop(DIAGNOSTICS_MODE);
         if (stats != null) stats.endSession();
         if (settings != null) {
             settings.preferences().unregisterOnSharedPreferenceChangeListener(settingsListener);

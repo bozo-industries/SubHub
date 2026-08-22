@@ -51,6 +51,10 @@
             android:name=".pack.PacksActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".diagnostics.DiagnosticsActivity"
+            android:exported="false" />
+
         <service
             android:name=".service.ScreenCaptureService"
             android:exported="false"
