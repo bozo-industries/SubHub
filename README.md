@@ -20,6 +20,8 @@ C:\Users\user\Code\BetaSafe-private\
 - JADX 1.5.5: usable, with method-level failures that require smali fallback
 - Device smoke test: pending; no ADB device was connected during setup
 
+A patched APK signed with a new local key cannot update an installation signed by the vendor key. Export any settings you need before uninstalling the original, or change the package ID so both builds can coexist. Keep the same private local key for every later BetaSafe update.
+
 ## Working with the APK
 
 Browse reconstructed logic under `BetaSafe-private\jadx\sources\com\betablocker\lite`. Make round-trip changes in `BetaSafe-private\apktool`, using the JADX tree only as a guide.
