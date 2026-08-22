@@ -18,13 +18,15 @@ The reconstruction initially targets SDK 35 because that is the installed local 
 ## Parity milestones
 
 1. Compiling styled application shell. **Complete.**
-2. Detector models, class mapping, preprocessing, ONNX execution, postprocessing, and unit tests. **Core implementation complete; device inference validation pending.**
-3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering. **MediaProjection path implemented; device validation and accessibility path pending.**
+2. Detector models, class mapping, preprocessing, ONNX execution, postprocessing, and unit tests. **Core implementation complete and validated on an API 35 emulator with the licensed FP16 model and NNAPI.**
+3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering. **MediaProjection, tracking, and overlay paths are implemented and device-validated; the alternate accessibility capture path remains a parity extension.**
 4. Settings, censor styles, custom images, reverse censoring, and export rendering.
 5. Safe browser, tabs, bookmarks/incognito behavior, DOM censoring, and ad blocking. **Single-tab hardened browser, DOM pre-blur, and ad blocking implemented; tab/bookmark/incognito parity pending.**
 6. Statistics, achievements, profiles, packs, diagnostics, and popup features. **Local session/block/time statistics implemented; remaining feature groups pending.**
-7. Device/emulator parity testing and performance presets.
+7. Device/emulator parity testing and performance presets. **Baseline API 35 smoke test complete; physical-device and wider performance coverage remain.**
 8. Consent-based commitment lock, only after the reconstructed app works.
+
+The source baseline is now independently buildable, installable, and operational. Milestones 4–7 describe additional feature parity with the vendor build rather than prerequisites for editing or running the reconstructed protection pipeline.
 
 ## Artifact boundary
 

@@ -23,6 +23,8 @@ MainActivity
 
 `DetectionEngine` accepts screen bitmaps, runs an 18-class detector, applies confidence filtering/NMS, and produces bounding boxes. The tracker stabilizes detections between frames. Rendering is split between system overlays and image/export rendering.
 
+The clean source baseline currently implements the MediaProjection branch as ordinary Java source under `app/src/main/java/com/betasafe/app`. Android's own consent dialog authorizes every capture session; the app does not silently grant or retain screen-capture authority. The accessibility, export-rendering, and reverse-censor branches in the diagram are recovered vendor behaviors reserved for later parity work.
+
 ## High-value code areas
 
 | Area | Readable JADX path | Rebuildable APKTool path |
@@ -57,10 +59,12 @@ No Retrofit-style product backend or remote license API was found in the applica
 
 The app also contains a diagnostics HTTP server on TCP port 8765. It constructs `ServerSocket(8765)`, exposes `/`, `/data`, and `/reset`, and has no apparent authentication. Because the socket is not explicitly bound to loopback, treat it as LAN-exposed whenever started. A future maintained implementation should remove it from release builds or bind it to loopback with explicit opt-in and authentication.
 
+The clean source reconstruction intentionally omits that diagnostics server. It also contains no billing, payment, premium, entitlement, or remote-license implementation; the purchased APK's own app code did not contain such a gate in the audited DEX trees.
+
 ## JADX limitations
 
 JADX emitted method-level errors in application code including `MainActivity`, `DetectionEngine`, both capture services, `CensorRenderer`, `ScreenCaptureManager`, `CensorBoxView`, pack parsing/management, and popup management. The Java files remain useful around those failures, but edits to affected methods must be derived from their smali implementation.
 
 ## Recommended next phase
 
-Start with one visible, reversible change (for example app branding or a censor-style default), rebuild, install on a test Android 15/16 device or emulator, and exercise both capture modes. Once behavior is proven, decide whether to keep patching smali or migrate selected subsystems into a clean Kotlin/Gradle app.
+Use the clean source tree for maintained changes. Continue optional parity work—custom-image rendering, browser tabs/bookmarks/incognito, profiles/packs, and the accessibility capture path—then test on physical Android 15/16 hardware before adding the separately designed consent-based commitment lock.

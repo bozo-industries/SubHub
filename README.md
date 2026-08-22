@@ -21,7 +21,8 @@ C:\Users\user\Code\BetaSafe-private\
 - Local v2/v3 signing and verification: passing
 - JADX 1.5.5: usable, with method-level failures that require smali fallback
 - Monetization-gate audit: no billing/paywall/entitlement code found; every scripted build rechecks this invariant
-- Device smoke test: pending; no ADB device was connected during setup
+- Clean source baseline: builds, installs, and runs independently as `com.betasafe.app`
+- API 35 emulator smoke test: passed for UI, persisted settings, WebView, MediaProjection consent, NNAPI inference, overlay service, and clean stop
 
 A patched APK signed with a new local key cannot update an installation signed by the vendor key. Export any settings you need before uninstalling the original, or change the package ID so both builds can coexist. Keep the same private local key for every later BetaSafe update.
 
@@ -59,6 +60,8 @@ To produce a detector-capable local APK, import the two licensed models directly
 ```
 
 The editable debug APK is written to `app\build\outputs\apk\debug\app-debug.apk` with package ID `com.betasafe.app`, so it can coexist with the vendor-signed installation.
+
+See [API 35 Device Smoke Test](docs/device-smoke-test.md) for the verified runtime path and the remaining physical-device coverage.
 
 To sign, provide a private keystore path and process-scoped password variables. Password values are never passed as command-line arguments:
 

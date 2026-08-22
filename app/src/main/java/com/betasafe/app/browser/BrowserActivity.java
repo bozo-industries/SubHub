@@ -17,6 +17,9 @@ import android.webkit.WebViewClient;
 import androidx.annotation.Nullable;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.betasafe.app.databinding.ActivityBrowserBinding;
 
@@ -30,6 +33,11 @@ public final class BrowserActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityBrowserBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (view, windowInsets) -> {
+            Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return windowInsets;
+        });
 
         WebSettings settings = binding.webView.getSettings();
         settings.setJavaScriptEnabled(true);
