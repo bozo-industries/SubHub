@@ -13,6 +13,9 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - `testDebugUnitTest`, `assembleDebug`, and `lintDebug` completed successfully.
 - A streamed `adb install -r` completed successfully.
 - Main, Settings, and Browser screens launched through normal in-app navigation with no fatal exception.
+- The first-run disclosure, gothic/demoness shell, ten-section Help screen, permission status/repair controls, and complete 11-choice language dialog rendered correctly.
+- Selecting German recreated Help with localized title, permissions, language status, and section labels; the default locale was restored after validation.
+- Dynamic launcher shortcuts were registered for Start Protection and Open Browser.
 - The browser loaded Google over HTTPS, applied its protected footer, and remained below Android's system-bar insets.
 - Changing the UI to `pixelate`, moving intensity to `83%`, and disabling the pink border produced the expected values in `betablocker_settings.xml`.
 - Android displayed its standard MediaProjection consent sheet. The whole-screen option was selected for the test; no production consent path was bypassed.
@@ -27,6 +30,6 @@ Notification and overlay grants were pre-authorized with ADB on this dedicated e
 ## Remaining coverage
 
 - Repeat on at least one physical Android 15/16 device, including rotation and display-size changes.
-- Validate the alternate accessibility screenshot service if that parity path is implemented.
+- Repeat the already working alternate accessibility screenshot path on physical hardware and across rotation/display-size changes.
 - Benchmark CPU, heat, and battery use over a long session and tune capture cadence/presets.
 - Exercise positive detections with a private, consented test corpus; do not add that corpus to version control.

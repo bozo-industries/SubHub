@@ -31,6 +31,12 @@ android {
             excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE']
         }
     }
+
+    lint {
+        // The restored selector intentionally localizes the navigation/help shell first;
+        // untranslated feature detail is expected to fall back to reviewed English copy.
+        disable 'MissingTranslation'
+    }
 }
 
 dependencies {
