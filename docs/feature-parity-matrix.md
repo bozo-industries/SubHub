@@ -42,7 +42,7 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | `.bbpack` import/install/activate/deactivate/delete | `PackManager`, `PacksActivity` | Working in private storage with canonical path, entry-count, per-entry, archive, and extracted-size limits; traversal rejection instrumented and API 35 screen emulator-validated |
 | Pack manifest integrity verification | `PackVerifier`, `PackManifest` | Working with recovered canonical SHA-256 behavior and re-verification of installed manifests; accurately labeled as an integrity digest, not publisher authentication |
 | Pack-controlled locked settings and restoration | `LockedSettings`, preference backups | Working with typed pre-activation backups and deactivation restoration; this is configuration locking, not uninstall resistance |
-| Diagnostics counters and performance overlay | `DiagnosticsCollector`, port-8765 server | To implement in-app/loopback-only; unsafe unauthenticated LAN exposure will not be reproduced |
+| Diagnostics counters and performance overlay | `DiagnosticsCollector`, port-8765 server | Working as an in-app, process-memory-only screen plus optional touch-through overlay; provider/model, frame, latency, service, config, permission, and sanitized failure state are exposed without URLs, phrases, paths, secrets, exports, sockets, or LAN access |
 | Language selection | `LocaleHelper`, language resource names | To implement for recovered app-owned translations |
 
 ## Statistics and engagement

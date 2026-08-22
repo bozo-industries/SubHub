@@ -15,6 +15,7 @@ import com.betasafe.app.capture.CustomImagesActivity;
 import com.betasafe.app.databinding.ActivitySettingsBinding;
 import com.betasafe.app.detection.DetectionPreset;
 import com.betasafe.app.detection.DetectorConfig;
+import com.betasafe.app.diagnostics.DiagnosticsActivity;
 import com.betasafe.app.overlay.CensorPhrases;
 import com.betasafe.app.pack.LockedSettings;
 import com.betasafe.app.pack.PackManager;
@@ -167,6 +168,8 @@ public final class SettingsActivity extends AppCompatActivity {
                 startActivity(new Intent(this, ProfilesActivity.class)));
         binding.buttonPacks.setOnClickListener(view ->
                 startActivity(new Intent(this, PacksActivity.class)));
+        binding.buttonDiagnostics.setOnClickListener(view ->
+                startActivity(new Intent(this, DiagnosticsActivity.class)));
     }
 
     private void applyLockState() {

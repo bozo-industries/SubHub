@@ -31,6 +31,8 @@ final class CensorOverlayView extends View {
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint diagnosticsFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint diagnosticsText = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint clear = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF drawRect = new RectF();
@@ -42,6 +44,7 @@ final class CensorOverlayView extends View {
     private int captureWidth = 1;
     private int captureHeight = 1;
     private Bitmap frame;
+    private String diagnostics = "";
 
     CensorOverlayView(Context context) {
         super(context);
@@ -54,6 +57,11 @@ final class CensorOverlayView extends View {
         label.setTextSize(dp(11));
         label.setFakeBoldText(true);
         label.setShadowLayer(dp(2), 0, dp(1), Color.BLACK);
+        diagnosticsFill.setColor(Color.rgb(13, 13, 20));
+        diagnosticsFill.setAlpha(225);
+        diagnosticsText.setColor(context.getColor(R.color.text_primary));
+        diagnosticsText.setTextSize(dp(10));
+        diagnosticsText.setFakeBoldText(true);
     }
 
     void setTracks(
@@ -80,12 +88,43 @@ final class CensorOverlayView extends View {
         invalidate();
     }
 
+    void setDiagnostics(String value) {
+        diagnostics = value == null ? "" : value;
+        invalidate();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (appearance.isReverseMode()) drawReverse(canvas);
         else drawNormal(canvas);
+        drawDiagnostics(canvas);
         if (isAnimated()) postInvalidateDelayed(50);
+    }
+
+    private void drawDiagnostics(Canvas canvas) {
+        if (diagnostics.isEmpty()) return;
+        String[] lines = diagnostics.split("\\n", 3);
+        float padding = dp(10);
+        float lineHeight = dp(15);
+        float width = 0;
+        for (String line : lines) width = Math.max(width, diagnosticsText.measureText(line));
+        float left = dp(12);
+        float top = dp(32);
+        RectF panel = new RectF(left, top, left + width + padding * 2,
+                top + lines.length * lineHeight + padding * 2);
+        canvas.drawRoundRect(panel, dp(8), dp(8), diagnosticsFill);
+        diagnosticsFill.setColor(getContext().getColor(R.color.accent));
+        diagnosticsFill.setAlpha(255);
+        canvas.drawRoundRect(new RectF(panel.left, panel.top, panel.left + dp(3), panel.bottom),
+                dp(2), dp(2), diagnosticsFill);
+        diagnosticsFill.setColor(Color.rgb(13, 13, 20));
+        diagnosticsFill.setAlpha(225);
+        float baseline = panel.top + padding - diagnosticsText.ascent();
+        for (String line : lines) {
+            canvas.drawText(line, panel.left + padding, baseline, diagnosticsText);
+            baseline += lineHeight;
+        }
     }
 
     private void drawNormal(Canvas canvas) {

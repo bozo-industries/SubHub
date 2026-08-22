@@ -57,6 +57,10 @@ public final class OverlayController implements AutoCloseable {
         view.setAppearance(appearance);
     }
 
+    public void setDiagnostics(String text) {
+        view.setDiagnostics(text);
+    }
+
     @Override
     public void close() {
         if (attached) windowManager.removeView(view);
