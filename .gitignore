@@ -25,6 +25,7 @@ app/src/main/assets/*.onnx
 app/src/main/assets/achievement_badges/
 .env
 .env.*
+!.env.example
 
 # Build/tool state
 build/
@@ -34,6 +35,7 @@ dist/
 *.log
 .jolli/
 local.properties
+payment-server/data/
 
 # IDE / OS
 .idea/

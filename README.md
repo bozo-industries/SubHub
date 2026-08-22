@@ -23,9 +23,10 @@ C:\Users\user\Code\BetaSafe-private\
 - Monetization-gate audit: no billing/paywall/entitlement code found; every scripted build rechecks this invariant
 - Clean source baseline: builds, installs, and runs independently as `com.betasafe.app`
 - Clean release variant: unsigned release APK assembly and release lint pass; release manifest has no cleartext override or Device Admin surface
-- API 35 emulator suite: 26 instrumented contracts plus unit/build/lint checks pass for UI/settings, browser/download/full-screen workflows, both consent-driven capture modes, NNAPI inference, every censor style/border/reverse shape, custom-image import, MediaStore export, profiles/packs, diagnostics, statistics/achievements, Popup Storm, Help/onboarding/locales/shortcuts, commitment safety, and clean stop behavior
+- API 35 emulator suite: 30 instrumented contracts plus unit/build/lint checks pass for UI/settings, browser/download/full-screen workflows, both consent-driven capture modes, NNAPI inference, every censor style/border/reverse shape, custom-image import, MediaStore export, profiles/packs, diagnostics, statistics/achievements, Popup Storm, Help/onboarding/locales/shortcuts, commitment safety, penance safety, and clean stop behavior
 - Help and language surface: ten expandable source-authored guides, guided permission repair, first-run disclosure, two launcher shortcuts, and the recovered 11-choice locale selector are working; shell copy is localized and deeper untranslated copy falls back to English
 - Consent-first commitment: bounded 30-minute to 7-day keeper-code pacts seal app configuration with an explicit countdown and unconditional safety release; they never use Device Admin, block uninstall/data clearing, or delay stopping protection
+- Consent-first Penance Treasury: new detector tracks can add locally bounded EUR strikes with daily/weekly caps and a false-positive mercy window; settlement uses an explicit PayPal approval and a separate backend, while safety release never creates a charge
 - Visual identity: original generated purple-demoness guardian, gothic header, horned-shield launcher icon, and Popup Storm sample are tracked project assets and appear throughout the maintained shell; vendor badges and detector models remain private imports
 
 A patched APK signed with a new local key cannot update an installation signed by the vendor key. Export any settings you need before uninstalling the original, or change the package ID so both builds can coexist. Keep the same private local key for every later BetaSafe update.
@@ -46,7 +47,7 @@ Rebuild and align after editing smali or resources:
 .\scripts\Build-PatchedApk.ps1
 ```
 
-The build runs `Test-NoMonetizationGate.ps1` first and stops if known billing, premium, paywall, purchase-token, or entitlement code indicators appear. Informational itch.io purchase/update text and Kotlin coroutine subscriptions are not monetization gates.
+The patched-vendor build runs `Test-NoMonetizationGate.ps1` first and stops if known billing, premium, paywall, purchase-token, or entitlement gate indicators appear in the decoded purchased APK. This audit remains about removing vendor access gates; it does not scan or disable the clean source project's separate, opt-in Penance Treasury.
 
 ## Building the editable source project
 
@@ -78,6 +79,8 @@ Remove-Item Env:\BETASAFE_KEYSTORE_PASSWORD, Env:\BETASAFE_KEY_PASSWORD
 ```
 
 See [Architecture](docs/architecture.md) for code maps, [Generated Visual Assets](docs/generated-assets.md) for art provenance and prompt summaries, and [Static Evidence](docs/static-evidence.md) for the redacted extraction record.
+
+PayPal Sandbox setup and the payment-security boundary are documented in [PayPal Penance Integration](docs/paypal-penance.md). The Android app never contains the PayPal client secret.
 
 ## Boundaries
 
