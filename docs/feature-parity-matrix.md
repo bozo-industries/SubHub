@@ -43,7 +43,7 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | Pack manifest integrity verification | `PackVerifier`, `PackManifest` | Working with recovered canonical SHA-256 behavior and re-verification of installed manifests; accurately labeled as an integrity digest, not publisher authentication |
 | Pack-controlled locked settings and restoration | `LockedSettings`, preference backups | Working with typed pre-activation backups and deactivation restoration; this is configuration locking, not uninstall resistance |
 | Diagnostics counters and performance overlay | `DiagnosticsCollector`, port-8765 server | Working as an in-app, process-memory-only screen plus optional touch-through overlay; provider/model, frame, latency, service, config, permission, and sanitized failure state are exposed without URLs, phrases, paths, secrets, exports, sockets, or LAN access |
-| Language selection | `LocaleHelper`, language resource names | To implement for recovered app-owned translations |
+| Language selection | `LocaleHelper`, language resource names | Working with the recovered 11-choice set (`system`, English, French, Spanish, Portuguese, German, Japanese, Simplified/Traditional Chinese, Korean, Russian), Android-native per-app locale persistence, and localized navigation/onboarding/help shell; deeper feature copy intentionally falls back to English pending reviewed translations; German switch/recreation API 35 validated |
 
 ## Statistics and engagement
 
@@ -55,7 +55,7 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | Milestones | `MilestoneManager` | All 20 recovered thresholds implemented, including major-milestone notices |
 | Achievements, progress, unlock dialogs, badge saving | `AchievementManager`, badge assets | All 42 recovered conditions implemented with persistent unlock/pending-notice state; optional licensed badges privately imported and MediaStore/SAF saving supported; API 35 catalog UI emulator-validated |
 | Popup Storm with folders, presets, bursts, bounce, denial effects | `popup/*`, `PopupStormActivity` | Working with all four recovered presets, bounded SAF/private-folder scanning, a generated built-in sample, fade/rotation/bounce, burst ramps, denial blur/pixelation/captions, detection cover/avoid positioning, separate touch-modal popup windows, explicit photosensitivity acknowledgement, and an independent always-visible stop control; API 35 live overlay workflow validated |
-| Help/onboarding/permission repair/app shortcuts | `MainActivity` and layout/resource IDs | To implement |
+| Help/onboarding/permission repair/app shortcuts | `MainActivity` and layout/resource IDs | Working with non-blocking first-run onboarding, ten collapsible source-authored help sections, current overlay/notification status, guided repair, accessibility settings entry, and dynamic Start Protection/Open Browser launcher shortcuts; API 35 UI and instrumented contracts validated |
 
 ## Licensed visual assets
 

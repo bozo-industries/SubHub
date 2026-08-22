@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="header_title">BETASAFE</string><string name="header_subtitle">LOKALE SCHUTZWÄCHTERIN</string>
+    <string name="tab_home">START</string><string name="tab_settings">EINSTELLUNGEN</string><string name="tab_browser">BROWSER</string><string name="tab_export">EXPORT</string><string name="tab_help">HILFE</string>
+    <string name="start_protection">SCHUTZ STARTEN</string><string name="stop_protection">SCHUTZ STOPPEN</string><string name="settings_title">ZENSUR-EINSTELLUNGEN</string><string name="back">ZURÜCK</string>
+    <string name="help_title">HILFE &amp; SICHERHEIT</string><string name="help_subtitle">Einrichtung, Datenschutz, Reparaturen und Funktionshinweise.</string>
+    <string name="help_permission_check">BERECHTIGUNGEN PRÜFEN</string><string name="help_fix_permissions">NÄCHSTE BERECHTIGUNG REPARIEREN</string><string name="help_accessibility_settings">EINSTELLUNGEN FÜR BARRIEREFREIE AUFNAHME</string><string name="help_choose_language">APP-SPRACHE WÄHLEN</string>
+    <string name="permission_all_granted">Overlay- und Benachrichtigungsberechtigungen sind bereit.</string><string name="permission_overlay_name">über anderen Apps einblenden</string><string name="permission_notifications_name">Benachrichtigungen</string><string name="permission_missing_fmt">Fehlt: %1$s</string>
+    <string name="settings_language">SPRACHE</string><string name="language_system_default">Systemstandard</string>
+    <string name="help_getting_started">Erste Schritte</string><string name="help_permissions">Berechtigungen</string><string name="help_app_protection">App-Schutz</string><string name="help_browser_protection">Browser-Schutz</string><string name="help_censored_downloads">Export &amp; Downloads</string><string name="help_customisation">Anpassung</string><string name="help_popup_storm">Popup-Storm-Sicherheit</string><string name="help_troubleshooting">Fehlerbehebung</string><string name="help_privacy">Datenschutz &amp; Daten</string><string name="help_updates">Builds &amp; Updates</string>
+    <string name="onboarding_title">DEINE PRIVATE WÄCHTERIN</string><string name="onboarding_body">BetaSafe zensiert lokal, fragt nach Androids Aufnahmefreigabe und lässt normale Stopp- und Deinstallationsfunktionen jederzeit verfügbar.</string><string name="onboarding_help">ANLEITUNG ÖFFNEN</string><string name="onboarding_dismiss">VERSTANDEN</string>
+    <string name="shortcut_start_protection">Schutz starten</string><string name="shortcut_start_protection_long">BetaSafe-Schutz starten</string><string name="shortcut_open_browser">Browser öffnen</string><string name="shortcut_open_browser_long">BetaSafe-Browser öffnen</string>
+</resources>

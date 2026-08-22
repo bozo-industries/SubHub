@@ -24,8 +24,8 @@ Detailed evidence and completion status are maintained in [Feature Parity Matrix
 3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering. **Both consent-driven capture paths, tracking, and overlays are implemented and API 35 device-validated.**
 4. Settings, censor styles, custom images, reverse censoring, and export rendering. **Implemented; expanded live visual-corpus validation remains.**
 5. Safe browser, tabs, bookmarks/incognito behavior, DOM censoring, and ad blocking. **Implemented, including bounded downloads and accurately disclosed private-tab limits; broader live-site validation remains.**
-6. Statistics, achievements, profiles, packs, diagnostics, and popup features. **Statistics, 20 milestones, 42 achievements, profiles, hardened packs, local-only diagnostics, and safely constrained Popup Storm are implemented and API 35 validated.**
-7. Device/emulator parity testing and performance presets. **Baseline API 35 smoke test complete; physical-device and wider performance coverage remain.**
+6. Statistics, achievements, profiles, packs, diagnostics, popup features, help, onboarding, and languages. **Statistics, 20 milestones, 42 achievements, profiles, hardened packs, local-only diagnostics, safely constrained Popup Storm, ten-section Help, permission repair, launcher shortcuts, and the recovered 11-choice language selector are implemented and API 35 validated. Localized shell copy is present for ten explicit languages; deeper copy falls back to English.**
+7. Device/emulator parity testing and performance presets. **The API 35 automated suite now covers 14 instrumented contracts alongside unit, assembly, and lint checks; physical-device, wider performance, and private visual-corpus coverage remain.**
 8. Consent-based commitment lock, only after the reconstructed app works.
 
 The source baseline is now independently buildable, installable, and operational. Milestones 4–7 describe additional feature parity with the vendor build rather than prerequisites for editing or running the reconstructed protection pipeline.

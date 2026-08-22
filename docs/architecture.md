@@ -65,6 +65,12 @@ The clean source reconstruction intentionally omits that diagnostics server. It 
 
 JADX emitted method-level errors in application code including `MainActivity`, `DetectionEngine`, both capture services, `CensorRenderer`, `ScreenCaptureManager`, `CensorBoxView`, pack parsing/management, and popup management. The Java files remain useful around those failures, but edits to affected methods must be derived from their smali implementation.
 
+## App shell and language surface
+
+`MainActivity` owns a non-blocking first-run card and two dynamic launcher shortcuts routed through its exported entry point. `HelpActivity` owns current permission status, one-step overlay/notification repair, the accessibility-settings handoff, language selection, and ten source-authored expandable guides. `LocaleHelper` persists the recovered 11-choice language set through AppCompat per-app locales. Navigation, onboarding, permission repair, and Help section labels have localized resources; untranslated detail deliberately uses Android's English resource fallback.
+
+The maintained header and Help surfaces use the project-owned gothic header and demoness guardian art. They do not depend on the purchased APK's decorative assets.
+
 ## Recommended next phase
 
-Use the clean source tree for maintained changes. Continue the remaining parity work—help/onboarding, localization, and broader integration of the new project-owned visual identity—then complete broad emulator and physical Android 15/16 validation before adding the separately designed consent-based commitment lock.
+Use the clean source tree for maintained changes. Complete broad emulator and physical Android 15/16 validation, including private visual corpora and long-running performance, before adding the separately designed consent-based commitment lock.

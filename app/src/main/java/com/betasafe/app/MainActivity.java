@@ -29,6 +29,9 @@ import com.betasafe.app.stats.StatsSnapshot;
 import com.betasafe.app.stats.StatsActivity;
 import com.betasafe.app.stats.AchievementManager;
 import com.betasafe.app.stats.MilestoneManager;
+import com.betasafe.app.help.HelpActivity;
+import com.betasafe.app.settings.SettingsRepository;
+import com.betasafe.app.util.AppShortcuts;
 import androidx.appcompat.app.AlertDialog;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -79,9 +82,45 @@ public final class MainActivity extends AppCompatActivity {
                 view -> startActivity(new Intent(this, BrowserActivity.class)));
         binding.tabExport.setOnClickListener(
                 view -> startActivity(new Intent(this, ExportActivity.class)));
-        binding.tabHelp.setOnClickListener(view -> selectTab(binding.tabHelp, R.string.tab_help));
+        binding.tabHelp.setOnClickListener(
+                view -> startActivity(new Intent(this, HelpActivity.class)));
         binding.buttonStatistics.setOnClickListener(view ->
                 startActivity(new Intent(this, StatsActivity.class)));
+        binding.onboardingHelp.setOnClickListener(view -> {
+            markOnboardingSeen();
+            startActivity(new Intent(this, HelpActivity.class));
+        });
+        binding.onboardingDismiss.setOnClickListener(view -> markOnboardingSeen());
+        boolean seen = getSharedPreferences(SettingsRepository.PREFERENCES_NAME, MODE_PRIVATE)
+                .getBoolean("has_seen_onboarding", false);
+        binding.onboardingCard.setVisibility(seen ? View.GONE : View.VISIBLE);
+        AppShortcuts.install(this);
+        handleShortcutIntent(getIntent());
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleShortcutIntent(intent);
+    }
+
+    private void handleShortcutIntent(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getAction();
+        intent.setAction(Intent.ACTION_MAIN);
+        if (AppShortcuts.ACTION_OPEN_BROWSER.equals(action)) {
+            AppShortcuts.reportUsed(this, "open_browser");
+            startActivity(new Intent(this, BrowserActivity.class));
+        } else if (AppShortcuts.ACTION_START_PROTECTION.equals(action)) {
+            AppShortcuts.reportUsed(this, "start_protection");
+            binding.getRoot().post(() -> toggleProtection(binding.buttonProtection));
+        }
+    }
+
+    private void markOnboardingSeen() {
+        getSharedPreferences(SettingsRepository.PREFERENCES_NAME, MODE_PRIVATE)
+                .edit().putBoolean("has_seen_onboarding", true).apply();
+        binding.onboardingCard.setVisibility(View.GONE);
     }
 
     private void toggleProtection(View view) {

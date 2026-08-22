@@ -13,13 +13,40 @@
             android:paddingEnd="20dp"
             android:paddingBottom="32dp">
 
-            <LinearLayout
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="190dp"
                 android:background="@drawable/bg_header_card"
-                android:gravity="center_horizontal"
-                android:orientation="vertical"
-                android:padding="20dp">
+                android:clipToOutline="true">
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:alpha="0.72"
+                    android:contentDescription="@null"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/betasafe_gothic_header" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="#440D0D14" />
+
+                <ImageView
+                    android:layout_width="130dp"
+                    android:layout_height="165dp"
+                    android:layout_gravity="bottom|start"
+                    android:contentDescription="@string/popup_guardian_desc"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/betasafe_demoness_guardian" />
+
+                <LinearLayout
+                    android:layout_width="210dp"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical|end"
+                    android:layout_marginEnd="18dp"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -38,7 +65,8 @@
                     android:text="@string/header_subtitle"
                     android:textColor="@color/accent"
                     android:textSize="14sp" />
-            </LinearLayout>
+                </LinearLayout>
+            </FrameLayout>
 
             <View
                 android:layout_width="match_parent"
@@ -95,6 +123,58 @@
                 android:textStyle="bold" />
 
             <LinearLayout
+                android:id="@+id/onboarding_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/onboarding_title"
+                    android:textColor="@color/accent"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/onboarding_body"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/onboarding_help"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_primary_button"
+                        android:text="@string/onboarding_help"
+                        android:textColor="@color/text_primary"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/onboarding_dismiss"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="8dp"
+                        android:layout_weight="1"
+                        android:text="@string/onboarding_dismiss" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_card"
@@ -131,13 +211,15 @@
                     android:textSize="14sp"
                     android:textStyle="bold" />
 
-                <Button
+                <TextView
                     android:id="@+id/button_accessibility_capture"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/bg_card"
-                    android:backgroundTint="@color/surface_high"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
                     android:stateListAnimator="@null"
                     android:text="@string/accessibility_capture_button"
                     android:textColor="@color/accent"
