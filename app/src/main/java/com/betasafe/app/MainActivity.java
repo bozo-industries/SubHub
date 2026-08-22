@@ -19,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import com.betasafe.app.databinding.ActivityMainBinding;
+import com.betasafe.app.browser.BrowserActivity;
 import com.betasafe.app.service.ScreenCaptureService;
 import com.betasafe.app.settings.SettingsActivity;
 import com.google.android.material.snackbar.Snackbar;
@@ -64,7 +65,8 @@ public final class MainActivity extends AppCompatActivity {
         binding.tabHome.setOnClickListener(view -> selectTab(binding.tabHome, R.string.tab_home));
         binding.tabSettings.setOnClickListener(
                 view -> startActivity(new Intent(this, SettingsActivity.class)));
-        binding.tabBrowser.setOnClickListener(view -> selectTab(binding.tabBrowser, R.string.tab_browser));
+        binding.tabBrowser.setOnClickListener(
+                view -> startActivity(new Intent(this, BrowserActivity.class)));
         binding.tabHelp.setOnClickListener(view -> selectTab(binding.tabHelp, R.string.tab_help));
     }
 

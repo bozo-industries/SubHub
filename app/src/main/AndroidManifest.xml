@@ -31,6 +31,10 @@
             android:name=".settings.SettingsActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".browser.BrowserActivity"
+            android:exported="false" />
+
         <service
             android:name=".service.ScreenCaptureService"
             android:exported="false"
