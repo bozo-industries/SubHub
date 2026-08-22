@@ -18,6 +18,7 @@ C:\Users\user\Code\BetaSafe-private\
 - Zip alignment: passing
 - Local v2/v3 signing and verification: passing
 - JADX 1.5.5: usable, with method-level failures that require smali fallback
+- Monetization-gate audit: no billing/paywall/entitlement code found; every scripted build rechecks this invariant
 - Device smoke test: pending; no ADB device was connected during setup
 
 A patched APK signed with a new local key cannot update an installation signed by the vendor key. Export any settings you need before uninstalling the original, or change the package ID so both builds can coexist. Keep the same private local key for every later BetaSafe update.
@@ -37,6 +38,8 @@ Rebuild and align after editing smali or resources:
 ```powershell
 .\scripts\Build-PatchedApk.ps1
 ```
+
+The build runs `Test-NoMonetizationGate.ps1` first and stops if known billing, premium, paywall, purchase-token, or entitlement code indicators appear. Informational itch.io purchase/update text and Kotlin coroutine subscriptions are not monetization gates.
 
 To sign, provide a private keystore path and process-scoped password variables. Password values are never passed as command-line arguments:
 
