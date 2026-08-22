@@ -21,6 +21,7 @@ import com.betasafe.app.pack.LockedSettings;
 import com.betasafe.app.pack.PackManager;
 import com.betasafe.app.pack.PacksActivity;
 import com.betasafe.app.profiles.ProfilesActivity;
+import com.betasafe.app.stats.StatsRepository;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -29,6 +30,7 @@ import java.util.Set;
 public final class SettingsActivity extends AppCompatActivity {
     private ActivitySettingsBinding binding;
     private SettingsRepository repository;
+    private StatsRepository stats;
     private boolean bindingValues;
 
     @Override
@@ -37,6 +39,7 @@ public final class SettingsActivity extends AppCompatActivity {
         binding = ActivitySettingsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         repository = new SettingsRepository(this);
+        stats = new StatsRepository(this);
         new PackManager(this);
         bindValues();
         attachListeners();
@@ -232,6 +235,12 @@ public final class SettingsActivity extends AppCompatActivity {
 
     private void saveAll() {
         if (bindingValues) return;
+        String previousStyle = repository.preferences().getString(
+                SettingsRepository.KEY_CENSOR_TYPE, "box");
+        String selectedStyle = typeFor(binding.styleGroup.getCheckedRadioButtonId())
+                .getPreferenceValue();
+        String selectedBorder = borderFor(binding.borderEffectGroup.getCheckedRadioButtonId())
+                .preferenceValue();
         repository.saveAppearance(
                 typeFor(binding.styleGroup.getCheckedRadioButtonId()),
                 binding.intensitySeek.getProgress(),
@@ -272,6 +281,9 @@ public final class SettingsActivity extends AppCompatActivity {
             categories.add("armpits_covered");
         }
         repository.saveDetection(binding.confidenceSeek.getProgress(), categories);
+        stats.recordCensorStyleTried(selectedStyle);
+        stats.recordBorderEffectTried(selectedBorder);
+        if (!selectedStyle.equals(previousStyle)) stats.incrementCensorStyleChanges();
     }
 
     private void saveCustomPhrases() {
@@ -283,6 +295,7 @@ public final class SettingsActivity extends AppCompatActivity {
         repository.preferences().edit()
                 .putStringSet(SettingsRepository.KEY_CUSTOM_PHRASES, values)
                 .apply();
+        stats.setCustomPhrasesCount(values.size());
     }
 
     private Set<String> selectedPhraseCategories() {

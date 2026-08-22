@@ -26,6 +26,10 @@ import com.betasafe.app.service.ScreenshotAccessibilityService;
 import com.betasafe.app.settings.SettingsActivity;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.StatsSnapshot;
+import com.betasafe.app.stats.StatsActivity;
+import com.betasafe.app.stats.AchievementManager;
+import com.betasafe.app.stats.MilestoneManager;
+import androidx.appcompat.app.AlertDialog;
 import com.google.android.material.snackbar.Snackbar;
 
 /** Main source UI and explicit permission flow for starting on-device protection. */
@@ -76,6 +80,8 @@ public final class MainActivity extends AppCompatActivity {
         binding.tabExport.setOnClickListener(
                 view -> startActivity(new Intent(this, ExportActivity.class)));
         binding.tabHelp.setOnClickListener(view -> selectTab(binding.tabHelp, R.string.tab_help));
+        binding.buttonStatistics.setOnClickListener(view ->
+                startActivity(new Intent(this, StatsActivity.class)));
     }
 
     private void toggleProtection(View view) {
@@ -143,6 +149,31 @@ public final class MainActivity extends AppCompatActivity {
             binding.statsBlocks.setText(String.valueOf(stats.getTotalBlocks()));
             binding.statsTime.setText(StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds()));
             binding.statsSessions.setText(String.valueOf(stats.getSessions()));
+            showProgressUnlocks(stats);
+        }
+    }
+
+    private void showProgressUnlocks(StatsSnapshot stats) {
+        AchievementManager achievements = new AchievementManager(this);
+        achievements.checkAchievements(stats);
+        java.util.List<AchievementManager.Achievement> unlocked =
+                achievements.takePendingNotifications();
+        if (!unlocked.isEmpty()) {
+            AchievementManager.Achievement first = unlocked.get(0);
+            String message = getString(first.getDescription());
+            if (unlocked.size() > 1) message += "\n\n" + getString(
+                    R.string.achievement_more_unlocked, unlocked.size() - 1);
+            new AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.achievement_unlocked_title)
+                            + " " + getString(first.getName()))
+                    .setMessage(message)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return;
+        }
+        MilestoneManager.Result milestone = MilestoneManager.takeUnseen(this, stats.getTotalBlocks());
+        if (milestone != null) {
+            Snackbar.make(binding.getRoot(), milestone.getMessage(), Snackbar.LENGTH_LONG).show();
         }
     }
 

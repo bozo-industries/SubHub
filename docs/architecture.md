@@ -23,7 +23,7 @@ MainActivity
 
 `DetectionEngine` accepts screen bitmaps, runs an 18-class detector, applies confidence filtering/NMS, and produces bounding boxes. The tracker stabilizes detections between frames. Rendering is split between system overlays and image/export rendering.
 
-The clean source baseline currently implements the MediaProjection branch as ordinary Java source under `app/src/main/java/com/betasafe/app`. Android's own consent dialog authorizes every capture session; the app does not silently grant or retain screen-capture authority. The accessibility, export-rendering, and reverse-censor branches in the diagram are recovered vendor behaviors reserved for later parity work.
+The clean source implements both capture branches as ordinary Java source under `app/src/main/java/com/betasafe/app`. Android's own consent dialog authorizes every MediaProjection session, while Android's accessibility settings control the alternate screenshot service. Export rendering and reverse censoring are also maintained source. The app does not silently grant or retain platform capture authority.
 
 ## High-value code areas
 
@@ -67,4 +67,4 @@ JADX emitted method-level errors in application code including `MainActivity`, `
 
 ## Recommended next phase
 
-Use the clean source tree for maintained changes. Continue optional parity work—custom-image rendering, browser tabs/bookmarks/incognito, profiles/packs, and the accessibility capture path—then test on physical Android 15/16 hardware before adding the separately designed consent-based commitment lock.
+Use the clean source tree for maintained changes. Continue the remaining parity work—safely constrained Popup Storm behavior, help/onboarding, localization, and optional licensed decorative asset import—then complete broad emulator and physical Android 15/16 validation before adding the separately designed consent-based commitment lock.

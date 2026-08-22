@@ -55,6 +55,9 @@
             android:name=".diagnostics.DiagnosticsActivity"
             android:exported="false" />
 
+        <activity android:name=".stats.StatsActivity" android:exported="false" />
+        <activity android:name=".stats.AchievementsActivity" android:exported="false" />
+
         <service
             android:name=".service.ScreenCaptureService"
             android:exported="false"

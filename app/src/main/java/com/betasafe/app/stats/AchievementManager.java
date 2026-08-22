@@ -1,0 +1,259 @@
+package com.betasafe.app.stats;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+import com.betasafe.app.R;
+
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.temporal.WeekFields;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+/** Persistent implementation of all 42 recovered achievement contracts. */
+public final class AchievementManager {
+    private static final String PREFS_NAME = "betablocker_achievements";
+    private static final String KEY_UNLOCKED = "unlocked";
+    private static final String KEY_PENDING = "pending_notifications";
+    private static final List<Achievement> ACHIEVEMENTS = achievements();
+    private final SharedPreferences preferences;
+    private final Set<String> unlocked;
+
+    public AchievementManager(Context context) {
+        preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        Set<String> stored = preferences.getStringSet(KEY_UNLOCKED, Collections.emptySet());
+        unlocked = new LinkedHashSet<>(stored == null ? Collections.emptySet() : stored);
+    }
+
+    public List<Achievement> all() { return ACHIEVEMENTS; }
+    public boolean isUnlocked(String id) { return unlocked.contains(id); }
+    public int getUnlockedCount() { return unlocked.size(); }
+    public int getTotalCount() { return ACHIEVEMENTS.size(); }
+
+    public Progress progress(Achievement value, StatsSnapshot stats) {
+        long current = current(value.id, stats);
+        long target = target(value.id);
+        return new Progress(current, target, isUnlocked(value.id));
+    }
+
+    public List<Achievement> checkAchievements(StatsSnapshot stats) {
+        List<Achievement> newlyUnlocked = new ArrayList<>();
+        for (Achievement value : ACHIEVEMENTS) {
+            if (unlocked.contains(value.id) || !qualifies(value.id, stats)) continue;
+            unlocked.add(value.id);
+            newlyUnlocked.add(value);
+        }
+        if (!newlyUnlocked.isEmpty()) {
+            Set<String> pending = preferences.getStringSet(KEY_PENDING, Collections.emptySet());
+            Set<String> updatedPending = new LinkedHashSet<>(
+                    pending == null ? Collections.emptySet() : pending);
+            for (Achievement value : newlyUnlocked) updatedPending.add(value.id);
+            preferences.edit().putStringSet(KEY_UNLOCKED, new LinkedHashSet<>(unlocked))
+                    .putStringSet(KEY_PENDING, updatedPending).apply();
+        }
+        return newlyUnlocked;
+    }
+
+    public List<Achievement> takePendingNotifications() {
+        Set<String> stored = preferences.getStringSet(KEY_PENDING, Collections.emptySet());
+        Set<String> pending = new LinkedHashSet<>(stored == null ? Collections.emptySet() : stored);
+        if (pending.isEmpty()) return Collections.emptyList();
+        List<Achievement> result = new ArrayList<>();
+        for (Achievement value : ACHIEVEMENTS) if (pending.contains(value.id)) result.add(value);
+        preferences.edit().remove(KEY_PENDING).apply();
+        return result;
+    }
+
+    private boolean qualifies(String id, StatsSnapshot stats) {
+        switch (id) {
+            case "midnight_blocker": return LocalTime.now().getHour() == 0 && stats.getCurrentSessionBlocks() > 0;
+            case "early_bird": return hourBetween(4, 6) && stats.getCurrentSessionBlocks() > 0;
+            case "night_owl": return hourBetween(2, 4) && stats.getCurrentSessionBlocks() > 0;
+            case "new_year": return dateIs(1, 1) && stats.getCurrentSessionBlocks() > 0;
+            case "halloween_block": return dateIs(10, 31) && stats.getCurrentSessionBlocks() > 0;
+            case "christmas_block": return dateIs(12, 25) && stats.getCurrentSessionBlocks() > 0;
+            case "valentine_block": return dateIs(2, 14) && stats.getCurrentSessionBlocks() > 0;
+            case "weekend_warrior": return hasCompleteWeekend(stats.getActiveDates());
+            case "style_explorer": return stats.getCensorStylesTried().containsAll(Arrays.asList(
+                    "box", "blur", "pixelate", "custom", "static", "glitch", "tape", "error_popup"));
+            case "border_artist": return stats.getBorderEffectsTried().containsAll(Arrays.asList(
+                    "classic", "gradient", "glow", "rainbow"));
+            case "color_picker": return stats.isBorderColorChanged();
+            case "legend":
+                for (Achievement value : ACHIEVEMENTS) {
+                    if (!"legend".equals(value.id) && !unlocked.contains(value.id)) return false;
+                }
+                return true;
+            default:
+                long target = target(id);
+                return target > 0 && current(id, stats) >= target;
+        }
+    }
+
+    private long current(String id, StatsSnapshot stats) {
+        switch (id) {
+            case "first_block": case "blocks_10": case "blocks_100": case "blocks_1000": case "blocks_10000":
+                return stats.getTotalBlocks();
+            case "time_1hr": case "time_10hr": case "time_50hr": case "time_200hr":
+                return stats.getTotalProtectedSeconds();
+            case "first_session": case "sessions_10": case "sessions_100": return stats.getSessions();
+            case "marathon": case "mega_marathon": return stats.getLongestSessionSeconds();
+            case "streak_7": case "streak_30": return stats.getCurrentStreak();
+            case "peak_50": case "peak_500": return stats.getPeakSessionBlocks();
+            case "style_explorer": return stats.getCensorStylesTried().size();
+            case "border_artist": return stats.getBorderEffectsTried().size();
+            case "color_picker": return stats.isBorderColorChanged() ? 1 : 0;
+            case "first_custom_phrase": case "phrase_library": return stats.getCustomPhrases();
+            case "profile_creator": case "profile_organizer": return stats.getProfiles();
+            case "browser_first": case "browser_warrior": return stats.getBrowserSessions();
+            case "export_first": case "export_artist": return stats.getExportedImages();
+            case "ntr_50": case "ntr_100": case "ntr_200": case "ntr_500": return stats.getAllCategoryCensors();
+            case "legend": return unlocked.size();
+            default: return isUnlocked(id) ? 1 : 0;
+        }
+    }
+
+    private static long target(String id) {
+        switch (id) {
+            case "first_block": case "first_session": case "first_custom_phrase": case "profile_creator":
+            case "browser_first": case "export_first": case "color_picker": return 1;
+            case "blocks_10": case "sessions_10": case "phrase_library": return 10;
+            case "blocks_100": case "sessions_100": return 100;
+            case "blocks_1000": return 1000;
+            case "blocks_10000": return 10000;
+            case "time_1hr": case "marathon": return 3600;
+            case "time_10hr": return 36000;
+            case "time_50hr": return 180000;
+            case "time_200hr": return 720000;
+            case "mega_marathon": return 10800;
+            case "streak_7": return 7;
+            case "streak_30": return 30;
+            case "peak_50": case "export_artist": case "ntr_50": return 50;
+            case "peak_500": case "ntr_500": return 500;
+            case "style_explorer": return 8;
+            case "border_artist": return 4;
+            case "profile_organizer": return 3;
+            case "browser_warrior": return 25;
+            case "ntr_100": return 100;
+            case "ntr_200": return 200;
+            default: return 0;
+        }
+    }
+
+    private static boolean dateIs(int month, int day) {
+        LocalDate now = LocalDate.now();
+        return now.getMonthValue() == month && now.getDayOfMonth() == day;
+    }
+    private static boolean hourBetween(int start, int end) {
+        int hour = LocalTime.now().getHour();
+        return hour >= start && hour < end;
+    }
+    private static boolean hasCompleteWeekend(Collection<String> encodedDates) {
+        Set<String> saturdays = new HashSet<>();
+        Set<String> sundays = new HashSet<>();
+        WeekFields iso = WeekFields.ISO;
+        for (String encoded : encodedDates) {
+            try {
+                LocalDate date = LocalDate.parse(encoded);
+                String week = date.get(iso.weekBasedYear()) + ":" + date.get(iso.weekOfWeekBasedYear());
+                if (date.getDayOfWeek() == DayOfWeek.SATURDAY) saturdays.add(week);
+                if (date.getDayOfWeek() == DayOfWeek.SUNDAY) sundays.add(week);
+            } catch (Exception ignored) { }
+        }
+        saturdays.retainAll(sundays);
+        return !saturdays.isEmpty();
+    }
+
+    private static List<Achievement> achievements() {
+        List<Achievement> values = Arrays.asList(
+                a("first_block", R.string.achievement_first_block, R.string.achievement_desc_first_block, "★", "blocks", "badge_newcomer.png", false),
+                a("blocks_10", R.string.achievement_getting_started, R.string.achievement_desc_blocks_10, "10", "blocks", null, false),
+                a("blocks_100", R.string.achievement_centurion, R.string.achievement_desc_blocks_100, "100", "blocks", null, false),
+                a("blocks_1000", R.string.achievement_block_master, R.string.achievement_desc_blocks_1000, "♛", "blocks", null, false),
+                a("blocks_10000", R.string.achievement_ultimate_blocker, R.string.achievement_desc_blocks_10000, "♚", "blocks", null, false),
+                a("time_1hr", R.string.achievement_first_hour, R.string.achievement_desc_time_1hr, "◷", "time", "badge_bronze.png", false),
+                a("time_10hr", R.string.achievement_dedicated, R.string.achievement_desc_time_10hr, "◷", "time", "badge_silver.png", false),
+                a("time_50hr", R.string.achievement_committed, R.string.achievement_desc_time_50hr, "◷", "time", "badge_gold.png", false),
+                a("time_200hr", R.string.achievement_platinum_protection, R.string.achievement_desc_time_200hr, "◆", "time", "badge_diamond.png", false),
+                a("first_session", R.string.achievement_first_session, R.string.achievement_desc_first_session, "▶", "sessions", null, false),
+                a("sessions_10", R.string.achievement_regular, R.string.achievement_desc_sessions_10, "↻", "sessions", null, false),
+                a("sessions_100", R.string.achievement_veteran, R.string.achievement_desc_sessions_100, "✪", "sessions", "badge_veteran.png", false),
+                a("marathon", R.string.achievement_marathon, R.string.achievement_desc_marathon, "⌁", "sessions", null, false),
+                a("streak_7", R.string.achievement_week_warrior, R.string.achievement_desc_streak_7, "♨", "streaks", "badge_dedicated.png", false),
+                a("streak_30", R.string.achievement_month_master, R.string.achievement_desc_streak_30, "♨", "streaks", null, false),
+                a("midnight_blocker", R.string.achievement_midnight_blocker, R.string.achievement_desc_midnight, "☾", "hidden", null, true),
+                a("early_bird", R.string.achievement_early_bird, R.string.achievement_desc_early_bird, "☀", "hidden", null, true),
+                a("night_owl", R.string.achievement_night_owl, R.string.achievement_desc_night_owl, "◉", "hidden", null, true),
+                a("new_year", R.string.achievement_new_year, R.string.achievement_desc_new_year, "✦", "hidden", null, true),
+                a("halloween_block", R.string.achievement_spooky, R.string.achievement_desc_halloween, "◈", "hidden", null, true),
+                a("christmas_block", R.string.achievement_holiday, R.string.achievement_desc_christmas, "♣", "hidden", null, true),
+                a("valentine_block", R.string.achievement_love, R.string.achievement_desc_valentine, "♥", "hidden", null, true),
+                a("peak_50", R.string.achievement_peak_50, R.string.achievement_desc_peak_50, "▥", "peaks", null, false),
+                a("peak_500", R.string.achievement_peak_500, R.string.achievement_desc_peak_500, "▥", "peaks", null, false),
+                a("mega_marathon", R.string.achievement_mega_marathon, R.string.achievement_desc_mega_marathon, "✪", "peaks", null, false),
+                a("style_explorer", R.string.achievement_style_explorer, R.string.achievement_desc_style_explorer, "◒", "custom", null, false),
+                a("border_artist", R.string.achievement_border_artist, R.string.achievement_desc_border_artist, "▣", "custom", null, false),
+                a("color_picker", R.string.achievement_color_picker, R.string.achievement_desc_color_picker, "◉", "custom", null, false),
+                a("first_custom_phrase", R.string.achievement_first_custom_phrase, R.string.achievement_desc_first_custom_phrase, "✎", "custom", null, false),
+                a("phrase_library", R.string.achievement_phrase_library, R.string.achievement_desc_phrase_library, "▤", "custom", null, false),
+                a("profile_creator", R.string.achievement_profile_creator, R.string.achievement_desc_profile_creator, "▣", "profiles", null, false),
+                a("profile_organizer", R.string.achievement_profile_organizer, R.string.achievement_desc_profile_organizer, "▰", "profiles", null, false),
+                a("browser_first", R.string.achievement_browser_first, R.string.achievement_desc_browser_first, "◎", "browser", null, false),
+                a("browser_warrior", R.string.achievement_browser_warrior, R.string.achievement_desc_browser_warrior, "⬟", "browser", null, false),
+                a("export_first", R.string.achievement_export_first, R.string.achievement_desc_export_first, "⇩", "export", null, false),
+                a("export_artist", R.string.achievement_export_artist, R.string.achievement_desc_export_artist, "⇩", "export", null, false),
+                a("weekend_warrior", R.string.achievement_weekend_warrior, R.string.achievement_desc_weekend_warrior, "☀", "hidden", null, true),
+                a("ntr_50", R.string.achievement_get_cucked, R.string.achievement_desc_get_cucked, "♈", "hidden", null, true),
+                a("ntr_100", R.string.achievement_get_cucked_2, R.string.achievement_desc_get_cucked_2, "♈", "hidden", null, true),
+                a("ntr_200", R.string.achievement_get_cucked_3, R.string.achievement_desc_get_cucked_3, "♈", "hidden", null, true),
+                a("ntr_500", R.string.achievement_get_cucked_4, R.string.achievement_desc_get_cucked_4, "♈", "hidden", null, true),
+                a("legend", R.string.achievement_legend, R.string.achievement_desc_legend, "★", "special", "badge_legend.png", false));
+        return Collections.unmodifiableList(values);
+    }
+
+    private static Achievement a(String id, int name, int description, String icon,
+            String category, String badge, boolean hidden) {
+        return new Achievement(id, name, description, icon, category, badge, hidden);
+    }
+
+    public static final class Achievement {
+        private final String id; private final int name; private final int description;
+        private final String icon; private final String category; private final String badge;
+        private final boolean hidden;
+        Achievement(String id, int name, int description, String icon, String category,
+                String badge, boolean hidden) {
+            this.id = id; this.name = name; this.description = description; this.icon = icon;
+            this.category = category; this.badge = badge; this.hidden = hidden;
+        }
+        public String getId() { return id; }
+        public int getName() { return name; }
+        public int getDescription() { return description; }
+        public String getIcon() { return icon; }
+        public String getCategory() { return category; }
+        public String getBadge() { return badge; }
+        public boolean isHidden() { return hidden; }
+    }
+
+    public static final class Progress {
+        private final long current; private final long target; private final boolean unlocked;
+        Progress(long current, long target, boolean unlocked) {
+            this.current = current; this.target = target; this.unlocked = unlocked;
+        }
+        public long getCurrent() { return current; }
+        public long getTarget() { return target; }
+        public boolean isUnlocked() { return unlocked; }
+        public boolean isCountable() { return target > 0; }
+        public int percent() {
+            return target <= 0 ? (unlocked ? 100 : 0)
+                    : (int) Math.min(100, Math.round(current * 100f / target));
+        }
+    }
+}
