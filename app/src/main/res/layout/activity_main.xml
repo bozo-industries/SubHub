@@ -73,6 +73,11 @@
                     android:text="@string/tab_browser" />
 
                 <TextView
+                    android:id="@+id/tab_export"
+                    style="@style/Widget.BetaSafe.Tab"
+                    android:text="@string/tab_export" />
+
+                <TextView
                     android:id="@+id/tab_help"
                     style="@style/Widget.BetaSafe.Tab"
                     android:text="@string/tab_help" />
@@ -125,6 +130,28 @@
                     android:textColor="@android:color/white"
                     android:textSize="14sp"
                     android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/button_accessibility_capture"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_card"
+                    android:backgroundTint="@color/surface_high"
+                    android:stateListAnimator="@null"
+                    android:text="@string/accessibility_capture_button"
+                    android:textColor="@color/accent"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:text="@string/accessibility_capture_note"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp" />
 
                 <LinearLayout
                     android:layout_width="wrap_content"

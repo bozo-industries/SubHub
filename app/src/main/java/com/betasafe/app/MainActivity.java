@@ -20,7 +20,9 @@ import androidx.core.content.ContextCompat;
 
 import com.betasafe.app.databinding.ActivityMainBinding;
 import com.betasafe.app.browser.BrowserActivity;
+import com.betasafe.app.capture.ExportActivity;
 import com.betasafe.app.service.ScreenCaptureService;
+import com.betasafe.app.service.ScreenshotAccessibilityService;
 import com.betasafe.app.settings.SettingsActivity;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.StatsSnapshot;
@@ -64,15 +66,24 @@ public final class MainActivity extends AppCompatActivity {
                 ignored -> continueStartFlow());
 
         binding.buttonProtection.setOnClickListener(this::toggleProtection);
+        binding.buttonAccessibilityCapture.setOnClickListener(view -> startActivity(
+                new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         binding.tabHome.setOnClickListener(view -> selectTab(binding.tabHome, R.string.tab_home));
         binding.tabSettings.setOnClickListener(
                 view -> startActivity(new Intent(this, SettingsActivity.class)));
         binding.tabBrowser.setOnClickListener(
                 view -> startActivity(new Intent(this, BrowserActivity.class)));
+        binding.tabExport.setOnClickListener(
+                view -> startActivity(new Intent(this, ExportActivity.class)));
         binding.tabHelp.setOnClickListener(view -> selectTab(binding.tabHelp, R.string.tab_help));
     }
 
     private void toggleProtection(View view) {
+        if (ScreenshotAccessibilityService.isRunning()) {
+            showStatus(R.string.accessibility_capture_disable_hint);
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            return;
+        }
         if (ScreenCaptureService.isRunning()) {
             startService(ScreenCaptureService.stopIntent(this));
             updateProtectionButton(false);
@@ -111,7 +122,9 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void selectTab(TextView selected, int label) {
-        TextView[] tabs = {binding.tabHome, binding.tabSettings, binding.tabBrowser, binding.tabHelp};
+        TextView[] tabs = {
+                binding.tabHome, binding.tabSettings, binding.tabBrowser,
+                binding.tabExport, binding.tabHelp};
         for (TextView tab : tabs) {
             boolean active = tab == selected;
             tab.setTextColor(getColor(active ? R.color.text_primary : R.color.text_muted));
@@ -124,7 +137,8 @@ public final class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         if (binding != null) {
-            updateProtectionButton(ScreenCaptureService.isRunning());
+            updateProtectionButton(ScreenCaptureService.isRunning()
+                    || ScreenshotAccessibilityService.isRunning());
             StatsSnapshot stats = new StatsRepository(this).load();
             binding.statsBlocks.setText(String.valueOf(stats.getTotalBlocks()));
             binding.statsTime.setText(StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds()));

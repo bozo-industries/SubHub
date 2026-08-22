@@ -6,6 +6,7 @@
     <string name="tab_home">HOME</string>
     <string name="tab_settings">SETTINGS</string>
     <string name="tab_browser">BROWSER</string>
+    <string name="tab_export">EXPORT</string>
     <string name="tab_help">HELP</string>
     <string name="reconstruction_title">HUMAN-EDITABLE FOUNDATION</string>
     <string name="reconstruction_body">This screen and the protection pipeline are compiled from ordinary Android source. Screen capture stays on device and requires Android’s visible consent prompt.</string>
@@ -13,6 +14,10 @@
     <string name="stop_protection">STOP PROTECTION</string>
     <string name="overlay_permission_needed">Allow BetaSafe to display censor blocks over other apps.</string>
     <string name="capture_cancelled">Screen capture was not granted.</string>
+    <string name="accessibility_capture_button">ACCESSIBILITY SCREENSHOT MODE</string>
+    <string name="accessibility_capture_note">Optional Android 11+ mode. Android shows and controls its own accessibility consent screen.</string>
+    <string name="accessibility_capture_disable_hint">Disable BetaSafe in Android Accessibility settings to stop that capture mode.</string>
+    <string name="accessibility_service_description">On-device screenshot analysis that draws touch-through censor overlays. It does not retrieve interface text or perform actions.</string>
     <string name="notification_channel_name">Active protection</string>
     <string name="notification_title">BetaSafe protection active</string>
     <string name="notification_text">On-device censoring is watching the shared screen.</string>
@@ -91,4 +96,23 @@
     <string name="stats_time">PROTECTED</string>
     <string name="stats_sessions">SESSIONS</string>
     <string name="foundation_ready">PROTECTION PIPELINE READY</string>
+    <string name="export_title">EXPORT</string>
+    <string name="export_desc">Batch censor selected gallery images using the current detector and appearance settings. Results stay on device.</string>
+    <string name="export_current_settings">CURRENT SETTINGS</string>
+    <string name="export_summary_line">%1$s · reverse %2$s · %3$s border</string>
+    <string name="export_reverse_on">on</string>
+    <string name="export_reverse_off">off</string>
+    <string name="export_delete_originals_title">DELETE ORIGINALS AFTER EXPORT</string>
+    <string name="export_delete_originals_desc">Only after a censored copy saves successfully, ask the selected document provider to delete that original.</string>
+    <string name="export_delete_warning_title">Delete selected originals after export?</string>
+    <string name="export_delete_warning_body">This can permanently delete each original after its censored copy is saved. BetaSafe cannot undo it. Keep backups; some providers may refuse deletion.</string>
+    <string name="export_delete_warning_enable">ENABLE DELETE</string>
+    <string name="export_pick_images">SELECT IMAGES</string>
+    <string name="export_cancel">CANCEL EXPORT</string>
+    <string name="export_no_images">No images selected.</string>
+    <string name="export_processing">Processing %1$d / %2$d…</string>
+    <string name="export_done">Done. %1$d censored, %2$d skipped.</string>
+    <string name="export_done_delete">Done. %1$d censored, %2$d skipped, %3$d originals deleted.</string>
+    <string name="export_cancelled">Cancelled. %1$d censored.</string>
+    <string name="export_saved_to">Saved to Pictures/BetaSafe/Exports</string>
 </resources>

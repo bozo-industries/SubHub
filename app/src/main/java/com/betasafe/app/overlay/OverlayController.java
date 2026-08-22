@@ -15,16 +15,21 @@ import java.util.List;
 public final class OverlayController implements AutoCloseable {
     private final WindowManager windowManager;
     private final CensorOverlayView view;
+    private final int windowType;
     private boolean attached;
 
     public OverlayController(Context context) {
+        this(context, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+    }
+
+    public OverlayController(Context context, int windowType) {
         windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         view = new CensorOverlayView(context);
+        this.windowType = windowType;
     }
 
     public void show() {
         if (attached) return;
-        int type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
@@ -32,7 +37,7 @@ public final class OverlayController implements AutoCloseable {
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
-                type,
+                windowType,
                 flags,
                 PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.START;

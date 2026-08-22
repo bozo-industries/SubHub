@@ -9,7 +9,7 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | 18-class NudeNet-compatible ONNX detector | `DetectionEngine`, two 320-series models | Working and API 35 device-validated |
 | Low/Medium/High/Ultra performance presets | `DetectionPresets`, `PresetInfo` | Working from recovered values; settings UI emulator-validated |
 | MediaProjection whole-screen capture | `ScreenCaptureService` | Working and device-validated |
-| Accessibility screenshot capture | `ScreenshotAccessibilityService`, `canTakeScreenshot=true` | To implement |
+| Accessibility screenshot capture | `ScreenshotAccessibilityService`, `canTakeScreenshot=true` | Working on Android 11+ with the platform-safe 500 ms screenshot cadence; API 35 service binding, NNAPI initialization, and first 1080×2400 frame emulator-validated |
 | Object tracking and motion prediction | `ObjectTracker`, `TrackedObject` | Working with preset-specific velocity tuning |
 | Touch-through overlay censoring | `OverlayController`, `CensorBoxView` | Working with tracked frame-region rendering |
 | Solid, pixelate, blur, custom, static, glitch, tape, and error-popup styles | `CensorEffects`, settings resource IDs | Implemented; settings UI emulator-validated, live visual corpus check pending |
@@ -17,7 +17,7 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | Phrase categories and custom phrases | `CensorPhrases`, settings preferences | Implemented with seven recovered categories and custom phrases |
 | Reverse censor mode and shaped cutouts | `ReverseCensorConfig`, `ReverseCensorView` | Implemented; live visual corpus check pending |
 | Custom censor-image library | `CustomImageManager`, `CustomImagePool` | Working private import/enable/delete/pool flow; emulator picker check pending |
-| Censored multi-image export and optional source deletion | `CensorRenderer`, export tab | To implement with explicit SAF/MediaStore consent |
+| Censored multi-image export and optional source deletion | `CensorRenderer`, export tab | Implemented with cancellable SAF/MediaStore flow and second confirmation before post-save source deletion; UI emulator-validated, gallery corpus check pending |
 
 ## Browser
 
