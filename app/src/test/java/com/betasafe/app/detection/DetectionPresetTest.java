@@ -1,0 +1,30 @@
+package com.betasafe.app.detection;
+
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+
+public final class DetectionPresetTest {
+    @Test
+    public void recoveredPresetValuesAreApplied() {
+        DetectorConfig low = DetectionPreset.LOW.applyTo(DetectorConfig.builder()).build();
+        DetectorConfig ultra = DetectionPreset.ULTRA.applyTo(DetectorConfig.builder()).build();
+
+        assertEquals(0.38f, low.getConfidenceThreshold(), 0.0001f);
+        assertEquals(150, low.getDetectionIntervalMs());
+        assertEquals(0.35f, low.getCaptureScale(), 0.0001f);
+        assertEquals(320, low.getInferenceResolution());
+        assertEquals(0.18f, ultra.getConfidenceThreshold(), 0.0001f);
+        assertEquals(640, ultra.getInferenceResolution());
+        assertEquals(0.75f, ultra.getCaptureScale(), 0.0001f);
+    }
+
+    @Test
+    public void preferenceParsingIsCaseInsensitiveAndSafe() {
+        assertSame(DetectionPreset.HIGH, DetectionPreset.fromPreference("High"));
+        assertSame(DetectionPreset.ULTRA, DetectionPreset.fromPreference("ultra"));
+        assertSame(DetectionPreset.MEDIUM, DetectionPreset.fromPreference("unknown"));
+        assertEquals("low", DetectionPreset.LOW.preferenceValue());
+    }
+}

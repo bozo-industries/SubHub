@@ -142,9 +142,14 @@ public final class ScreenCaptureService extends Service {
                     display.width,
                     display.height,
                     display.densityDpi,
-                    config.getInferenceResolution());
+                    config.getInferenceResolution(),
+                    config.getCaptureScale());
             capture.start();
-            executor.scheduleWithFixedDelay(this::processFrame, 0, 90, TimeUnit.MILLISECONDS);
+            executor.scheduleWithFixedDelay(
+                    this::processFrame,
+                    0,
+                    Math.max(16, config.getDetectionIntervalMs()),
+                    TimeUnit.MILLISECONDS);
         } catch (Exception error) {
             Log.e(TAG, "Could not start on-device protection", error);
             stopSelf();

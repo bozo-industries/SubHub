@@ -10,7 +10,6 @@ import java.util.Map;
 /** Greedy IoU/distance tracker that keeps censor boxes stable between inference frames. */
 public final class ObjectTracker {
     private static final float IOU_THRESHOLD = 0.20f;
-    private static final float VELOCITY_SMOOTHING = 0.50f;
     private static final float MAX_VELOCITY = 120f;
 
     private final Map<Integer, TrackedObject> tracks = new LinkedHashMap<>();
@@ -56,10 +55,11 @@ public final class ObjectTracker {
                     detection.getBox().getCenterY() - track.getBox().getCenterY(),
                     -MAX_VELOCITY,
                     MAX_VELOCITY);
-            float dx = track.getVelocityX() * (1f - VELOCITY_SMOOTHING)
-                    + measuredX * VELOCITY_SMOOTHING;
-            float dy = track.getVelocityY() * (1f - VELOCITY_SMOOTHING)
-                    + measuredY * VELOCITY_SMOOTHING;
+            float velocitySmoothing = config.getVelocitySmoothing();
+            float dx = track.getVelocityX() * (1f - velocitySmoothing)
+                    + measuredX * velocitySmoothing;
+            float dy = track.getVelocityY() * (1f - velocitySmoothing)
+                    + measuredY * velocitySmoothing;
             BBox rendered = smooth(track.getBox(), detection.getBox(), config.getTrackingSmoothing());
             track.update(detection, rendered, dx, dy, nowNanos);
             detection.setTrackId(track.getId());
