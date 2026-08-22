@@ -2,6 +2,8 @@ package com.betasafe.app.settings;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.CompoundButton;
 import android.widget.SeekBar;
 import android.widget.Toast;
@@ -14,6 +16,10 @@ import com.betasafe.app.databinding.ActivitySettingsBinding;
 import com.betasafe.app.detection.DetectionPreset;
 import com.betasafe.app.detection.DetectorConfig;
 import com.betasafe.app.overlay.CensorPhrases;
+import com.betasafe.app.pack.LockedSettings;
+import com.betasafe.app.pack.PackManager;
+import com.betasafe.app.pack.PacksActivity;
+import com.betasafe.app.profiles.ProfilesActivity;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -30,8 +36,10 @@ public final class SettingsActivity extends AppCompatActivity {
         binding = ActivitySettingsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         repository = new SettingsRepository(this);
+        new PackManager(this);
         bindValues();
         attachListeners();
+        applyLockState();
         binding.buttonBack.setOnClickListener(view -> finish());
     }
 
@@ -155,6 +163,68 @@ public final class SettingsActivity extends AppCompatActivity {
         });
         binding.buttonCustomImages.setOnClickListener(view ->
                 startActivity(new Intent(this, CustomImagesActivity.class)));
+        binding.buttonProfiles.setOnClickListener(view ->
+                startActivity(new Intent(this, ProfilesActivity.class)));
+        binding.buttonPacks.setOnClickListener(view ->
+                startActivity(new Intent(this, PacksActivity.class)));
+    }
+
+    private void applyLockState() {
+        setEnabledRecursive(binding.styleGroup,
+                !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE));
+        binding.intensitySeek.setEnabled(
+                !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_INTENSITY));
+        binding.paddingSeek.setEnabled(
+                !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_SIZE_PADDING));
+        binding.switchBorder.setEnabled(
+                !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_BORDER));
+        binding.switchText.setEnabled(
+                !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_TEXT));
+        binding.switchAnimateBorder.setEnabled(
+                !LockedSettings.isLocked(SettingsRepository.KEY_ANIMATE_BORDER));
+        setEnabledRecursive(binding.borderEffectGroup,
+                !LockedSettings.isLocked(SettingsRepository.KEY_BORDER_EFFECT));
+        binding.switchReverse.setEnabled(
+                !LockedSettings.isLocked(SettingsRepository.KEY_REVERSE_MODE));
+        binding.reverseStrengthSeek.setEnabled(
+                !LockedSettings.isLocked(SettingsRepository.KEY_REVERSE_STRENGTH));
+        binding.buttonCustomImages.setEnabled(
+                !LockedSettings.isLocked(com.betasafe.app.capture.CustomImageManager.PREFS_KEY));
+        setEnabledRecursive(binding.presetGroup,
+                !LockedSettings.isLocked(SettingsRepository.KEY_DETECTION_PRESET));
+        binding.confidenceSeek.setEnabled(
+                !LockedSettings.isLocked(SettingsRepository.KEY_CONFIDENCE));
+        boolean categoriesEnabled =
+                !LockedSettings.isLocked(SettingsRepository.KEY_ENABLED_CATEGORIES);
+        CompoundButton[] categories = {
+                binding.switchGenitalsFemale, binding.switchGenitalsMale, binding.switchBreasts,
+                binding.switchButtocks, binding.switchAnus, binding.switchFaces,
+                binding.switchMaleChest, binding.switchBelly, binding.switchFeet,
+                binding.switchArmpits, binding.switchCovered};
+        for (CompoundButton category : categories) category.setEnabled(categoriesEnabled);
+        boolean phrasesEnabled =
+                !LockedSettings.isLocked(SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES);
+        CompoundButton[] phraseCategories = {
+                binding.switchPhraseShort, binding.switchPhraseDenial,
+                binding.switchPhraseHumiliation, binding.switchPhraseEdge,
+                binding.switchPhraseFindom, binding.switchPhraseNtr, binding.switchPhraseGooner};
+        for (CompoundButton category : phraseCategories) category.setEnabled(phrasesEnabled);
+        boolean customPhrasesEnabled =
+                !LockedSettings.isLocked(SettingsRepository.KEY_CUSTOM_PHRASES);
+        binding.customPhrases.setEnabled(customPhrasesEnabled);
+        binding.buttonSavePhrases.setEnabled(customPhrasesEnabled && phrasesEnabled);
+        int lockCount = LockedSettings.snapshot().size();
+        binding.packLockStatus.setVisibility(lockCount > 0 ? View.VISIBLE : View.GONE);
+        binding.packLockStatus.setText(getString(R.string.pack_lock_status, lockCount));
+    }
+
+    private static void setEnabledRecursive(View view, boolean enabled) {
+        view.setEnabled(enabled);
+        if (!(view instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) view;
+        for (int index = 0; index < group.getChildCount(); index++) {
+            setEnabledRecursive(group.getChildAt(index), enabled);
+        }
     }
 
     private void saveAll() {
@@ -297,6 +367,16 @@ public final class SettingsActivity extends AppCompatActivity {
     }
 
     private String percent(int value) { return value + "%"; }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (binding != null) {
+            new PackManager(this);
+            bindValues();
+            applyLockState();
+        }
+    }
 
     @Override
     protected void onDestroy() {
