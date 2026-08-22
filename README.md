@@ -1,6 +1,6 @@
 # BetaSafe
 
-BetaSafe is a private Android reverse-engineering workspace for the licensed Beta Blocker 1.67 APK. The immediate goal is a reliable modification loop, not a premature source rewrite.
+BetaSafe is a private Android reconstruction workspace for the licensed Beta Blocker 1.67 APK. The primary goal is a maintainable source implementation that preserves the original app's useful on-device behavior and visual language.
 
 The primary workstream is now a clean, human-editable Android source reconstruction under `app/`. Raw JADX output remains private reference material; tracked code is written and maintained as ordinary source. See [Reconstruction Roadmap](docs/reconstruction-roadmap.md).
 
@@ -42,6 +42,23 @@ Rebuild and align after editing smali or resources:
 ```
 
 The build runs `Test-NoMonetizationGate.ps1` first and stops if known billing, premium, paywall, purchase-token, or entitlement code indicators appear. Informational itch.io purchase/update text and Kotlin coroutine subscriptions are not monetization gates.
+
+## Building the editable source project
+
+The clean source tree builds without proprietary model assets, which keeps tests and UI work reproducible:
+
+```powershell
+.\gradlew.bat testDebugUnitTest assembleDebug
+```
+
+To produce a detector-capable local APK, import the two licensed models directly from your purchased APK. They are ignored by Git:
+
+```powershell
+.\scripts\Import-PrivateModelAssets.ps1 -ApkPath 'C:\path\to\licensed.apk'
+.\gradlew.bat clean testDebugUnitTest assembleDebug
+```
+
+The editable debug APK is written to `app\build\outputs\apk\debug\app-debug.apk` with package ID `com.betasafe.app`, so it can coexist with the vendor-signed installation.
 
 To sign, provide a private keystore path and process-scoped password variables. Password values are never passed as command-line arguments:
 

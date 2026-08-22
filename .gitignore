@@ -21,6 +21,7 @@ captures/
 *.keystore
 *.p12
 local.properties
+app/src/main/assets/*.onnx
 .env
 .env.*
 
