@@ -19,7 +19,7 @@ The reconstruction initially targets SDK 35 because that is the installed local 
 
 1. Compiling styled application shell. **Complete.**
 2. Detector models, class mapping, preprocessing, ONNX execution, postprocessing, and unit tests. **Core implementation complete; device inference validation pending.**
-3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering.
+3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering. **MediaProjection path implemented; device validation and accessibility path pending.**
 4. Settings, censor styles, custom images, reverse censoring, and export rendering.
 5. Safe browser, tabs, bookmarks/incognito behavior, DOM censoring, and ad blocking.
 6. Statistics, achievements, profiles, packs, diagnostics, and popup features.
