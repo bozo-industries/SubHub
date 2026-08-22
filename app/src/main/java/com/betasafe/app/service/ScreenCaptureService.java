@@ -54,6 +54,7 @@ public final class ScreenCaptureService extends Service {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final AtomicBoolean processing = new AtomicBoolean();
+    private final AtomicBoolean firstFrameReported = new AtomicBoolean();
     private final SharedPreferences.OnSharedPreferenceChangeListener settingsListener =
             (preferences, key) -> reloadSettings();
     private ScheduledExecutorService executor;
@@ -168,6 +169,12 @@ public final class ScreenCaptureService extends Service {
             stats.onTracks(tracks);
             int width = capture.getCaptureWidth();
             int height = capture.getCaptureHeight();
+            if (firstFrameReported.compareAndSet(false, true)) {
+                Log.i(TAG, "First frame processed with "
+                        + detector.getActiveModel() + " on " + detector.getActiveProvider()
+                        + " in " + detector.getLastInferenceMs() + " ms at "
+                        + width + "x" + height);
+            }
             mainHandler.post(() -> {
                 if (overlay != null) overlay.update(tracks, width, height);
             });
