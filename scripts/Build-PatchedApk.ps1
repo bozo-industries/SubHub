@@ -23,6 +23,12 @@ if (-not (Test-Path -LiteralPath (Join-Path $decodeRoot 'apktool.yml') -PathType
     throw "No APKTool workspace found at: $decodeRoot"
 }
 
+$monetizationAudit = Join-Path $PSScriptRoot 'Test-NoMonetizationGate.ps1'
+if (-not (Test-Path -LiteralPath $monetizationAudit -PathType Leaf)) {
+    throw "Required monetization audit is missing: $monetizationAudit"
+}
+& $monetizationAudit -PrivateRoot $resolvedPrivateRoot
+
 $apktool = Resolve-RequiredCommand -Name 'apktool'
 $zipalign = Resolve-RequiredCommand -Name 'zipalign'
 $apksigner = Resolve-RequiredCommand -Name 'apksigner'

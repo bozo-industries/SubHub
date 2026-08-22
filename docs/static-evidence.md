@@ -71,6 +71,17 @@ All entries are statically derived and unverified at runtime.
 - JADX 1.5.5 generated 4,183 files and reported method-level errors; smali remains the fallback.
 - Runtime install/smoke test is pending because no ADB device was connected.
 
+## Monetization-gate audit
+
+- No Google Play Billing package or `BillingClient` implementation is present.
+- No `isPremium`, premium-enabled, paywall, entitlement, purchase-token, purchase-verification, or payment-flow symbol appears in the application smali.
+- The only purchase-related resource text explains lifetime itch.io updates and how a purchaser retrieves downloads.
+- Matches for “subscription” in the whole DEX belong to Kotlin coroutine `BroadcastChannel`/`SharedFlow` APIs, not commercial subscriptions.
+- `LockedSettings` belongs to imported configuration-pack locking and is not a payment or premium gate.
+- The scripted build now fails closed if known monetization-gate indicators appear in a later decoded tree.
+
+Conclusion: Beta Blocker Android 1.67 already contains no premium/payment enforcement to remove. No entitlement bypass or payment-control patch was made.
+
 ## Security and uncertainty notes
 
 - The diagnostics server appears unauthenticated and not loopback-bound. Exposure depends on whether and when application code starts it; no call site was established in this static pass.
