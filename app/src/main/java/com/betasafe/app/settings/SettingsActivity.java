@@ -12,6 +12,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.betasafe.app.R;
 import com.betasafe.app.capture.CustomImagesActivity;
+import com.betasafe.app.commitment.CommitmentActivity;
+import com.betasafe.app.commitment.CommitmentManager;
 import com.betasafe.app.databinding.ActivitySettingsBinding;
 import com.betasafe.app.detection.DetectionPreset;
 import com.betasafe.app.detection.DetectorConfig;
@@ -176,6 +178,8 @@ public final class SettingsActivity extends AppCompatActivity {
                 startActivity(new Intent(this, PopupStormActivity.class)));
         binding.buttonDiagnostics.setOnClickListener(view ->
                 startActivity(new Intent(this, DiagnosticsActivity.class)));
+        binding.buttonCommitment.setOnClickListener(view ->
+                startActivity(new Intent(this, CommitmentActivity.class)));
     }
 
     private void applyLockState() {
@@ -390,6 +394,11 @@ public final class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (CommitmentManager.isActive(this)) {
+            startActivity(new Intent(this, CommitmentActivity.class));
+            finish();
+            return;
+        }
         if (binding != null) {
             new PackManager(this);
             bindValues();

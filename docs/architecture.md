@@ -71,6 +71,12 @@ JADX emitted method-level errors in application code including `MainActivity`, `
 
 The maintained header and Help surfaces use the project-owned gothic header and demoness guardian art. They do not depend on the purchased APK's decorative assets.
 
+## Consent-first commitment pact
+
+`CommitmentManager` stores only pact timestamps, bounded duration, a random salt, and a PBKDF2-HMAC-SHA256 keeper-code hash in the app's private settings. `CommitmentActivity` provides the setup ceremony, live countdown, keeper release, and a permanently reachable two-step safety release. While active, entry to censor settings and browser-shield configuration routes to the pact screen. Protection stopping remains fully operational through the main UI and foreground-service notification.
+
+This is intentionally an app-local consent ritual rather than a device-security primitive. The manifest has no Device Admin receiver. Android uninstall, app-data clearing, system controls, and immediate protection stop remain available, and the UI states those boundaries before activation and while the pact is active.
+
 ## Recommended next phase
 
-Use the clean source tree for maintained changes. Complete broad emulator and physical Android 15/16 validation, including private visual corpora and long-running performance, before adding the separately designed consent-based commitment lock.
+Use the clean source tree for maintained changes. Complete broad emulator and physical Android 15/16 validation, including private visual corpora and long-running performance, before treating the reconstruction as release-ready.

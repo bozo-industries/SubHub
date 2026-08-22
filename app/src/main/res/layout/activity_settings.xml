@@ -589,6 +589,12 @@
                 android:layout_height="52dp"
                 android:text="@string/manage_diagnostics" />
 
+            <Button
+                android:id="@+id/button_commitment"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="@string/manage_commitment" />
+
             <TextView
                 android:id="@+id/pack_lock_status"
                 android:layout_width="match_parent"

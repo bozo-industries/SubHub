@@ -22,9 +22,10 @@ C:\Users\user\Code\BetaSafe-private\
 - JADX 1.5.5: usable, with method-level failures that require smali fallback
 - Monetization-gate audit: no billing/paywall/entitlement code found; every scripted build rechecks this invariant
 - Clean source baseline: builds, installs, and runs independently as `com.betasafe.app`
-- API 35 emulator suite: 14 instrumented contracts plus unit/build/lint checks pass for UI/settings, browser workflows, both consent-driven capture modes, NNAPI inference, censor overlays/export, profiles/packs, diagnostics, statistics/achievements, Popup Storm, Help/onboarding/locales/shortcuts, and clean stop behavior
+- API 35 emulator suite: 18 instrumented contracts plus unit/build/lint checks pass for UI/settings, browser workflows, both consent-driven capture modes, NNAPI inference, censor overlays/export, profiles/packs, diagnostics, statistics/achievements, Popup Storm, Help/onboarding/locales/shortcuts, commitment safety, and clean stop behavior
 - Help and language surface: ten expandable source-authored guides, guided permission repair, first-run disclosure, two launcher shortcuts, and the recovered 11-choice locale selector are working; shell copy is localized and deeper untranslated copy falls back to English
-- Visual identity: original generated purple-demoness guardian, gothic header, and Popup Storm sample are tracked project assets and appear throughout the maintained shell; vendor badges and detector models remain private imports
+- Consent-first commitment: bounded 30-minute to 7-day keeper-code pacts seal app configuration with an explicit countdown and unconditional safety release; they never use Device Admin, block uninstall/data clearing, or delay stopping protection
+- Visual identity: original generated purple-demoness guardian, gothic header, horned-shield launcher icon, and Popup Storm sample are tracked project assets and appear throughout the maintained shell; vendor badges and detector models remain private imports
 
 A patched APK signed with a new local key cannot update an installation signed by the vendor key. Export any settings you need before uninstalling the original, or change the package ID so both builds can coexist. Keep the same private local key for every later BetaSafe update.
 

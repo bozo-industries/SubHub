@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.DownloadManager;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -42,6 +43,8 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.betasafe.app.R;
 import com.betasafe.app.capture.CensorRenderer;
+import com.betasafe.app.commitment.CommitmentActivity;
+import com.betasafe.app.commitment.CommitmentManager;
 import com.betasafe.app.databinding.ActivityBrowserBinding;
 import com.betasafe.app.detection.DetectionEngine;
 import com.betasafe.app.settings.SettingsRepository;
@@ -319,6 +322,10 @@ public final class BrowserActivity extends AppCompatActivity {
     }
 
     private void showShieldSettings() {
+        if (CommitmentManager.isActive(this)) {
+            startActivity(new Intent(this, CommitmentActivity.class));
+            return;
+        }
         String[] labels = getResources().getStringArray(R.array.browser_shield_options);
         boolean[] checked = {
                 preferences.getBoolean(KEY_PREBLUR, true),
