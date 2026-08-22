@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="28dp">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="205dp">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:alpha="0.72"
+                android:contentDescription="@null"
+                android:scaleType="centerCrop"
+                android:src="@drawable/betasafe_gothic_header" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#550D0D14" />
+
+            <TextView
+                android:id="@+id/button_back"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:layout_gravity="top|start"
+                android:layout_marginStart="20dp"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:text="@string/back"
+                android:textColor="@color/accent"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:layout_width="145dp"
+                android:layout_height="155dp"
+                android:layout_gravity="bottom|start"
+                android:contentDescription="@string/popup_guardian_desc"
+                android:scaleType="centerInside"
+                android:src="@drawable/betasafe_demoness_guardian" />
+
+            <LinearLayout
+                android:layout_width="220dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical|end"
+                android:layout_marginEnd="22dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.1"
+                    android:text="@string/commitment_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="21sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:text="@string/commitment_subtitle"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <LinearLayout
+            android:id="@+id/setup_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView
+                style="@style/Widget.BetaSafe.SectionHeader"
+                android:text="@string/commitment_make_pact" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/commitment_setup_body"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <RadioGroup
+                android:id="@+id/duration_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical">
+
+                <RadioButton android:id="@+id/duration_30m" android:layout_width="match_parent" android:layout_height="48dp" android:checked="true" android:text="@string/commitment_duration_30m" android:textColor="@color/text_primary" />
+                <RadioButton android:id="@+id/duration_2h" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_2h" android:textColor="@color/text_primary" />
+                <RadioButton android:id="@+id/duration_8h" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_8h" android:textColor="@color/text_primary" />
+                <RadioButton android:id="@+id/duration_24h" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_24h" android:textColor="@color/text_primary" />
+                <RadioButton android:id="@+id/duration_3d" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_3d" android:textColor="@color/text_primary" />
+                <RadioButton android:id="@+id/duration_7d" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_7d" android:textColor="@color/text_primary" />
+            </RadioGroup>
+
+            <EditText
+                android:id="@+id/keeper_code"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_card"
+                android:hint="@string/commitment_code_hint"
+                android:inputType="textPassword"
+                android:maxLength="64"
+                android:paddingHorizontal="14dp"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted" />
+
+            <EditText
+                android:id="@+id/keeper_code_confirm"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_card"
+                android:hint="@string/commitment_code_confirm_hint"
+                android:inputType="textPassword"
+                android:maxLength="64"
+                android:paddingHorizontal="14dp"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted" />
+
+            <CheckBox
+                android:id="@+id/consent_check"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:buttonTint="@color/accent"
+                android:text="@string/commitment_consent"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/button_seal_pact"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_primary_button"
+                android:text="@string/commitment_seal"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/active_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp"
+            android:visibility="gone">
+
+            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/commitment_pact_sealed" />
+
+            <TextView
+                android:id="@+id/countdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center"
+                android:letterSpacing="0.08"
+                android:textColor="@color/text_primary"
+                android:textSize="32sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="@string/commitment_active_body"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <EditText
+                android:id="@+id/release_code"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_card"
+                android:hint="@string/commitment_release_code_hint"
+                android:inputType="textPassword"
+                android:maxLength="64"
+                android:paddingHorizontal="14dp"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted" />
+
+            <Button
+                android:id="@+id/button_keeper_release"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="8dp"
+                android:text="@string/commitment_keeper_release" />
+
+            <TextView
+                android:id="@+id/button_emergency_release"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_card"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:text="@string/commitment_emergency_release"
+                android:textColor="@color/accent"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/commitment_safety_note"
+                android:textColor="@color/text_muted"
+                android:textSize="10sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

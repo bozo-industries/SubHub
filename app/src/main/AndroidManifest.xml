@@ -13,9 +13,10 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
-        android:icon="@drawable/ic_launcher_foreground"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:localeConfig="@xml/locales_config"
+        android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.BetaSafe">
 
@@ -60,6 +61,7 @@
         <activity android:name=".stats.AchievementsActivity" android:exported="false" />
         <activity android:name=".popup.PopupStormActivity" android:exported="false" />
         <activity android:name=".help.HelpActivity" android:exported="false" />
+        <activity android:name=".commitment.CommitmentActivity" android:exported="false" />
 
         <service
             android:name=".service.ScreenCaptureService"

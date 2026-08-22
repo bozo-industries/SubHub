@@ -21,6 +21,8 @@ import androidx.core.content.ContextCompat;
 import com.betasafe.app.databinding.ActivityMainBinding;
 import com.betasafe.app.browser.BrowserActivity;
 import com.betasafe.app.capture.ExportActivity;
+import com.betasafe.app.commitment.CommitmentActivity;
+import com.betasafe.app.commitment.CommitmentManager;
 import com.betasafe.app.service.ScreenCaptureService;
 import com.betasafe.app.service.ScreenshotAccessibilityService;
 import com.betasafe.app.settings.SettingsActivity;
@@ -76,8 +78,7 @@ public final class MainActivity extends AppCompatActivity {
         binding.buttonAccessibilityCapture.setOnClickListener(view -> startActivity(
                 new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         binding.tabHome.setOnClickListener(view -> selectTab(binding.tabHome, R.string.tab_home));
-        binding.tabSettings.setOnClickListener(
-                view -> startActivity(new Intent(this, SettingsActivity.class)));
+        binding.tabSettings.setOnClickListener(view -> openSettings());
         binding.tabBrowser.setOnClickListener(
                 view -> startActivity(new Intent(this, BrowserActivity.class)));
         binding.tabExport.setOnClickListener(
@@ -91,6 +92,8 @@ public final class MainActivity extends AppCompatActivity {
             startActivity(new Intent(this, HelpActivity.class));
         });
         binding.onboardingDismiss.setOnClickListener(view -> markOnboardingSeen());
+        binding.buttonCommitmentView.setOnClickListener(view ->
+                startActivity(new Intent(this, CommitmentActivity.class)));
         boolean seen = getSharedPreferences(SettingsRepository.PREFERENCES_NAME, MODE_PRIVATE)
                 .getBoolean("has_seen_onboarding", false);
         binding.onboardingCard.setVisibility(seen ? View.GONE : View.VISIBLE);
@@ -121,6 +124,11 @@ public final class MainActivity extends AppCompatActivity {
         getSharedPreferences(SettingsRepository.PREFERENCES_NAME, MODE_PRIVATE)
                 .edit().putBoolean("has_seen_onboarding", true).apply();
         binding.onboardingCard.setVisibility(View.GONE);
+    }
+
+    private void openSettings() {
+        startActivity(new Intent(this, CommitmentManager.isActive(this)
+                ? CommitmentActivity.class : SettingsActivity.class));
     }
 
     private void toggleProtection(View view) {
@@ -188,6 +196,13 @@ public final class MainActivity extends AppCompatActivity {
             binding.statsBlocks.setText(String.valueOf(stats.getTotalBlocks()));
             binding.statsTime.setText(StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds()));
             binding.statsSessions.setText(String.valueOf(stats.getSessions()));
+            boolean commitmentActive = CommitmentManager.isActive(this);
+            binding.commitmentCard.setVisibility(commitmentActive ? View.VISIBLE : View.GONE);
+            if (commitmentActive) {
+                binding.commitmentStatus.setText(getString(R.string.commitment_active_remaining,
+                        CommitmentActivity.formatDuration(
+                                CommitmentManager.remainingMillis(this))));
+            }
             showProgressUnlocks(stats);
         }
     }

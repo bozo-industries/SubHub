@@ -16,6 +16,7 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - The first-run disclosure, gothic/demoness shell, ten-section Help screen, permission status/repair controls, and complete 11-choice language dialog rendered correctly.
 - Selecting German recreated Help with localized title, permissions, language status, and section labels; the default locale was restored after validation.
 - Dynamic launcher shortcuts were registered for Start Protection and Open Browser.
+- The Commitment Pact setup, matching keeper-code entry, consent checkbox, sealed countdown, wrong/correct-code contracts, and two-step safety release were exercised. An active pact routed configuration to the pact screen while the main protection control remained enabled.
 - The browser loaded Google over HTTPS, applied its protected footer, and remained below Android's system-bar insets.
 - Changing the UI to `pixelate`, moving intensity to `83%`, and disabling the pink border produced the expected values in `betablocker_settings.xml`.
 - Android displayed its standard MediaProjection consent sheet. The whole-screen option was selected for the test; no production consent path was bypassed.
