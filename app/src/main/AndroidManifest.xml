@@ -39,11 +39,27 @@
             android:name=".capture.CustomImagesActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".capture.ExportActivity"
+            android:exported="false" />
+
         <service
             android:name=".service.ScreenCaptureService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection"
             android:stopWithTask="false" />
+
+        <service
+            android:name=".service.ScreenshotAccessibilityService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
     </application>
 
 </manifest>
