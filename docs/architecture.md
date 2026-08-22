@@ -59,7 +59,13 @@ No Retrofit-style product backend or remote license API was found in the applica
 
 The app also contains a diagnostics HTTP server on TCP port 8765. It constructs `ServerSocket(8765)`, exposes `/`, `/data`, and `/reset`, and has no apparent authentication. Because the socket is not explicitly bound to loopback, treat it as LAN-exposed whenever started. A future maintained implementation should remove it from release builds or bind it to loopback with explicit opt-in and authentication.
 
-The clean source reconstruction intentionally omits that diagnostics server. It also contains no billing, payment, premium, entitlement, or remote-license implementation; the purchased APK's own app code did not contain such a gate in the audited DEX trees.
+The clean source reconstruction intentionally omits that diagnostics server. The purchased APK's own app code did not contain a billing, premium, entitlement, or remote-license gate in the audited DEX trees. The maintained source now adds an original, optional PayPal settlement feature: detector events write only to an on-device bounded ledger, while a separately deployed backend creates/captures PayPal orders and verifies webhooks. No merchant credential is compiled into Android.
+
+## Penance and payment boundary
+
+`PenanceManager` stores opt-in rules, capped strike entries, mercy state, settlement state, and payment history in private app preferences. Both capture services forward only the count of newly observed tracker IDs; they never initiate a network request. The UI can forgive a false positive during mercy or release every unpaid entry at any time.
+
+`payment-server/` owns PayPal OAuth, Orders v2 calls, capture, persistent order correlation, and webhook verification. Android sends a random settlement ID, exact bounded amount, and currency. PayPal approval returns through the backend to the app's `betasafe://paypal` route, but the backend does not capture on that redirect. Android requests capture only while the same local checkout remains active and accepts completion only when order ID, settlement ID, amount, and currency all match. Release builds permit HTTPS backend URLs only.
 
 ## JADX limitations
 
