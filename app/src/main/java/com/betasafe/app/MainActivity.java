@@ -22,6 +22,8 @@ import com.betasafe.app.databinding.ActivityMainBinding;
 import com.betasafe.app.browser.BrowserActivity;
 import com.betasafe.app.service.ScreenCaptureService;
 import com.betasafe.app.settings.SettingsActivity;
+import com.betasafe.app.stats.StatsRepository;
+import com.betasafe.app.stats.StatsSnapshot;
 import com.google.android.material.snackbar.Snackbar;
 
 /** Main source UI and explicit permission flow for starting on-device protection. */
@@ -121,7 +123,13 @@ public final class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (binding != null) updateProtectionButton(ScreenCaptureService.isRunning());
+        if (binding != null) {
+            updateProtectionButton(ScreenCaptureService.isRunning());
+            StatsSnapshot stats = new StatsRepository(this).load();
+            binding.statsBlocks.setText(String.valueOf(stats.getTotalBlocks()));
+            binding.statsTime.setText(StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds()));
+            binding.statsSessions.setText(String.valueOf(stats.getSessions()));
+        }
     }
 
     @Override
