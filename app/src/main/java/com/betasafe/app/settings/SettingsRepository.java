@@ -7,7 +7,9 @@ import android.graphics.Color;
 import com.betasafe.app.detection.DetectorConfig;
 import com.betasafe.app.detection.DetectionPreset;
 import com.betasafe.app.detection.NudeNetClassCatalog;
+import com.betasafe.app.overlay.CensorPhrases;
 
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -22,6 +24,16 @@ public final class SettingsRepository {
     public static final String KEY_SHOW_TEXT = "show_text";
     public static final String KEY_BORDER_COLOR = "border_color";
     public static final String KEY_DETECTION_PRESET = "detection_preset";
+    public static final String KEY_CENSOR_SIZE_PADDING = "censor_size_padding";
+    public static final String KEY_ANIMATE_BORDER = "animate_border";
+    public static final String KEY_BORDER_EFFECT = "border_effect";
+    public static final String KEY_ENABLED_PHRASE_CATEGORIES = "enabled_phrase_categories";
+    public static final String KEY_CUSTOM_PHRASES = "custom_phrases";
+    public static final String KEY_REVERSE_MODE = "reverse_mode";
+    public static final String KEY_REVERSE_STRENGTH = "reverse_strength";
+    public static final String KEY_REVERSE_CUTOUT_SHAPE = "reverse_cutout_shape";
+    public static final String KEY_ERROR_TITLE = "error_popup_title";
+    public static final String KEY_ERROR_TEXT = "error_popup_text";
 
     private final SharedPreferences preferences;
 
@@ -70,9 +82,22 @@ public final class SettingsRepository {
                 CensorAppearance.Type.fromPreference(
                         preferences.getString(KEY_CENSOR_TYPE, "box")),
                 preferences.getInt(KEY_CENSOR_INTENSITY, 50),
+                preferences.getFloat(KEY_CENSOR_SIZE_PADDING, 0.20f),
                 preferences.getBoolean(KEY_SHOW_BORDER, true),
+                preferences.getBoolean(KEY_ANIMATE_BORDER, false),
+                CensorAppearance.BorderEffect.fromPreference(
+                        preferences.getString(KEY_BORDER_EFFECT, "classic")),
                 preferences.getBoolean(KEY_SHOW_TEXT, true),
-                borderColor);
+                borderColor,
+                CensorPhrases.build(
+                        preferences.getStringSet(
+                                KEY_ENABLED_PHRASE_CATEGORIES, CensorPhrases.DEFAULT_ENABLED),
+                        preferences.getStringSet(KEY_CUSTOM_PHRASES, Collections.emptySet())),
+                preferences.getBoolean(KEY_REVERSE_MODE, false),
+                Math.round(preferences.getFloat(KEY_REVERSE_STRENGTH, 1f) * 100),
+                preferences.getString(KEY_REVERSE_CUTOUT_SHAPE, "rectangle"),
+                preferences.getString(KEY_ERROR_TITLE, "BetaSafe"),
+                preferences.getString(KEY_ERROR_TEXT, "Access blocked."));
     }
 
     public void saveAppearance(

@@ -174,6 +174,7 @@ public final class ScreenCaptureService extends Service {
             stats.onTracks(tracks);
             int width = capture.getCaptureWidth();
             int height = capture.getCaptureHeight();
+            Bitmap overlayFrame = frame.copy(Bitmap.Config.ARGB_8888, false);
             if (firstFrameReported.compareAndSet(false, true)) {
                 Log.i(TAG, "First frame processed with "
                         + detector.getActiveModel() + " on " + detector.getActiveProvider()
@@ -181,7 +182,8 @@ public final class ScreenCaptureService extends Service {
                         + width + "x" + height);
             }
             mainHandler.post(() -> {
-                if (overlay != null) overlay.update(tracks, width, height);
+                if (overlay != null) overlay.update(tracks, width, height, overlayFrame);
+                else overlayFrame.recycle();
             });
         } catch (Exception error) {
             Log.w(TAG, "Frame processing failed", error);

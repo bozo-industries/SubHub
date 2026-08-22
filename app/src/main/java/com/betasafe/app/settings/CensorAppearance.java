@@ -2,13 +2,17 @@ package com.betasafe.app.settings;
 
 import android.graphics.Color;
 
-/** Immutable visual configuration for live censor overlays. */
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+
+/** Immutable visual configuration shared by live overlays and image export. */
 public final class CensorAppearance {
     public enum Type {
-        BOX("box"),
-        PIXELATE("pixelate"),
-        BLUR("blur"),
-        BAR("bar");
+        BOX("box"), PIXELATE("pixelate"), BLUR("blur"), CUSTOM("custom"),
+        STATIC("static"), GLITCH("glitch"), TAPE("tape"),
+        ERROR_POPUP("error_popup"), BAR("bar");
 
         private final String preferenceValue;
 
@@ -16,20 +20,53 @@ public final class CensorAppearance {
         public String getPreferenceValue() { return preferenceValue; }
 
         public static Type fromPreference(String value) {
-            if (value != null) {
-                for (Type type : values()) {
-                    if (type.preferenceValue.equalsIgnoreCase(value)) return type;
-                }
+            if (value == null) return BOX;
+            String normalized = value.trim().toLowerCase(Locale.ROOT);
+            if (normalized.equals("solid") || normalized.equals("solid_box")) return BOX;
+            if (normalized.equals("mosaic")) return PIXELATE;
+            if (normalized.equals("image") || normalized.equals("custom_image")) return CUSTOM;
+            if (normalized.equals("noise") || normalized.equals("tv_static")) return STATIC;
+            if (normalized.equals("privacy_tape")) return TAPE;
+            if (normalized.equals("error") || normalized.equals("errorbox")
+                    || normalized.equals("windows_error")) return ERROR_POPUP;
+            for (Type type : values()) {
+                if (type.preferenceValue.equals(normalized)) return type;
             }
             return BOX;
         }
     }
 
+    public enum BorderEffect {
+        CLASSIC, GLOW, GRADIENT, RAINBOW;
+
+        public static BorderEffect fromPreference(String value) {
+            if (value != null) {
+                try {
+                    return valueOf(value.trim().toUpperCase(Locale.ROOT));
+                } catch (IllegalArgumentException ignored) {
+                    // Use classic for unknown imported values.
+                }
+            }
+            return CLASSIC;
+        }
+
+        public String preferenceValue() { return name().toLowerCase(Locale.ROOT); }
+    }
+
     private final Type type;
     private final int intensity;
+    private final float sizePadding;
     private final boolean showBorder;
+    private final boolean animateBorder;
+    private final BorderEffect borderEffect;
     private final boolean showText;
     private final int borderColor;
+    private final List<String> phrases;
+    private final boolean reverseMode;
+    private final int reverseStrength;
+    private final String reverseCutoutShape;
+    private final String errorTitle;
+    private final String errorMessage;
 
     public CensorAppearance(
             Type type,
@@ -37,11 +74,41 @@ public final class CensorAppearance {
             boolean showBorder,
             boolean showText,
             int borderColor) {
-        this.type = type;
-        this.intensity = Math.max(0, Math.min(100, intensity));
+        this(type, intensity, 0.20f, showBorder, false, BorderEffect.CLASSIC,
+                showText, borderColor, Collections.singletonList("BLOCKED"), false, 100,
+                "rectangle", "BetaSafe", "Access blocked.");
+    }
+
+    public CensorAppearance(
+            Type type,
+            int intensity,
+            float sizePadding,
+            boolean showBorder,
+            boolean animateBorder,
+            BorderEffect borderEffect,
+            boolean showText,
+            int borderColor,
+            List<String> phrases,
+            boolean reverseMode,
+            int reverseStrength,
+            String reverseCutoutShape,
+            String errorTitle,
+            String errorMessage) {
+        this.type = type == null ? Type.BOX : type;
+        this.intensity = clamp(intensity, 0, 100);
+        this.sizePadding = Math.max(0f, Math.min(1f, sizePadding));
         this.showBorder = showBorder;
+        this.animateBorder = animateBorder;
+        this.borderEffect = borderEffect == null ? BorderEffect.CLASSIC : borderEffect;
         this.showText = showText;
         this.borderColor = borderColor;
+        List<String> safePhrases = phrases == null ? Collections.emptyList() : phrases;
+        this.phrases = Collections.unmodifiableList(new ArrayList<>(safePhrases));
+        this.reverseMode = reverseMode;
+        this.reverseStrength = clamp(reverseStrength, 1, 100);
+        this.reverseCutoutShape = normalizeShape(reverseCutoutShape);
+        this.errorTitle = emptyFallback(errorTitle, "BetaSafe");
+        this.errorMessage = emptyFallback(errorMessage, "Access blocked.");
     }
 
     public static CensorAppearance defaults() {
@@ -50,7 +117,36 @@ public final class CensorAppearance {
 
     public Type getType() { return type; }
     public int getIntensity() { return intensity; }
+    public float getSizePadding() { return sizePadding; }
     public boolean isShowBorder() { return showBorder; }
+    public boolean isAnimateBorder() { return animateBorder; }
+    public BorderEffect getBorderEffect() { return borderEffect; }
     public boolean isShowText() { return showText; }
     public int getBorderColor() { return borderColor; }
+    public List<String> getPhrases() { return phrases; }
+    public boolean isReverseMode() { return reverseMode; }
+    public int getReverseStrength() { return reverseStrength; }
+    public String getReverseCutoutShape() { return reverseCutoutShape; }
+    public String getErrorTitle() { return errorTitle; }
+    public String getErrorMessage() { return errorMessage; }
+
+    public String phraseFor(int stableId) {
+        if (phrases.isEmpty()) return "BLOCKED";
+        return phrases.get(Math.floorMod(stableId, phrases.size()));
+    }
+
+    private static int clamp(int value, int minimum, int maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    private static String normalizeShape(String value) {
+        if ("rounded".equalsIgnoreCase(value) || "ellipse".equalsIgnoreCase(value)) {
+            return value.toLowerCase(Locale.ROOT);
+        }
+        return "rectangle";
+    }
+
+    private static String emptyFallback(String value, String fallback) {
+        return value == null || value.trim().isEmpty() ? fallback : value.trim();
+    }
 }

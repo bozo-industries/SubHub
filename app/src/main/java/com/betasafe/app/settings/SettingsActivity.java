@@ -1,14 +1,19 @@
 package com.betasafe.app.settings;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.CompoundButton;
 import android.widget.SeekBar;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.betasafe.app.R;
+import com.betasafe.app.capture.CustomImagesActivity;
 import com.betasafe.app.databinding.ActivitySettingsBinding;
+import com.betasafe.app.detection.DetectionPreset;
 import com.betasafe.app.detection.DetectorConfig;
+import com.betasafe.app.overlay.CensorPhrases;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -36,9 +41,19 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.styleGroup.check(radioFor(appearance.getType()));
         binding.intensitySeek.setProgress(appearance.getIntensity());
         binding.intensityValue.setText(percent(appearance.getIntensity()));
+        int padding = Math.round(appearance.getSizePadding() * 100);
+        binding.paddingSeek.setProgress(padding);
+        binding.paddingValue.setText(percent(padding));
         binding.switchBorder.setChecked(appearance.isShowBorder());
         binding.switchText.setChecked(appearance.isShowText());
+        binding.switchAnimateBorder.setChecked(appearance.isAnimateBorder());
+        binding.borderEffectGroup.check(radioFor(appearance.getBorderEffect()));
+        binding.switchReverse.setChecked(appearance.isReverseMode());
+        binding.reverseStrengthSeek.setProgress(appearance.getReverseStrength());
+        binding.reverseStrengthValue.setText(percent(appearance.getReverseStrength()));
 
+        DetectionPreset preset = repository.loadDetectionPreset();
+        binding.presetGroup.check(radioFor(preset));
         DetectorConfig detector = repository.loadDetectorConfig();
         int confidence = Math.round(detector.getConfidenceThreshold() * 100);
         binding.confidenceSeek.setProgress(confidence);
@@ -49,33 +64,97 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.switchBreasts.setChecked(categories.contains("breasts"));
         binding.switchButtocks.setChecked(categories.contains("buttocks"));
         binding.switchAnus.setChecked(categories.contains("anus"));
+        binding.switchFaces.setChecked(categories.contains("face"));
+        binding.switchMaleChest.setChecked(categories.contains("male_chest"));
+        binding.switchBelly.setChecked(categories.contains("belly"));
+        binding.switchFeet.setChecked(categories.contains("feet"));
+        binding.switchArmpits.setChecked(categories.contains("armpits"));
+        binding.switchCovered.setChecked(containsCoveredCategory(categories));
+
+        Set<String> phraseCategories = repository.preferences().getStringSet(
+                SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES,
+                CensorPhrases.DEFAULT_ENABLED);
+        binding.switchPhraseShort.setChecked(phraseCategories.contains("short"));
+        binding.switchPhraseDenial.setChecked(phraseCategories.contains("denial"));
+        binding.switchPhraseHumiliation.setChecked(phraseCategories.contains("humiliation"));
+        binding.switchPhraseEdge.setChecked(phraseCategories.contains("edge"));
+        binding.switchPhraseFindom.setChecked(phraseCategories.contains("findom"));
+        binding.switchPhraseNtr.setChecked(phraseCategories.contains("ntr"));
+        binding.switchPhraseGooner.setChecked(phraseCategories.contains("gooner"));
+        Set<String> customPhrases = repository.preferences().getStringSet(
+                SettingsRepository.KEY_CUSTOM_PHRASES, new LinkedHashSet<>());
+        binding.customPhrases.setText(joinLines(customPhrases));
         bindingValues = false;
     }
 
     private void attachListeners() {
         binding.styleGroup.setOnCheckedChangeListener((group, checkedId) -> saveAll());
-        binding.intensitySeek.setOnSeekBarChangeListener(new SimpleSeekListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+        binding.borderEffectGroup.setOnCheckedChangeListener((group, checkedId) -> saveAll());
+        binding.presetGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            if (bindingValues) return;
+            DetectionPreset preset = presetFor(checkedId);
+            repository.saveDetectionPreset(preset);
+            bindingValues = true;
+            int confidence = Math.round(preset.getConfidence() * 100);
+            binding.confidenceSeek.setProgress(confidence);
+            binding.confidenceValue.setText(percent(confidence));
+            bindingValues = false;
+            saveAll();
+        });
+        binding.intensitySeek.setOnSeekBarChangeListener(new SavingSeekListener() {
+            @Override public void update(int progress, boolean fromUser) {
                 binding.intensityValue.setText(percent(progress));
                 if (fromUser) saveAll();
             }
         });
-        binding.confidenceSeek.setOnSeekBarChangeListener(new SimpleSeekListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+        binding.paddingSeek.setOnSeekBarChangeListener(new SavingSeekListener() {
+            @Override public void update(int progress, boolean fromUser) {
+                binding.paddingValue.setText(percent(progress));
+                if (fromUser) saveAll();
+            }
+        });
+        binding.confidenceSeek.setOnSeekBarChangeListener(new SavingSeekListener() {
+            @Override public void update(int progress, boolean fromUser) {
                 binding.confidenceValue.setText(percent(progress));
+                if (fromUser) saveAll();
+            }
+        });
+        binding.reverseStrengthSeek.setOnSeekBarChangeListener(new SavingSeekListener() {
+            @Override public void update(int progress, boolean fromUser) {
+                binding.reverseStrengthValue.setText(percent(progress));
                 if (fromUser) saveAll();
             }
         });
         CompoundButton.OnCheckedChangeListener changed = (button, checked) -> saveAll();
         binding.switchBorder.setOnCheckedChangeListener(changed);
         binding.switchText.setOnCheckedChangeListener(changed);
+        binding.switchAnimateBorder.setOnCheckedChangeListener(changed);
+        binding.switchReverse.setOnCheckedChangeListener(changed);
         binding.switchGenitalsFemale.setOnCheckedChangeListener(changed);
         binding.switchGenitalsMale.setOnCheckedChangeListener(changed);
         binding.switchBreasts.setOnCheckedChangeListener(changed);
         binding.switchButtocks.setOnCheckedChangeListener(changed);
         binding.switchAnus.setOnCheckedChangeListener(changed);
+        binding.switchFaces.setOnCheckedChangeListener(changed);
+        binding.switchMaleChest.setOnCheckedChangeListener(changed);
+        binding.switchBelly.setOnCheckedChangeListener(changed);
+        binding.switchFeet.setOnCheckedChangeListener(changed);
+        binding.switchArmpits.setOnCheckedChangeListener(changed);
+        binding.switchCovered.setOnCheckedChangeListener(changed);
+        binding.switchPhraseShort.setOnCheckedChangeListener(changed);
+        binding.switchPhraseDenial.setOnCheckedChangeListener(changed);
+        binding.switchPhraseHumiliation.setOnCheckedChangeListener(changed);
+        binding.switchPhraseEdge.setOnCheckedChangeListener(changed);
+        binding.switchPhraseFindom.setOnCheckedChangeListener(changed);
+        binding.switchPhraseNtr.setOnCheckedChangeListener(changed);
+        binding.switchPhraseGooner.setOnCheckedChangeListener(changed);
+        binding.buttonSavePhrases.setOnClickListener(view -> {
+            saveCustomPhrases();
+            saveAll();
+            Toast.makeText(this, R.string.settings_saved, Toast.LENGTH_SHORT).show();
+        });
+        binding.buttonCustomImages.setOnClickListener(view ->
+                startActivity(new Intent(this, CustomImagesActivity.class)));
     }
 
     private void saveAll() {
@@ -85,13 +164,64 @@ public final class SettingsActivity extends AppCompatActivity {
                 binding.intensitySeek.getProgress(),
                 binding.switchBorder.isChecked(),
                 binding.switchText.isChecked());
+        repository.preferences().edit()
+                .putFloat(SettingsRepository.KEY_CENSOR_SIZE_PADDING,
+                        binding.paddingSeek.getProgress() / 100f)
+                .putBoolean(SettingsRepository.KEY_ANIMATE_BORDER,
+                        binding.switchAnimateBorder.isChecked())
+                .putString(SettingsRepository.KEY_BORDER_EFFECT,
+                        borderFor(binding.borderEffectGroup.getCheckedRadioButtonId()).preferenceValue())
+                .putBoolean(SettingsRepository.KEY_REVERSE_MODE, binding.switchReverse.isChecked())
+                .putFloat(SettingsRepository.KEY_REVERSE_STRENGTH,
+                        binding.reverseStrengthSeek.getProgress() / 100f)
+                .putStringSet(SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES,
+                        selectedPhraseCategories())
+                .apply();
+
         Set<String> categories = new LinkedHashSet<>();
         if (binding.switchGenitalsFemale.isChecked()) categories.add("genitals_female");
         if (binding.switchGenitalsMale.isChecked()) categories.add("genitals_male");
         if (binding.switchBreasts.isChecked()) categories.add("breasts");
         if (binding.switchButtocks.isChecked()) categories.add("buttocks");
         if (binding.switchAnus.isChecked()) categories.add("anus");
+        if (binding.switchFaces.isChecked()) categories.add("face");
+        if (binding.switchMaleChest.isChecked()) categories.add("male_chest");
+        if (binding.switchBelly.isChecked()) categories.add("belly");
+        if (binding.switchFeet.isChecked()) categories.add("feet");
+        if (binding.switchArmpits.isChecked()) categories.add("armpits");
+        if (binding.switchCovered.isChecked()) {
+            categories.add("genitals_covered");
+            categories.add("breasts_covered");
+            categories.add("buttocks_covered");
+            categories.add("anus_covered");
+            categories.add("belly_covered");
+            categories.add("feet_covered");
+            categories.add("armpits_covered");
+        }
         repository.saveDetection(binding.confidenceSeek.getProgress(), categories);
+    }
+
+    private void saveCustomPhrases() {
+        Set<String> values = new LinkedHashSet<>();
+        for (String line : binding.customPhrases.getText().toString().split("\\R")) {
+            String phrase = line.trim();
+            if (!phrase.isEmpty()) values.add(phrase.length() > 80 ? phrase.substring(0, 80) : phrase);
+        }
+        repository.preferences().edit()
+                .putStringSet(SettingsRepository.KEY_CUSTOM_PHRASES, values)
+                .apply();
+    }
+
+    private Set<String> selectedPhraseCategories() {
+        Set<String> values = new LinkedHashSet<>();
+        if (binding.switchPhraseShort.isChecked()) values.add("short");
+        if (binding.switchPhraseDenial.isChecked()) values.add("denial");
+        if (binding.switchPhraseHumiliation.isChecked()) values.add("humiliation");
+        if (binding.switchPhraseEdge.isChecked()) values.add("edge");
+        if (binding.switchPhraseFindom.isChecked()) values.add("findom");
+        if (binding.switchPhraseNtr.isChecked()) values.add("ntr");
+        if (binding.switchPhraseGooner.isChecked()) values.add("gooner");
+        return values;
     }
 
     private int radioFor(CensorAppearance.Type type) {
@@ -99,15 +229,71 @@ public final class SettingsActivity extends AppCompatActivity {
             case PIXELATE: return R.id.radio_pixelate;
             case BLUR: return R.id.radio_blur;
             case BAR: return R.id.radio_bar;
+            case CUSTOM: return R.id.radio_custom;
+            case STATIC: return R.id.radio_static;
+            case GLITCH: return R.id.radio_glitch;
+            case TAPE: return R.id.radio_tape;
+            case ERROR_POPUP: return R.id.radio_error;
             default: return R.id.radio_box;
         }
     }
 
-    private CensorAppearance.Type typeFor(int radioId) {
-        if (radioId == R.id.radio_pixelate) return CensorAppearance.Type.PIXELATE;
-        if (radioId == R.id.radio_blur) return CensorAppearance.Type.BLUR;
-        if (radioId == R.id.radio_bar) return CensorAppearance.Type.BAR;
+    private CensorAppearance.Type typeFor(int id) {
+        if (id == R.id.radio_pixelate) return CensorAppearance.Type.PIXELATE;
+        if (id == R.id.radio_blur) return CensorAppearance.Type.BLUR;
+        if (id == R.id.radio_bar) return CensorAppearance.Type.BAR;
+        if (id == R.id.radio_custom) return CensorAppearance.Type.CUSTOM;
+        if (id == R.id.radio_static) return CensorAppearance.Type.STATIC;
+        if (id == R.id.radio_glitch) return CensorAppearance.Type.GLITCH;
+        if (id == R.id.radio_tape) return CensorAppearance.Type.TAPE;
+        if (id == R.id.radio_error) return CensorAppearance.Type.ERROR_POPUP;
         return CensorAppearance.Type.BOX;
+    }
+
+    private int radioFor(CensorAppearance.BorderEffect effect) {
+        switch (effect) {
+            case GLOW: return R.id.radio_border_glow;
+            case GRADIENT: return R.id.radio_border_gradient;
+            case RAINBOW: return R.id.radio_border_rainbow;
+            default: return R.id.radio_border_classic;
+        }
+    }
+
+    private CensorAppearance.BorderEffect borderFor(int id) {
+        if (id == R.id.radio_border_glow) return CensorAppearance.BorderEffect.GLOW;
+        if (id == R.id.radio_border_gradient) return CensorAppearance.BorderEffect.GRADIENT;
+        if (id == R.id.radio_border_rainbow) return CensorAppearance.BorderEffect.RAINBOW;
+        return CensorAppearance.BorderEffect.CLASSIC;
+    }
+
+    private int radioFor(DetectionPreset preset) {
+        switch (preset) {
+            case LOW: return R.id.radio_preset_low;
+            case HIGH: return R.id.radio_preset_high;
+            case ULTRA: return R.id.radio_preset_ultra;
+            default: return R.id.radio_preset_medium;
+        }
+    }
+
+    private DetectionPreset presetFor(int id) {
+        if (id == R.id.radio_preset_low) return DetectionPreset.LOW;
+        if (id == R.id.radio_preset_high) return DetectionPreset.HIGH;
+        if (id == R.id.radio_preset_ultra) return DetectionPreset.ULTRA;
+        return DetectionPreset.MEDIUM;
+    }
+
+    private static boolean containsCoveredCategory(Set<String> categories) {
+        for (String value : categories) if (value.endsWith("_covered")) return true;
+        return false;
+    }
+
+    private static String joinLines(Set<String> values) {
+        StringBuilder result = new StringBuilder();
+        for (String value : values) {
+            if (result.length() > 0) result.append('\n');
+            result.append(value);
+        }
+        return result.toString();
     }
 
     private String percent(int value) { return value + "%"; }
@@ -118,7 +304,11 @@ public final class SettingsActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
-    private abstract static class SimpleSeekListener implements SeekBar.OnSeekBarChangeListener {
+    private abstract static class SavingSeekListener implements SeekBar.OnSeekBarChangeListener {
+        abstract void update(int progress, boolean fromUser);
+        @Override public final void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            update(progress, fromUser);
+        }
         @Override public void onStartTrackingTouch(SeekBar seekBar) {}
         @Override public void onStopTrackingTouch(SeekBar seekBar) {}
     }
