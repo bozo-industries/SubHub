@@ -17,6 +17,8 @@ The reconstruction initially targets SDK 35 because that is the installed local 
 
 ## Parity milestones
 
+Detailed evidence and completion status are maintained in [Feature Parity Matrix](feature-parity-matrix.md).
+
 1. Compiling styled application shell. **Complete.**
 2. Detector models, class mapping, preprocessing, ONNX execution, postprocessing, and unit tests. **Core implementation complete and validated on an API 35 emulator with the licensed FP16 model and NNAPI.**
 3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering. **MediaProjection, tracking, and overlay paths are implemented and device-validated; the alternate accessibility capture path remains a parity extension.**
