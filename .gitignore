@@ -22,6 +22,7 @@ captures/
 *.p12
 local.properties
 app/src/main/assets/*.onnx
+app/src/main/assets/achievement_badges/
 .env
 .env.*
 

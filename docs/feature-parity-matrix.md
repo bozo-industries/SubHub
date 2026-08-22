@@ -49,17 +49,17 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 
 | Feature | APK evidence | BetaSafe status |
 | --- | --- | --- |
-| Lifetime/session blocks, time, sessions, peaks | `StatsRepository`, `StatsData` | Working baseline |
-| Active dates, streak, history, browser/export/style/profile counters | `StatsRepository` | To implement |
-| Session trend visualization | `SessionTrendView` | To implement |
-| Milestones | `MilestoneManager` | To implement |
-| Achievements, progress, unlock dialogs, badge saving | `AchievementManager`, badge assets | To implement |
+| Lifetime/session blocks, time, sessions, peaks | `StatsRepository`, `StatsData` | Working with unique-track accounting and process-lifetime session state |
+| Active dates, streak, history, browser/export/style/profile counters | `StatsRepository` | Working, including a bounded 30-session history and legacy numeric preference compatibility |
+| Session trend visualization | `SessionTrendView` | Working custom on-device chart with accessible content description; API 35 UI emulator-validated |
+| Milestones | `MilestoneManager` | All 20 recovered thresholds implemented, including major-milestone notices |
+| Achievements, progress, unlock dialogs, badge saving | `AchievementManager`, badge assets | All 42 recovered conditions implemented with persistent unlock/pending-notice state; optional licensed badges privately imported and MediaStore/SAF saving supported; API 35 catalog UI emulator-validated |
 | Popup Storm with folders, presets, bursts, bounce, denial effects | `popup/*`, `PopupStormActivity` | To implement with photosensitivity acknowledgement and a persistent stop control |
 | Help/onboarding/permission repair/app shortcuts | `MainActivity` and layout/resource IDs | To implement |
 
 ## Licensed visual assets
 
-The APK contains the logo/background, category/style/tab/status icons, and eight badge images. `Import-PrivateModelAssets.ps1` will be expanded into a private asset importer. Runtime code will tolerate missing decorative assets so ordinary source builds remain reproducible; detector models remain required only when protection or image analysis is started.
+The APK contains the logo/background, category/style/tab/status icons, and eight badge images. `Import-PrivateModelAssets.ps1` currently imports the two detector models and eight licensed achievement badges into ignored local asset paths. The remaining decorative resource import is pending. Runtime code tolerates missing badges so ordinary source builds remain reproducible; detector models remain required only when protection or image analysis is started.
 
 ## Completion rule
 

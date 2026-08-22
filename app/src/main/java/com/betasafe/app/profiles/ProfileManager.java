@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.betasafe.app.settings.SettingsRepository;
+import com.betasafe.app.stats.StatsRepository;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -72,6 +73,7 @@ public final class ProfileManager {
                 .putString(PROFILE_PREFIX + name, snapshot.toString())
                 .putStringSet(KEY_NAMES, names)
                 .apply();
+        new StatsRepository(context).setProfilesCount(names.size());
         return true;
     }
 
@@ -91,6 +93,7 @@ public final class ProfileManager {
         Set<String> names = new LinkedHashSet<>(listProfiles());
         if (!names.remove(name)) return;
         profiles.edit().remove(PROFILE_PREFIX + name).putStringSet(KEY_NAMES, names).apply();
+        new StatsRepository(context).setProfilesCount(names.size());
     }
 
     static JSONObject snapshot(SharedPreferences source) {

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView android:id="@+id/button_back" android:layout_width="wrap_content"
+            android:layout_height="48dp" android:gravity="center_vertical"
+            android:text="@string/back" android:textColor="@color/accent" android:textStyle="bold" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" android:letterSpacing="0.12"
+            android:text="@string/statistics_title" android:textColor="@color/text_primary"
+            android:textSize="23sp" android:textStyle="bold" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="6dp" android:text="@string/statistics_desc"
+            android:textColor="@color/text_secondary" android:textSize="12sp" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="18dp" android:background="@drawable/bg_card"
+            android:orientation="vertical" android:padding="16dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/statistics_lifetime" android:textColor="@color/accent"
+                android:textStyle="bold" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp" android:orientation="horizontal">
+                <LinearLayout style="@style/Widget.BetaSafe.StatisticColumn">
+                    <TextView android:id="@+id/total_blocks" style="@style/Widget.BetaSafe.Statistic" />
+                    <TextView style="@style/Widget.BetaSafe.StatisticLabel"
+                        android:text="@string/stats_blocks" />
+                </LinearLayout>
+                <LinearLayout style="@style/Widget.BetaSafe.StatisticColumn">
+                    <TextView android:id="@+id/total_time" style="@style/Widget.BetaSafe.Statistic" />
+                    <TextView style="@style/Widget.BetaSafe.StatisticLabel"
+                        android:text="@string/stats_time" />
+                </LinearLayout>
+                <LinearLayout style="@style/Widget.BetaSafe.StatisticColumn">
+                    <TextView android:id="@+id/total_sessions" style="@style/Widget.BetaSafe.Statistic" />
+                    <TextView style="@style/Widget.BetaSafe.StatisticLabel"
+                        android:text="@string/stats_sessions" />
+                </LinearLayout>
+            </LinearLayout>
+            <TextView android:id="@+id/detail_stats" style="@style/Widget.BetaSafe.DiagnosticsText"
+                android:layout_marginTop="14dp" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="14dp" android:background="@drawable/bg_card"
+            android:orientation="vertical" android:padding="16dp">
+            <TextView android:id="@+id/milestone_label" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:textColor="@color/text_primary"
+                android:textStyle="bold" />
+            <ProgressBar android:id="@+id/milestone_progress"
+                style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent"
+                android:layout_height="8dp" android:layout_marginTop="10dp"
+                android:progressTint="@color/accent" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="14dp" android:background="@drawable/bg_card"
+            android:orientation="vertical" android:padding="16dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/statistics_trend" android:textColor="@color/accent"
+                android:textStyle="bold" />
+            <com.betasafe.app.stats.SessionTrendView android:id="@+id/session_trend"
+                android:layout_width="match_parent" android:layout_height="180dp"
+                android:layout_marginTop="8dp" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="14dp" android:background="@drawable/bg_card"
+            android:orientation="vertical" android:padding="16dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/statistics_history" android:textColor="@color/accent"
+                android:textStyle="bold" />
+            <TextView android:id="@+id/history_empty" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="10dp"
+                android:text="@string/statistics_no_history" android:textColor="@color/text_muted" />
+            <LinearLayout android:id="@+id/history_list" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="14dp" android:background="@drawable/bg_card"
+            android:orientation="vertical" android:padding="16dp">
+            <TextView android:id="@+id/achievement_progress" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:textColor="@color/accent"
+                android:textStyle="bold" />
+            <Button android:id="@+id/button_achievements" android:layout_width="match_parent"
+                android:layout_height="52dp" android:layout_marginTop="8dp"
+                android:background="@drawable/bg_primary_button"
+                android:text="@string/achievements_view_all" android:textColor="@android:color/white"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

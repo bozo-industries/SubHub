@@ -99,6 +99,7 @@ public final class BrowserActivity extends AppCompatActivity {
         preferences = getSharedPreferences(
                 SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE);
         bookmarks = new BookmarkStore(this);
+        new StatsRepository(this).recordBrowserSession();
         ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (view, windowInsets) -> {
             Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom);

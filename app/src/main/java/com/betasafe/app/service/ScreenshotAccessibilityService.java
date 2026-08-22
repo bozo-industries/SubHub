@@ -20,6 +20,7 @@ import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
+import com.betasafe.app.stats.AchievementManager;
 
 import java.util.Collections;
 import java.util.List;
@@ -45,6 +46,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private DetectionEngine detector;
     private ObjectTracker tracker;
     private OverlayController overlay;
+    private volatile DetectorConfig detectorConfig;
 
     public static boolean isRunning() { return running; }
 
@@ -74,6 +76,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void initializePipeline() {
         try {
             DetectorConfig config = settings.loadDetectorConfig();
+            detectorConfig = config;
             DiagnosticsRepository.begin(DIAGNOSTICS_MODE, config.getInferenceResolution());
             detector = new DetectionEngine(this, config);
             detector.initialize();
@@ -122,7 +125,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             frame = wrapped.copy(Bitmap.Config.ARGB_8888, false);
             List<Detection> detections = detector.detect(frame);
             List<TrackedObject> tracks = tracker.update(detections);
-            stats.onTracks(tracks);
+            DetectorConfig currentConfig = detectorConfig;
+            boolean recordedBlocks = stats.onTracks(tracks, currentConfig == null
+                    ? null : currentConfig.getEnabledCategories());
+            if (recordedBlocks) {
+                new AchievementManager(this).checkAchievements(stats.load());
+            }
             if (firstFrameReported.compareAndSet(false, true)) {
                 Log.i(TAG, "First accessibility frame processed in "
                         + detector.getLastInferenceMs() + " ms at "
@@ -161,6 +169,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             }
         });
         DetectorConfig config = settings.loadDetectorConfig();
+        detectorConfig = config;
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
     }

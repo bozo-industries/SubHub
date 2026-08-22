@@ -35,6 +35,7 @@ import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
+import com.betasafe.app.stats.AchievementManager;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -67,6 +68,7 @@ public final class ScreenCaptureService extends Service {
     private OverlayController overlay;
     private SettingsRepository settings;
     private StatsRepository stats;
+    private volatile DetectorConfig detectorConfig;
 
     public static Intent startIntent(Context context, int resultCode, Intent resultData) {
         return new Intent(context, ScreenCaptureService.class)
@@ -134,6 +136,7 @@ public final class ScreenCaptureService extends Service {
     private void startPipeline() {
         try {
             DetectorConfig config = settings.loadDetectorConfig();
+            detectorConfig = config;
             DiagnosticsRepository.begin(DIAGNOSTICS_MODE, config.getInferenceResolution());
             detector = new DetectionEngine(this, config);
             detector.initialize();
@@ -166,6 +169,7 @@ public final class ScreenCaptureService extends Service {
         if (overlay != null) overlay.setAppearance(settings.loadAppearance());
         if (overlay != null) overlay.setDiagnostics(diagnosticsOverlayText());
         DetectorConfig config = settings.loadDetectorConfig();
+        detectorConfig = config;
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
     }
@@ -178,7 +182,12 @@ public final class ScreenCaptureService extends Service {
             if (frame == null) return;
             List<Detection> detections = detector.detect(frame);
             List<TrackedObject> tracks = tracker.update(detections);
-            stats.onTracks(tracks);
+            DetectorConfig currentConfig = detectorConfig;
+            boolean recordedBlocks = stats.onTracks(tracks, currentConfig == null
+                    ? null : currentConfig.getEnabledCategories());
+            if (recordedBlocks) {
+                new AchievementManager(this).checkAchievements(stats.load());
+            }
             int width = capture.getCaptureWidth();
             int height = capture.getCaptureHeight();
             DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(

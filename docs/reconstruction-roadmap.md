@@ -21,10 +21,10 @@ Detailed evidence and completion status are maintained in [Feature Parity Matrix
 
 1. Compiling styled application shell. **Complete.**
 2. Detector models, class mapping, preprocessing, ONNX execution, postprocessing, and unit tests. **Core implementation complete and validated on an API 35 emulator with the licensed FP16 model and NNAPI.**
-3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering. **MediaProjection, tracking, and overlay paths are implemented and device-validated; the alternate accessibility capture path remains a parity extension.**
-4. Settings, censor styles, custom images, reverse censoring, and export rendering.
-5. Safe browser, tabs, bookmarks/incognito behavior, DOM censoring, and ad blocking. **Single-tab hardened browser, DOM pre-blur, and ad blocking implemented; tab/bookmark/incognito parity pending.**
-6. Statistics, achievements, profiles, packs, diagnostics, and popup features. **Local session/block/time statistics implemented; remaining feature groups pending.**
+3. MediaProjection capture, accessibility screenshot capture, object tracking, and overlay rendering. **Both consent-driven capture paths, tracking, and overlays are implemented and API 35 device-validated.**
+4. Settings, censor styles, custom images, reverse censoring, and export rendering. **Implemented; expanded live visual-corpus validation remains.**
+5. Safe browser, tabs, bookmarks/incognito behavior, DOM censoring, and ad blocking. **Implemented, including bounded downloads and accurately disclosed private-tab limits; broader live-site validation remains.**
+6. Statistics, achievements, profiles, packs, diagnostics, and popup features. **Statistics, 20 milestones, 42 achievements, profiles, hardened packs, and local-only diagnostics are implemented and API 35 validated; Popup Storm remains pending.**
 7. Device/emulator parity testing and performance presets. **Baseline API 35 smoke test complete; physical-device and wider performance coverage remain.**
 8. Consent-based commitment lock, only after the reconstructed app works.
 
@@ -32,4 +32,4 @@ The source baseline is now independently buildable, installable, and operational
 
 ## Artifact boundary
 
-Model files are injected from a user-owned APK by `scripts/Import-PrivateModelAssets.ps1` and are not committed. The tracked project still runs unit tests and assembles without them; runtime detector initialization reports a clear missing-model failure until they are supplied.
+Model files and optional achievement badges are injected from a user-owned APK by `scripts/Import-PrivateModelAssets.ps1` and are not committed. The tracked project still runs unit tests and assembles without them; runtime detector initialization reports a clear missing-model failure until models are supplied, while the achievements catalog remains usable without badge binaries.
