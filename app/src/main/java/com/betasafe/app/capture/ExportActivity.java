@@ -181,7 +181,7 @@ public final class ExportActivity extends AppCompatActivity {
         }
     }
 
-    private void saveToGallery(Bitmap bitmap, int sequence) throws IOException {
+    Uri saveToGallery(Bitmap bitmap, int sequence) throws IOException {
         ContentValues values = new ContentValues();
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT)
                 .format(new Date());
@@ -209,6 +209,7 @@ public final class ExportActivity extends AppCompatActivity {
                 getContentResolver().delete(destination, null, null);
             }
         }
+        return destination;
     }
 
     private boolean deleteOriginal(Uri uri) {

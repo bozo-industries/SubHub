@@ -12,12 +12,12 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | Accessibility screenshot capture | `ScreenshotAccessibilityService`, `canTakeScreenshot=true` | Working on Android 11+ with the platform-safe 500 ms screenshot cadence; API 35 service binding, NNAPI initialization, and first 1080×2400 frame emulator-validated |
 | Object tracking and motion prediction | `ObjectTracker`, `TrackedObject` | Working with preset-specific velocity tuning |
 | Touch-through overlay censoring | `OverlayController`, `CensorBoxView` | Working with tracked frame-region rendering |
-| Solid, pixelate, blur, custom, static, glitch, tape, and error-popup styles | `CensorEffects`, settings resource IDs | Implemented; settings UI emulator-validated, live visual corpus check pending |
-| Border classic/glow/gradient/rainbow and animation | `CensorBoxView`, border resources/preferences | Implemented; live visual corpus check pending |
+| Solid, pixelate, blur, custom, static, glitch, tape, error-popup, and bar styles | `CensorEffects`, settings resource IDs | Working in live/export renderers; all nine types pass API 35 synthetic-corpus pixel-change and region-boundary contracts, and settings UI is emulator-validated |
+| Border classic/glow/gradient/rainbow and animation | `CensorBoxView`, border resources/preferences | Working in live/export renderers; all four effects and animation configuration pass the API 35 synthetic-corpus suite |
 | Phrase categories and custom phrases | `CensorPhrases`, settings preferences | Implemented with seven recovered categories and custom phrases |
-| Reverse censor mode and shaped cutouts | `ReverseCensorConfig`, `ReverseCensorView` | Implemented; live visual corpus check pending |
-| Custom censor-image library | `CustomImageManager`, `CustomImagePool` | Working private import/enable/delete/pool flow; emulator picker check pending |
-| Censored multi-image export and optional source deletion | `CensorRenderer`, export tab | Implemented with cancellable SAF/MediaStore flow and second confirmation before post-save source deletion; UI emulator-validated, gallery corpus check pending |
+| Reverse censor mode and shaped cutouts | `ReverseCensorConfig`, `ReverseCensorView` | Working with rectangle, rounded, and ellipse cutouts; each shape passes API 35 preserved-center/censored-field corpus contracts |
+| Custom censor-image library | `CustomImageManager`, `CustomImagePool` | Working private import/enable/disable/preview/delete/pool flow with 25 MiB/64-image bounds; real PNG import and custom-style rendering plus library UI/empty-state are API 35 validated |
+| Censored multi-image export and optional source deletion | `CensorRenderer`, export tab | Working with cancellable SAF/MediaStore flow and second confirmation before post-save source deletion; style rendering, destructive confirmation, actual JPEG MediaStore save/decode/cleanup, and UI are API 35 validated |
 
 ## Browser
 
@@ -30,8 +30,8 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | Incognito tab behavior | `BrowserTab.isIncognito` | Implemented as accurately labeled private tabs with DOM storage/form/cache/history retention disabled; Android WebView cookie-jar limitation is disclosed |
 | Bookmarks | `browser_bookmarks` preferences | Working local add/open/remove/deduplicate store; instrumented persistence contract added |
 | Search suggestions | Google Firefox suggestion endpoint | Implemented as opt-in only, HTTPS, 3-second timeouts, 64 KiB response cap, and five-result cap |
-| File and image downloads; censor-before-save | WebView download handler | Implemented with DownloadManager and a 25 MiB bounded on-device censor-before-save route; live remote-download check pending |
-| Full-screen media | WebChromeClient custom-view methods | Implemented; live media-site check pending |
+| File and image downloads; censor-before-save | WebView download handler | Working with DownloadManager and a 25 MiB bounded on-device censor-before-save route; API 35 loopback HTTP contracts verify 2xx enforcement, declared/streamed size bounds, body integrity, cookies, and user-agent forwarding, with cleartext restricted to localhost by a debug-only network-security config |
+| Full-screen media | WebChromeClient custom-view methods | Working; API 35 custom-view enter/exit, content visibility, parent attachment, and callback cleanup contract validated |
 
 ## Configuration and extensions
 

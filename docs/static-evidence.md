@@ -78,7 +78,7 @@ All entries are statically derived and unverified at runtime.
 - `apksigner` produced and verified a locally signed APK using v2 and v3 schemes.
 - Rebuilt badging preserved package `com.betablocker.lite`, version code 16, version name 1.67, minimum SDK 26, and target SDK 36.
 - JADX 1.5.5 generated 4,183 files and reported method-level errors; smali remains the fallback.
-- Runtime install/smoke test is pending because no ADB device was connected.
+- No ADB device was connected during the initial extraction pass. The maintained source reconstruction has since completed the separate API 35 runtime and instrumented validation documented in `device-smoke-test.md`.
 
 ## Monetization-gate audit
 
