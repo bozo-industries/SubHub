@@ -18,5 +18,24 @@
     <string name="notification_text">On-device censoring is watching the shared screen.</string>
     <string name="notification_stop">Stop</string>
     <string name="blocked_label">BLOCKED</string>
+    <string name="settings_title">CENSOR SETTINGS</string>
+    <string name="back">BACK</string>
+    <string name="appearance_title">APPEARANCE</string>
+    <string name="style_box">SOLID BOX</string>
+    <string name="style_pixelate">PIXELATE</string>
+    <string name="style_blur">SOFT BLUR</string>
+    <string name="style_bar">BLACK BAR</string>
+    <string name="intensity">INTENSITY</string>
+    <string name="show_border">Pink border</string>
+    <string name="show_text">Blocked label</string>
+    <string name="detection_title">DETECTION</string>
+    <string name="confidence">CONFIDENCE</string>
+    <string name="categories_title">CATEGORIES TO CENSOR</string>
+    <string name="category_genitals_female">Female genitalia</string>
+    <string name="category_genitals_male">Male genitalia</string>
+    <string name="category_breasts">Breasts</string>
+    <string name="category_buttocks">Buttocks</string>
+    <string name="category_anus">Anus</string>
+    <string name="settings_saved">Changes apply live while protection is running.</string>
     <string name="foundation_ready">PROTECTION PIPELINE READY</string>
 </resources>

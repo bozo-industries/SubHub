@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.media.projection.MediaProjection;
@@ -31,6 +32,7 @@ import com.betasafe.app.detection.DetectorConfig;
 import com.betasafe.app.detection.ObjectTracker;
 import com.betasafe.app.detection.TrackedObject;
 import com.betasafe.app.overlay.OverlayController;
+import com.betasafe.app.settings.SettingsRepository;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -51,12 +53,15 @@ public final class ScreenCaptureService extends Service {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final AtomicBoolean processing = new AtomicBoolean();
+    private final SharedPreferences.OnSharedPreferenceChangeListener settingsListener =
+            (preferences, key) -> reloadSettings();
     private ScheduledExecutorService executor;
     private MediaProjection projection;
     private ScreenCaptureManager capture;
     private DetectionEngine detector;
     private ObjectTracker tracker;
     private OverlayController overlay;
+    private SettingsRepository settings;
 
     public static Intent startIntent(Context context, int resultCode, Intent resultData) {
         return new Intent(context, ScreenCaptureService.class)
@@ -76,6 +81,8 @@ public final class ScreenCaptureService extends Service {
         super.onCreate();
         createNotificationChannel();
         executor = Executors.newSingleThreadScheduledExecutor();
+        settings = new SettingsRepository(this);
+        settings.preferences().registerOnSharedPreferenceChangeListener(settingsListener);
     }
 
     @Override
@@ -111,6 +118,7 @@ public final class ScreenCaptureService extends Service {
 
         running = true;
         overlay = new OverlayController(this);
+        overlay.setAppearance(settings.loadAppearance());
         overlay.show();
         executor.execute(this::startPipeline);
         return START_NOT_STICKY;
@@ -118,7 +126,7 @@ public final class ScreenCaptureService extends Service {
 
     private void startPipeline() {
         try {
-            DetectorConfig config = DetectorConfig.builder().build();
+            DetectorConfig config = settings.loadDetectorConfig();
             detector = new DetectionEngine(this, config);
             detector.initialize();
             tracker = new ObjectTracker(config);
@@ -136,6 +144,13 @@ public final class ScreenCaptureService extends Service {
             Log.e(TAG, "Could not start on-device protection", error);
             stopSelf();
         }
+    }
+
+    private void reloadSettings() {
+        if (overlay != null) overlay.setAppearance(settings.loadAppearance());
+        DetectorConfig config = settings.loadDetectorConfig();
+        if (detector != null) detector.setConfig(config);
+        if (tracker != null) tracker.setConfig(config);
     }
 
     private void processFrame() {
@@ -211,6 +226,9 @@ public final class ScreenCaptureService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        if (settings != null) {
+            settings.preferences().unregisterOnSharedPreferenceChangeListener(settingsListener);
+        }
         if (executor != null) executor.shutdownNow();
         if (capture != null) capture.close();
         if (detector != null) detector.close();
