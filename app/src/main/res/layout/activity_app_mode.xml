@@ -40,81 +40,6 @@
                 android:text="@string/controller_edit_locked" />
         </LinearLayout>
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="@dimen/page_margin" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="11dp">
-            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/app_mode_service_title" />
-            <TextView android:id="@+id/service_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="@color/text_primary" android:textStyle="bold" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/app_mode_service_body" android:textColor="@color/text_secondary" android:textSize="11sp" />
-            <Button android:id="@+id/button_accessibility_settings" style="@style/Widget.SubHub.PrimaryButton" android:layout_marginTop="8dp" android:text="@string/app_mode_open_accessibility" />
-        </LinearLayout>
-
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="@dimen/page_margin" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="11dp">
-            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/app_mode_rules_title" />
-            <CheckBox android:id="@+id/armed" android:layout_width="match_parent" android:layout_height="42dp" android:layout_marginTop="4dp" android:buttonTint="@color/accent" android:text="@string/app_mode_armed" android:textColor="@color/text_primary" />
-            <RadioGroup android:id="@+id/mode_group" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
-                <RadioButton android:id="@+id/mode_always" android:layout_width="match_parent" android:layout_height="44dp" android:buttonTint="@color/accent" android:text="@string/app_mode_always" android:textColor="@color/text_primary" />
-                <RadioButton android:id="@+id/mode_selected" android:layout_width="match_parent" android:layout_height="44dp" android:buttonTint="@color/accent" android:text="@string/app_mode_selected" android:textColor="@color/text_primary" />
-            </RadioGroup>
-            <CheckBox android:id="@+id/auto_resume" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:buttonTint="@color/accent" android:text="@string/app_mode_auto_resume" android:textColor="@color/text_secondary" android:textSize="11sp" />
-            <Button android:id="@+id/button_save" style="@style/Widget.SubHub.PrimaryButton" android:layout_marginTop="8dp" android:text="@string/app_mode_save" />
-        </LinearLayout>
-
-        <LinearLayout android:id="@+id/schedule_card"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginHorizontal="@dimen/page_margin" android:layout_marginTop="8dp"
-            android:background="@drawable/bg_card" android:orientation="vertical"
-            android:padding="11dp">
-            <TextView style="@style/Widget.BetaSafe.SectionHeader"
-                android:text="@string/app_schedule_title" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="5dp" android:text="@string/app_schedule_body"
-                android:textColor="@color/text_secondary" android:textSize="11sp" />
-            <CheckBox android:id="@+id/schedule_enabled" android:layout_width="match_parent"
-                android:layout_height="42dp" android:layout_marginTop="4dp"
-                android:buttonTint="@color/accent" android:text="@string/app_schedule_enabled"
-                android:textColor="@color/text_primary" />
-            <TextView style="@style/Widget.SubHub.FieldLabel"
-                android:text="@string/app_schedule_days_label" />
-            <GridLayout android:id="@+id/schedule_days" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:columnCount="4"
-                android:layout_marginTop="2dp">
-                <CheckBox android:id="@+id/schedule_monday" style="@style/Widget.SubHub.DayToggle"
-                    android:text="@string/day_monday_short" />
-                <CheckBox android:id="@+id/schedule_tuesday" style="@style/Widget.SubHub.DayToggle"
-                    android:text="@string/day_tuesday_short" />
-                <CheckBox android:id="@+id/schedule_wednesday" style="@style/Widget.SubHub.DayToggle"
-                    android:text="@string/day_wednesday_short" />
-                <CheckBox android:id="@+id/schedule_thursday" style="@style/Widget.SubHub.DayToggle"
-                    android:text="@string/day_thursday_short" />
-                <CheckBox android:id="@+id/schedule_friday" style="@style/Widget.SubHub.DayToggle"
-                    android:text="@string/day_friday_short" />
-                <CheckBox android:id="@+id/schedule_saturday" style="@style/Widget.SubHub.DayToggle"
-                    android:text="@string/day_saturday_short" />
-                <CheckBox android:id="@+id/schedule_sunday" style="@style/Widget.SubHub.DayToggle"
-                    android:text="@string/day_sunday_short" />
-            </GridLayout>
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="6dp" android:orientation="horizontal">
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                    android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Widget.SubHub.FieldLabel"
-                        android:text="@string/app_schedule_start_label" />
-                    <Button android:id="@+id/schedule_start"
-                        style="@style/Widget.SubHub.CompactOutlineButton" />
-                </LinearLayout>
-                <Space android:layout_width="8dp" android:layout_height="1dp" />
-                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-                    android:layout_weight="1" android:orientation="vertical">
-                    <TextView style="@style/Widget.SubHub.FieldLabel"
-                        android:text="@string/app_schedule_end_label" />
-                    <Button android:id="@+id/schedule_end"
-                        style="@style/Widget.SubHub.CompactOutlineButton" />
-                </LinearLayout>
-            </LinearLayout>
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="5dp" android:text="@string/app_schedule_overnight_help"
-                android:textColor="@color/text_muted" android:textSize="10sp" />
-        </LinearLayout>
-
         <LinearLayout android:id="@+id/timer_card" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:layout_marginHorizontal="@dimen/page_margin"
             android:layout_marginTop="8dp" android:background="@drawable/bg_card"
@@ -129,16 +54,11 @@
                 android:layout_height="44dp" android:layout_marginTop="8dp"
                 android:buttonTint="@color/accent" android:text="@string/app_timer_per_app"
                 android:textColor="@color/text_primary" />
-            <TextView style="@style/Widget.SubHub.FieldLabel"
-                android:text="@string/app_timer_per_app_minutes_label" />
             <TextView style="@style/Widget.SubHub.FieldHelp"
-                android:text="@string/app_timer_per_app_minutes_help" />
-            <EditText android:id="@+id/per_app_limit_minutes" android:layout_width="match_parent"
-                android:layout_height="44dp" android:layout_marginTop="4dp"
-                android:backgroundTint="@color/accent"
-                android:hint="@string/app_timer_minutes_hint" android:inputType="number"
-                android:maxLength="4" android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_muted" />
+                android:text="@string/app_timer_per_app_allowances_help" />
+            <LinearLayout android:id="@+id/per_app_allowances_list"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" android:orientation="vertical" />
 
             <CheckBox android:id="@+id/total_limit_enabled" android:layout_width="match_parent"
                 android:layout_height="44dp" android:layout_marginTop="8dp"
@@ -159,18 +79,11 @@
                 android:textColor="@color/text_secondary" android:textSize="11sp" />
         </LinearLayout>
 
-        <LinearLayout android:id="@+id/app_list_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="@dimen/page_margin" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="11dp">
-            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/app_mode_choose_apps" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="6dp" android:text="@string/app_mode_choose_apps_body"
-                android:textColor="@color/text_secondary" android:textSize="11sp" />
-            <TextView android:id="@+id/selected_count" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textColor="@color/text_secondary" android:textSize="11sp" />
-            <ProgressBar android:id="@+id/loading_apps" style="?android:attr/progressBarStyleSmall" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:layout_marginTop="16dp" />
-            <GridLayout android:id="@+id/app_list" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:alignmentMode="alignMargins" android:orientation="horizontal"
-                android:columnCount="@integer/app_picker_columns" />
-        </LinearLayout>
+        <Button android:id="@+id/button_save"
+            style="@style/Widget.SubHub.PrimaryButton"
+            android:layout_marginHorizontal="@dimen/page_margin"
+            android:layout_marginTop="10dp"
+            android:text="@string/app_mode_save_limits" />
 
     </LinearLayout>
 </ScrollView>

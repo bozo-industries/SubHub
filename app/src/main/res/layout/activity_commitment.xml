@@ -61,12 +61,10 @@
                 android:layout_marginTop="10dp"
                 android:orientation="vertical">
 
-                <RadioButton android:id="@+id/duration_30m" android:layout_width="match_parent" android:layout_height="48dp" android:checked="true" android:text="@string/commitment_duration_30m" android:textColor="@color/text_primary" />
-                <RadioButton android:id="@+id/duration_2h" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_2h" android:textColor="@color/text_primary" />
-                <RadioButton android:id="@+id/duration_8h" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_8h" android:textColor="@color/text_primary" />
+                <RadioButton android:id="@+id/duration_1h" android:layout_width="match_parent" android:layout_height="48dp" android:checked="true" android:text="@string/commitment_duration_1h" android:textColor="@color/text_primary" />
                 <RadioButton android:id="@+id/duration_24h" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_24h" android:textColor="@color/text_primary" />
-                <RadioButton android:id="@+id/duration_3d" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_3d" android:textColor="@color/text_primary" />
                 <RadioButton android:id="@+id/duration_7d" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_7d" android:textColor="@color/text_primary" />
+                <RadioButton android:id="@+id/duration_30d" android:layout_width="match_parent" android:layout_height="48dp" android:text="@string/commitment_duration_30d" android:textColor="@color/text_primary" />
             </RadioGroup>
 
             <TextView style="@style/Widget.SubHub.FieldLabel"
@@ -100,16 +98,6 @@
                 android:paddingHorizontal="14dp"
                 android:textColor="@color/text_primary"
                 android:textColorHint="@color/text_muted" />
-
-            <CheckBox
-                android:id="@+id/consent_check"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:buttonTint="@color/accent"
-                android:text="@string/commitment_consent"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
 
             <Button
                 android:id="@+id/button_seal_pact"
@@ -185,7 +173,8 @@
                 android:gravity="center"
                 android:text="@string/commitment_emergency_release"
                 android:textColor="@color/accent"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <TextView
                 android:layout_width="match_parent"

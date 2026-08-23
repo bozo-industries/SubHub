@@ -18,7 +18,7 @@ public final class AppModeManager {
     public static final String KEY_ARMED = "app_mode_armed";
     public static final String KEY_MODE = "app_mode_kind";
     public static final String KEY_SELECTED_PACKAGES = "app_mode_selected_packages";
-    public static final String KEY_AUTO_RESUME = "app_mode_auto_resume_boot";
+    public static final String KEY_TIMER_PACKAGES = "app_timer_selected_packages";
     private static final String MODE_ALWAYS = "always";
     private static final String MODE_SELECTED = "selected";
 
@@ -44,23 +44,33 @@ public final class AppModeManager {
                 ? AppModePolicy.Mode.SELECTED_APPS : AppModePolicy.Mode.ALWAYS;
     }
 
-    public boolean isAutoResumeEnabled() {
-        return preferences.getBoolean(KEY_AUTO_RESUME, true);
-    }
-
     public Set<String> getSelectedPackages() {
         Set<String> stored = preferences.getStringSet(KEY_SELECTED_PACKAGES,
                 Collections.emptySet());
         return AppModePolicy.sanitizePackages(stored);
     }
 
-    public void save(boolean armed, AppModePolicy.Mode mode, boolean autoResume,
-            Set<String> selectedPackages) {
+    public Set<String> getTimerPackages() {
+        Set<String> stored = preferences.getStringSet(KEY_TIMER_PACKAGES, null);
+        // Existing installs used one shared selection. Preserve that choice until the
+        // controller explicitly saves the new two-column app picker.
+        return stored == null ? getSelectedPackages() : AppModePolicy.sanitizePackages(stored);
+    }
+
+    public void saveAppSelections(Set<String> censorPackages, Set<String> timerPackages) {
+        preferences.edit()
+                .putStringSet(KEY_SELECTED_PACKAGES,
+                        new LinkedHashSet<>(AppModePolicy.sanitizePackages(censorPackages)))
+                .putStringSet(KEY_TIMER_PACKAGES,
+                        new LinkedHashSet<>(AppModePolicy.sanitizePackages(timerPackages)))
+                .commit();
+    }
+
+    public void save(boolean armed, AppModePolicy.Mode mode, Set<String> selectedPackages) {
         preferences.edit()
                 .putBoolean(KEY_ARMED, armed)
                 .putString(KEY_MODE,
                         mode == AppModePolicy.Mode.SELECTED_APPS ? MODE_SELECTED : MODE_ALWAYS)
-                .putBoolean(KEY_AUTO_RESUME, autoResume)
                 .putStringSet(KEY_SELECTED_PACKAGES,
                         new LinkedHashSet<>(AppModePolicy.sanitizePackages(selectedPackages)))
                 .commit();
@@ -74,7 +84,7 @@ public final class AppModeManager {
     }
 
     public boolean isEffectivelyArmed(long nowMillis) {
-        return isArmed() || new WeeklyScheduleManager(context).isActive(nowMillis);
+        return isArmed();
     }
 
     public boolean isAccessibilityEnabled() {
@@ -89,9 +99,9 @@ public final class AppModeManager {
         return false;
     }
 
-    /** A boot never grants capture authority. It only preserves or disarms prior user intent. */
+    /** App Mode already persists its exact armed/disarmed state across process and device restarts. */
     public void applyBootPolicy() {
-        if (!isAutoResumeEnabled()) setArmed(false);
+        // Intentionally preserve KEY_ARMED. Android permissions remain independently revocable.
     }
 
     public String inputMethodPackage() {

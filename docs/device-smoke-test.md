@@ -16,7 +16,7 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - The first-run disclosure, gothic/demoness shell, ten-section Help screen, permission status/repair controls, and complete 11-choice language dialog rendered correctly.
 - Selecting German recreated Help with localized title, permissions, language status, and section labels; the default locale was restored after validation.
 - Dynamic launcher shortcuts were registered for Start Protection and Open Browser.
-- The Commitment Pact setup, matching keeper-code entry, consent checkbox, sealed countdown, wrong/correct-code contracts, and two-step safety release were exercised. An active pact routed configuration to the pact screen while the main protection control remained enabled.
+- The Commitment Pact setup, matching keeper-code entry, sealed countdown, wrong/correct-code contracts, Sub-mode stop lock, Dom release, and boot re-arming were exercised. An active pact routes configuration to the pact screen while keeping Start/Stop visible.
 - A generated gradient corpus exercised all nine censor types, four border effects, three reverse cutout shapes, and a real imported private custom-censor PNG.
 - Export wrote a synthetic censored JPEG through MediaStore, decoded it from the returned gallery URI, and removed the test artifact. Source-deletion enablement required its second confirmation.
 - Browser contracts exercised bounded HTTP image retrieval with session headers and oversize rejection, plus full-screen custom-view entry/exit and callback cleanup. Cleartext is restricted to localhost by a debug-only network-security config and is absent from release.
@@ -29,8 +29,8 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - Stopping from the app removed `ScreenCaptureService` and persisted the protected-session duration.
 - Log review found no `FATAL EXCEPTION`, pipeline-start failure, or frame-processing failure.
 - The release merged manifest contained no cleartext override. The later optional Hardcore Mode pass adds a policy-empty Device Admin receiver; the debug APK verified with its normal v2 debug signature.
-- The new purple-demoness App Mode screen rendered correctly with its Android-service status, all/selected mode controls, auto-resume disclosure, save action, real launcher icons, and exact package labels.
-- App-mode instrumentation verified persisted selected-package state, auto-resume enabled/disabled boot behavior, explicit notification Disarm clearing both Accessibility and MediaProjection intent, launcher-only package discovery, and a non-exported boot receiver.
+- The purple-demoness App Mode screen rendered correctly with its Android-service status, all/selected mode controls, save action, real launcher icons, and exact package labels.
+- App-mode instrumentation verified persisted selected-package state, last-state boot behavior, pact-forced boot re-arming, pact-aware notification Disarm, launcher-only package discovery, and a non-exported boot receiver.
 - With Calendar as the sole watched package, the live Accessibility service activated recognition on Calendar, loaded the licensed FP16 detector through NNAPI, processed a 1080×2400 frame in 77 ms, ignored its own overlay window event, and suspended immediately when Android Settings became foreground.
 
 ## 2026-08-23 SubHub shell and timer pass
@@ -53,7 +53,7 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - Source-dependent effects now transfer the owned capture frame to the overlay without a second full-screen copy. Custom images decode asynchronously, reuse 129 precomputed aspect-crop buckets, retain deterministic track assignments, and are bounded by the selected performance preset.
 - Low/Medium/High/Ultra use bounded 1/2/3/4-thread ONNX kernel budgets while the capture loop remains single-flight. This allows useful inference parallelism without overlapping captures or queued stale frames.
 - Android System UI, notification, and permission-controller windows are rejected as transient foreground events. Unit regression coverage proves those events cannot replace the watched package; ordinary app transitions remain accepted.
-- The controller EDIT boundary now covers Wallet, Limits, censor configuration, browser shields, custom images, profiles, packs, Popup Storm, diagnostics, commitment setup, permission repair, and destructive export settings. Locked pages remain readable; starting and stopping protection, safety releases, and other non-configuration operations remain reachable.
+- The controller boundary covers Wallet, Limits, censor configuration, browser shields, custom images, profiles, packs, Popup Storm, diagnostics, commitment setup, permission repair, and destructive export settings. Locked pages remain readable; Start Protection stays available, while a sealed pact requires Dom mode to stop.
 - Money Rules now distinguishes Lifetime Blocks from post-enable rule events, previews Every-N math and caps live, preserves the saved remainder across ordinary rule edits, resets it only when the batch threshold changes or rules are disabled, and explicitly reports when the daily or weekly cap makes an otherwise eligible event worth zero.
 - App Mode classifies bounded visible Accessibility text locally without OCR, merges it with overlapping model detections, and sends the fused boxes through the existing stable tracker so the same post does not create repeated money events.
 - Image-heavy `.bbpack` inputs use explicit archive, entry, extracted-size, and entry-count bounds with actionable rejection messages instead of the former 50 MiB blanket failure.
@@ -63,7 +63,7 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 
 - Focused instrumentation passed the policy-empty Device Admin contract and the Sub Wallet boundary: Sub mode hides rule, safety, correction, and edit controls while leaving balance and checkout visible.
 - The live Android 15 approval screen displayed SubHub's revocable explanation and no password, wipe, camera, lock, or monitoring operations. Activation appeared in `dumpsys device_policy`; the in-app release action removed it immediately.
-- The Dom Settings screen rendered the consent-gated Hardcore card in the established purple theme. Active state correctly directed the user to the separate Accessibility permission when scanning access was absent.
+- The Dom Settings screen rendered the Hardcore card in the established purple theme. Active state correctly directed the user to the separate Accessibility permission when scanning access was absent.
 - Non-recording capture now compensates the visible overlay from Accessibility scroll deltas at event speed, carries motion that occurs during inference into the published frame, retains the correct pre-scroll source crop for blur/pixelate/glitch, and coalesces refresh work behind the existing single-flight screenshot guard.
 - The target APK and Android-test APK must both be reinstalled before focused instrumentation; installing only `installDebugAndroidTest` can leave an older target APK and produce misleading missing-class/layout failures.
 

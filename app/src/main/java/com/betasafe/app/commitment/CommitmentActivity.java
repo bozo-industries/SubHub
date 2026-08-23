@@ -18,8 +18,9 @@ import com.betasafe.app.settings.SettingsActivity;
 
 import java.util.Locale;
 
-/** Consent-first commitment ceremony with a permanent, explicit safety release. */
+/** Timed commitment ceremony with keeper-code and controller-PIN release paths. */
 public final class CommitmentActivity extends AppCompatActivity {
+    public static final String EXTRA_DURATION_MS = "commitment_duration_ms";
     private ActivityCommitmentBinding binding;
     private ControllerEditMode editMode;
     private final Handler timer = new Handler(Looper.getMainLooper());
@@ -40,6 +41,7 @@ public final class CommitmentActivity extends AppCompatActivity {
         binding.buttonSealPact.setOnClickListener(view -> sealPact());
         binding.buttonKeeperRelease.setOnClickListener(view -> keeperRelease());
         binding.buttonEmergencyRelease.setOnClickListener(view -> confirmEmergencyRelease());
+        applyRequestedDuration();
         editMode = ControllerEditMode.bind(
                 this, binding.buttonEditLock, editing -> applyEditState());
         renderState();
@@ -60,10 +62,6 @@ public final class CommitmentActivity extends AppCompatActivity {
     private void sealPact() {
         String code = binding.keeperCode.getText().toString();
         String confirmation = binding.keeperCodeConfirm.getText().toString();
-        if (!binding.consentCheck.isChecked()) {
-            Toast.makeText(this, R.string.commitment_consent_required, Toast.LENGTH_SHORT).show();
-            return;
-        }
         if (!code.equals(confirmation)) {
             Toast.makeText(this, R.string.commitment_codes_mismatch, Toast.LENGTH_SHORT).show();
             return;
@@ -74,7 +72,6 @@ public final class CommitmentActivity extends AppCompatActivity {
         }
         binding.keeperCode.setText("");
         binding.keeperCodeConfirm.setText("");
-        binding.consentCheck.setChecked(false);
         Toast.makeText(this, R.string.commitment_sealed_toast, Toast.LENGTH_SHORT).show();
         renderState();
     }
@@ -128,19 +125,31 @@ public final class CommitmentActivity extends AppCompatActivity {
         }
         binding.keeperCode.setEnabled(editing);
         binding.keeperCodeConfirm.setEnabled(editing);
-        binding.consentCheck.setEnabled(editing);
         binding.buttonSealPact.setEnabled(editing);
-        // Keeper and emergency release are safety exits and intentionally stay available.
+        binding.buttonEmergencyRelease.setVisibility(editing ? View.VISIBLE : View.GONE);
+        // The keeper-code release stays available without unlocking the rest of Dom mode.
     }
 
     private long selectedDuration() {
         int id = binding.durationGroup.getCheckedRadioButtonId();
-        if (id == R.id.duration_2h) return 2L * 60L * 60L * 1000L;
-        if (id == R.id.duration_8h) return 8L * 60L * 60L * 1000L;
+        if (id == R.id.duration_1h) return 60L * 60L * 1000L;
         if (id == R.id.duration_24h) return 24L * 60L * 60L * 1000L;
-        if (id == R.id.duration_3d) return 3L * 24L * 60L * 60L * 1000L;
         if (id == R.id.duration_7d) return 7L * 24L * 60L * 60L * 1000L;
-        return CommitmentManager.MIN_DURATION_MS;
+        if (id == R.id.duration_30d) return 30L * 24L * 60L * 60L * 1000L;
+        return 60L * 60L * 1000L;
+    }
+
+    private void applyRequestedDuration() {
+        long requested = getIntent().getLongExtra(EXTRA_DURATION_MS, 60L * 60L * 1000L);
+        if (requested >= 30L * 24L * 60L * 60L * 1000L) {
+            binding.durationGroup.check(R.id.duration_30d);
+        } else if (requested >= 7L * 24L * 60L * 60L * 1000L) {
+            binding.durationGroup.check(R.id.duration_7d);
+        } else if (requested >= 24L * 60L * 60L * 1000L) {
+            binding.durationGroup.check(R.id.duration_24h);
+        } else {
+            binding.durationGroup.check(R.id.duration_1h);
+        }
     }
 
     public static String formatDuration(long milliseconds) {

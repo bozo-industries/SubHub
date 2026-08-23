@@ -174,6 +174,10 @@
                     android:textColor="@color/accent" android:textStyle="bold" />
                 <Button android:id="@+id/button_settle" style="@style/Widget.SubHub.PrimaryButton"
                     android:layout_marginTop="7dp" android:text="@string/penance_settle" />
+                <Button android:id="@+id/button_confirm_payment"
+                    style="@style/Widget.SubHub.PrimaryButton"
+                    android:layout_marginTop="7dp" android:text="@string/penance_confirm_paid"
+                    android:visibility="gone" />
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="6dp" android:orientation="horizontal">
                     <TextView android:id="@+id/button_resume_checkout" style="@style/Widget.BetaSafe.CompactAction"

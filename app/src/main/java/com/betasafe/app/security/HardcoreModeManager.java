@@ -13,7 +13,7 @@ import com.betasafe.app.appmode.ResumeNotificationManager;
 import com.betasafe.app.settings.SettingsRepository;
 
 /**
- * Explicit, reversible Device Admin friction for a consensual Hardcore Mode.
+ * Explicit, reversible Device Admin friction for Hardcore Mode.
  *
  * <p>This class deliberately declares no destructive device policies. Active admin status only
  * adds Android's normal deactivate-before-uninstall step. It cannot grant capture, keep a process
@@ -100,7 +100,7 @@ public final class HardcoreModeManager {
 
     private void reinforceAutomaticMode() {
         AppModeManager mode = new AppModeManager(context);
-        mode.save(true, mode.getMode(), true, mode.getSelectedPackages());
+        mode.save(true, mode.getMode(), mode.getSelectedPackages());
         ResumeNotificationManager.show(context);
     }
 }

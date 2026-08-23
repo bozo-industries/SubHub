@@ -127,6 +127,10 @@ public final class MainActivity extends AppCompatActivity {
         binding.onboardingDismiss.setOnClickListener(view -> markOnboardingSeen());
         binding.buttonCommitmentView.setOnClickListener(view ->
                 startActivity(new Intent(this, CommitmentActivity.class)));
+        binding.commitmentTimer1h.setOnClickListener(view -> openCommitmentDuration(60L * 60L * 1000L));
+        binding.commitmentTimer24h.setOnClickListener(view -> openCommitmentDuration(24L * 60L * 60L * 1000L));
+        binding.commitmentTimer7d.setOnClickListener(view -> openCommitmentDuration(7L * 24L * 60L * 60L * 1000L));
+        binding.commitmentTimer30d.setOnClickListener(view -> openCommitmentDuration(30L * 24L * 60L * 60L * 1000L));
         binding.buttonPenanceView.setOnClickListener(view ->
                 startActivity(new Intent(this, PenanceActivity.class)));
         binding.subWalletPay.setOnClickListener(view ->
@@ -169,12 +173,18 @@ public final class MainActivity extends AppCompatActivity {
             startActivity(new Intent(this, GlobalSettingsActivity.class));
             return;
         }
+        AppModeManager appMode = new AppModeManager(this);
+        boolean stopping = ScreenCaptureService.isRunning() || appMode.isArmed()
+                || ScreenshotAccessibilityService.isRecognitionActive();
+        if (stopping && !CommitmentManager.mayStopProtection(this)) {
+            showStatus(R.string.commitment_stop_requires_dom);
+            return;
+        }
         if (ScreenCaptureService.isRunning()) {
             startService(ScreenCaptureService.stopIntent(this));
             updateProtectionButton(false);
             return;
         }
-        AppModeManager appMode = new AppModeManager(this);
         if (appMode.isArmed() || ScreenshotAccessibilityService.isRecognitionActive()) {
             appMode.setArmed(false);
             ResumeNotificationManager.cancel(this);
@@ -219,6 +229,24 @@ public final class MainActivity extends AppCompatActivity {
         Snackbar.make(binding.getRoot(), message, Snackbar.LENGTH_LONG).show();
     }
 
+    private void openCommitmentDuration(long durationMillis) {
+        if (!ControllerPinManager.isDomModeActive() || CommitmentManager.isActive(this)) return;
+        startActivity(new Intent(this, CommitmentActivity.class)
+                .putExtra(CommitmentActivity.EXTRA_DURATION_MS, durationMillis));
+    }
+
+    private void renderCommitmentState() {
+        if (binding == null) return;
+        boolean active = CommitmentManager.isActive(this);
+        boolean domMode = ControllerPinManager.isDomModeActive();
+        binding.commitmentCard.setVisibility(active || domMode ? View.VISIBLE : View.GONE);
+        binding.commitmentStartPanel.setVisibility(domMode && !active ? View.VISIBLE : View.GONE);
+        binding.commitmentActivePanel.setVisibility(active ? View.VISIBLE : View.GONE);
+        if (active) binding.commitmentStatus.setText(getString(
+                R.string.commitment_active_remaining,
+                CommitmentActivity.formatDuration(CommitmentManager.remainingMillis(this))));
+    }
+
     private void updateProtectionButton(boolean running) {
         boolean appModeRunning = new AppModeManager(this).isArmed()
                 || ScreenshotAccessibilityService.isRecognitionActive();
@@ -233,13 +261,7 @@ public final class MainActivity extends AppCompatActivity {
         if (binding != null) {
             uiTimer.removeCallbacks(uiTick);
             uiTimer.post(uiTick);
-            boolean commitmentActive = CommitmentManager.isActive(this);
-            binding.commitmentCard.setVisibility(commitmentActive ? View.VISIBLE : View.GONE);
-            if (commitmentActive) {
-                binding.commitmentStatus.setText(getString(R.string.commitment_active_remaining,
-                        CommitmentActivity.formatDuration(
-                                CommitmentManager.remainingMillis(this))));
-            }
+            renderCommitmentState();
             PenanceSnapshot penance = new PenanceManager(this).snapshot(System.currentTimeMillis());
             boolean walletEnabled = new FeatureModuleManager(this).isWalletEnabled();
             binding.penanceCard.setVisibility(walletEnabled ? View.VISIBLE : View.GONE);
@@ -276,6 +298,7 @@ public final class MainActivity extends AppCompatActivity {
                 binding.pageContent.getPaddingTop(), binding.pageContent.getPaddingEnd(), bottom);
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
         renderSubDashboard();
+        renderCommitmentState();
         updateProtectionButton(ScreenCaptureService.isRunning());
     }
 
@@ -334,7 +357,7 @@ public final class MainActivity extends AppCompatActivity {
             }
             binding.subLimitsSummary.setText(timer.anyEnabled()
                     ? getString(R.string.sub_limits_selected,
-                            appMode.getSelectedPackages().size(), limits)
+                            appMode.getTimerPackages().size(), limits)
                     : limits);
             binding.subLimitsDetail.setText(appMode.isEffectivelyArmed(now)
                     ? R.string.sub_limits_armed : R.string.sub_limits_sleeping);
@@ -410,6 +433,7 @@ public final class MainActivity extends AppCompatActivity {
         binding.statsBlocks.setText(String.valueOf(stats.getCurrentSessionBlocks()));
         binding.statsTime.setText(StatsSnapshot.formatClock(stats.getCurrentSessionSeconds()));
         binding.statsSessions.setText(String.valueOf(stats.getSessions()));
+        renderCommitmentState();
         renderSubDashboard();
     }
 

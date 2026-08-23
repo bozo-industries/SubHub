@@ -2,14 +2,6 @@ plugins {
     id 'com.android.application'
 }
 
-def configuredPayPalBackend = providers.gradleProperty('paypalBackendUrl')
-        .orElse(providers.environmentVariable('SUBHUB_PAYPAL_BACKEND_URL'))
-        .getOrElse('')
-        .trim()
-def asBuildConfigString = { String value ->
-    '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
-}
-
 android {
     namespace 'com.betasafe.app'
     compileSdk 35
@@ -27,17 +19,6 @@ android {
     buildFeatures {
         viewBinding true
         buildConfig true
-    }
-
-    buildTypes {
-        debug {
-            buildConfigField 'String', 'PAYPAL_BACKEND_URL',
-                    asBuildConfigString(configuredPayPalBackend)
-        }
-        release {
-            buildConfigField 'String', 'PAYPAL_BACKEND_URL',
-                    asBuildConfigString(configuredPayPalBackend)
-        }
     }
 
     compileOptions {
@@ -64,6 +45,7 @@ dependencies {
     implementation 'androidx.documentfile:documentfile:1.0.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.20.0'
+    implementation 'com.paypal.android:fraud-protection:3.0.0'
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

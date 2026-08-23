@@ -7,7 +7,9 @@ import com.betasafe.app.settings.SettingsRepository;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /** Daily, opt-in usage budgets for apps explicitly selected in App Mode. */
@@ -21,6 +23,7 @@ public final class AppTimerManager {
     private static final String KEY_DAY = "day";
     private static final String KEY_TOTAL_USED = "total_used_ms";
     private static final String PACKAGE_PREFIX = "package_used_ms:";
+    private static final String ALLOWANCE_PREFIX = "app_timer_allowance_minutes:";
     private static final int DEFAULT_PER_APP_MINUTES = 30;
     private static final int DEFAULT_TOTAL_MINUTES = 120;
     private static final int MAX_DAILY_MINUTES = 24 * 60;
@@ -87,6 +90,39 @@ public final class AppTimerManager {
                 .commit();
     }
 
+    public int allowanceMinutes(String packageName) {
+        return sanitizeMinutes(settingsPreferences.getInt(
+                ALLOWANCE_PREFIX + safePackage(packageName),
+                loadSettings().perAppMinutes));
+    }
+
+    public Map<String, Integer> loadAllowances(Set<String> packages) {
+        Map<String, Integer> result = new LinkedHashMap<>();
+        if (packages == null) return result;
+        for (String packageName : packages) {
+            if (packageName != null && !packageName.trim().isEmpty()) {
+                result.put(packageName, allowanceMinutes(packageName));
+            }
+        }
+        return result;
+    }
+
+    public void saveAllowances(Set<String> selectedPackages, Map<String, Integer> allowances) {
+        SharedPreferences.Editor editor = settingsPreferences.edit();
+        for (String key : settingsPreferences.getAll().keySet()) {
+            if (key.startsWith(ALLOWANCE_PREFIX)) editor.remove(key);
+        }
+        if (selectedPackages != null) {
+            for (String packageName : selectedPackages) {
+                if (packageName == null || packageName.trim().isEmpty()) continue;
+                Integer minutes = allowances == null ? null : allowances.get(packageName);
+                editor.putInt(ALLOWANCE_PREFIX + safePackage(packageName),
+                        sanitizeMinutes(minutes == null ? DEFAULT_PER_APP_MINUTES : minutes));
+            }
+        }
+        editor.commit();
+    }
+
     public synchronized void recordUsage(String packageName, long elapsedMillis,
             Set<String> selectedPackages, long nowMillis) {
         Settings settings = loadSettings();
@@ -116,7 +152,7 @@ public final class AppTimerManager {
         if (!settings.anyEnabled()) return LimitStatus.NONE;
         UsageSnapshot usage = snapshot(packageName, nowMillis);
         if (settings.perAppEnabled
-                && usage.appUsedMillis >= minutesToMillis(settings.perAppMinutes)) {
+                && usage.appUsedMillis >= minutesToMillis(allowanceMinutes(packageName))) {
             return LimitStatus.PER_APP;
         }
         if (settings.totalEnabled
@@ -152,6 +188,10 @@ public final class AppTimerManager {
 
     private static String packageKey(String packageName) {
         return PACKAGE_PREFIX + (packageName == null ? "" : packageName);
+    }
+
+    private static String safePackage(String packageName) {
+        return packageName == null ? "" : packageName.trim();
     }
 
     private static String dayKey(long nowMillis) {

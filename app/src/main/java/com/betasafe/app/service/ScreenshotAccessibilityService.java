@@ -35,6 +35,7 @@ import com.betasafe.app.penance.PenanceManager;
 import com.betasafe.app.settings.CensorAppearance;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.settings.FeatureModuleManager;
+import com.betasafe.app.security.HardcoreSettingsGuard;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.AchievementManager;
 
@@ -86,6 +87,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private long foregroundSinceMillis;
     private String lastBlockedPackage = "";
     private long lastBlockedAtMillis;
+    private HardcoreSettingsGuard hardcoreSettingsGuard;
     private final Runnable timerTick = new Runnable() {
         @Override public void run() {
             if (!running) return;
@@ -93,6 +95,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             accountForegroundUsage(now);
             enforceForegroundLimit(now);
             reevaluateRecognition();
+            refreshHardcoreSettingsGuard();
             main.postDelayed(this, 1_000L);
         }
     };
@@ -112,6 +115,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         stats = new StatsRepository(this);
         timers = new AppTimerManager(this);
         penance = new PenanceManager(this);
+        hardcoreSettingsGuard = new HardcoreSettingsGuard(this);
         settings.preferences().registerOnSharedPreferenceChangeListener(listener);
         running = true;
 
@@ -321,6 +325,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (event == null) return;
         String packageName = event.getPackageName() == null
                 ? "" : event.getPackageName().toString();
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                || event.getEventType() == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+                || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            main.post(this::refreshHardcoreSettingsGuard);
+        }
         if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
             if (recognitionActive && packageName.equals(foregroundPackage)) {
                 dwellTracker.onScroll();
@@ -396,7 +405,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 || !new FeatureModuleManager(this).isLimitsEnabled()) return;
         AppModeManager mode = new AppModeManager(this);
         timers.recordUsage(foregroundPackage, nowMillis - started,
-                mode.getSelectedPackages(), nowMillis);
+                mode.getTimerPackages(), nowMillis);
     }
 
     /** Returns true when the current foreground app was dismissed for a spent budget. */
@@ -404,7 +413,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (timers == null || foregroundPackage.isEmpty()
                 || !new FeatureModuleManager(this).isLimitsEnabled()) return false;
         AppModeManager mode = new AppModeManager(this);
-        Set<String> selected = mode.getSelectedPackages();
+        Set<String> selected = mode.getTimerPackages();
         AppTimerManager.LimitStatus status = timers.limitStatus(
                 foregroundPackage, selected, nowMillis);
         if (status == AppTimerManager.LimitStatus.NONE) return false;
@@ -432,6 +441,16 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         boolean shouldRun = new AppModeManager(this).shouldRecognize(foregroundPackage);
         if (shouldRun && !recognitionActive) activateRecognition();
         else if (!shouldRun && recognitionActive) deactivateRecognition();
+    }
+
+    private void refreshHardcoreSettingsGuard() {
+        if (hardcoreSettingsGuard == null) return;
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        try {
+            hardcoreSettingsGuard.refresh(foregroundPackage, root);
+        } finally {
+            if (root != null) root.recycle();
+        }
     }
 
     private void activateRecognition() {
@@ -505,6 +524,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (worker != null) worker.shutdownNow();
         if (detector != null) detector.close();
+        if (hardcoreSettingsGuard != null) hardcoreSettingsGuard.clear();
+        hardcoreSettingsGuard = null;
         dwellTracker.clear();
         tapTracker.clear();
         recognitionActive = false;
