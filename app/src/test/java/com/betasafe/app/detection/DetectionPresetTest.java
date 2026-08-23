@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 public final class DetectionPresetTest {
     @Test
@@ -18,6 +19,12 @@ public final class DetectionPresetTest {
         assertEquals(0.18f, ultra.getConfidenceThreshold(), 0.0001f);
         assertEquals(640, ultra.getInferenceResolution());
         assertEquals(0.75f, ultra.getCaptureScale(), 0.0001f);
+        assertEquals(1, low.getInferenceThreads());
+        assertEquals(4, ultra.getInferenceThreads());
+        assertTrue(DetectionPreset.LOW.getCustomImageDimension()
+                < DetectionPreset.ULTRA.getCustomImageDimension());
+        assertTrue(DetectionPreset.LOW.getCustomImageCount()
+                < DetectionPreset.ULTRA.getCustomImageCount());
     }
 
     @Test

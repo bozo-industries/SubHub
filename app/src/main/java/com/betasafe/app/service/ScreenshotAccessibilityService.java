@@ -210,10 +210,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + detector.getLastInferenceMs() + " ms at "
                         + frame.getWidth() + "x" + frame.getHeight());
             }
-            Bitmap overlayFrame = overlayNeedsSourceFrame
-                    ? frame.copy(Bitmap.Config.ARGB_8888, false) : null;
             int width = frame.getWidth();
             int height = frame.getHeight();
+            Bitmap overlayFrame = overlayNeedsSourceFrame ? frame : null;
+            if (overlayFrame != null) frame = null;
             int dwellInfractions = dwellTracker.update(
                     tracks, now, penance.getDwellSeconds() * 1_000L);
             if (dwellInfractions > 0) {

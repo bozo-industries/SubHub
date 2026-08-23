@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -11,6 +12,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.net.Uri;
 
 import androidx.test.core.app.ApplicationProvider;
@@ -28,6 +30,8 @@ import java.io.FileOutputStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
 public final class CensorRendererTest {
@@ -124,6 +128,20 @@ public final class CensorRendererTest {
             Bitmap thumbnail = manager.thumbnail(id, 128);
             assertNotNull(thumbnail);
             thumbnail.recycle();
+
+            CountDownLatch prepared = new CountDownLatch(1);
+            try (CustomImagePool pool = new CustomImagePool(context)) {
+                pool.reloadAsync(prepared::countDown);
+                assertTrue("custom censor preparation should finish off-thread",
+                        prepared.await(5, TimeUnit.SECONDS));
+                CustomImagePool.PreparedImage image = pool.imageFor(17);
+                assertNotNull(image);
+                Rect firstCrop = image.cropFor(16f / 9f);
+                assertSame("the hot path should reuse precomputed crop geometry",
+                        firstCrop, image.cropFor(16f / 9f));
+                assertTrue(firstCrop.width() > 0 && firstCrop.height() > 0);
+                assertSame("a live track keeps its image assignment", image, pool.imageFor(17));
+            }
 
             Bitmap source = gradient(240, 180);
             Bitmap target = source.copy(Bitmap.Config.ARGB_8888, true);

@@ -4,10 +4,14 @@ import java.util.Locale;
 
 /** Recovered Beta Blocker 1.67 quality/performance presets. */
 public enum DetectionPreset {
-    LOW("Low", "Battery saver", 0.38f, 150, 28, 0.35f, 320, 15, 0.80f, 0.60f, 200f),
-    MEDIUM("Medium", "Recommended", 0.30f, 0, 20, 0.45f, 320, 25, 0.75f, 0.55f, 180f),
-    HIGH("High", "Better quality", 0.25f, 0, 12, 0.50f, 480, 35, 0.70f, 0.50f, 230f),
-    ULTRA("Ultra", "Maximum", 0.18f, 0, 6, 0.75f, 640, 50, 0.65f, 0.45f, 300f);
+    LOW("Low", "Battery saver", 0.38f, 150, 28, 0.35f, 320, 15, 0.80f, 0.60f,
+            200f, 1, 384, 4),
+    MEDIUM("Medium", "Recommended", 0.30f, 0, 20, 0.45f, 320, 25, 0.75f, 0.55f,
+            180f, 2, 512, 8),
+    HIGH("High", "Better quality", 0.25f, 0, 12, 0.50f, 480, 35, 0.70f, 0.50f,
+            230f, 3, 768, 12),
+    ULTRA("Ultra", "Maximum", 0.18f, 0, 6, 0.75f, 640, 50, 0.65f, 0.45f,
+            300f, 4, 1024, 16);
 
     private final String displayName;
     private final String description;
@@ -20,6 +24,9 @@ public enum DetectionPreset {
     private final float renderAlpha;
     private final float velocitySmoothing;
     private final float maximumExtrapolationMs;
+    private final int inferenceThreads;
+    private final int customImageDimension;
+    private final int customImageCount;
 
     DetectionPreset(
             String displayName,
@@ -32,7 +39,10 @@ public enum DetectionPreset {
             int idleFrames,
             float renderAlpha,
             float velocitySmoothing,
-            float maximumExtrapolationMs) {
+            float maximumExtrapolationMs,
+            int inferenceThreads,
+            int customImageDimension,
+            int customImageCount) {
         this.displayName = displayName;
         this.description = description;
         this.confidence = confidence;
@@ -44,6 +54,9 @@ public enum DetectionPreset {
         this.renderAlpha = renderAlpha;
         this.velocitySmoothing = velocitySmoothing;
         this.maximumExtrapolationMs = maximumExtrapolationMs;
+        this.inferenceThreads = inferenceThreads;
+        this.customImageDimension = customImageDimension;
+        this.customImageCount = customImageCount;
     }
 
     public String getDisplayName() { return displayName; }
@@ -53,6 +66,9 @@ public enum DetectionPreset {
     public int getMinimumSize() { return minimumSize; }
     public float getCaptureScale() { return captureScale; }
     public int getInferenceResolution() { return inferenceResolution; }
+    public int getInferenceThreads() { return inferenceThreads; }
+    public int getCustomImageDimension() { return customImageDimension; }
+    public int getCustomImageCount() { return customImageCount; }
 
     public DetectorConfig.Builder applyTo(DetectorConfig.Builder builder) {
         return builder
@@ -64,7 +80,8 @@ public enum DetectionPreset {
                 .idleThresholdFrames(idleFrames)
                 .renderAlpha(renderAlpha)
                 .velocitySmoothing(velocitySmoothing)
-                .maxExtrapolationMs(maximumExtrapolationMs);
+                .maxExtrapolationMs(maximumExtrapolationMs)
+                .inferenceThreads(inferenceThreads);
     }
 
     public String preferenceValue() {

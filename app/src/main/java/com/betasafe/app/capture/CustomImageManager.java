@@ -124,11 +124,18 @@ public final class CustomImageManager {
     }
 
     public List<Bitmap> loadEnabledBitmaps(int maximumDimension) {
+        return loadEnabledBitmaps(maximumDimension, MAX_IMAGES);
+    }
+
+    /** Loads a bounded live-rendering set so a large library cannot exhaust the app heap. */
+    public List<Bitmap> loadEnabledBitmaps(int maximumDimension, int maximumImages) {
         List<Bitmap> result = new ArrayList<>();
+        int boundedMaximum = Math.max(1, Math.min(MAX_IMAGES, maximumImages));
         File packDirectory = activePackDirectory();
         File[] packFiles = packDirectory == null ? null : packDirectory.listFiles();
         if (packFiles != null) {
             for (File file : packFiles) {
+                if (result.size() >= boundedMaximum) break;
                 if (!isImageFile(file)) continue;
                 Bitmap bitmap = decode(file, maximumDimension);
                 if (bitmap != null) result.add(bitmap);
@@ -136,6 +143,7 @@ public final class CustomImageManager {
         }
         if (!result.isEmpty()) return result;
         for (Entry entry : listEntries()) {
+            if (result.size() >= boundedMaximum) break;
             if (!entry.enabled) continue;
             Bitmap bitmap = decode(fileFor(entry.id), maximumDimension);
             if (bitmap != null) result.add(bitmap);

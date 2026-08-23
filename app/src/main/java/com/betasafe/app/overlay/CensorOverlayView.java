@@ -104,7 +104,9 @@ final class CensorOverlayView extends View {
         CensorAppearance.Type previous = appearance.getType();
         appearance = value;
         if (value.getType() == CensorAppearance.Type.CUSTOM
-                || previous == CensorAppearance.Type.CUSTOM) customImages.reload();
+                || previous == CensorAppearance.Type.CUSTOM) {
+            customImages.reloadAsync(this::postInvalidate);
+        }
         invalidate();
     }
 
@@ -285,20 +287,10 @@ final class CensorOverlayView extends View {
     }
 
     private boolean drawCustom(Canvas canvas, RectF rect, int stableId) {
-        Bitmap bitmap = customImages.bitmapFor(stableId);
+        CustomImagePool.PreparedImage prepared = customImages.imageFor(stableId);
+        Bitmap bitmap = prepared == null ? null : prepared.bitmap();
         if (bitmap == null || bitmap.isRecycled()) return false;
-        float sourceRatio = (float) bitmap.getWidth() / bitmap.getHeight();
-        float targetRatio = rect.width() / rect.height();
-        Rect source;
-        if (sourceRatio > targetRatio) {
-            int width = Math.round(bitmap.getHeight() * targetRatio);
-            int left = (bitmap.getWidth() - width) / 2;
-            source = new Rect(left, 0, left + width, bitmap.getHeight());
-        } else {
-            int height = Math.round(bitmap.getWidth() / targetRatio);
-            int top = (bitmap.getHeight() - height) / 2;
-            source = new Rect(0, top, bitmap.getWidth(), top + height);
-        }
+        Rect source = prepared.cropFor(rect.width() / Math.max(1f, rect.height()));
         canvas.drawBitmap(bitmap, source, rect, bitmapPaint);
         return true;
     }

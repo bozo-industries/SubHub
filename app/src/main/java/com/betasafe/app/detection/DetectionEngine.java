@@ -147,6 +147,12 @@ public final class DetectionEngine implements AutoCloseable {
     private OrtSession.SessionOptions optionsFor(String provider) throws OrtException {
         OrtSession.SessionOptions options = new OrtSession.SessionOptions();
         options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
+        // Keep capture single-flight while letting ONNX parallelize individual kernels inside
+        // the preset's bounded CPU/battery budget.
+        int threads = Math.max(1, Math.min(config.getInferenceThreads(),
+                Runtime.getRuntime().availableProcessors()));
+        options.setIntraOpNumThreads(threads);
+        options.setInterOpNumThreads(1);
         if ("NNAPI".equals(provider)) {
             options.addNnapi();
         } else if ("XNNPACK".equals(provider)) {
