@@ -24,7 +24,7 @@ public final class PackVerifier {
         String expected = manifest.optString("signature", "").trim();
         if (expected.isEmpty()) return true;
         try {
-            JSONObject copy = new JSONObject(manifest.toString());
+            JSONObject copy = deepCopy(manifest);
             copy.put("signature", "");
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(canonicalize(copy).getBytes(StandardCharsets.UTF_8));
@@ -36,6 +36,30 @@ public final class PackVerifier {
         } catch (Exception error) {
             return false;
         }
+    }
+
+    /** Copies JSON without round-tripping through text, which would turn values like 4.0 into 4. */
+    static JSONObject deepCopy(JSONObject source) throws org.json.JSONException {
+        JSONObject copy = new JSONObject();
+        Iterator<String> keys = source.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            copy.put(key, deepCopyValue(source.opt(key)));
+        }
+        return copy;
+    }
+
+    private static Object deepCopyValue(Object value) throws org.json.JSONException {
+        if (value instanceof JSONObject) return deepCopy((JSONObject) value);
+        if (value instanceof JSONArray) {
+            JSONArray source = (JSONArray) value;
+            JSONArray copy = new JSONArray();
+            for (int index = 0; index < source.length(); index++) {
+                copy.put(deepCopyValue(source.opt(index)));
+            }
+            return copy;
+        }
+        return value;
     }
 
     static String canonicalize(Object value) {

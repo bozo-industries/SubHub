@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.betasafe.app.BuildConfig;
+import com.betasafe.app.settings.FeatureModuleManager;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -44,13 +45,15 @@ public final class PenanceManager {
     private static final Object LOCK = new Object();
 
     private final SharedPreferences preferences;
+    private final FeatureModuleManager modules;
 
     public PenanceManager(Context context) {
         preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        modules = new FeatureModuleManager(context);
     }
 
     public boolean isEnabled() {
-        return preferences.getBoolean(KEY_ENABLED, false);
+        return modules.isWalletEnabled() && preferences.getBoolean(KEY_ENABLED, false);
     }
 
     public int getStrikeCents() {

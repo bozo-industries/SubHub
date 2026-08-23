@@ -25,11 +25,51 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Locale;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @RunWith(AndroidJUnit4.class)
 public final class PackManagerTest {
+    @Test
+    public void formatFivePreservesDecimalDigestAndLoadsImagesAndPhrases() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        SharedPreferences settings = context.getSharedPreferences(
+                SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE);
+        PackManager manager = new PackManager(context);
+        manager.deactivate();
+        manager.delete("instrumented.v5");
+
+        JSONObject manifest = new JSONObject()
+                .put("format_version", 5)
+                .put("target_platform", "android")
+                .put("pack_id", "instrumented.v5")
+                .put("name", "Format Five")
+                .put("author", "SubHub tests")
+                .put("version", "1")
+                .put("signature", "")
+                .put("images", new JSONArray().put("images/sample.png"))
+                .put("settings", new JSONObject()
+                        .put("burst_duration", 4.0d)
+                        .put("custom_phrases", new JSONArray().put("Synthetic phrase")));
+        manifest.put("signature", digestForPreservingNumbers(manifest));
+
+        File archive = zipWithImage(context, "format-five.bbpack", manifest);
+        PackManager.PackInfo imported = manager.importPack(Uri.fromFile(archive));
+        assertEquals("instrumented.v5", imported.getManifest().getPackId());
+        assertTrue(imported.getManifest().integrityDigestValid());
+        assertEquals(1, imported.getManifest().getCustomImageFiles().size());
+        assertEquals(1, imported.getManifest().getCustomPhrases().size());
+        assertTrue(manager.activate("instrumented.v5"));
+        Set<String> phrases = settings.getStringSet(
+                SettingsRepository.KEY_CUSTOM_PHRASES, java.util.Collections.emptySet());
+        assertTrue(phrases.contains("Synthetic phrase"));
+
+        manager.deactivate();
+        manager.delete("instrumented.v5");
+        archive.delete();
+    }
+
     @Test
     public void integrityActivationRestorationAndTraversalPolicyWork() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
@@ -97,6 +137,31 @@ public final class PackManagerTest {
         StringBuilder result = new StringBuilder();
         for (byte value : digest) result.append(String.format(Locale.ROOT, "%02x", value & 0xff));
         return result.toString();
+    }
+
+    private static String digestForPreservingNumbers(JSONObject manifest) throws Exception {
+        JSONObject copy = PackVerifier.deepCopy(manifest).put("signature", "");
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(
+                PackVerifier.canonicalize(copy).getBytes(StandardCharsets.UTF_8));
+        StringBuilder result = new StringBuilder();
+        for (byte value : digest) result.append(String.format(Locale.ROOT, "%02x", value & 0xff));
+        return result.toString();
+    }
+
+    private static File zipWithImage(Context context, String name, JSONObject manifest)
+            throws Exception {
+        File file = new File(context.getCacheDir(), name);
+        try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(file))) {
+            zip.putNextEntry(new ZipEntry("manifest.json"));
+            String rawManifest = manifest.toString().replace(
+                    "\"burst_duration\":4", "\"burst_duration\":4.0");
+            zip.write(rawManifest.getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("images/sample.png"));
+            zip.write(new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47});
+            zip.closeEntry();
+        }
+        return file;
     }
 
     private static File zip(Context context, String name, JSONObject manifest, boolean malicious)

@@ -124,19 +124,19 @@ public final class AppModeContractTest {
         }
     }
 
-    @Test public void launcherPickerUsesACompactTwoOrThreeRowHorizontalGrid() throws Exception {
+    @Test public void launcherPickerUsesACompactVerticalGrid() throws Exception {
         try (ActivityScenario<AppModeActivity> scenario =
                      ActivityScenario.launch(AppModeActivity.class)) {
             Thread.sleep(750L);
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             scenario.onActivity(activity -> {
                 GridLayout grid = activity.findViewById(R.id.app_list);
-                int expected = activity.getResources().getInteger(R.integer.app_picker_rows);
-                assertTrue(expected == 2 || expected == 3);
-                assertEquals(expected, grid.getRowCount());
+                int expected = activity.getResources().getInteger(R.integer.app_picker_columns);
+                assertTrue(expected >= 3 && expected <= 5);
+                assertEquals(expected, grid.getColumnCount());
                 assertTrue(grid.getChildCount() > expected);
-                assertEquals(grid.getChildAt(0).getLeft(), grid.getChildAt(1).getLeft());
-                assertTrue(grid.getChildAt(expected).getLeft() > grid.getChildAt(0).getLeft());
+                assertEquals(grid.getChildAt(0).getTop(), grid.getChildAt(1).getTop());
+                assertTrue(grid.getChildAt(expected).getTop() > grid.getChildAt(0).getTop());
             });
         }
     }

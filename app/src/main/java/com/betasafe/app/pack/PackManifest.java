@@ -57,28 +57,34 @@ public final class PackManifest {
 
     public static PackManifest parse(JSONObject json)
             throws IllegalArgumentException, org.json.JSONException {
-        int format = json.optInt("formatVersion", json.optInt("format_version", 0));
+        JSONObject source = PackVerifier.deepCopy(json);
+        int format = source.optInt("formatVersion", source.optInt("format_version", 0));
         if (format < MIN_SUPPORTED_FORMAT) throw new IllegalArgumentException("Unsupported pack format");
-        String target = clean(json.optString("targetPlatform", json.optString("target_platform", "android")), 24);
+        String target = clean(source.optString("targetPlatform", source.optString("target_platform", "android")), 24);
         if (!target.equalsIgnoreCase("android") && !target.equalsIgnoreCase("both")) {
             throw new IllegalArgumentException("Pack does not target Android");
         }
-        String id = clean(json.optString("packId", json.optString("pack_id", "")), 80);
+        String id = clean(source.optString("packId", source.optString("pack_id", "")), 80);
         if (!id.matches("[A-Za-z0-9._-]{1,80}")) throw new IllegalArgumentException("Invalid pack id");
-        String name = clean(json.optString("name", id), 100);
-        String author = clean(json.optString("author", "Unknown"), 100);
-        String description = clean(json.optString("description", ""), 500);
-        String version = clean(json.optString("version", "1"), 40);
-        JSONObject settings = json.optJSONObject("settings");
+        String name = clean(source.optString("name", id), 100);
+        String author = clean(source.optString("author", "Unknown"), 100);
+        String description = clean(source.optString("description", ""), 500);
+        String version = clean(source.optString("version", "1"), 40);
+        JSONObject settings = source.optJSONObject("settings");
         if (settings == null) settings = new JSONObject();
-        Set<String> locked = stringSet(json.optJSONArray("lockedSettings"));
-        if (locked.isEmpty()) locked = stringSet(json.optJSONArray("locked_settings"));
-        List<String> images = safePaths(json.optJSONArray("customImageFiles"));
-        if (images.isEmpty()) images = safePaths(json.optJSONArray("custom_image_files"));
-        Set<String> phraseCategories = stringSet(json.optJSONArray("enabledPhraseCategories"));
-        List<String> phrases = strings(json.optJSONArray("customPhrases"), 100, 80);
+        Set<String> locked = stringSet(source.optJSONArray("lockedSettings"));
+        if (locked.isEmpty()) locked = stringSet(source.optJSONArray("locked_settings"));
+        List<String> images = safePaths(source.optJSONArray("customImageFiles"));
+        if (images.isEmpty()) images = safePaths(source.optJSONArray("custom_image_files"));
+        if (images.isEmpty()) images = safePaths(source.optJSONArray("images"));
+        Set<String> phraseCategories = stringSet(source.optJSONArray("enabledPhraseCategories"));
+        if (phraseCategories.isEmpty()) {
+            phraseCategories = stringSet(settings.optJSONArray("enabled_phrase_categories"));
+        }
+        List<String> phrases = strings(source.optJSONArray("customPhrases"), 100, 80);
+        if (phrases.isEmpty()) phrases = strings(settings.optJSONArray("custom_phrases"), 100, 80);
         return new PackManifest(
-                new JSONObject(json.toString()), format, target, id, name, author, description,
+                source, format, target, id, name, author, description,
                 version, settings, Collections.unmodifiableSet(locked),
                 Collections.unmodifiableList(images), Collections.unmodifiableSet(phraseCategories),
                 Collections.unmodifiableList(phrases));

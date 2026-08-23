@@ -28,6 +28,8 @@ import androidx.test.runner.lifecycle.Stage;
 import com.betasafe.app.appmode.AppModeActivity;
 import com.betasafe.app.penance.PenanceActivity;
 import com.betasafe.app.stats.StatsRepository;
+import com.betasafe.app.settings.FeatureModuleManager;
+import com.betasafe.app.settings.GlobalSettingsActivity;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -35,9 +37,26 @@ import org.junit.runner.RunWith;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicReference;
 
-/** Proves the three fixed product tabs navigate and visibly select their destination. */
+/** Proves enabled product tabs plus the always-visible Settings tab navigate correctly. */
 @RunWith(AndroidJUnit4.class)
 public final class SubHubNavigationTest {
+    @Test public void disabledAreasDisappearWhileSettingsRemainsAvailable() {
+        android.content.Context context = ApplicationProvider.getApplicationContext();
+        FeatureModuleManager modules = new FeatureModuleManager(context);
+        modules.save(false, true, false);
+        try (ActivityScenario<GlobalSettingsActivity> scenario =
+                     ActivityScenario.launch(GlobalSettingsActivity.class)) {
+            scenario.onActivity(activity -> {
+                assertEquals(View.GONE, activity.findViewById(R.id.nav_censor).getVisibility());
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_limits).getVisibility());
+                assertEquals(View.GONE, activity.findViewById(R.id.nav_money).getVisibility());
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_settings).getVisibility());
+            });
+        } finally {
+            modules.save(true, true, true);
+        }
+    }
+
     @Test public void primaryPillNavigatesAndUpdatesSelection() {
         android.content.Context context = ApplicationProvider.getApplicationContext();
         context
@@ -45,6 +64,7 @@ public final class SubHubNavigationTest {
                 .edit().clear().commit();
         context.getSharedPreferences(StatsRepository.PREFS_NAME, 0)
                 .edit().clear().commit();
+        new FeatureModuleManager(context).save(true, true, true);
         ActivityScenario.launch(MainActivity.class);
         assertDestination(MainActivity.class, R.id.nav_censor, R.id.nav_limits);
 
@@ -56,9 +76,13 @@ public final class SubHubNavigationTest {
         onView(withId(R.id.money_page)).check(matches(isDisplayed()));
         assertDestination(PenanceActivity.class, R.id.nav_money, R.id.nav_limits);
 
+        onView(withId(R.id.nav_settings)).perform(click());
+        onView(withId(R.id.settings_page)).check(matches(isDisplayed()));
+        assertDestination(GlobalSettingsActivity.class, R.id.nav_settings, R.id.nav_money);
+
         onView(withId(R.id.nav_censor)).perform(click());
         onView(withId(R.id.censor_page)).check(matches(isDisplayed()));
-        assertDestination(MainActivity.class, R.id.nav_censor, R.id.nav_money);
+        assertDestination(MainActivity.class, R.id.nav_censor, R.id.nav_settings);
     }
 
     private static void assertDestination(Class<? extends Activity> expected, int selectedId,
@@ -70,9 +94,11 @@ public final class SubHubNavigationTest {
         View unselected = activity.findViewById(unselectedId);
         assertTrue(selected.getBackground() instanceof GradientDrawable);
         assertTrue(unselected.getBackground() instanceof ColorDrawable);
-        int[] tabs = {R.id.nav_censor, R.id.nav_limits, R.id.nav_money};
-        int[] icons = {R.id.nav_censor_icon, R.id.nav_limits_icon, R.id.nav_money_icon};
-        int[] labels = {R.id.nav_censor_label, R.id.nav_limits_label, R.id.nav_money_label};
+        int[] tabs = {R.id.nav_censor, R.id.nav_limits, R.id.nav_money, R.id.nav_settings};
+        int[] icons = {R.id.nav_censor_icon, R.id.nav_limits_icon, R.id.nav_money_icon,
+                R.id.nav_settings_icon};
+        int[] labels = {R.id.nav_censor_label, R.id.nav_limits_label, R.id.nav_money_label,
+                R.id.nav_settings_label};
         for (int index = 0; index < tabs.length; index++) {
             LinearLayout tab = activity.findViewById(tabs[index]);
             ImageView icon = activity.findViewById(icons[index]);

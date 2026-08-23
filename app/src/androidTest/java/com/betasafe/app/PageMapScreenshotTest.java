@@ -20,6 +20,8 @@ import com.betasafe.app.penance.PenanceActivity;
 import com.betasafe.app.popup.PopupStormActivity;
 import com.betasafe.app.profiles.ProfilesActivity;
 import com.betasafe.app.settings.SettingsActivity;
+import com.betasafe.app.settings.GlobalSettingsActivity;
+import com.betasafe.app.settings.FeatureModuleManager;
 import com.betasafe.app.stats.AchievementsActivity;
 import com.betasafe.app.stats.StatsActivity;
 
@@ -32,26 +34,29 @@ import java.io.File;
 @RunWith(AndroidJUnit4.class)
 public final class PageMapScreenshotTest {
     @Test public void captureAllPages() throws Exception {
+        new FeatureModuleManager(InstrumentationRegistry.getInstrumentation().getTargetContext())
+                .save(true, true, true);
         capture("01-censor-home", MainActivity.class);
         capture("02-limits", AppModeActivity.class);
         captureScrolled("02b-limits-app-picker", AppModeActivity.class, 6);
-        capture("03-money", PenanceActivity.class);
-        captureScrolled("03b-money-rules-and-safety", PenanceActivity.class, 2);
-        captureScrolled("03c-money-checkout-and-history", PenanceActivity.class, 5);
-        capture("04-censor-settings", SettingsActivity.class);
-        captureScrolled("04b-settings-detection-categories", SettingsActivity.class, 4);
-        captureScrolled("04c-settings-phrases-and-tools", SettingsActivity.class, 7);
-        capture("05-safe-browser", BrowserActivity.class);
-        capture("06-censor-photos", ExportActivity.class);
-        capture("07-help-safety", HelpActivity.class);
-        capture("08-statistics", StatsActivity.class);
-        capture("09-achievements", AchievementsActivity.class);
-        capture("10-custom-images", CustomImagesActivity.class);
-        capture("11-profiles", ProfilesActivity.class);
-        capture("12-configuration-packs", PacksActivity.class);
-        capture("13-popup-storm", PopupStormActivity.class);
-        capture("14-diagnostics", DiagnosticsActivity.class);
-        capture("15-commitment-pact", CommitmentActivity.class);
+        capture("03-wallet", PenanceActivity.class);
+        captureScrolled("03b-wallet-rules-and-safety", PenanceActivity.class, 2);
+        captureScrolled("03c-wallet-checkout-and-history", PenanceActivity.class, 5);
+        capture("04-global-settings", GlobalSettingsActivity.class);
+        capture("05-censor-settings", SettingsActivity.class);
+        captureScrolled("05b-settings-detection-categories", SettingsActivity.class, 4);
+        captureScrolled("05c-settings-phrases-and-tools", SettingsActivity.class, 7);
+        capture("06-safe-browser", BrowserActivity.class);
+        capture("07-censor-photos", ExportActivity.class);
+        capture("08-help-safety", HelpActivity.class);
+        capture("09-statistics", StatsActivity.class);
+        capture("10-achievements", AchievementsActivity.class);
+        capture("11-custom-images", CustomImagesActivity.class);
+        capture("12-profiles", ProfilesActivity.class);
+        capture("13-configuration-packs", PacksActivity.class);
+        capture("14-popup-storm", PopupStormActivity.class);
+        capture("15-diagnostics", DiagnosticsActivity.class);
+        capture("16-commitment-pact", CommitmentActivity.class);
     }
 
     private static void capture(String name, Class<? extends Activity> activityClass)

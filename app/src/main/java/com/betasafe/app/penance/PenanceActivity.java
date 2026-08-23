@@ -54,6 +54,8 @@ public final class PenanceActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityPenanceBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        if (!Intent.ACTION_VIEW.equals(getIntent().getAction())
+                && SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.MONEY)) return;
         manager = new PenanceManager(this);
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.MONEY);
         populateRules();

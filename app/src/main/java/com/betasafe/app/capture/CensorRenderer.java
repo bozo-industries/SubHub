@@ -115,16 +115,16 @@ public final class CensorRenderer implements AutoCloseable {
                 drawPixelate(canvas, source, rect, intensity, true);
                 break;
             case CUSTOM:
-                if (!drawCustom(canvas, rect, id)) drawSolid(canvas, rect, intensity);
+                if (!drawCustom(canvas, rect, id)) drawSolid(canvas, rect, appearance);
                 break;
             case STATIC:
-                drawStatic(canvas, rect, id, intensity);
+                drawStatic(canvas, rect, id, intensity, appearance);
                 break;
             case GLITCH:
-                drawGlitch(canvas, source, rect, id, intensity);
+                drawGlitch(canvas, source, rect, id, intensity, appearance);
                 break;
             case TAPE:
-                drawTape(canvas, source, rect, id, intensity);
+                drawTape(canvas, source, rect, id, intensity, appearance);
                 break;
             case ERROR_POPUP:
                 drawErrorPopup(canvas, rect, appearance);
@@ -132,21 +132,21 @@ public final class CensorRenderer implements AutoCloseable {
             case BAR:
                 RectF bar = new RectF(rect.left, rect.centerY() - rect.height() * .22f,
                         rect.right, rect.centerY() + rect.height() * .22f);
-                fill.setColor(Color.BLACK);
+                fill.setColor(appearance.getEffectPalette().first());
                 fill.setAlpha(255);
                 canvas.drawRoundRect(bar, 8, 8, fill);
                 break;
             case BOX:
             default:
-                drawSolid(canvas, rect, intensity);
+                drawSolid(canvas, rect, appearance);
                 break;
         }
     }
 
-    private void drawSolid(Canvas canvas, RectF rect, int intensity) {
+    private void drawSolid(Canvas canvas, RectF rect, CensorAppearance appearance) {
         fill.setShader(null);
-        fill.setColor(Color.rgb(13, 13, 20));
-        fill.setAlpha(180 + Math.round(Math.max(0, Math.min(100, intensity)) * .75f));
+        fill.setColor(appearance.getEffectPalette().first());
+        fill.setAlpha(255);
         canvas.drawRoundRect(rect, 10, 10, fill);
     }
 
@@ -185,7 +185,8 @@ public final class CensorRenderer implements AutoCloseable {
         return true;
     }
 
-    private void drawStatic(Canvas canvas, RectF rect, int id, int intensity) {
+    private void drawStatic(Canvas canvas, RectF rect, int id, int intensity,
+            CensorAppearance appearance) {
         int clamped = Math.max(1, Math.min(100, intensity));
         int cell = Math.max(2, Math.min(7, 7 - clamped / 20));
         float contrast = .35f + clamped / 100f * .65f;
@@ -196,25 +197,31 @@ public final class CensorRenderer implements AutoCloseable {
                 int raw = (int) ((seed >>> 56) & 0xff);
                 int value = Math.max(0, Math.min(255,
                         Math.round(128f * (1f - contrast) + raw * contrast)));
-                fill.setColor(Color.rgb(value, value, value));
+                fill.setColor(blendColor(appearance.getEffectPalette().first(),
+                        appearance.getEffectPalette().second(), value / 255f));
                 fill.setAlpha(255);
                 canvas.drawRect(x, y, Math.min(rect.right, x + cell),
                         Math.min(rect.bottom, y + cell), fill);
             }
         }
-        fill.setColor(Color.BLACK);
+        fill.setColor(appearance.getEffectPalette().first());
         fill.setAlpha(70);
         for (float y = rect.top; y < rect.bottom; y += Math.max(4, cell * 2f)) {
             canvas.drawRect(rect.left, y, rect.right, Math.min(rect.bottom, y + 1f), fill);
         }
     }
 
-    private void drawGlitch(Canvas canvas, Bitmap source, RectF rect, int id, int intensity) {
+    private void drawGlitch(Canvas canvas, Bitmap source, RectF rect, int id, int intensity,
+            CensorAppearance appearance) {
         Rect sourceRegion = sourceRect(source, rect);
         int save = canvas.save();
         canvas.clipRect(rect);
         canvas.drawBitmap(source, sourceRegion, rect, filtered);
         float strength = Math.max(1, Math.min(100, intensity)) / 100f;
+        cyanShift.setColorFilter(new PorterDuffColorFilter(
+                appearance.getEffectPalette().first(), PorterDuff.Mode.SRC_ATOP));
+        redShift.setColorFilter(new PorterDuffColorFilter(
+                appearance.getEffectPalette().second(), PorterDuff.Mode.SRC_ATOP));
         float shift = Math.max(2f, (.02f + .06f * strength) * rect.width());
         RectF shifted = new RectF(rect);
         shifted.offset(-shift, 0);
@@ -236,7 +243,7 @@ public final class CensorRenderer implements AutoCloseable {
                     rect.top + rect.height() * topRatio, rect.right + offset,
                     rect.top + rect.height() * bottomRatio);
             canvas.drawBitmap(source, bandSource, bandDestination, filtered);
-            fill.setColor(Color.WHITE);
+            fill.setColor(appearance.getEffectPalette().third());
             fill.setAlpha(48);
             canvas.drawRect(rect.left, bandDestination.top, rect.right,
                     bandDestination.bottom, fill);
@@ -245,23 +252,24 @@ public final class CensorRenderer implements AutoCloseable {
     }
 
     private void drawTape(
-            Canvas canvas, Bitmap source, RectF rect, int id, int intensity) {
+            Canvas canvas, Bitmap source, RectF rect, int id, int intensity,
+            CensorAppearance appearance) {
         int save = canvas.save();
         canvas.clipRect(rect);
         filtered.setAlpha(70);
         canvas.drawBitmap(source, sourceRect(source, rect), rect, filtered);
         filtered.setAlpha(255);
         fill.setShader(null);
-        fill.setColor(Color.rgb(18, 18, 22));
+        fill.setColor(appearance.getEffectPalette().first());
         fill.setAlpha(210);
         canvas.drawRect(rect, fill);
         float spacing = Math.max(16f, Math.min(52f,
                 50f - Math.max(1, Math.min(100, intensity)) * .25f));
         Paint red = new Paint(Paint.ANTI_ALIAS_FLAG);
-        red.setColor(Color.rgb(229, 57, 53));
+        red.setColor(appearance.getEffectPalette().second());
         red.setStrokeWidth(Math.max(5f, spacing / 3f));
         Paint yellow = new Paint(Paint.ANTI_ALIAS_FLAG);
-        yellow.setColor(Color.rgb(243, 211, 59));
+        yellow.setColor(appearance.getEffectPalette().third());
         yellow.setStrokeWidth(Math.max(3f, spacing / 5f));
         float shift = id * 7f % spacing;
         float rise = rect.height() * .45f;
@@ -277,10 +285,10 @@ public final class CensorRenderer implements AutoCloseable {
 
     private void drawErrorPopup(Canvas canvas, RectF rect, CensorAppearance appearance) {
         if (rect.width() < 82 || rect.height() < 46) {
-            fill.setColor(Color.rgb(245, 245, 245));
+            fill.setColor(appearance.getEffectPalette().first());
             fill.setAlpha(255);
             canvas.drawRect(rect, fill);
-            fill.setColor(Color.rgb(215, 38, 48));
+            fill.setColor(appearance.getEffectPalette().second());
             float radius = Math.max(4, Math.min(rect.width(), rect.height()) / 10f);
             float cx = rect.left + 6 + radius;
             canvas.drawCircle(cx, rect.centerY(), radius, fill);
@@ -290,20 +298,20 @@ public final class CensorRenderer implements AutoCloseable {
         shadow.offset(3, 3);
         fill.setColor(Color.argb(58, 0, 0, 0));
         canvas.drawRect(shadow, fill);
-        fill.setColor(Color.rgb(240, 240, 240));
+        fill.setColor(appearance.getEffectPalette().first());
         fill.setAlpha(255);
         canvas.drawRect(rect, fill);
         border.setColor(Color.rgb(118, 118, 118));
         border.setStrokeWidth(1);
         canvas.drawRect(rect, border);
         float header = Math.max(21, Math.min(32, rect.height() * .22f));
-        fill.setColor(Color.WHITE);
+        fill.setColor(blendColor(appearance.getEffectPalette().first(), Color.WHITE, .12f));
         canvas.drawRect(rect.left + 1, rect.top + 1, rect.right - 1, rect.top + header, fill);
         float iconSize = Math.max(14, Math.min(38,
                 Math.min(rect.width(), rect.height()) * .22f));
         float iconLeft = rect.left + Math.max(10, rect.width() * .07f);
         float iconTop = rect.top + header + Math.max(8, rect.height() * .08f);
-        fill.setColor(Color.rgb(215, 38, 48));
+        fill.setColor(appearance.getEffectPalette().second());
         canvas.drawCircle(iconLeft + iconSize / 2f, iconTop + iconSize / 2f,
                 iconSize / 2f, fill);
         border.setColor(Color.WHITE);
@@ -313,7 +321,7 @@ public final class CensorRenderer implements AutoCloseable {
         canvas.drawLine(iconLeft + a, iconTop + a, iconLeft + b, iconTop + b, border);
         canvas.drawLine(iconLeft + b, iconTop + a, iconLeft + a, iconTop + b, border);
 
-        text.setColor(Color.rgb(20, 20, 28));
+        text.setColor(contrastText(appearance.getEffectPalette().first()));
         text.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL));
         text.setTextAlign(Paint.Align.LEFT);
         text.setTextSize(Math.max(8, Math.min(12, header - 8)));
@@ -329,7 +337,7 @@ public final class CensorRenderer implements AutoCloseable {
                 rect.bottom - buttonHeight - 10, rect.right - 12, rect.bottom - 10);
         fill.setColor(Color.rgb(250, 250, 250));
         canvas.drawRect(button, fill);
-        border.setColor(Color.rgb(0, 120, 215));
+        border.setColor(appearance.getEffectPalette().third());
         border.setStrokeWidth(1);
         canvas.drawRect(button, border);
         text.setTextAlign(Paint.Align.CENTER);
@@ -364,6 +372,20 @@ public final class CensorRenderer implements AutoCloseable {
 
     private static int hashInt(long seed) {
         return (int) (mix(seed) & 0x7fffffffL);
+    }
+
+    private static int blendColor(int from, int to, float fraction) {
+        float value = Math.max(0f, Math.min(1f, fraction));
+        return Color.rgb(
+                Math.round(Color.red(from) + (Color.red(to) - Color.red(from)) * value),
+                Math.round(Color.green(from) + (Color.green(to) - Color.green(from)) * value),
+                Math.round(Color.blue(from) + (Color.blue(to) - Color.blue(from)) * value));
+    }
+
+    private static int contrastText(int background) {
+        int luminance = Color.red(background) * 299 + Color.green(background) * 587
+                + Color.blue(background) * 114;
+        return luminance >= 150_000 ? Color.rgb(20, 20, 28) : Color.WHITE;
     }
 
     private void drawBorder(Canvas canvas, RectF rect, CensorAppearance appearance) {

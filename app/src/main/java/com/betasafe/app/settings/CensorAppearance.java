@@ -61,6 +61,7 @@ public final class CensorAppearance {
     private final BorderEffect borderEffect;
     private final boolean showText;
     private final int borderColor;
+    private final EffectPalette effectPalette;
     private final List<String> phrases;
     private final boolean reverseMode;
     private final int reverseStrength;
@@ -75,7 +76,8 @@ public final class CensorAppearance {
             boolean showText,
             int borderColor) {
         this(type, intensity, 0.20f, showBorder, false, BorderEffect.CLASSIC,
-                showText, borderColor, Collections.singletonList("BLOCKED"), false, 100,
+                showText, borderColor, EffectPalette.defaultsFor(type),
+                Collections.singletonList("BLOCKED"), false, 100,
                 "rectangle", "SubHub", "Access blocked.");
     }
 
@@ -94,6 +96,27 @@ public final class CensorAppearance {
             String reverseCutoutShape,
             String errorTitle,
             String errorMessage) {
+        this(type, intensity, sizePadding, showBorder, animateBorder, borderEffect, showText,
+                borderColor, EffectPalette.defaultsFor(type), phrases, reverseMode,
+                reverseStrength, reverseCutoutShape, errorTitle, errorMessage);
+    }
+
+    public CensorAppearance(
+            Type type,
+            int intensity,
+            float sizePadding,
+            boolean showBorder,
+            boolean animateBorder,
+            BorderEffect borderEffect,
+            boolean showText,
+            int borderColor,
+            EffectPalette effectPalette,
+            List<String> phrases,
+            boolean reverseMode,
+            int reverseStrength,
+            String reverseCutoutShape,
+            String errorTitle,
+            String errorMessage) {
         this.type = type == null ? Type.BOX : type;
         this.intensity = clamp(intensity, 0, 100);
         this.sizePadding = Math.max(0f, Math.min(1f, sizePadding));
@@ -102,6 +125,8 @@ public final class CensorAppearance {
         this.borderEffect = borderEffect == null ? BorderEffect.CLASSIC : borderEffect;
         this.showText = showText;
         this.borderColor = borderColor;
+        this.effectPalette = effectPalette == null
+                ? EffectPalette.defaultsFor(this.type) : effectPalette;
         List<String> safePhrases = phrases == null ? Collections.emptyList() : phrases;
         this.phrases = Collections.unmodifiableList(new ArrayList<>(safePhrases));
         this.reverseMode = reverseMode;
@@ -123,6 +148,7 @@ public final class CensorAppearance {
     public BorderEffect getBorderEffect() { return borderEffect; }
     public boolean isShowText() { return showText; }
     public int getBorderColor() { return borderColor; }
+    public EffectPalette getEffectPalette() { return effectPalette; }
     public List<String> getPhrases() { return phrases; }
     public boolean isReverseMode() { return reverseMode; }
     public int getReverseStrength() { return reverseStrength; }

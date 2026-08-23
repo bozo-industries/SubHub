@@ -2,5 +2,5 @@
 <resources>
     <integer name="censor_tool_columns">4</integer>
     <integer name="settings_grid_columns">3</integer>
-    <integer name="app_picker_rows">3</integer>
+    <integer name="app_picker_columns">5</integer>
 </resources>

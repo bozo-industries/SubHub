@@ -59,6 +59,7 @@ public final class AppModeActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityAppModeBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        if (SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.LIMITS)) return;
         manager = new AppModeManager(this);
         timers = new AppTimerManager(this);
         schedule = new WeeklyScheduleManager(this);
@@ -338,9 +339,7 @@ public final class AppModeActivity extends AppCompatActivity {
         binding.loadingApps.setVisibility(View.GONE);
         binding.appList.removeAllViews();
         Set<String> installed = new LinkedHashSet<>();
-        int rows = Math.max(2, getResources().getInteger(R.integer.app_picker_rows));
-        int tileWidth = getResources().getConfiguration().smallestScreenWidthDp >= 600
-                ? dp(132) : dp(106);
+        int columns = Math.max(2, getResources().getInteger(R.integer.app_picker_columns));
         int tileHeight = dp(92);
         for (int index = 0; index < entries.size(); index++) {
             AppEntry entry = entries.get(index);
@@ -393,8 +392,8 @@ public final class AppModeActivity extends AppCompatActivity {
                 if (editingUnlocked) check.setChecked(!check.isChecked());
             });
             GridLayout.LayoutParams tileParams = new GridLayout.LayoutParams(
-                    GridLayout.spec(index % rows), GridLayout.spec(index / rows));
-            tileParams.width = tileWidth;
+                    GridLayout.spec(index / columns), GridLayout.spec(index % columns, 1f));
+            tileParams.width = 0;
             tileParams.height = tileHeight;
             tileParams.setMargins(dp(3), dp(3), dp(3), dp(3));
             binding.appList.addView(tile, tileParams);

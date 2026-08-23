@@ -21,6 +21,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.betasafe.app.detection.BBox;
 import com.betasafe.app.detection.Detection;
 import com.betasafe.app.settings.CensorAppearance;
+import com.betasafe.app.settings.EffectPalette;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -35,6 +36,28 @@ import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
 public final class CensorRendererTest {
+    @Test public void solidBoxUsesItsSelectedOpaqueColor() {
+        Context context = ApplicationProvider.getApplicationContext();
+        Bitmap source = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888);
+        source.eraseColor(Color.WHITE);
+        Bitmap target = source.copy(Bitmap.Config.ARGB_8888, true);
+        int purple = Color.rgb(96, 24, 160);
+        CensorAppearance appearance = new CensorAppearance(
+                CensorAppearance.Type.BOX, 1, 0f, false, false,
+                CensorAppearance.BorderEffect.CLASSIC, false, Color.MAGENTA,
+                new EffectPalette(purple, Color.WHITE, Color.WHITE), Collections.emptyList(),
+                false, 100, "rectangle", "SubHub", "Blocked");
+        try (CensorRenderer renderer = new CensorRenderer(context)) {
+            renderer.draw(target, source, Collections.singletonList(
+                    detection(20, 20, 60, 60)), appearance);
+            assertEquals(purple, target.getPixel(50, 50));
+            assertEquals(255, Color.alpha(target.getPixel(50, 50)));
+        } finally {
+            source.recycle();
+            target.recycle();
+        }
+    }
+
     @Test
     public void solidCensorChangesOnlyThePaddedDetectionRegion() {
         Context context = ApplicationProvider.getApplicationContext();

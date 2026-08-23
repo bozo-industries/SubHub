@@ -123,6 +123,12 @@ final class CensorOverlayView extends View {
     void setAppearance(CensorAppearance value) {
         CensorAppearance.Type previous = appearance.getType();
         appearance = value;
+        cyanShiftPaint.setColorFilter(new PorterDuffColorFilter(
+                value.getEffectPalette().first(), PorterDuff.Mode.SRC_ATOP));
+        redShiftPaint.setColorFilter(new PorterDuffColorFilter(
+                value.getEffectPalette().second(), PorterDuff.Mode.SRC_ATOP));
+        tapeRedPaint.setColor(value.getEffectPalette().second());
+        tapeYellowPaint.setColor(value.getEffectPalette().third());
         if (value.getType() == CensorAppearance.Type.CUSTOM
                 || previous == CensorAppearance.Type.CUSTOM) {
             customImages.reloadAsync(this::postInvalidate);
@@ -257,7 +263,7 @@ final class CensorOverlayView extends View {
 
     private void drawSolid(Canvas canvas, RectF rect, int intensity) {
         fill.setShader(null);
-        fill.setColor(Color.BLACK);
+        fill.setColor(appearance.getEffectPalette().first());
         fill.setAlpha(255);
         canvas.drawRoundRect(rect, dp(8), dp(8), fill);
     }
@@ -268,7 +274,7 @@ final class CensorOverlayView extends View {
         bar.top = rect.centerY() - halfHeight;
         bar.bottom = rect.centerY() + halfHeight;
         fill.setShader(null);
-        fill.setColor(Color.BLACK);
+        fill.setColor(appearance.getEffectPalette().first());
         fill.setAlpha(255);
         canvas.drawRoundRect(bar, dp(6), dp(6), fill);
     }
@@ -340,7 +346,8 @@ final class CensorOverlayView extends View {
                 int raw = (int) ((seed >>> 56) & 0xff);
                 int value = Math.max(0, Math.min(255,
                         Math.round(128 * (1f - contrast) + raw * contrast)));
-                noisePixels[index] = Color.rgb(value, value, value);
+                noisePixels[index] = blendColor(appearance.getEffectPalette().first(),
+                        appearance.getEffectPalette().second(), value / 255f);
             }
             noiseBitmap.setPixels(noisePixels, 0, 128, 0, 0, 128, 128);
             noiseTick = tick;
@@ -351,7 +358,7 @@ final class CensorOverlayView extends View {
         effectSourceRect.set(0, 0, cellsWide, cellsHigh);
         canvas.drawBitmap(noiseBitmap, effectSourceRect, rect, nearestPaint);
         fill.setShader(null);
-        fill.setColor(Color.BLACK);
+        fill.setColor(appearance.getEffectPalette().first());
         fill.setAlpha(70);
         float scanline = Math.max(4, cell * 2f);
         for (float y = rect.top; y < rect.bottom; y += scanline) {
@@ -390,7 +397,7 @@ final class CensorOverlayView extends View {
             bandRect.set(rect.left + offset, rect.top + rect.height() * topRatio,
                     rect.right + offset, rect.top + rect.height() * bottomRatio);
             canvas.drawBitmap(frame, bandSourceRect, bandRect, bitmapPaint);
-            fill.setColor(Color.WHITE);
+            fill.setColor(appearance.getEffectPalette().third());
             fill.setAlpha(48);
             canvas.drawRect(rect.left, bandRect.top, rect.right, bandRect.bottom, fill);
         }
@@ -406,7 +413,7 @@ final class CensorOverlayView extends View {
             bitmapPaint.setAlpha(255);
         }
         fill.setShader(null);
-        fill.setColor(Color.rgb(18, 18, 22));
+        fill.setColor(appearance.getEffectPalette().first());
         fill.setAlpha(210);
         canvas.drawRect(rect, fill);
         float spacing = Math.max(16f, Math.min(52f,
@@ -428,10 +435,10 @@ final class CensorOverlayView extends View {
     private void drawErrorPopup(Canvas canvas, RectF rect) {
         fill.setShader(null);
         if (rect.width() < dp(82) || rect.height() < dp(46)) {
-            fill.setColor(Color.rgb(245, 245, 245));
+            fill.setColor(appearance.getEffectPalette().first());
             fill.setAlpha(255);
             canvas.drawRect(rect, fill);
-            fill.setColor(Color.rgb(215, 38, 48));
+            fill.setColor(appearance.getEffectPalette().second());
             float radius = Math.max(dp(4), Math.min(rect.width(), rect.height()) / 10f);
             float cx = rect.left + dp(6) + radius;
             canvas.drawCircle(cx, rect.centerY(), radius, fill);
@@ -448,14 +455,14 @@ final class CensorOverlayView extends View {
         effectRect.offset(dp(3), dp(3));
         fill.setColor(Color.argb(58, 0, 0, 0));
         canvas.drawRect(effectRect, fill);
-        fill.setColor(Color.rgb(240, 240, 240));
+        fill.setColor(appearance.getEffectPalette().first());
         fill.setAlpha(255);
         canvas.drawRect(rect, fill);
         border.setColor(Color.rgb(118, 118, 118));
         border.setStrokeWidth(dp(1));
         canvas.drawRect(rect, border);
         float headerHeight = Math.max(dp(21), Math.min(dp(32), rect.height() * .22f));
-        fill.setColor(Color.WHITE);
+        fill.setColor(blendColor(appearance.getEffectPalette().first(), Color.WHITE, .12f));
         canvas.drawRect(rect.left + dp(1), rect.top + dp(1), rect.right - dp(1),
                 rect.top + headerHeight, fill);
 
@@ -463,7 +470,7 @@ final class CensorOverlayView extends View {
                 Math.min(rect.width(), rect.height()) * .22f));
         float iconLeft = rect.left + Math.max(dp(10), rect.width() * .07f);
         float iconTop = rect.top + headerHeight + Math.max(dp(8), rect.height() * .08f);
-        fill.setColor(Color.rgb(215, 38, 48));
+        fill.setColor(appearance.getEffectPalette().second());
         canvas.drawCircle(iconLeft + iconSize / 2f, iconTop + iconSize / 2f,
                 iconSize / 2f, fill);
         border.setColor(Color.WHITE);
@@ -480,7 +487,7 @@ final class CensorOverlayView extends View {
         label.clearShadowLayer();
         label.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL));
         label.setTextAlign(Paint.Align.LEFT);
-        label.setColor(Color.rgb(20, 20, 20));
+        label.setColor(contrastText(appearance.getEffectPalette().first()));
         label.setTextSize(Math.max(dp(8), Math.min(dp(12), headerHeight - dp(8))));
         canvas.drawText(appearance.getErrorTitle(), rect.left + dp(10),
                 rect.top + headerHeight * .68f, label);
@@ -496,7 +503,7 @@ final class CensorOverlayView extends View {
                 rect.right - dp(12), rect.bottom - dp(10));
         fill.setColor(Color.rgb(250, 250, 250));
         canvas.drawRect(effectRect, fill);
-        border.setColor(Color.rgb(0, 120, 215));
+        border.setColor(appearance.getEffectPalette().third());
         border.setStrokeWidth(dp(1));
         canvas.drawRect(effectRect, border);
         label.setTextAlign(Paint.Align.CENTER);
@@ -533,6 +540,20 @@ final class CensorOverlayView extends View {
 
     private static int hashInt(long seed) {
         return (int) (mix(seed) & 0x7fffffffL);
+    }
+
+    private static int blendColor(int from, int to, float fraction) {
+        float value = Math.max(0f, Math.min(1f, fraction));
+        return Color.rgb(
+                Math.round(Color.red(from) + (Color.red(to) - Color.red(from)) * value),
+                Math.round(Color.green(from) + (Color.green(to) - Color.green(from)) * value),
+                Math.round(Color.blue(from) + (Color.blue(to) - Color.blue(from)) * value));
+    }
+
+    private static int contrastText(int background) {
+        int luminance = Color.red(background) * 299 + Color.green(background) * 587
+                + Color.blue(background) * 114;
+        return luminance >= 150_000 ? Color.rgb(20, 20, 28) : Color.WHITE;
     }
 
     private void drawBorder(Canvas canvas, RectF rect) {

@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <integer name="app_picker_rows">2</integer>
+    <integer name="app_picker_columns">5</integer>
 </resources>

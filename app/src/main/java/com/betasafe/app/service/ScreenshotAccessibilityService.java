@@ -34,6 +34,7 @@ import com.betasafe.app.penance.PenanceInfraction;
 import com.betasafe.app.penance.PenanceManager;
 import com.betasafe.app.settings.CensorAppearance;
 import com.betasafe.app.settings.SettingsRepository;
+import com.betasafe.app.settings.FeatureModuleManager;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.AchievementManager;
 
@@ -354,7 +355,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void accountForegroundUsage(long nowMillis) {
         long started = foregroundSinceMillis;
         foregroundSinceMillis = nowMillis;
-        if (timers == null || started <= 0L || nowMillis <= started) return;
+        if (timers == null || started <= 0L || nowMillis <= started
+                || !new FeatureModuleManager(this).isLimitsEnabled()) return;
         AppModeManager mode = new AppModeManager(this);
         timers.recordUsage(foregroundPackage, nowMillis - started,
                 mode.getSelectedPackages(), nowMillis);
@@ -362,7 +364,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     /** Returns true when the current foreground app was dismissed for a spent budget. */
     private boolean enforceForegroundLimit(long nowMillis) {
-        if (timers == null || foregroundPackage.isEmpty()) return false;
+        if (timers == null || foregroundPackage.isEmpty()
+                || !new FeatureModuleManager(this).isLimitsEnabled()) return false;
         AppModeManager mode = new AppModeManager(this);
         Set<String> selected = mode.getSelectedPackages();
         AppTimerManager.LimitStatus status = timers.limitStatus(

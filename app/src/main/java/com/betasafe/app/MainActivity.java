@@ -41,6 +41,10 @@ import com.betasafe.app.stats.AchievementManager;
 import com.betasafe.app.stats.MilestoneManager;
 import com.betasafe.app.help.HelpActivity;
 import com.betasafe.app.settings.SettingsRepository;
+import com.betasafe.app.settings.CaptureMethod;
+import com.betasafe.app.settings.FeatureModuleManager;
+import com.betasafe.app.settings.GlobalSettingsActivity;
+import com.betasafe.app.appmode.ResumeNotificationManager;
 import com.betasafe.app.security.ControllerPinGate;
 import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.security.ControllerEditMode;
@@ -70,6 +74,7 @@ public final class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        if (SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.CENSOR)) return;
         editLockButton = findViewById(R.id.button_edit_lock);
         projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
@@ -98,7 +103,7 @@ public final class MainActivity extends AppCompatActivity {
         binding.buttonProtection.setOnClickListener(this::toggleProtection);
         editLockButton.setOnClickListener(view -> toggleEditSession());
         binding.buttonAccessibilityCapture.setOnClickListener(view ->
-                startActivity(new Intent(this, AppModeActivity.class)));
+                startActivity(new Intent(this, SettingsActivity.class)));
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
         binding.buttonCensorSettings.setOnClickListener(view ->
                 startActivity(new Intent(this, CommitmentManager.isActive(this)
@@ -142,8 +147,7 @@ public final class MainActivity extends AppCompatActivity {
             startActivity(new Intent(this, BrowserActivity.class));
         } else if (AppShortcuts.ACTION_START_PROTECTION.equals(action)) {
             AppShortcuts.reportUsed(this, "start_protection");
-            binding.getRoot().post(() -> ControllerPinGate.require(this,
-                    () -> toggleProtection(binding.buttonProtection), false));
+            binding.getRoot().post(() -> toggleProtection(binding.buttonProtection));
         }
     }
 
@@ -154,8 +158,29 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void toggleProtection(View view) {
+        if (!new FeatureModuleManager(this).isCensorEnabled()) {
+            startActivity(new Intent(this, GlobalSettingsActivity.class));
+            return;
+        }
         if (ScreenCaptureService.isRunning()) {
             startService(ScreenCaptureService.stopIntent(this));
+            updateProtectionButton(false);
+            return;
+        }
+        AppModeManager appMode = new AppModeManager(this);
+        if (appMode.isArmed() || ScreenshotAccessibilityService.isRecognitionActive()) {
+            appMode.setArmed(false);
+            ResumeNotificationManager.cancel(this);
+            updateProtectionButton(false);
+            return;
+        }
+        if (new SettingsRepository(this).loadCaptureMethod() == CaptureMethod.APP_MODE) {
+            appMode.setArmed(true);
+            ResumeNotificationManager.show(this);
+            if (!appMode.isAccessibilityEnabled()) {
+                showStatus(R.string.capture_method_enable_accessibility);
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            }
             updateProtectionButton(false);
             return;
         }
@@ -188,11 +213,11 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void updateProtectionButton(boolean running) {
-        binding.buttonProtection.setEnabled(!ScreenshotAccessibilityService.isRecognitionActive()
-                && (running || ControllerPinManager.isSessionUnlocked()));
-        binding.buttonProtection.setText(running ? R.string.stop_protection
-                : ScreenshotAccessibilityService.isRecognitionActive()
-                ? R.string.app_mode_active : R.string.start_protection);
+        boolean appModeRunning = new AppModeManager(this).isArmed()
+                || ScreenshotAccessibilityService.isRecognitionActive();
+        binding.buttonProtection.setEnabled(true);
+        binding.buttonProtection.setText(running || appModeRunning
+                ? R.string.stop_protection : R.string.start_protection);
     }
 
     @Override
@@ -209,6 +234,8 @@ public final class MainActivity extends AppCompatActivity {
                                 CommitmentManager.remainingMillis(this))));
             }
             PenanceSnapshot penance = new PenanceManager(this).snapshot(System.currentTimeMillis());
+            boolean walletEnabled = new FeatureModuleManager(this).isWalletEnabled();
+            binding.penanceCard.setVisibility(walletEnabled ? View.VISIBLE : View.GONE);
             binding.penanceStatus.setText(penance.isEnabled()
                     ? getString(R.string.penance_home_status,
                             PenanceManager.formatMoney(penance.getDueCents()),
@@ -243,13 +270,19 @@ public final class MainActivity extends AppCompatActivity {
         if (binding == null) return;
         boolean manual = ScreenCaptureService.isRunning();
         boolean automatic = ScreenshotAccessibilityService.isRecognitionActive();
+        boolean armed = new AppModeManager(this).isArmed();
         boolean waiting = ScreenshotAccessibilityService.isRunning()
                 && new AppModeManager(this).isEffectivelyArmed(System.currentTimeMillis())
                 && !automatic;
         updateProtectionButton(manual);
 
+        CaptureMethod method = new SettingsRepository(this).loadCaptureMethod();
+        binding.buttonAccessibilityCapture.setText(method == CaptureMethod.APP_MODE
+                ? R.string.capture_method_app_mode_button
+                : R.string.capture_method_recording_button);
+
         int status = (manual || automatic) ? R.string.status_active
-                : waiting ? R.string.status_app_mode_waiting : R.string.status_inactive;
+                : (waiting || armed) ? R.string.status_app_mode_waiting : R.string.status_inactive;
         binding.protectionStatus.setText(status);
         binding.protectionStatus.setTextColor(getColor(
                 manual || automatic || waiting ? R.color.accent : R.color.text_muted));

@@ -24,6 +24,8 @@ import com.betasafe.app.penance.PenanceActivity;
 import com.betasafe.app.popup.PopupStormActivity;
 import com.betasafe.app.profiles.ProfilesActivity;
 import com.betasafe.app.settings.SettingsActivity;
+import com.betasafe.app.settings.GlobalSettingsActivity;
+import com.betasafe.app.settings.FeatureModuleManager;
 import com.betasafe.app.stats.AchievementsActivity;
 import com.betasafe.app.stats.StatsActivity;
 
@@ -39,9 +41,11 @@ import java.util.Map;
 @RunWith(AndroidJUnit4.class)
 public final class VisualMenuSmokeTest {
     @Test public void everyMenuInflatesAndRenders() throws Exception {
+        new FeatureModuleManager(ApplicationProvider.getApplicationContext()).save(true, true, true);
         Map<String, Class<? extends Activity>> screens = new LinkedHashMap<>();
         screens.put("home", MainActivity.class);
         screens.put("settings", SettingsActivity.class);
+        screens.put("global-settings", GlobalSettingsActivity.class);
         screens.put("browser", BrowserActivity.class);
         screens.put("help", HelpActivity.class);
         screens.put("export", ExportActivity.class);
