@@ -29,7 +29,10 @@ public final class ObjectTracker {
         for (int detectionIndex = 0; detectionIndex < detections.size(); detectionIndex++) {
             Detection detection = detections.get(detectionIndex);
             for (TrackedObject track : tracks.values()) {
-                if (!track.isActive() || !track.getCategory().equals(detection.getCategory())) continue;
+                // Classification may flicker between adjacent NudeNet labels for the same region.
+                // Spatial continuity owns the identity so one stable image cannot create a new
+                // censor (and a new ledger event) merely because its label changed for one frame.
+                if (!track.isActive()) continue;
                 float score = matchScore(detection.getBox(), track);
                 if (score >= IOU_THRESHOLD) {
                     candidates.add(new MatchCandidate(detectionIndex, track.getId(), score));
@@ -71,6 +74,14 @@ public final class ObjectTracker {
             Detection detection = detections.get(index);
             if (!matchedDetections[index]
                     && detection.getConfidence() >= config.getConfidenceThreshold()) {
+                TrackedObject covering = coveringTrack(detection.getBox());
+                if (covering != null) {
+                    // Effects such as blur, mosaic, labels, and static can produce several nested
+                    // model boxes when a display capture includes the overlay. Keep the existing
+                    // stable region instead of recursively spawning censor-on-censor tracks.
+                    detection.setTrackId(covering.getId());
+                    continue;
+                }
                 int id = nextId++;
                 TrackedObject track = new TrackedObject(id, detection, nowNanos);
                 tracks.put(id, track);
@@ -133,6 +144,25 @@ public final class ObjectTracker {
                 200f);
         if (distance < limit) iou = Math.max(iou, (1f - distance / limit) * 0.5f);
         return iou;
+    }
+
+    private TrackedObject coveringTrack(BBox candidate) {
+        for (TrackedObject track : tracks.values()) {
+            if (!track.isActive() || track.getFramesTracked() < 2) continue;
+            BBox existing = track.getBox();
+            int left = Math.max(candidate.getX(), existing.getX());
+            int top = Math.max(candidate.getY(), existing.getY());
+            int right = Math.min(candidate.getRight(), existing.getRight());
+            int bottom = Math.min(candidate.getBottom(), existing.getBottom());
+            if (right <= left || bottom <= top) continue;
+            long intersection = (long) (right - left) * (bottom - top);
+            long smaller = Math.min(candidate.getArea(), existing.getArea());
+            float containment = smaller > 0 ? (float) intersection / smaller : 0f;
+            if (containment >= 0.70f || candidate.intersectionOverUnion(existing) >= 0.45f) {
+                return track;
+            }
+        }
+        return null;
     }
 
     private static BBox smooth(BBox current, BBox target, float alpha) {

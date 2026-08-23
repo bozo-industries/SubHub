@@ -14,6 +14,10 @@ public final class PenancePolicy {
     public static final int MAX_DAILY_CENTS = 50_000;
     public static final int MAX_WEEKLY_CENTS = 200_000;
     public static final int MAX_MERCY_MINUTES = 24 * 60;
+    public static final int MIN_DWELL_SECONDS = 3;
+    public static final int MAX_DWELL_SECONDS = 60;
+    public static final int MIN_DETECTION_BATCH = 1;
+    public static final int MAX_DETECTION_BATCH = 100;
 
     private PenancePolicy() {}
 
@@ -47,6 +51,14 @@ public final class PenancePolicy {
 
     public static int clampMercyMinutes(int value) {
         return clamp(value, 0, MAX_MERCY_MINUTES);
+    }
+
+    public static int clampDwellSeconds(int value) {
+        return clamp(value, MIN_DWELL_SECONDS, MAX_DWELL_SECONDS);
+    }
+
+    public static int clampDetectionBatch(int value) {
+        return clamp(value, MIN_DETECTION_BATCH, MAX_DETECTION_BATCH);
     }
 
     private static int periodTotal(List<PenanceEvent> events, long nowMillis,

@@ -64,8 +64,13 @@ public final class AppModeManager {
     }
 
     public boolean shouldRecognize(String foregroundPackage) {
-        return AppModePolicy.shouldRecognize(isArmed(), getMode(), getSelectedPackages(),
+        return AppModePolicy.shouldRecognize(isEffectivelyArmed(System.currentTimeMillis()),
+                getMode(), getSelectedPackages(),
                 foregroundPackage, context.getPackageName(), inputMethodPackage());
+    }
+
+    public boolean isEffectivelyArmed(long nowMillis) {
+        return isArmed() || new WeeklyScheduleManager(context).isActive(nowMillis);
     }
 
     /** A boot never grants capture authority. It only preserves or disarms prior user intent. */

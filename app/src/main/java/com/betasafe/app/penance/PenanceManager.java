@@ -9,7 +9,9 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -23,12 +25,17 @@ public final class PenanceManager {
     public static final int DEFAULT_DAILY_CAP_CENTS = 500;
     public static final int DEFAULT_WEEKLY_CAP_CENTS = 2_000;
     public static final int DEFAULT_MERCY_MINUTES = 10;
+    public static final int DEFAULT_DWELL_SECONDS = 10;
+    public static final int DEFAULT_DETECTION_BATCH = 1;
     public static final String CURRENCY = "EUR";
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_STRIKE_CENTS = "strike_cents";
     private static final String KEY_DAILY_CAP_CENTS = "daily_cap_cents";
     private static final String KEY_WEEKLY_CAP_CENTS = "weekly_cap_cents";
     private static final String KEY_MERCY_MINUTES = "mercy_minutes";
+    private static final String KEY_DWELL_SECONDS = "dwell_seconds";
+    private static final String KEY_DETECTION_BATCH = "detection_batch";
+    private static final String KEY_DETECTION_REMAINDER = "detection_batch_remainder";
     private static final String KEY_EVENTS = "events_v1";
     private static final String LEGACY_KEY_BACKEND_URL = "paypal_backend_url";
     private static final String KEY_ORDER_ID = "active_order_id";
@@ -47,7 +54,24 @@ public final class PenanceManager {
     }
 
     public int getStrikeCents() {
-        return preferences.getInt(KEY_STRIKE_CENTS, DEFAULT_STRIKE_CENTS);
+        return getInfractionCents(PenanceInfraction.NEW_DETECTION);
+    }
+
+    public boolean isInfractionEnabled(PenanceInfraction infraction) {
+        String key = ruleEnabledKey(infraction);
+        if (preferences.contains(key)) {
+            return preferences.getBoolean(key, infraction.enabledByDefault());
+        }
+        return infraction == PenanceInfraction.NEW_DETECTION
+                ? infraction.enabledByDefault() : false;
+    }
+
+    public int getInfractionCents(PenanceInfraction infraction) {
+        String key = ruleCentsKey(infraction);
+        int fallback = infraction == PenanceInfraction.NEW_DETECTION
+                ? preferences.getInt(KEY_STRIKE_CENTS, DEFAULT_STRIKE_CENTS)
+                : infraction.defaultCents();
+        return PenancePolicy.clampStrikeCents(preferences.getInt(key, fallback));
     }
 
     public int getDailyCapCents() {
@@ -62,42 +86,112 @@ public final class PenanceManager {
         return preferences.getInt(KEY_MERCY_MINUTES, DEFAULT_MERCY_MINUTES);
     }
 
+    public int getDwellSeconds() {
+        return PenancePolicy.clampDwellSeconds(
+                preferences.getInt(KEY_DWELL_SECONDS, DEFAULT_DWELL_SECONDS));
+    }
+
+    public int getDetectionBatch() {
+        return PenancePolicy.clampDetectionBatch(
+                preferences.getInt(KEY_DETECTION_BATCH, DEFAULT_DETECTION_BATCH));
+    }
+
     public String getBackendUrl() {
         return normalizeBackendUrl(BuildConfig.PAYPAL_BACKEND_URL);
     }
 
     public void configure(boolean enabled, int strikeCents, int dailyCapCents,
             int weeklyCapCents, int mercyMinutes) {
-        int boundedStrike = PenancePolicy.clampStrikeCents(strikeCents);
-        int boundedDaily = PenancePolicy.clampDailyCapCents(dailyCapCents, boundedStrike);
+        Map<PenanceInfraction, Integer> rules = new EnumMap<>(PenanceInfraction.class);
+        rules.put(PenanceInfraction.NEW_DETECTION, strikeCents);
+        configure(enabled, rules, dailyCapCents, weeklyCapCents, mercyMinutes,
+                DEFAULT_DWELL_SECONDS, DEFAULT_DETECTION_BATCH);
+    }
+
+    public void configure(boolean enabled, Map<PenanceInfraction, Integer> enabledRuleCosts,
+            int dailyCapCents, int weeklyCapCents, int mercyMinutes, int dwellSeconds) {
+        configure(enabled, enabledRuleCosts, dailyCapCents, weeklyCapCents, mercyMinutes,
+                dwellSeconds, getDetectionBatch());
+    }
+
+    public void configure(boolean enabled, Map<PenanceInfraction, Integer> enabledRuleCosts,
+            int dailyCapCents, int weeklyCapCents, int mercyMinutes, int dwellSeconds,
+            int detectionBatch) {
+        Map<PenanceInfraction, Integer> rules = enabledRuleCosts == null
+                ? Collections.emptyMap() : enabledRuleCosts;
+        int largestRule = PenancePolicy.MIN_STRIKE_CENTS;
+        for (Map.Entry<PenanceInfraction, Integer> entry : rules.entrySet()) {
+            if (entry.getKey() != null && entry.getValue() != null) {
+                largestRule = Math.max(largestRule,
+                        PenancePolicy.clampStrikeCents(entry.getValue()));
+            }
+        }
+        int boundedDaily = PenancePolicy.clampDailyCapCents(dailyCapCents, largestRule);
         int boundedWeekly = PenancePolicy.clampWeeklyCapCents(weeklyCapCents, boundedDaily);
-        preferences.edit()
+        SharedPreferences.Editor editor = preferences.edit()
                 .putBoolean(KEY_ENABLED, enabled)
-                .putInt(KEY_STRIKE_CENTS, boundedStrike)
                 .putInt(KEY_DAILY_CAP_CENTS, boundedDaily)
                 .putInt(KEY_WEEKLY_CAP_CENTS, boundedWeekly)
                 .putInt(KEY_MERCY_MINUTES, PenancePolicy.clampMercyMinutes(mercyMinutes))
-                .remove(LEGACY_KEY_BACKEND_URL)
-                .apply();
+                .putInt(KEY_DWELL_SECONDS, PenancePolicy.clampDwellSeconds(dwellSeconds))
+                .putInt(KEY_DETECTION_BATCH,
+                        PenancePolicy.clampDetectionBatch(detectionBatch))
+                .putInt(KEY_DETECTION_REMAINDER, 0)
+                .remove(LEGACY_KEY_BACKEND_URL);
+        for (PenanceInfraction infraction : PenanceInfraction.values()) {
+            boolean ruleEnabled = rules.containsKey(infraction);
+            int cents = ruleEnabled && rules.get(infraction) != null
+                    ? PenancePolicy.clampStrikeCents(rules.get(infraction))
+                    : getInfractionCents(infraction);
+            editor.putBoolean(ruleEnabledKey(infraction), ruleEnabled)
+                    .putInt(ruleCentsKey(infraction), cents);
+            if (infraction == PenanceInfraction.NEW_DETECTION) {
+                editor.putInt(KEY_STRIKE_CENTS, cents);
+            }
+        }
+        editor.apply();
     }
 
     /** Returns the bounded amount added to the ledger in cents. */
-    public int recordStrikes(int strikes, long nowMillis) {
-        if (!isEnabled() || strikes <= 0) return 0;
+    public int recordInfraction(PenanceInfraction infraction, int count, long nowMillis) {
+        if (infraction == null || !isEnabled() || !isInfractionEnabled(infraction)
+                || count <= 0) return 0;
         synchronized (LOCK) {
+            int billableCount = count;
+            if (infraction == PenanceInfraction.NEW_DETECTION) {
+                int batch = getDetectionBatch();
+                int accumulated = preferences.getInt(KEY_DETECTION_REMAINDER, 0) + count;
+                billableCount = accumulated / batch;
+                preferences.edit().putInt(
+                        KEY_DETECTION_REMAINDER, accumulated % batch).apply();
+                if (billableCount <= 0) return 0;
+            }
             List<PenanceEvent> events = loadEvents();
             trimHistory(events);
             if (events.size() >= MAX_EVENTS) return 0;
-            int amount = PenancePolicy.boundedCharge(events, nowMillis, strikes,
-                    getStrikeCents(), getDailyCapCents(), getWeeklyCapCents(),
+            int amount = PenancePolicy.boundedCharge(events, nowMillis, billableCount,
+                    getInfractionCents(infraction), getDailyCapCents(), getWeeklyCapCents(),
                     ZoneId.systemDefault());
             if (amount <= 0) return 0;
             long mercyEnds = nowMillis + getMercyMinutes() * 60_000L;
             events.add(new PenanceEvent(UUID.randomUUID().toString(), nowMillis, mercyEnds,
-                    amount, strikes, PenanceEvent.Status.OPEN, ""));
+                    amount, billableCount, infraction, PenanceEvent.Status.OPEN, ""));
             saveEvents(events);
             return amount;
         }
+    }
+
+    /** Compatibility entry point for the original new-detection rule. */
+    public int recordStrikes(int strikes, long nowMillis) {
+        return recordInfraction(PenanceInfraction.NEW_DETECTION, strikes, nowMillis);
+    }
+
+    private static String ruleEnabledKey(PenanceInfraction infraction) {
+        return "rule_" + infraction.preferenceKey() + "_enabled";
+    }
+
+    private static String ruleCentsKey(PenanceInfraction infraction) {
+        return "rule_" + infraction.preferenceKey() + "_cents";
     }
 
     public PenanceSnapshot snapshot(long nowMillis) {
@@ -262,12 +356,15 @@ public final class PenanceManager {
         if (raw == null || raw.trim().isEmpty()) return events;
         for (String line : raw.split(";")) {
             String[] parts = line.split(",", -1);
-            if (parts.length != 7) continue;
+            if (parts.length != 7 && parts.length != 8) continue;
             try {
                 PenanceEvent.Status status = PenanceEvent.Status.valueOf(parts[5]);
+                PenanceInfraction infraction = parts.length == 8
+                        ? PenanceInfraction.valueOf(parts[7])
+                        : PenanceInfraction.NEW_DETECTION;
                 events.add(new PenanceEvent(parts[0], Long.parseLong(parts[1]),
                         Long.parseLong(parts[2]), Integer.parseInt(parts[3]),
-                        Integer.parseInt(parts[4]), status, parts[6]));
+                        Integer.parseInt(parts[4]), infraction, status, parts[6]));
             } catch (IllegalArgumentException ignored) {
                 // Ignore malformed private preference entries without losing valid history.
             }
@@ -284,7 +381,8 @@ public final class PenanceManager {
                     Long.toString(event.getMercyEndsAtMillis()),
                     Integer.toString(event.getAmountCents()),
                     Integer.toString(event.getStrikeCount()),
-                    event.getStatus().name(), event.getSettlementId()));
+                    event.getStatus().name(), event.getSettlementId(),
+                    event.getInfraction().name()));
         }
         preferences.edit().putString(KEY_EVENTS, String.join(";", encoded)).apply();
     }

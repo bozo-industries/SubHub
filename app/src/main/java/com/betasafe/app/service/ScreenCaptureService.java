@@ -36,6 +36,8 @@ import com.betasafe.app.detection.TrackedObject;
 import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.popup.PopupStormManager;
+import com.betasafe.app.penance.DwellInfractionTracker;
+import com.betasafe.app.penance.PenanceInfraction;
 import com.betasafe.app.penance.PenanceManager;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.settings.CensorAppearance;
@@ -73,6 +75,8 @@ public final class ScreenCaptureService extends Service {
     private OverlayController overlay;
     private SettingsRepository settings;
     private StatsRepository stats;
+    private PenanceManager penance;
+    private final DwellInfractionTracker dwellTracker = new DwellInfractionTracker();
     private volatile DetectorConfig detectorConfig;
     private volatile boolean overlayNeedsSourceFrame;
 
@@ -96,6 +100,7 @@ public final class ScreenCaptureService extends Service {
         executor = Executors.newSingleThreadScheduledExecutor();
         settings = new SettingsRepository(this);
         stats = new StatsRepository(this);
+        penance = new PenanceManager(this);
         settings.preferences().registerOnSharedPreferenceChangeListener(settingsListener);
     }
 
@@ -200,9 +205,16 @@ public final class ScreenCaptureService extends Service {
             DetectorConfig currentConfig = detectorConfig;
             int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
                     ? null : currentConfig.getEnabledCategories());
+            long now = System.currentTimeMillis();
             if (recordedBlocks > 0) {
-                new PenanceManager(this).recordStrikes(recordedBlocks, System.currentTimeMillis());
+                penance.recordInfraction(PenanceInfraction.NEW_DETECTION, recordedBlocks, now);
                 new AchievementManager(this).checkAchievements(stats.load());
+            }
+            int dwellInfractions = dwellTracker.update(
+                    tracks, now, penance.getDwellSeconds() * 1_000L);
+            if (dwellInfractions > 0) {
+                penance.recordInfraction(
+                        PenanceInfraction.CENSORED_DWELL, dwellInfractions, now);
             }
             int width = capture.getCaptureWidth();
             int height = capture.getCaptureHeight();
@@ -304,6 +316,7 @@ public final class ScreenCaptureService extends Service {
         if (executor != null) executor.shutdownNow();
         if (capture != null) capture.close();
         if (detector != null) detector.close();
+        dwellTracker.clear();
         OverlayController activeOverlay = overlay;
         overlay = null;
         if (activeOverlay != null) activeOverlay.close();

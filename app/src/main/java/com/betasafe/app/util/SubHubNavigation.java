@@ -32,10 +32,11 @@ public final class SubHubNavigation {
             Screen destination, Class<? extends Activity> target) {
         if (tab == null) return;
         boolean selected = destination == active;
-        tab.setTextColor(activity.getColor(
-                selected ? R.color.text_primary : R.color.text_secondary));
+        tab.setVisibility(View.VISIBLE);
+        tab.setAlpha(selected ? 1f : 0.82f);
+        tab.setTextColor(activity.getColor(R.color.text_primary));
         TextViewCompat.setCompoundDrawableTintList(tab, ColorStateList.valueOf(
-                activity.getColor(selected ? R.color.accent : R.color.text_secondary)));
+                activity.getColor(selected ? R.color.accent : R.color.text_primary)));
         tab.setBackgroundResource(selected
                 ? R.drawable.bg_bottom_tab_active : android.R.color.transparent);
         tab.setOnClickListener(view -> {

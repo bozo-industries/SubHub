@@ -274,7 +274,11 @@ public final class StatsRepository {
 
     private static List<Integer> trackIds(List<TrackedObject> tracks) {
         List<Integer> ids = new ArrayList<>(tracks.size());
-        for (TrackedObject track : tracks) ids.add(track.getId());
+        // Render immediately, but only count a region after temporal confirmation. This keeps
+        // single-frame detector noise and repeated screenshot refreshes out of stats and money.
+        for (TrackedObject track : tracks) {
+            if (track.isConfirmed() && track.getFramesMissing() == 0) ids.add(track.getId());
+        }
         return ids;
     }
     private static String today() {

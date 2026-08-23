@@ -33,6 +33,8 @@ public final class PenancePolicyTest {
         assertEquals(1, PenancePolicy.clampStrikeCents(-10));
         assertEquals(10_000, PenancePolicy.clampStrikeCents(50_000));
         assertEquals(1_440, PenancePolicy.clampMercyMinutes(99_999));
+        assertEquals(1, PenancePolicy.clampDetectionBatch(0));
+        assertEquals(100, PenancePolicy.clampDetectionBatch(500));
     }
 
     private static PenanceEvent event(String id, long at, int cents,

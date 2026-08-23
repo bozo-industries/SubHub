@@ -11,7 +11,10 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.Color;
+import android.view.Gravity;
 import android.view.View;
+import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -57,6 +60,15 @@ public final class SubHubNavigationTest {
         View unselected = activity.findViewById(unselectedId);
         assertTrue(selected.getBackground() instanceof GradientDrawable);
         assertTrue(unselected.getBackground() instanceof ColorDrawable);
+        for (int id : new int[]{R.id.nav_censor, R.id.nav_limits, R.id.nav_money}) {
+            TextView tab = activity.findViewById(id);
+            assertEquals(View.VISIBLE, tab.getVisibility());
+            assertTrue(tab.getAlpha() >= 0.8f);
+            assertTrue(Color.alpha(tab.getCurrentTextColor()) > 0);
+            assertEquals(Gravity.CENTER, tab.getGravity() & Gravity.CENTER);
+            assertTrue(!tab.getIncludeFontPadding());
+            assertTrue(tab.getCompoundDrawablesRelative()[1] != null);
+        }
     }
 
     private static Activity resumedActivity() {
