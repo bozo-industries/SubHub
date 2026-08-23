@@ -20,7 +20,27 @@ public final class DetectionFusion {
             if (source == null) continue;
             for (Detection candidate : source) addOrFuse(merged, candidate);
         }
+        coalesceTextRegions(merged);
         return merged;
+    }
+
+    private static void coalesceTextRegions(List<Detection> merged) {
+        boolean changed;
+        do {
+            changed = false;
+            for (int firstIndex = 0; firstIndex < merged.size() && !changed; firstIndex++) {
+                Detection first = merged.get(firstIndex);
+                if (!isText(first)) continue;
+                for (int secondIndex = firstIndex + 1; secondIndex < merged.size(); secondIndex++) {
+                    Detection second = merged.get(secondIndex);
+                    if (!isText(second) || !shouldFuse(first, second)) continue;
+                    merged.set(firstIndex, mergedDetection(first, second));
+                    merged.remove(secondIndex);
+                    changed = true;
+                    break;
+                }
+            }
+        } while (changed);
     }
 
     private static void addOrFuse(List<Detection> merged, Detection candidate) {
@@ -28,18 +48,26 @@ public final class DetectionFusion {
         for (int index = 0; index < merged.size(); index++) {
             Detection existing = merged.get(index);
             if (!shouldFuse(existing, candidate)) continue;
-            BBox fused = fusedBox(existing, candidate);
-            Detection preferred = "text_smut".equals(existing.getCategory()) ? candidate : existing;
-            merged.set(index, new Detection(
-                    preferred.getClassName(),
-                    preferred.getCategory(),
-                    Math.max(existing.getConfidence(), candidate.getConfidence()),
-                    fused,
-                    existing.isNsfw() || candidate.isNsfw(),
-                    existing.isExposed() || candidate.isExposed()));
+            merged.set(index, mergedDetection(existing, candidate));
             return;
         }
         merged.add(candidate);
+    }
+
+    private static Detection mergedDetection(Detection first, Detection second) {
+        BBox fused = fusedBox(first, second);
+        Detection preferred = isText(first) ? second : first;
+        return new Detection(
+                preferred.getClassName(),
+                preferred.getCategory(),
+                Math.max(first.getConfidence(), second.getConfidence()),
+                fused,
+                first.isNsfw() || second.isNsfw(),
+                first.isExposed() || second.isExposed());
+    }
+
+    private static boolean isText(Detection detection) {
+        return detection != null && "text_smut".equals(detection.getCategory());
     }
 
     private static BBox fusedBox(Detection first, Detection second) {

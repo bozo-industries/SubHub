@@ -69,9 +69,9 @@ public final class AccessibilityTextSmutDetector {
         CharSequence description = node.getContentDescription();
         String first = text == null ? "" : text.toString().trim();
         String second = description == null ? "" : description.toString().trim();
-        // Container descriptions commonly concatenate an entire social post, media, and actions.
-        // Descendant TextViews provide tighter bounds, so never duplicate that aggregate string.
-        if (first.isEmpty() && node.getChildCount() > 0) return "";
+        // Some Compose/social feeds expose a caption only as a container description. Keep that
+        // fallback: the region projector bounds it to text lines and fusion prefers tighter child
+        // nodes whenever the same phrase is also exposed below this container.
         if (!first.isEmpty() && node.getChildCount() > 0) second = "";
         String combined = first;
         if (!second.isEmpty() && !second.equalsIgnoreCase(first)) {

@@ -64,4 +64,26 @@ public final class StatsAndAchievementsTest {
         assertTrue(milestone.isMajor());
         assertEquals(15, MilestoneManager.next(10));
     }
+
+    @Test
+    public void activeSessionSurvivesRepositoryRecreationAndIgnoresIdleTracks() {
+        Context context = ApplicationProvider.getApplicationContext();
+        context.getSharedPreferences(StatsRepository.PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().clear().commit();
+
+        StatsRepository first = new StatsRepository(context);
+        first.startSession();
+        first.onTrackIds(Arrays.asList(31, 32), null);
+
+        StatsRepository reopened = new StatsRepository(context);
+        assertEquals(2, reopened.load().getCurrentSessionBlocks());
+        reopened.onTrackIds(Arrays.asList(33), null);
+        assertEquals(3, reopened.load().getCurrentSessionBlocks());
+        reopened.endSession();
+
+        long total = reopened.load().getTotalBlocks();
+        reopened.onTrackIds(Arrays.asList(99), null);
+        assertEquals(total, reopened.load().getTotalBlocks());
+        assertEquals(0, reopened.load().getCurrentSessionBlocks());
+    }
 }

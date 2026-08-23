@@ -78,8 +78,6 @@ public final class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        if (ControllerPinManager.isDomModeActive()
-                && SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.CENSOR)) return;
         editLockButton = findViewById(R.id.button_edit_lock);
         projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
@@ -110,7 +108,7 @@ public final class MainActivity extends AppCompatActivity {
         editLockButton.setOnClickListener(view -> toggleEditSession());
         binding.buttonAccessibilityCapture.setOnClickListener(view ->
                 startActivity(new Intent(this, SettingsActivity.class)));
-        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.HOME);
         binding.buttonCensorSettings.setOnClickListener(view ->
                 startActivity(new Intent(this, SettingsActivity.class)));
         binding.buttonBrowser.setOnClickListener(view ->
@@ -265,7 +263,7 @@ public final class MainActivity extends AppCompatActivity {
         if (binding == null) return;
         boolean active = CommitmentManager.isActive(this);
         boolean domMode = ControllerPinManager.isDomModeActive();
-        binding.commitmentCard.setVisibility(active || !domMode ? View.VISIBLE : View.GONE);
+        binding.commitmentCard.setVisibility(!domMode ? View.VISIBLE : View.GONE);
         binding.commitmentStartPanel.setVisibility(!domMode && !active ? View.VISIBLE : View.GONE);
         binding.commitmentActivePanel.setVisibility(active ? View.VISIBLE : View.GONE);
         if (active) binding.commitmentStatus.setText(getString(
@@ -317,31 +315,39 @@ public final class MainActivity extends AppCompatActivity {
         TextView headerSubtitle = findViewById(R.id.header_subtitle);
         if (headerSubtitle != null) headerSubtitle.setText(domMode
                 ? R.string.header_subtitle_dom : R.string.header_subtitle_sub);
-        binding.domContent.setVisibility(domMode ? View.VISIBLE : View.GONE);
-        binding.subDashboard.setVisibility(domMode ? View.GONE : View.VISIBLE);
+        binding.domContent.setVisibility(View.GONE);
+        binding.subDashboard.setVisibility(View.VISIBLE);
         int bottom = dp(domMode ? 116 : 26);
         binding.pageContent.setPaddingRelative(binding.pageContent.getPaddingStart(),
                 binding.pageContent.getPaddingTop(), binding.pageContent.getPaddingEnd(), bottom);
-        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.HOME);
         renderSubDashboard();
         renderCommitmentState();
         updateProtectionButton(ScreenCaptureService.isRunning());
     }
 
     private void renderSubDashboard() {
-        if (binding == null || ControllerPinManager.isDomModeActive()) return;
+        if (binding == null) return;
+        boolean domMode = ControllerPinManager.isDomModeActive();
+        if (domMode) {
+            binding.buttonProtection.setVisibility(View.GONE);
+            binding.protectionStatusRow.setVisibility(View.GONE);
+            binding.runtimeStatus.setVisibility(View.GONE);
+            binding.modeHint.setVisibility(View.GONE);
+        }
         FeatureModuleManager modules = new FeatureModuleManager(this);
         boolean censorEnabled = modules.isCensorEnabled();
         boolean limitsEnabled = modules.isLimitsEnabled();
         boolean walletEnabled = modules.isWalletEnabled();
         binding.subCensorCard.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
-        binding.subLimitsCard.setVisibility(View.GONE);
-        binding.subWalletCard.setVisibility(View.GONE);
-        binding.subModulesEmpty.setVisibility(!censorEnabled ? View.VISIBLE : View.GONE);
-        binding.buttonProtection.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
-        binding.protectionStatusRow.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
-        binding.runtimeStatus.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
-        binding.modeHint.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
+        binding.subLimitsCard.setVisibility(limitsEnabled ? View.VISIBLE : View.GONE);
+        binding.subWalletCard.setVisibility(walletEnabled ? View.VISIBLE : View.GONE);
+        binding.subModulesEmpty.setVisibility(!censorEnabled && !limitsEnabled && !walletEnabled
+                ? View.VISIBLE : View.GONE);
+        binding.buttonProtection.setVisibility(!domMode && censorEnabled ? View.VISIBLE : View.GONE);
+        binding.protectionStatusRow.setVisibility(View.GONE);
+        binding.runtimeStatus.setVisibility(View.GONE);
+        binding.modeHint.setVisibility(View.GONE);
 
         long now = System.currentTimeMillis();
         if (censorEnabled) {

@@ -15,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.betasafe.app.MainActivity;
 import com.betasafe.app.R;
+import com.betasafe.app.security.ControllerPinManager;
 
 import org.junit.After;
 import org.junit.Before;
@@ -207,6 +208,7 @@ public final class PenanceContractTest {
     }
 
     @Test public void styledTreasuryAndMainEntryRemainAvailable() {
+        ControllerPinManager.enterDomMode();
         try (ActivityScenario<PenanceActivity> scenario =
                      ActivityScenario.launch(PenanceActivity.class)) {
             scenario.onActivity(activity -> {
@@ -231,9 +233,30 @@ public final class PenanceContractTest {
                 assertEquals(detectionLocation[1], dwellLocation[1]);
             });
         }
+        ControllerPinManager.enterSubMode();
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            scenario.onActivity(activity -> assertEquals(View.GONE,
-                    activity.findViewById(R.id.penance_card).getVisibility()));
+            scenario.onActivity(activity -> assertEquals(View.VISIBLE,
+                    activity.findViewById(R.id.sub_wallet_card).getVisibility()));
+        }
+    }
+
+    @Test public void detectionBatchInputFollowsNewDetectionRuleToggle() {
+        ControllerPinManager.enterDomMode();
+        try (ActivityScenario<PenanceActivity> scenario =
+                     ActivityScenario.launch(PenanceActivity.class)) {
+            scenario.onActivity(activity -> {
+                android.widget.CheckBox toggle = activity.findViewById(
+                        R.id.rule_detection_enabled);
+                View batch = activity.findViewById(R.id.detection_batch);
+                toggle.setChecked(false);
+                assertFalse(batch.isEnabled());
+                assertTrue(batch.getAlpha() < 0.5f);
+                toggle.setChecked(true);
+                assertTrue(batch.isEnabled());
+                assertEquals(1f, batch.getAlpha(), 0.01f);
+            });
+        } finally {
+            ControllerPinManager.enterSubMode();
         }
     }
 }

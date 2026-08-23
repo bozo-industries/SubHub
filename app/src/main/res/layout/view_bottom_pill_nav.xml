@@ -13,6 +13,21 @@
     android:padding="6dp">
 
     <LinearLayout
+        android:id="@+id/nav_home"
+        style="@style/Widget.SubHub.BottomTab"
+        android:contentDescription="@string/nav_home">
+        <ImageView
+            android:id="@+id/nav_home_icon"
+            style="@style/Widget.SubHub.BottomTabIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_tab_home" />
+        <TextView
+            android:id="@+id/nav_home_label"
+            style="@style/Widget.SubHub.BottomTabLabel"
+            android:text="@string/nav_home" />
+    </LinearLayout>
+
+    <LinearLayout
         android:id="@+id/nav_censor"
         style="@style/Widget.SubHub.BottomTab"
         android:contentDescription="@string/nav_censor">

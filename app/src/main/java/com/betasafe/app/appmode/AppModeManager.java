@@ -8,6 +8,7 @@ import android.view.accessibility.AccessibilityManager;
 
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.settings.FeatureModuleManager;
+import com.betasafe.app.stats.StatsRepository;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -36,7 +37,9 @@ public final class AppModeManager {
     }
 
     public void setArmed(boolean armed) {
+        boolean wasArmed = isArmed();
         preferences.edit().putBoolean(KEY_ARMED, armed).commit();
+        syncProtectionSession(wasArmed, armed);
     }
 
     public AppModePolicy.Mode getMode() {
@@ -67,6 +70,7 @@ public final class AppModeManager {
     }
 
     public void save(boolean armed, AppModePolicy.Mode mode, Set<String> selectedPackages) {
+        boolean wasArmed = isArmed();
         preferences.edit()
                 .putBoolean(KEY_ARMED, armed)
                 .putString(KEY_MODE,
@@ -74,6 +78,7 @@ public final class AppModeManager {
                 .putStringSet(KEY_SELECTED_PACKAGES,
                         new LinkedHashSet<>(AppModePolicy.sanitizePackages(selectedPackages)))
                 .commit();
+        syncProtectionSession(wasArmed, armed);
     }
 
     public boolean shouldRecognize(String foregroundPackage) {
@@ -110,5 +115,13 @@ public final class AppModeManager {
         if (setting == null) return "";
         int separator = setting.indexOf('/');
         return separator < 0 ? setting : setting.substring(0, separator);
+    }
+
+    /** One statistics session follows the explicit armed lifetime, not foreground app changes. */
+    private void syncProtectionSession(boolean wasArmed, boolean armed) {
+        if (wasArmed == armed) return;
+        StatsRepository stats = new StatsRepository(context);
+        if (armed) stats.startSession();
+        else stats.endSession();
     }
 }

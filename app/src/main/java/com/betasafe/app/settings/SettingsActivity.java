@@ -22,8 +22,6 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.betasafe.app.R;
 import com.betasafe.app.capture.CustomImagesActivity;
-import com.betasafe.app.commitment.CommitmentActivity;
-import com.betasafe.app.commitment.CommitmentManager;
 import com.betasafe.app.databinding.ActivitySettingsBinding;
 import com.betasafe.app.detection.DetectionPreset;
 import com.betasafe.app.detection.DetectorConfig;
@@ -37,6 +35,7 @@ import com.betasafe.app.pack.PackManager;
 import com.betasafe.app.pack.PacksActivity;
 import com.betasafe.app.popup.PopupStormActivity;
 import com.betasafe.app.stats.StatsRepository;
+import com.betasafe.app.util.SubHubNavigation;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -64,6 +63,7 @@ public final class SettingsActivity extends AppCompatActivity {
         applyLockState();
         binding.buttonBack.setOnClickListener(view -> finish());
         binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
     }
 
     private void toggleEditSession() {
@@ -690,11 +690,11 @@ public final class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (CommitmentManager.isActive(this)) {
-            startActivity(new Intent(this, CommitmentActivity.class));
-            finish();
+        if (ControllerPinManager.isDomModeActive()
+                && SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.CENSOR)) {
             return;
         }
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
         if (binding != null) {
             new PackManager(this);
             bindValues();

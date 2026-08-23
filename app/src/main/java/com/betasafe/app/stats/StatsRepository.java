@@ -92,6 +92,8 @@ public final class StatsRepository {
 
     public int recordTrackIds(List<Integer> trackIds, Set<String> enabledCategories) {
         synchronized (SESSION_LOCK) {
+            restoreActiveSession();
+            if (sessionStartMs == 0) return 0;
             int added = 0;
             for (Integer id : trackIds) if (id != null && SEEN_TRACK_IDS.add(id)) added++;
             if (added == 0) return 0;
@@ -174,7 +176,8 @@ public final class StatsRepository {
         long stored = preferences.getLong(KEY_ACTIVE_SESSION_START, 0);
         long now = System.currentTimeMillis();
         // Discard impossible/corrupt timestamps instead of displaying an unbounded timer.
-        if (stored <= 0 || stored > now || now - stored > 7L * 24L * 60L * 60L * 1000L) {
+        if (stored <= 0 || stored > now
+                || now - stored > 366L * 24L * 60L * 60L * 1000L) {
             if (stored != 0) preferences.edit().remove(KEY_ACTIVE_SESSION_START)
                     .remove(KEY_ACTIVE_SESSION_BLOCKS).apply();
             return;

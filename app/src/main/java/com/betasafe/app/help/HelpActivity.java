@@ -50,9 +50,10 @@ public final class HelpActivity extends AppCompatActivity {
         binding.buttonLanguage.setOnClickListener(view -> showLanguageChooser());
         addSections();
         editMode = ControllerEditMode.bind(this, binding.buttonEditLock, editing -> {
-            binding.buttonFixPermissions.setEnabled(editing);
-            binding.buttonAccessibility.setEnabled(editing);
-            binding.buttonLanguage.setEnabled(editing);
+            int actionVisibility = editing ? View.VISIBLE : View.GONE;
+            binding.buttonFixPermissions.setVisibility(actionVisibility);
+            binding.buttonAccessibility.setVisibility(actionVisibility);
+            binding.buttonLanguage.setVisibility(actionVisibility);
         });
     }
 

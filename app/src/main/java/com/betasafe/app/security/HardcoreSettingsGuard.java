@@ -38,8 +38,13 @@ public final class HardcoreSettingsGuard {
     public void refresh(String foregroundPackage, AccessibilityNodeInfo root) {
         boolean hardcore = new HardcoreModeManager(service).isEnabled();
         boolean domMode = ControllerPinManager.isDomModeActive();
-        boolean targetPage = root != null && isSubHubPage(root);
-        if (!shouldGuard(hardcore, domMode, foregroundPackage) || !targetPage) {
+        // The accessibility tree can be very large in scrolling feeds. Reject every non-Settings
+        // event before walking it; the guard must be effectively free during normal recognition.
+        if (!shouldGuard(hardcore, domMode, foregroundPackage)) {
+            clear();
+            return;
+        }
+        if (root == null || !isSubHubPage(root)) {
             clear();
             return;
         }
@@ -71,7 +76,20 @@ public final class HardcoreSettingsGuard {
     }
 
     static boolean shouldGuard(boolean hardcore, boolean domMode, String foregroundPackage) {
-        return hardcore && !domMode && SETTINGS_PACKAGE.equals(foregroundPackage);
+        return hardcore && !domMode && isSystemSettingsPackage(foregroundPackage);
+    }
+
+    public static boolean isSettingsPackage(String packageName) {
+        return isSystemSettingsPackage(packageName);
+    }
+
+    private static boolean isSystemSettingsPackage(String packageName) {
+        String value = packageName == null ? "" : packageName.toLowerCase(Locale.ROOT);
+        if (SETTINGS_PACKAGE.equals(value)) return true;
+        boolean trustedAndroidNamespace = value.startsWith("com.android.")
+                || value.startsWith("com.google.android.");
+        return trustedAndroidNamespace && (value.contains("settings")
+                || value.endsWith("permissioncontroller"));
     }
 
     static int overlayFlags() {

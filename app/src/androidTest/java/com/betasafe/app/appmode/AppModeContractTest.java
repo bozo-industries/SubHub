@@ -22,6 +22,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.betasafe.app.R;
 import com.betasafe.app.commitment.CommitmentManager;
 import com.betasafe.app.security.ControllerPinManager;
+import com.betasafe.app.security.HardcoreModeManager;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.settings.GlobalSettingsActivity;
 
@@ -45,7 +46,8 @@ public final class AppModeContractTest {
         preferences.edit().remove(AppModeManager.KEY_ARMED)
                 .remove(AppModeManager.KEY_MODE)
                 .remove(AppModeManager.KEY_SELECTED_PACKAGES)
-                .remove(AppModeManager.KEY_TIMER_PACKAGES).commit();
+                .remove(AppModeManager.KEY_TIMER_PACKAGES)
+                .remove(HardcoreModeManager.KEY_REQUESTED).commit();
         ProtectionSessionManager.markMediaProjectionExplicitlyStopped(context);
         CommitmentManager.emergencyRelease(context);
         ControllerPinManager.enterSubMode();
@@ -55,7 +57,8 @@ public final class AppModeContractTest {
         preferences.edit().remove(AppModeManager.KEY_ARMED)
                 .remove(AppModeManager.KEY_MODE)
                 .remove(AppModeManager.KEY_SELECTED_PACKAGES)
-                .remove(AppModeManager.KEY_TIMER_PACKAGES).commit();
+                .remove(AppModeManager.KEY_TIMER_PACKAGES)
+                .remove(HardcoreModeManager.KEY_REQUESTED).commit();
         ProtectionSessionManager.markMediaProjectionExplicitlyStopped(context);
         CommitmentManager.emergencyRelease(context);
         ControllerPinManager.enterSubMode();
@@ -163,6 +166,8 @@ public final class AppModeContractTest {
     @Test public void launcherPickerUsesACompactVerticalGrid() throws Exception {
         try (ActivityScenario<GlobalSettingsActivity> scenario =
                      ActivityScenario.launch(GlobalSettingsActivity.class)) {
+            scenario.onActivity(activity ->
+                    activity.findViewById(R.id.button_toggle_apps).performClick());
             Thread.sleep(750L);
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             scenario.onActivity(activity -> {

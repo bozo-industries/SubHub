@@ -19,9 +19,11 @@ public final class InfractionTrackerTest {
         assertEquals(0, tracker.update(List.of(stable), 5_999L, 5_000L));
         assertEquals(1, tracker.update(List.of(stable), 6_000L, 5_000L));
         assertEquals(0, tracker.update(List.of(stable), 20_000L, 5_000L));
+        TrackedObject replacement = track(8, new BBox(100, 100, 80, 80));
+        assertEquals(0, tracker.update(List.of(replacement), 30_000L, 5_000L));
         tracker.onScroll();
-        assertEquals(0, tracker.update(List.of(stable), 21_000L, 5_000L));
-        assertEquals(1, tracker.update(List.of(stable), 26_000L, 5_000L));
+        assertEquals(0, tracker.update(List.of(stable), 31_000L, 5_000L));
+        assertEquals(1, tracker.update(List.of(stable), 36_000L, 5_000L));
     }
 
     @Test public void movementAndNewTrackIdsDoNotInheritDwellTime() {

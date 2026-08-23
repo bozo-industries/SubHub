@@ -16,6 +16,7 @@ import com.betasafe.app.MainActivity;
 import com.betasafe.app.R;
 import com.betasafe.app.appmode.AppModeManager;
 import com.betasafe.app.security.ControllerPinManager;
+import com.betasafe.app.settings.FeatureModuleManager;
 
 import org.junit.After;
 import org.junit.Before;
@@ -30,6 +31,7 @@ public final class CommitmentContractTest {
         context = ApplicationProvider.getApplicationContext();
         CommitmentManager.emergencyRelease(context);
         new AppModeManager(context).setArmed(false);
+        new FeatureModuleManager(context).save(true, true, true);
         ControllerPinManager.enterSubMode();
     }
 
@@ -61,19 +63,18 @@ public final class CommitmentContractTest {
         ControllerPinManager.enterSubMode();
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
-                activity.findViewById(R.id.button_edit_lock).performClick();
+                if (activity.findViewById(R.id.commitment_card).getVisibility() != View.VISIBLE) {
+                    activity.findViewById(R.id.button_edit_lock).performClick();
+                }
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.commitment_start_panel).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.button_protection).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.commitment_timer_1h).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.commitment_timer_24h).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.commitment_timer_7d).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.commitment_timer_30d).getVisibility());
             });
-        }
-        ControllerPinManager.enterDomMode();
-        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            scenario.onActivity(activity -> assertEquals(View.GONE,
-                    activity.findViewById(R.id.commitment_card).getVisibility()));
         }
     }
 
@@ -107,6 +108,9 @@ public final class CommitmentContractTest {
         assertTrue(CommitmentManager.start(context, CommitmentManager.MIN_DURATION_MS));
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
+                if (activity.findViewById(R.id.commitment_card).getVisibility() != View.VISIBLE) {
+                    activity.findViewById(R.id.button_edit_lock).performClick();
+                }
                 assertTrue(activity.findViewById(R.id.button_protection).isEnabled());
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.commitment_card).getVisibility());

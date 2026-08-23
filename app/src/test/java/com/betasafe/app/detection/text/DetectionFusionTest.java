@@ -51,6 +51,18 @@ public final class DetectionFusionTest {
         assertEquals(line.getBox(), merged.get(0).getBox());
     }
 
+    @Test public void bridgeRegionCoalescesAllDuplicateTextBoxes() {
+        Detection upper = text(new BBox(80, 300, 500, 60));
+        Detection lower = text(new BBox(80, 390, 500, 60));
+        Detection bridge = text(new BBox(80, 340, 500, 70));
+
+        List<Detection> merged = DetectionFusion.merge(
+                Collections.emptyList(), Arrays.asList(upper, lower, bridge));
+
+        assertEquals(1, merged.size());
+        assertEquals(new BBox(80, 300, 500, 150), merged.get(0).getBox());
+    }
+
     private static Detection text(BBox box) {
         return new Detection("TEXT_SMUT_EXPLICIT", "text_smut", 0.9f, box, true, false);
     }
