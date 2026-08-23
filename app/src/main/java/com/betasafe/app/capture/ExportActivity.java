@@ -27,7 +27,6 @@ import com.betasafe.app.detection.DetectionEngine;
 import com.betasafe.app.settings.CensorAppearance;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
-import com.betasafe.app.util.ParityNavigation;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,7 +58,6 @@ public final class ExportActivity extends AppCompatActivity {
                 new ActivityResultContracts.OpenMultipleDocuments(), this::startExport);
 
         binding.buttonBack.setOnClickListener(view -> finish());
-        ParityNavigation.bind(this, binding.getRoot(), ParityNavigation.Screen.EXPORT);
         binding.buttonPickImages.setOnClickListener(
                 view -> picker.launch(new String[]{"image/*"}));
         binding.buttonCancelExport.setOnClickListener(view -> cancelled.set(true));
@@ -188,10 +186,10 @@ public final class ExportActivity extends AppCompatActivity {
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT)
                 .format(new Date());
         values.put(MediaStore.Images.Media.DISPLAY_NAME,
-                "BetaSafe_" + timestamp + '_' + sequence + ".jpg");
+                "SubHub_" + timestamp + '_' + sequence + ".jpg");
         values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
         values.put(MediaStore.Images.Media.RELATIVE_PATH,
-                Environment.DIRECTORY_PICTURES + "/BetaSafe/Exports");
+                Environment.DIRECTORY_PICTURES + "/SubHub/Exports");
         values.put(MediaStore.Images.Media.IS_PENDING, 1);
         Uri destination = getContentResolver().insert(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);

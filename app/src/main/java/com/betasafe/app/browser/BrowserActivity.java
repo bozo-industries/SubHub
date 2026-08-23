@@ -383,7 +383,7 @@ public final class BrowserActivity extends AppCompatActivity {
                             + encoded).openConnection();
             connection.setConnectTimeout(3000);
             connection.setReadTimeout(3000);
-            connection.setRequestProperty("User-Agent", "BetaSafe/1.0");
+            connection.setRequestProperty("User-Agent", "SubHub/1.0");
             StringBuilder response = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(
                     connection.getInputStream(), StandardCharsets.UTF_8))) {
@@ -443,7 +443,7 @@ public final class BrowserActivity extends AppCompatActivity {
             if (cookies != null) request.addRequestHeader("Cookie", cookies);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 request.setDestinationInExternalPublicDir(
-                        Environment.DIRECTORY_DOWNLOADS, "BetaSafe/" + filename);
+                        Environment.DIRECTORY_DOWNLOADS, "SubHub/" + filename);
             } else {
                 request.setDestinationInExternalFilesDir(
                         this, Environment.DIRECTORY_DOWNLOADS, filename);
@@ -493,13 +493,13 @@ public final class BrowserActivity extends AppCompatActivity {
 
     private void saveCensoredDownload(Bitmap bitmap) throws Exception {
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT).format(new Date());
-        String name = "BetaSafe_Browser_" + timestamp + ".jpg";
+        String name = "SubHub_Browser_" + timestamp + ".jpg";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContentValues values = new ContentValues();
             values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
             values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
             values.put(MediaStore.Images.Media.RELATIVE_PATH,
-                    Environment.DIRECTORY_PICTURES + "/BetaSafe/Browser");
+                    Environment.DIRECTORY_PICTURES + "/SubHub/Browser");
             values.put(MediaStore.Images.Media.IS_PENDING, 1);
             Uri destination = getContentResolver().insert(
                     MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
@@ -520,7 +520,7 @@ public final class BrowserActivity extends AppCompatActivity {
             return;
         }
         File directory = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES),
-                "BetaSafe/Browser");
+                "SubHub/Browser");
         if (!directory.exists() && !directory.mkdirs()) throw new IllegalStateException("No output folder");
         try (FileOutputStream output = new FileOutputStream(new File(directory, name))) {
             if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 95, output)) {

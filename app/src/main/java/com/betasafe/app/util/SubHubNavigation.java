@@ -1,0 +1,48 @@
+package com.betasafe.app.util;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.view.View;
+import android.widget.TextView;
+
+import androidx.core.widget.TextViewCompat;
+
+import com.betasafe.app.MainActivity;
+import com.betasafe.app.R;
+import com.betasafe.app.appmode.AppModeActivity;
+import com.betasafe.app.penance.PenanceActivity;
+
+/** Fixed three-destination product navigation for SubHub's primary surfaces. */
+public final class SubHubNavigation {
+    public enum Screen { CENSOR, LIMITS, MONEY }
+
+    private SubHubNavigation() {}
+
+    public static void bind(Activity activity, View root, Screen active) {
+        bindTab(activity, root.findViewById(R.id.nav_censor), active,
+                Screen.CENSOR, MainActivity.class);
+        bindTab(activity, root.findViewById(R.id.nav_limits), active,
+                Screen.LIMITS, AppModeActivity.class);
+        bindTab(activity, root.findViewById(R.id.nav_money), active,
+                Screen.MONEY, PenanceActivity.class);
+    }
+
+    private static void bindTab(Activity activity, TextView tab, Screen active,
+            Screen destination, Class<? extends Activity> target) {
+        if (tab == null) return;
+        boolean selected = destination == active;
+        tab.setTextColor(activity.getColor(
+                selected ? R.color.text_primary : R.color.text_secondary));
+        TextViewCompat.setCompoundDrawableTintList(tab, ColorStateList.valueOf(
+                activity.getColor(selected ? R.color.accent : R.color.text_secondary)));
+        tab.setBackgroundResource(selected
+                ? R.drawable.bg_bottom_tab_active : android.R.color.transparent);
+        tab.setOnClickListener(view -> {
+            if (selected) return;
+            activity.startActivity(new Intent(activity, target)
+                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+            activity.overridePendingTransition(0, 0);
+        });
+    }
+}

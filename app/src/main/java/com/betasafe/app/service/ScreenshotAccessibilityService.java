@@ -250,7 +250,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         foregroundSinceMillis = nowMillis;
         if (timers == null || started <= 0L || nowMillis <= started) return;
         AppModeManager mode = new AppModeManager(this);
-        if (!mode.isArmed() || mode.getMode() != AppModePolicy.Mode.SELECTED_APPS) return;
         timers.recordUsage(foregroundPackage, nowMillis - started,
                 mode.getSelectedPackages(), nowMillis);
     }
@@ -259,7 +258,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private boolean enforceForegroundLimit(long nowMillis) {
         if (timers == null || foregroundPackage.isEmpty()) return false;
         AppModeManager mode = new AppModeManager(this);
-        if (!mode.isArmed() || mode.getMode() != AppModePolicy.Mode.SELECTED_APPS) return false;
         Set<String> selected = mode.getSelectedPackages();
         AppTimerManager.LimitStatus status = timers.limitStatus(
                 foregroundPackage, selected, nowMillis);

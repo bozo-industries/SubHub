@@ -96,7 +96,7 @@ public final class SettingsRepository {
                 preferences.getBoolean(KEY_REVERSE_MODE, false),
                 Math.round(preferences.getFloat(KEY_REVERSE_STRENGTH, 1f) * 100),
                 preferences.getString(KEY_REVERSE_CUTOUT_SHAPE, "rectangle"),
-                preferences.getString(KEY_ERROR_TITLE, "BetaSafe"),
+                preferences.getString(KEY_ERROR_TITLE, "SubHub"),
                 preferences.getString(KEY_ERROR_TEXT, "Access blocked."));
     }
 

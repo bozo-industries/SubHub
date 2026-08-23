@@ -41,7 +41,7 @@ import com.betasafe.app.stats.MilestoneManager;
 import com.betasafe.app.help.HelpActivity;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.util.AppShortcuts;
-import com.betasafe.app.util.ParityNavigation;
+import com.betasafe.app.util.SubHubNavigation;
 import androidx.appcompat.app.AlertDialog;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -92,7 +92,16 @@ public final class MainActivity extends AppCompatActivity {
         binding.buttonProtection.setOnClickListener(this::toggleProtection);
         binding.buttonAccessibilityCapture.setOnClickListener(view ->
                 startActivity(new Intent(this, AppModeActivity.class)));
-        ParityNavigation.bind(this, binding.getRoot(), ParityNavigation.Screen.HOME);
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
+        binding.buttonCensorSettings.setOnClickListener(view ->
+                startActivity(new Intent(this, CommitmentManager.isActive(this)
+                        ? CommitmentActivity.class : SettingsActivity.class)));
+        binding.buttonBrowser.setOnClickListener(view ->
+                startActivity(new Intent(this, BrowserActivity.class)));
+        binding.buttonExport.setOnClickListener(view ->
+                startActivity(new Intent(this, ExportActivity.class)));
+        binding.buttonHelp.setOnClickListener(view ->
+                startActivity(new Intent(this, HelpActivity.class)));
         binding.buttonStatistics.setOnClickListener(view ->
                 startActivity(new Intent(this, StatsActivity.class)));
         binding.onboardingHelp.setOnClickListener(view -> {

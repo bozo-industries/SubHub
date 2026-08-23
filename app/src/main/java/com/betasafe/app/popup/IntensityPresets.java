@@ -39,6 +39,7 @@ public enum IntensityPresets {
         edit.putBoolean(PopupStormSettings.K_BURST_ENABLED, burst);
         edit.putFloat(PopupStormSettings.K_BURST_FREQUENCY, burstFrequency);
         edit.putFloat(PopupStormSettings.K_BURST_DURATION, burstDuration);
+        edit.putString(PopupStormSettings.K_PRESET, name());
         edit.apply();
     }
 }

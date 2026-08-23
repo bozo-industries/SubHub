@@ -1,0 +1,71 @@
+package com.betasafe.app;
+
+import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.assertion.ViewAssertions.matches;
+import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.withId;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import android.app.Activity;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
+import android.view.View;
+
+import androidx.test.core.app.ActivityScenario;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
+import androidx.test.runner.lifecycle.Stage;
+
+import com.betasafe.app.appmode.AppModeActivity;
+import com.betasafe.app.penance.PenanceActivity;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import java.util.Collection;
+import java.util.concurrent.atomic.AtomicReference;
+
+/** Proves the three fixed product tabs navigate and visibly select their destination. */
+@RunWith(AndroidJUnit4.class)
+public final class SubHubNavigationTest {
+    @Test public void primaryPillNavigatesAndUpdatesSelection() {
+        ActivityScenario.launch(MainActivity.class);
+        assertDestination(MainActivity.class, R.id.nav_censor, R.id.nav_limits);
+
+        onView(withId(R.id.nav_limits)).perform(click());
+        onView(withId(R.id.app_mode_page)).check(matches(isDisplayed()));
+        assertDestination(AppModeActivity.class, R.id.nav_limits, R.id.nav_censor);
+
+        onView(withId(R.id.nav_money)).perform(click());
+        onView(withId(R.id.money_page)).check(matches(isDisplayed()));
+        assertDestination(PenanceActivity.class, R.id.nav_money, R.id.nav_limits);
+
+        onView(withId(R.id.nav_censor)).perform(click());
+        onView(withId(R.id.censor_page)).check(matches(isDisplayed()));
+        assertDestination(MainActivity.class, R.id.nav_censor, R.id.nav_money);
+    }
+
+    private static void assertDestination(Class<? extends Activity> expected, int selectedId,
+            int unselectedId) {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        Activity activity = resumedActivity();
+        assertEquals(expected, activity.getClass());
+        View selected = activity.findViewById(selectedId);
+        View unselected = activity.findViewById(unselectedId);
+        assertTrue(selected.getBackground() instanceof GradientDrawable);
+        assertTrue(unselected.getBackground() instanceof ColorDrawable);
+    }
+
+    private static Activity resumedActivity() {
+        AtomicReference<Activity> result = new AtomicReference<>();
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            Collection<Activity> resumed = ActivityLifecycleMonitorRegistry.getInstance()
+                    .getActivitiesInStage(Stage.RESUMED);
+            result.set(resumed.iterator().next());
+        });
+        return result.get();
+    }
+}

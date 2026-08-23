@@ -39,7 +39,7 @@ public final class PenanceContractTest {
 
     @Test public void mercyCanForgiveAFalsePositiveWithoutCreatingPayment() {
         long now = 1_725_552_000_000L;
-        manager.configure(true, 100, 500, 2_000, 10, "https://payments.example.test");
+        manager.configure(true, 100, 500, 2_000, 10);
         assertEquals(200, manager.recordStrikes(2, now));
         PenanceSnapshot snapshot = manager.snapshot(now);
         assertEquals(0, snapshot.getDueCents());
@@ -51,7 +51,7 @@ public final class PenanceContractTest {
 
     @Test public void settlementRequiresAnExactConfirmedAmount() {
         long now = 1_725_552_000_000L;
-        manager.configure(true, 125, 500, 2_000, 0, "https://payments.example.test");
+        manager.configure(true, 125, 500, 2_000, 0);
         assertEquals(250, manager.recordStrikes(2, now));
         PenanceManager.Settlement settlement = manager.beginSettlement(now);
         assertNotNull(settlement);
@@ -65,7 +65,7 @@ public final class PenanceContractTest {
 
     @Test public void safetyReleaseForgivesDueAndCheckoutEntries() {
         long now = 1_725_552_000_000L;
-        manager.configure(true, 100, 500, 2_000, 0, "https://payments.example.test");
+        manager.configure(true, 100, 500, 2_000, 0);
         manager.recordStrikes(2, now);
         PenanceManager.Settlement settlement = manager.beginSettlement(now);
         manager.bindOrder(settlement.getId(), "ORDER-123", "https://paypal.example.test/approve");
@@ -82,6 +82,8 @@ public final class PenanceContractTest {
             scenario.onActivity(activity -> {
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.button_clear_unpaid).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.button_test_strike).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.payment_availability).getVisibility());
             });
         }
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {

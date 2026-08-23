@@ -94,6 +94,18 @@ public final class AppModeContractTest {
         }
     }
 
+    @Test public void limitsAndAppSelectorStayVisibleInAllAppsMode() {
+        new AppModeManager(context).save(false, AppModePolicy.Mode.ALWAYS, true, Set.of());
+        try (ActivityScenario<AppModeActivity> scenario = ActivityScenario.launch(
+                AppModeActivity.class)) {
+            scenario.onActivity(activity -> {
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.timer_card).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.app_list_card).getVisibility());
+            });
+        }
+    }
+
     @Test public void launcherQueryIsDeclaredWithoutQueryAllPackages() {
         Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         @SuppressWarnings("deprecation")

@@ -26,7 +26,7 @@ public final class DomController {
                 + "s.textContent=" + org.json.JSONObject.quote(mediaRule + backgroundRule) + ";"
                 + siteRule
                 + "(document.head||document.documentElement).appendChild(s);"
-                + "}catch(e){console.log('BetaSafe DOM shield',e);}})();";
+                + "}catch(e){console.log('SubHub DOM shield',e);}})();";
         webView.evaluateJavascript(injection, null);
     }
 }

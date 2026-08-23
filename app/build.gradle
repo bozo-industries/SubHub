@@ -2,6 +2,14 @@ plugins {
     id 'com.android.application'
 }
 
+def configuredPayPalBackend = providers.gradleProperty('paypalBackendUrl')
+        .orElse(providers.environmentVariable('SUBHUB_PAYPAL_BACKEND_URL'))
+        .getOrElse('')
+        .trim()
+def asBuildConfigString = { String value ->
+    '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+}
+
 android {
     namespace 'com.betasafe.app'
     compileSdk 35
@@ -23,10 +31,12 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField 'String', 'PAYPAL_BACKEND_URL', '"http://10.0.2.2:8787"'
+            buildConfigField 'String', 'PAYPAL_BACKEND_URL',
+                    asBuildConfigString(configuredPayPalBackend)
         }
         release {
-            buildConfigField 'String', 'PAYPAL_BACKEND_URL', '""'
+            buildConfigField 'String', 'PAYPAL_BACKEND_URL',
+                    asBuildConfigString(configuredPayPalBackend)
         }
     }
 

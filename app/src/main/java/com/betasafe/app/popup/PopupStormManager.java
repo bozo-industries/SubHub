@@ -319,7 +319,7 @@ public final class PopupStormManager {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 android.graphics.PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.START;
-        params.setTitle("BetaSafe Popup Storm image");
+        params.setTitle("SubHub Popup Storm image");
         params.x = Math.round(popup.x - (outerWidth - popup.width) / 2f);
         params.y = Math.round(popup.y - (outerHeight - popup.height) / 2f);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -368,7 +368,7 @@ public final class PopupStormManager {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 android.graphics.PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.END;
-        params.setTitle("BetaSafe Popup Storm stop control");
+        params.setTitle("SubHub Popup Storm stop control");
         params.x = dp(STOP_MARGIN);
         params.y = dp(STOP_MARGIN);
         try {

@@ -46,7 +46,7 @@ public final class ProfilesActivity extends AppCompatActivity {
         binding.buttonBack.setOnClickListener(view -> finish());
         binding.buttonSaveProfile.setOnClickListener(view -> saveProfile());
         binding.buttonExportSettings.setOnClickListener(view ->
-                createBackup.launch("BetaSafe-settings.json"));
+                createBackup.launch("SubHub-settings.json"));
         binding.buttonImportSettings.setOnClickListener(view ->
                 openBackup.launch(new String[]{"application/json", "text/json", "text/plain"}));
         rebuild();
