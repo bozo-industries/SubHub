@@ -13,6 +13,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.view.View;
+import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -40,6 +41,8 @@ import com.betasafe.app.stats.AchievementManager;
 import com.betasafe.app.stats.MilestoneManager;
 import com.betasafe.app.help.HelpActivity;
 import com.betasafe.app.settings.SettingsRepository;
+import com.betasafe.app.security.ControllerPinGate;
+import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.util.AppShortcuts;
 import com.betasafe.app.util.SubHubNavigation;
 import androidx.appcompat.app.AlertDialog;
@@ -48,6 +51,7 @@ import com.google.android.material.snackbar.Snackbar;
 /** Main source UI and explicit permission flow for starting on-device protection. */
 public final class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
+    private TextView editLockButton;
     private MediaProjectionManager projectionManager;
     private ActivityResultLauncher<Intent> projectionPermission;
     private ActivityResultLauncher<Intent> overlayPermission;
@@ -65,6 +69,7 @@ public final class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        editLockButton = findViewById(R.id.button_edit_lock);
         projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
         projectionPermission = registerForActivityResult(
@@ -90,6 +95,7 @@ public final class MainActivity extends AppCompatActivity {
                 ignored -> continueStartFlow());
 
         binding.buttonProtection.setOnClickListener(this::toggleProtection);
+        editLockButton.setOnClickListener(view -> toggleEditSession());
         binding.buttonAccessibilityCapture.setOnClickListener(view ->
                 startActivity(new Intent(this, AppModeActivity.class)));
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
@@ -117,7 +123,7 @@ public final class MainActivity extends AppCompatActivity {
                 .getBoolean("has_seen_onboarding", false);
         binding.onboardingCard.setVisibility(seen ? View.GONE : View.VISIBLE);
         AppShortcuts.install(this);
-        handleShortcutIntent(getIntent());
+        ControllerPinGate.ensureConfigured(this, () -> handleShortcutIntent(getIntent()));
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -135,7 +141,8 @@ public final class MainActivity extends AppCompatActivity {
             startActivity(new Intent(this, BrowserActivity.class));
         } else if (AppShortcuts.ACTION_START_PROTECTION.equals(action)) {
             AppShortcuts.reportUsed(this, "start_protection");
-            binding.getRoot().post(() -> toggleProtection(binding.buttonProtection));
+            binding.getRoot().post(() -> ControllerPinGate.require(this,
+                    () -> toggleProtection(binding.buttonProtection), false));
         }
     }
 
@@ -180,7 +187,8 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void updateProtectionButton(boolean running) {
-        binding.buttonProtection.setEnabled(!ScreenshotAccessibilityService.isRecognitionActive());
+        binding.buttonProtection.setEnabled(!ScreenshotAccessibilityService.isRecognitionActive()
+                && (running || ControllerPinManager.isSessionUnlocked()));
         binding.buttonProtection.setText(running ? R.string.stop_protection
                 : ScreenshotAccessibilityService.isRecognitionActive()
                 ? R.string.app_mode_active : R.string.start_protection);
@@ -207,7 +215,23 @@ public final class MainActivity extends AppCompatActivity {
                             PenanceManager.formatMoney(penance.getPaidCents()))
                     : getString(R.string.penance_home_inactive));
             showProgressUnlocks(new StatsRepository(this).load());
+            renderEditState();
         }
+    }
+
+    private void toggleEditSession() {
+        if (ControllerPinManager.isSessionUnlocked()) {
+            ControllerPinManager.lockNow();
+            renderEditState();
+        } else ControllerPinGate.require(this, this::renderEditState, false);
+    }
+
+    private void renderEditState() {
+        if (binding == null) return;
+        boolean editing = ControllerPinManager.isSessionUnlocked();
+        editLockButton.setText(editing
+                ? R.string.controller_edit_unlocked : R.string.controller_edit_locked);
+        updateProtectionButton(ScreenCaptureService.isRunning());
     }
 
     @Override protected void onPause() {
@@ -220,7 +244,8 @@ public final class MainActivity extends AppCompatActivity {
         boolean manual = ScreenCaptureService.isRunning();
         boolean automatic = ScreenshotAccessibilityService.isRecognitionActive();
         boolean waiting = ScreenshotAccessibilityService.isRunning()
-                && new AppModeManager(this).isArmed() && !automatic;
+                && new AppModeManager(this).isEffectivelyArmed(System.currentTimeMillis())
+                && !automatic;
         updateProtectionButton(manual);
 
         int status = (manual || automatic) ? R.string.status_active

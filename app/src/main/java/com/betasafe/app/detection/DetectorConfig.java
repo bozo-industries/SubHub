@@ -67,8 +67,8 @@ public final class DetectorConfig {
         private Set<String> enabledCategories = NudeNetClassCatalog.DEFAULT_ENABLED;
         private float confidenceThreshold = 0.30f;
         private float trackingSmoothing = 1.0f;
-        private float trackMaxAgeSeconds = 0.2f;
-        private int minRemoveFrames = 2;
+        private float trackMaxAgeSeconds = 0.75f;
+        private int minRemoveFrames = 3;
         private boolean motionPrediction = true;
         private long detectionIntervalMs;
         private float boxPadding;

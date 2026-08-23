@@ -9,7 +9,7 @@
     android:background="@drawable/bg_bottom_pill"
     android:elevation="12dp"
     android:orientation="horizontal"
-    android:padding="7dp">
+    android:gravity="center_vertical" android:padding="6dp">
 
     <TextView android:id="@+id/nav_censor" style="@style/Widget.SubHub.BottomTab"
         android:drawableTop="@drawable/ic_nav_censor" android:text="@string/nav_censor" />

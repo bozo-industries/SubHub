@@ -24,7 +24,8 @@ public final class ResumeNotificationManager {
 
     public static void show(Context context) {
         boolean projectionPending = ProtectionSessionManager.needsMediaProjectionResume(context);
-        boolean appModeArmed = new AppModeManager(context).isArmed();
+        boolean appModeArmed = new AppModeManager(context)
+                .isEffectivelyArmed(System.currentTimeMillis());
         if (!projectionPending && !appModeArmed) {
             cancel(context);
             return;

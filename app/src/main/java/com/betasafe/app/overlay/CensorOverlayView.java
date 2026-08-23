@@ -34,9 +34,12 @@ final class CensorOverlayView extends View {
     private final Paint diagnosticsFill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint diagnosticsText = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    private final Paint nearestPaint = new Paint();
+    private final Paint filteredPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint clear = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF drawRect = new RectF();
     private final Rect sourceRect = new Rect();
+    private final Rect scratchRect = new Rect();
     private final CustomImagePool customImages;
 
     private List<TrackedObject> tracks = new ArrayList<>();
@@ -44,11 +47,17 @@ final class CensorOverlayView extends View {
     private int captureWidth = 1;
     private int captureHeight = 1;
     private Bitmap frame;
+    private Bitmap effectScratch;
+    private Canvas effectCanvas;
+    private Bitmap noiseBitmap;
+    private int[] noisePixels;
+    private long noiseTick = Long.MIN_VALUE;
     private String diagnostics = "";
 
     CensorOverlayView(Context context) {
         super(context);
         customImages = new CustomImagePool(context);
+        nearestPaint.setFilterBitmap(false);
         clear.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
         border.setStyle(Paint.Style.STROKE);
         border.setStrokeWidth(dp(2));
@@ -145,8 +154,8 @@ final class CensorOverlayView extends View {
             setPaddedRect(track.getBox(), scaleX, scaleY);
             drawEffect(canvas, drawRect, track.getId(), appearance.getType(), appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
-            if (appearance.isShowText() && drawRect.height() >= dp(28)
-                    && drawRect.width() >= dp(64)
+            if (appearance.isShowText() && drawRect.height() >= dp(22)
+                    && drawRect.width() >= dp(44)
                     && appearance.getType() != CensorAppearance.Type.ERROR_POPUP) {
                 drawLabel(canvas, drawRect, appearance.phraseFor(track.getId()));
             }
@@ -245,30 +254,34 @@ final class CensorOverlayView extends View {
     private boolean drawPixelatedFrame(Canvas canvas, RectF rect, int intensity) {
         if (!prepareSourceRect(rect)) return false;
         int block = Math.max(3, Math.round(3 + intensity * 0.20f));
-        int smallWidth = Math.max(1, sourceRect.width() / block);
-        int smallHeight = Math.max(1, sourceRect.height() / block);
-        Bitmap small = Bitmap.createBitmap(smallWidth, smallHeight, Bitmap.Config.ARGB_8888);
-        Canvas smallCanvas = new Canvas(small);
-        Paint nearest = new Paint();
-        nearest.setFilterBitmap(false);
-        smallCanvas.drawBitmap(frame, sourceRect, new Rect(0, 0, smallWidth, smallHeight), nearest);
-        canvas.drawBitmap(small, null, rect, nearest);
-        small.recycle();
+        int smallWidth = Math.min(160, Math.max(1, sourceRect.width() / block));
+        int smallHeight = Math.min(160, Math.max(1, sourceRect.height() / block));
+        ensureScratch(smallWidth, smallHeight);
+        scratchRect.set(0, 0, smallWidth, smallHeight);
+        effectCanvas.drawBitmap(frame, sourceRect, scratchRect, nearestPaint);
+        canvas.drawBitmap(effectScratch, scratchRect, rect, nearestPaint);
         return true;
     }
 
     private boolean drawBlurredFrame(Canvas canvas, RectF rect, int intensity) {
         if (!prepareSourceRect(rect)) return false;
         int divisor = Math.max(3, 3 + intensity / 8);
-        int smallWidth = Math.max(1, sourceRect.width() / divisor);
-        int smallHeight = Math.max(1, sourceRect.height() / divisor);
-        Bitmap small = Bitmap.createBitmap(smallWidth, smallHeight, Bitmap.Config.ARGB_8888);
-        Canvas smallCanvas = new Canvas(small);
-        Paint filtered = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        smallCanvas.drawBitmap(frame, sourceRect, new Rect(0, 0, smallWidth, smallHeight), filtered);
-        canvas.drawBitmap(small, null, rect, filtered);
-        small.recycle();
+        int smallWidth = Math.min(160, Math.max(1, sourceRect.width() / divisor));
+        int smallHeight = Math.min(160, Math.max(1, sourceRect.height() / divisor));
+        ensureScratch(smallWidth, smallHeight);
+        scratchRect.set(0, 0, smallWidth, smallHeight);
+        effectCanvas.drawBitmap(frame, sourceRect, scratchRect, filteredPaint);
+        canvas.drawBitmap(effectScratch, scratchRect, rect, filteredPaint);
         return true;
+    }
+
+    private void ensureScratch(int width, int height) {
+        if (effectScratch != null && !effectScratch.isRecycled()
+                && effectScratch.getWidth() >= width && effectScratch.getHeight() >= height) return;
+        if (effectScratch != null && !effectScratch.isRecycled()) effectScratch.recycle();
+        effectScratch = Bitmap.createBitmap(Math.max(1, width), Math.max(1, height),
+                Bitmap.Config.ARGB_8888);
+        effectCanvas = new Canvas(effectScratch);
     }
 
     private boolean drawCustom(Canvas canvas, RectF rect, int stableId) {
@@ -291,19 +304,22 @@ final class CensorOverlayView extends View {
     }
 
     private void drawStatic(Canvas canvas, RectF rect, int stableId, int intensity) {
-        int cell = Math.max(3, Math.round(dp(2 + intensity / 20f)));
-        long seed = stableId * 1103515245L + SystemClock.uptimeMillis() / 80;
-        fill.setShader(null);
-        for (float y = rect.top; y < rect.bottom; y += cell) {
-            for (float x = rect.left; x < rect.right; x += cell) {
+        long tick = SystemClock.uptimeMillis() / 90L;
+        if (noiseBitmap == null) {
+            noiseBitmap = Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888);
+            noisePixels = new int[48 * 48];
+        }
+        if (noiseTick != tick) {
+            long seed = tick * 6364136223846793005L + stableId * 1103515245L;
+            for (int index = 0; index < noisePixels.length; index++) {
                 seed = seed * 6364136223846793005L + 1442695040888963407L;
                 int value = (int) ((seed >>> 56) & 0xff);
-                fill.setColor(Color.rgb(value, value, value));
-                fill.setAlpha(255);
-                canvas.drawRect(x, y, Math.min(rect.right, x + cell),
-                        Math.min(rect.bottom, y + cell), fill);
+                noisePixels[index] = Color.rgb(value, value, value);
             }
+            noiseBitmap.setPixels(noisePixels, 0, 48, 0, 0, 48, 48);
+            noiseTick = tick;
         }
+        canvas.drawBitmap(noiseBitmap, null, rect, nearestPaint);
     }
 
     private void drawGlitch(Canvas canvas, RectF rect, int stableId, int intensity) {
@@ -404,6 +420,14 @@ final class CensorOverlayView extends View {
 
     private void drawLabel(Canvas canvas, RectF rect, String text) {
         resetLabelPaint();
+        label.setTextSize(Math.min(dp(11), Math.max(dp(8), rect.height() * 0.20f)));
+        fill.setShader(null);
+        fill.setColor(Color.BLACK);
+        fill.setAlpha(205);
+        float bandHeight = Math.min(rect.height(), Math.max(dp(22), label.getTextSize() * 1.75f));
+        RectF band = new RectF(rect.left, rect.centerY() - bandHeight / 2f,
+                rect.right, rect.centerY() + bandHeight / 2f);
+        canvas.drawRoundRect(band, dp(5), dp(5), fill);
         float baseline = rect.centerY() - (label.ascent() + label.descent()) / 2f;
         drawText(canvas, rect.centerX(), baseline, text, rect.width() - dp(12));
     }
@@ -446,6 +470,12 @@ final class CensorOverlayView extends View {
     void release() {
         if (frame != null && !frame.isRecycled()) frame.recycle();
         frame = null;
+        if (effectScratch != null && !effectScratch.isRecycled()) effectScratch.recycle();
+        effectScratch = null;
+        effectCanvas = null;
+        if (noiseBitmap != null && !noiseBitmap.isRecycled()) noiseBitmap.recycle();
+        noiseBitmap = null;
+        noisePixels = null;
         customImages.close();
     }
 

@@ -3,5 +3,5 @@
     <dimen name="page_margin">96dp</dimen>
     <dimen name="bottom_nav_margin">120dp</dimen>
     <dimen name="bottom_nav_bottom_margin">20dp</dimen>
-    <dimen name="bottom_nav_height">96dp</dimen>
+    <dimen name="bottom_nav_height">82dp</dimen>
 </resources>

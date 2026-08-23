@@ -37,6 +37,38 @@ public final class ObjectTrackerTest {
         assertTrue(result.isEmpty());
     }
 
+    @Test
+    public void classificationFlickerRetainsSpatialIdentity() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        Detection first = detection(new BBox(10, 10, 50, 50));
+        int id = tracker.update(Collections.singletonList(first), 1_000_000_000L).get(0).getId();
+        Detection relabeled = new Detection("FEMALE_BREAST_COVERED", "breasts_covered",
+                0.88f, new BBox(12, 11, 51, 49), true, true);
+
+        List<TrackedObject> result = tracker.update(
+                Collections.singletonList(relabeled), 1_100_000_000L);
+
+        assertEquals(id, result.get(0).getId());
+        assertEquals(id, relabeled.getTrackId());
+    }
+
+    @Test
+    public void nestedOverlayDetectionDoesNotCreateRecursiveTrack() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        Detection original = detection(new BBox(20, 20, 100, 100));
+        tracker.update(Collections.singletonList(original), 1_000_000_000L);
+        tracker.update(Collections.singletonList(
+                detection(new BBox(20, 20, 100, 100))), 1_100_000_000L);
+        Detection nested = detection(new BBox(45, 45, 40, 40));
+
+        List<TrackedObject> result = tracker.update(
+                java.util.Arrays.asList(detection(new BBox(20, 20, 100, 100)), nested),
+                1_200_000_000L);
+
+        assertEquals(1, result.size());
+        assertEquals(result.get(0).getId(), nested.getTrackId());
+    }
+
     private static Detection detection(BBox box) {
         return new Detection("FEMALE_BREAST_EXPOSED", "breasts", 0.9f, box, true, true);
     }

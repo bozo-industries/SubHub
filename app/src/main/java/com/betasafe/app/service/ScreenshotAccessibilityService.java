@@ -2,12 +2,14 @@ package com.betasafe.app.service;
 
 import android.accessibilityservice.AccessibilityService;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.hardware.HardwareBuffer;
 import android.os.Build;
 import android.util.Log;
 import android.view.Display;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
@@ -23,6 +25,9 @@ import com.betasafe.app.detection.TrackedObject;
 import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.popup.PopupStormManager;
+import com.betasafe.app.penance.CensorTapTracker;
+import com.betasafe.app.penance.DwellInfractionTracker;
+import com.betasafe.app.penance.PenanceInfraction;
 import com.betasafe.app.penance.PenanceManager;
 import com.betasafe.app.settings.CensorAppearance;
 import com.betasafe.app.settings.SettingsRepository;
@@ -63,6 +68,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile boolean overlayNeedsSourceFrame;
     private volatile String foregroundPackage = "";
     private AppTimerManager timers;
+    private PenanceManager penance;
+    private final DwellInfractionTracker dwellTracker = new DwellInfractionTracker();
+    private final CensorTapTracker tapTracker = new CensorTapTracker();
+    private long lastMatchedTapMillis;
     private long foregroundSinceMillis;
     private String lastBlockedPackage = "";
     private long lastBlockedAtMillis;
@@ -72,6 +81,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long now = System.currentTimeMillis();
             accountForegroundUsage(now);
             enforceForegroundLimit(now);
+            reevaluateRecognition();
             main.postDelayed(this, 1_000L);
         }
     };
@@ -90,6 +100,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         settings = new SettingsRepository(this);
         stats = new StatsRepository(this);
         timers = new AppTimerManager(this);
+        penance = new PenanceManager(this);
         settings.preferences().registerOnSharedPreferenceChangeListener(listener);
         running = true;
 
@@ -144,7 +155,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void requestScreenshot() {
         if (!running || !recognitionActive || !processing.compareAndSet(false, true)) return;
         long requestedEpoch = captureEpoch.token();
-        takeScreenshot(Display.DEFAULT_DISPLAY, worker, new TakeScreenshotCallback() {
+        TakeScreenshotCallback callback = new TakeScreenshotCallback() {
             @Override
             public void onSuccess(ScreenshotResult result) {
                 process(result, requestedEpoch);
@@ -157,7 +168,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 Log.w(TAG, "Accessibility screenshot failed with code " + errorCode);
                 processing.set(false);
             }
-        });
+        };
+        // Android 14+ can capture the foreground app window directly. Unlike a display capture,
+        // this excludes SubHub's own accessibility overlay, so a censor stays continuously visible
+        // without becoming part of the next detector input.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root != null) {
+                int windowId = root.getWindowId();
+                root.recycle();
+                takeScreenshotOfWindow(windowId, worker, callback);
+                return;
+            }
+        }
+        takeScreenshot(Display.DEFAULT_DISPLAY, worker, callback);
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -176,8 +200,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             DetectorConfig currentConfig = detectorConfig;
             int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
                     ? null : currentConfig.getEnabledCategories());
+            long now = System.currentTimeMillis();
             if (recordedBlocks > 0) {
-                new PenanceManager(this).recordStrikes(recordedBlocks, System.currentTimeMillis());
+                penance.recordInfraction(PenanceInfraction.NEW_DETECTION, recordedBlocks, now);
                 new AchievementManager(this).checkAchievements(stats.load());
             }
             if (firstFrameReported.compareAndSet(false, true)) {
@@ -189,6 +214,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     ? frame.copy(Bitmap.Config.ARGB_8888, false) : null;
             int width = frame.getWidth();
             int height = frame.getHeight();
+            int dwellInfractions = dwellTracker.update(
+                    tracks, now, penance.getDwellSeconds() * 1_000L);
+            if (dwellInfractions > 0) {
+                penance.recordInfraction(
+                        PenanceInfraction.CENSORED_DWELL, dwellInfractions, now);
+            }
+            tapTracker.update(tracks, width, height, now);
             PopupStormManager.get().updateTrackedObjects(tracks, width, height);
             DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
                     DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
@@ -235,12 +267,21 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event == null || (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-                && event.getEventType() != AccessibilityEvent.TYPE_WINDOWS_CHANGED)) {
-            return;
-        }
+        if (event == null) return;
         String packageName = event.getPackageName() == null
                 ? "" : event.getPackageName().toString();
+        if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            if (recognitionActive && packageName.equals(foregroundPackage)) {
+                dwellTracker.onScroll();
+            }
+            return;
+        }
+        if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            recordCensoredTap(event, packageName);
+            return;
+        }
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && event.getEventType() != AccessibilityEvent.TYPE_WINDOWS_CHANGED) return;
         String className = event.getClassName() == null ? "" : event.getClassName().toString();
         AppModeManager mode = new AppModeManager(this);
         if (!AppModePolicy.shouldAcceptForegroundEvent(packageName, className, getPackageName(),
@@ -251,6 +292,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         captureEpoch.invalidate();
         foregroundPackage = packageName;
         foregroundSinceMillis = now;
+        if (mode.getSelectedPackages().contains(packageName)) {
+            penance.recordInfraction(PenanceInfraction.WATCHED_APP_OPEN, 1, now);
+        }
+        dwellTracker.clear();
+        tapTracker.clear();
         if (recognitionActive && worker != null) {
             worker.execute(() -> {
                 if (tracker != null) tracker.clear();
@@ -260,6 +306,26 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         PopupStormManager.get().updateDetections(Collections.emptyList());
         if (enforceForegroundLimit(System.currentTimeMillis())) return;
         reevaluateRecognition();
+    }
+
+    private void recordCensoredTap(AccessibilityEvent event, String packageName) {
+        if (!recognitionActive || !packageName.equals(foregroundPackage) || penance == null) return;
+        long now = System.currentTimeMillis();
+        if (now - lastMatchedTapMillis < 500L) return;
+        AccessibilityNodeInfo source = event.getSource();
+        if (source == null) return;
+        Rect bounds = new Rect();
+        try {
+            source.getBoundsInScreen(bounds);
+        } finally {
+            source.recycle();
+        }
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        if (tapTracker.matchesClick(bounds.left, bounds.top, bounds.right, bounds.bottom,
+                metrics.widthPixels, metrics.heightPixels, now)) {
+            lastMatchedTapMillis = now;
+            penance.recordInfraction(PenanceInfraction.CENSORED_TAP, 1, now);
+        }
     }
 
     private void accountForegroundUsage(long nowMillis) {
@@ -338,6 +404,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (overlay != null) overlay.close();
         overlay = null;
         PopupStormManager.get().stop();
+        dwellTracker.clear();
+        tapTracker.clear();
     }
 
     @Override
@@ -366,6 +434,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (worker != null) worker.shutdownNow();
         if (detector != null) detector.close();
+        dwellTracker.clear();
+        tapTracker.clear();
         recognitionActive = false;
         super.onDestroy();
     }

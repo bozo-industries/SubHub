@@ -13,6 +13,9 @@ public final class BootReceiver extends BroadcastReceiver {
         AppModeManager mode = new AppModeManager(context);
         if (ACTION_DISARM.equals(action)) {
             mode.setArmed(false);
+            WeeklyScheduleManager schedule = new WeeklyScheduleManager(context);
+            WeeklyScheduleManager.Settings settings = schedule.load();
+            schedule.save(false, settings.dayMask, settings.startMinute, settings.endMinute);
             ProtectionSessionManager.markMediaProjectionExplicitlyStopped(context);
             ResumeNotificationManager.cancel(context);
             return;

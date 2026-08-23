@@ -11,17 +11,25 @@
         android:focusableInTouchMode="true"
         android:orientation="vertical"
         android:paddingStart="@dimen/page_margin"
-        android:paddingTop="32dp"
+        android:paddingTop="10dp"
         android:paddingEnd="@dimen/page_margin"
         android:paddingBottom="36dp">
 
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="14dp" android:background="@drawable/bg_header_card"
             android:orientation="vertical" android:padding="16dp">
-            <TextView android:id="@+id/button_back" android:layout_width="wrap_content"
-                android:layout_height="40dp" android:gravity="center_vertical"
-                android:text="@string/back" android:textColor="@color/accent"
-                android:textSize="11sp" android:textStyle="bold" />
+            <FrameLayout android:layout_width="match_parent" android:layout_height="40dp">
+                <TextView android:id="@+id/button_back" android:layout_width="wrap_content"
+                    android:layout_height="match_parent" android:gravity="center_vertical"
+                    android:text="@string/back" android:textColor="@color/accent"
+                    android:textSize="11sp" android:textStyle="bold" />
+                <TextView android:id="@+id/button_edit_lock" android:layout_width="wrap_content"
+                    android:layout_height="32dp" android:layout_gravity="end|center_vertical"
+                    android:background="@drawable/bg_bottom_tab_active" android:clickable="true"
+                    android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp"
+                    android:text="@string/controller_edit_locked" android:textColor="@color/text_primary"
+                    android:textSize="8sp" android:textStyle="bold" />
+            </FrameLayout>
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:letterSpacing="0.1" android:text="@string/settings_title"
                 android:textColor="@color/text_primary" android:textSize="18sp"
@@ -48,10 +56,10 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
-            android:padding="18dp">
+            android:padding="12dp">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -260,22 +268,18 @@
 
             <Button
                 android:id="@+id/button_custom_images"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
+                style="@style/Widget.SubHub.PrimaryButton"
                 android:layout_marginTop="12dp"
-                android:background="@drawable/bg_primary_button"
-                android:text="@string/manage_custom_images"
-                android:textColor="@color/text_primary"
-                android:textStyle="bold" />
+                android:text="@string/manage_custom_images" />
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="9dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
-            android:padding="18dp">
+            android:padding="12dp">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -364,91 +368,54 @@
                 android:textColor="@color/text_secondary"
                 android:textStyle="bold" />
 
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_genitals_female"
+            <GridLayout
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_genitals_female"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_genitals_male"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_genitals_male"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_breasts"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_breasts"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_buttocks"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_buttocks"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_anus"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_anus"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_faces"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_faces"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_male_chest"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_male_chest"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_belly"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_belly"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_feet"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_feet"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_armpits"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_armpits"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_covered"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/category_covered"
-                android:textColor="@color/text_primary" />
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:columnCount="2">
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_genitals_female" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_genitals_female" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_genitals_male" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_genitals_male" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_breasts" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_breasts" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_buttocks" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_buttocks" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_anus" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_anus" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_faces" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_faces" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_male_chest" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_male_chest" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_belly" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_belly" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_feet" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_feet" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_armpits" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_armpits" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_covered" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/category_covered" />
+            </GridLayout>
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="9dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
-            android:padding="18dp">
+            android:padding="12dp">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -459,54 +426,30 @@
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_phrase_short"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/phrase_short"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_phrase_denial"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/phrase_denial"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_phrase_humiliation"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/phrase_humiliation"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_phrase_edge"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/phrase_edge"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_phrase_findom"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/phrase_findom"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_phrase_ntr"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/phrase_ntr"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switch_phrase_gooner"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="@string/phrase_gooner"
-                android:textColor="@color/text_primary" />
+            <GridLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="5dp" android:columnCount="2">
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_phrase_short" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/phrase_short" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_phrase_denial" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/phrase_denial" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_phrase_humiliation" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/phrase_humiliation" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_phrase_edge" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/phrase_edge" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_phrase_findom" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/phrase_findom" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_phrase_ntr" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/phrase_ntr" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_phrase_gooner" style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/phrase_gooner" />
+            </GridLayout>
 
             <TextView style="@style/Widget.SubHub.FieldLabel"
                 android:text="@string/custom_phrases_label" />
@@ -528,22 +471,18 @@
 
             <Button
                 android:id="@+id/button_save_phrases"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
+                style="@style/Widget.SubHub.PrimaryButton"
                 android:layout_marginTop="10dp"
-                android:background="@drawable/bg_primary_button"
-                android:text="@string/save_phrases"
-                android:textColor="@color/text_primary"
-                android:textStyle="bold" />
+                android:text="@string/save_phrases" />
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="9dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
-            android:padding="18dp">
+            android:padding="12dp">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -553,42 +492,21 @@
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/button_profiles"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="10dp"
-                android:text="@string/manage_profiles" />
-
-            <Button
-                android:id="@+id/button_packs"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="@string/manage_packs" />
-
-            <Button
-                android:id="@+id/button_popup_storm"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="@string/manage_popup_storm" />
-
-            <Button
-                android:id="@+id/button_diagnostics"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="@string/manage_diagnostics" />
-
-            <Button
-                android:id="@+id/button_commitment"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="@string/manage_commitment" />
-
-            <Button
-                android:id="@+id/button_app_mode"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="@string/manage_app_mode" />
+            <GridLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="6dp" android:columnCount="2">
+                <TextView android:id="@+id/button_profiles" style="@style/Widget.SubHub.SettingsAction"
+                    android:text="@string/manage_profiles" />
+                <TextView android:id="@+id/button_packs" style="@style/Widget.SubHub.SettingsAction"
+                    android:text="@string/manage_packs" />
+                <TextView android:id="@+id/button_popup_storm" style="@style/Widget.SubHub.SettingsAction"
+                    android:text="@string/manage_popup_storm" />
+                <TextView android:id="@+id/button_diagnostics" style="@style/Widget.SubHub.SettingsAction"
+                    android:text="@string/manage_diagnostics" />
+                <TextView android:id="@+id/button_commitment" style="@style/Widget.SubHub.SettingsAction"
+                    android:text="@string/manage_commitment" />
+                <TextView android:id="@+id/button_app_mode" style="@style/Widget.SubHub.SettingsAction"
+                    android:text="@string/manage_app_mode" />
+            </GridLayout>
 
             <TextView
                 android:id="@+id/pack_lock_status"

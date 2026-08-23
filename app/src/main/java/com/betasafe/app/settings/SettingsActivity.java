@@ -22,6 +22,8 @@ import com.betasafe.app.detection.DetectorConfig;
 import com.betasafe.app.diagnostics.DiagnosticsActivity;
 import com.betasafe.app.overlay.CensorPhrases;
 import com.betasafe.app.pack.LockedSettings;
+import com.betasafe.app.security.ControllerPinGate;
+import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.pack.PackManager;
 import com.betasafe.app.pack.PacksActivity;
 import com.betasafe.app.profiles.ProfilesActivity;
@@ -52,6 +54,16 @@ public final class SettingsActivity extends AppCompatActivity {
         attachListeners();
         applyLockState();
         binding.buttonBack.setOnClickListener(view -> finish());
+        binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
+    }
+
+    private void toggleEditSession() {
+        if (ControllerPinManager.isSessionUnlocked()) {
+            ControllerPinManager.lockNow();
+            applyLockState();
+        } else {
+            ControllerPinGate.require(this, this::applyLockState, false);
+        }
     }
 
     private void bindValues() {
@@ -200,32 +212,35 @@ public final class SettingsActivity extends AppCompatActivity {
     }
 
     private void applyLockState() {
+        boolean editing = ControllerPinManager.isSessionUnlocked();
+        binding.buttonEditLock.setText(editing
+                ? R.string.controller_edit_unlocked : R.string.controller_edit_locked);
         setEnabledRecursive(binding.styleGroup,
-                !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE));
         binding.intensitySeek.setEnabled(
-                !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_INTENSITY));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_INTENSITY));
         binding.paddingSeek.setEnabled(
-                !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_SIZE_PADDING));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_SIZE_PADDING));
         binding.switchBorder.setEnabled(
-                !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_BORDER));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_BORDER));
         binding.switchText.setEnabled(
-                !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_TEXT));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_TEXT));
         binding.switchAnimateBorder.setEnabled(
-                !LockedSettings.isLocked(SettingsRepository.KEY_ANIMATE_BORDER));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_ANIMATE_BORDER));
         setEnabledRecursive(binding.borderEffectGroup,
-                !LockedSettings.isLocked(SettingsRepository.KEY_BORDER_EFFECT));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_BORDER_EFFECT));
         binding.switchReverse.setEnabled(
-                !LockedSettings.isLocked(SettingsRepository.KEY_REVERSE_MODE));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_REVERSE_MODE));
         binding.reverseStrengthSeek.setEnabled(
-                !LockedSettings.isLocked(SettingsRepository.KEY_REVERSE_STRENGTH));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_REVERSE_STRENGTH));
         binding.buttonCustomImages.setEnabled(
-                !LockedSettings.isLocked(com.betasafe.app.capture.CustomImageManager.PREFS_KEY));
+                editing && !LockedSettings.isLocked(com.betasafe.app.capture.CustomImageManager.PREFS_KEY));
         setEnabledRecursive(binding.presetGroup,
-                !LockedSettings.isLocked(SettingsRepository.KEY_DETECTION_PRESET));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_DETECTION_PRESET));
         binding.confidenceSeek.setEnabled(
-                !LockedSettings.isLocked(SettingsRepository.KEY_CONFIDENCE));
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CONFIDENCE));
         boolean categoriesEnabled =
-                !LockedSettings.isLocked(SettingsRepository.KEY_ENABLED_CATEGORIES);
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_ENABLED_CATEGORIES);
         CompoundButton[] categories = {
                 binding.switchGenitalsFemale, binding.switchGenitalsMale, binding.switchBreasts,
                 binding.switchButtocks, binding.switchAnus, binding.switchFaces,
@@ -233,14 +248,14 @@ public final class SettingsActivity extends AppCompatActivity {
                 binding.switchArmpits, binding.switchCovered};
         for (CompoundButton category : categories) category.setEnabled(categoriesEnabled);
         boolean phrasesEnabled =
-                !LockedSettings.isLocked(SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES);
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES);
         CompoundButton[] phraseCategories = {
                 binding.switchPhraseShort, binding.switchPhraseDenial,
                 binding.switchPhraseHumiliation, binding.switchPhraseEdge,
                 binding.switchPhraseFindom, binding.switchPhraseNtr, binding.switchPhraseGooner};
         for (CompoundButton category : phraseCategories) category.setEnabled(phrasesEnabled);
         boolean customPhrasesEnabled =
-                !LockedSettings.isLocked(SettingsRepository.KEY_CUSTOM_PHRASES);
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CUSTOM_PHRASES);
         binding.customPhrases.setEnabled(customPhrasesEnabled);
         binding.buttonSavePhrases.setEnabled(customPhrasesEnabled && phrasesEnabled);
         int lockCount = LockedSettings.snapshot().size();
