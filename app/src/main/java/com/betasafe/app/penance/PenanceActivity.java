@@ -36,7 +36,10 @@ import java.util.Map;
 public final class PenanceActivity extends AppCompatActivity {
     private ActivityPenanceBinding binding;
     private PenanceManager manager;
-    private PayPalCheckoutClient client;
+    private PayPalCredentialStore paypalCredentials;
+    private PayPalOrdersClient paypalClient;
+    private String activeClientMetadataId = "";
+    private boolean checkoutBusy;
     private final TextWatcher ruleMathWatcher = new TextWatcher() {
         @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
         @Override public void onTextChanged(CharSequence value, int start, int before, int count) {}
@@ -57,6 +60,8 @@ public final class PenanceActivity extends AppCompatActivity {
         if (!Intent.ACTION_VIEW.equals(getIntent().getAction())
                 && SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.MONEY)) return;
         manager = new PenanceManager(this);
+        paypalCredentials = new PayPalCredentialStore(this);
+        paypalClient = new PayPalOrdersClient(this);
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.MONEY);
         populateRules();
         attachRuleMathListeners();
@@ -66,6 +71,7 @@ public final class PenanceActivity extends AppCompatActivity {
         binding.buttonSaveRules.setOnClickListener(view -> saveRules());
         binding.buttonSettle.setOnClickListener(view -> beginCheckout());
         binding.buttonResumeCheckout.setOnClickListener(view -> openApprovalUrl());
+        binding.buttonConfirmPayment.setOnClickListener(view -> confirmPayment());
         binding.buttonCancelCheckout.setOnClickListener(view -> cancelCheckout());
         binding.buttonForgiveLatest.setOnClickListener(view -> forgiveLatest());
         binding.buttonClearUnpaid.setOnClickListener(view -> confirmClearUnpaid());
@@ -76,15 +82,15 @@ public final class PenanceActivity extends AppCompatActivity {
             render();
         });
         renderRuleMathPreview();
-        handleReturn(getIntent());
         render();
         applyEditState();
+        handlePayPalReturn(getIntent());
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        handleReturn(intent);
+        handlePayPalReturn(intent);
     }
 
     @Override protected void onResume() {
@@ -242,7 +248,6 @@ public final class PenanceActivity extends AppCompatActivity {
             return;
         }
         manager.configure(enabled, rules, daily, weekly, mercy, dwell, detectionBatch);
-        closeClient();
         toast(R.string.penance_rules_saved);
         render();
     }
@@ -258,7 +263,9 @@ public final class PenanceActivity extends AppCompatActivity {
     }
 
     private void beginCheckout() {
-        if (!validBackend(manager.getBackendUrl())) {
+        boolean paypalReady = paypalCredentials.hasCredentials();
+        boolean linkReady = validExternalUrl(manager.getPayPalLink());
+        if (!paypalReady && !linkReady) {
             toast(R.string.penance_backend_required);
             return;
         }
@@ -267,27 +274,39 @@ public final class PenanceActivity extends AppCompatActivity {
             toast(R.string.penance_no_due);
             return;
         }
-        setBusy(true);
-        paymentClient().createOrder(settlement.getId(), settlement.getAmountCents(),
-                (order, error) -> {
-                    setBusy(false);
-                    if (error != null || order == null) {
+        if (paypalReady) createPayPalOrder(settlement);
+        else {
+            String approvalUrl = paymentUrl(manager.getPayPalLink(), settlement.getAmountCents());
+            manager.bindOrder(settlement.getId(), settlement.getId(), approvalUrl);
+            render();
+            openApprovalUrl();
+        }
+    }
+
+    private void createPayPalOrder(PenanceManager.Settlement settlement) {
+        checkoutBusy = true;
+        render();
+        PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
+        boolean requestVault = paypalCredentials.isVaultRequested();
+        paypalClient.createOrder(credentials, settlement.getId(),
+                settlement.getAmountCents(), requestVault, result -> {
+                    checkoutBusy = false;
+                    if (binding == null) return;
+                    if (!result.isSuccess()) {
+                        if (requestVault
+                                && result.errorKind()
+                                == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
+                            paypalCredentials.markVaultUnavailable(credentials);
+                        }
                         manager.cancelSettlement(settlement.getId());
-                        toast(getString(R.string.penance_checkout_failed,
-                                error == null ? "Unknown error" : error));
+                        toast(getString(R.string.penance_checkout_failed, result.error()));
                         render();
                         return;
                     }
-                    if (!settlement.getId().equals(order.getSettlementId())
-                            || settlement.getAmountCents() != order.getAmountCents()
-                            || !PenanceManager.CURRENCY.equals(order.getCurrency())) {
-                        manager.cancelSettlement(settlement.getId());
-                        toast(R.string.penance_payment_mismatch);
-                        render();
-                        return;
-                    }
-                    manager.bindOrder(settlement.getId(), order.getOrderId(),
-                            order.getApprovalUrl());
+                    PayPalOrdersClient.Order order = result.value();
+                    activeClientMetadataId = order.clientMetadataId();
+                    manager.bindOrder(settlement.getId(), order.id(), order.approvalUrl(),
+                            credentials.boundaryId());
                     render();
                     openApprovalUrl();
                 });
@@ -302,55 +321,85 @@ public final class PenanceActivity extends AppCompatActivity {
         startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(approvalUrl)));
     }
 
-    private void handleReturn(Intent intent) {
-        Uri data = intent == null ? null : intent.getData();
-        if (data == null || !"betasafe".equals(data.getScheme())
-                || !"paypal".equals(data.getHost())) return;
-        String orderId = data.getQueryParameter("orderId");
-        if (orderId == null || !orderId.equals(manager.getActiveOrderId())) return;
-        if ("/cancel".equals(data.getPath())) {
-            cancelCheckout();
-        } else if ("/result".equals(data.getPath())) {
-            captureApprovedOrder(orderId);
+    private void confirmPayment() {
+        String settlementId = manager.getActiveSettlementId();
+        String orderId = manager.getActiveOrderId();
+        PenanceSnapshot snapshot = manager.snapshot(System.currentTimeMillis());
+        if (settlementId.isEmpty() || snapshot.getCheckoutCents() <= 0) {
+            toast(R.string.penance_payment_mismatch);
+            return;
         }
-        intent.setData(null);
+        if (paypalCredentials.hasCredentials() && !orderId.isEmpty()
+                && !orderId.equals(settlementId)) {
+            capturePayPalPayment();
+            return;
+        }
+        if (!manager.completeSettlement(settlementId, snapshot.getCheckoutCents())) {
+            toast(R.string.penance_payment_mismatch);
+            return;
+        }
+        toast(R.string.penance_payment_complete);
+        render();
     }
 
-    private void captureApprovedOrder(String orderId) {
-        String expectedSettlement = manager.getActiveSettlementId();
-        if (expectedSettlement.isEmpty()) return;
-        setBusy(true);
-        paymentClient().captureOrder(orderId, (order, error) -> {
-            setBusy(false);
-            if (error != null || order == null) {
-                toast(getString(R.string.penance_checkout_failed,
-                        error == null ? "Unknown error" : error));
-                render();
-                return;
-            }
-            if (!order.isCompleted()) {
-                toast(R.string.penance_payment_pending);
-                render();
-                return;
-            }
-            if (!expectedSettlement.equals(order.getSettlementId())
-                    || !PenanceManager.CURRENCY.equals(order.getCurrency())
-                    || !manager.completeSettlement(order.getSettlementId(), order.getAmountCents())) {
-                toast(R.string.penance_payment_mismatch);
-                render();
-                return;
-            }
-            toast(R.string.penance_payment_complete);
+    private void capturePayPalPayment() {
+        if (checkoutBusy) return;
+        String settlementId = manager.getActiveSettlementId();
+        String orderId = manager.getActiveOrderId();
+        PenanceSnapshot snapshot = manager.snapshot(System.currentTimeMillis());
+        if (settlementId.isEmpty() || orderId.isEmpty() || snapshot.getCheckoutCents() <= 0
+                || !paypalCredentials.hasCredentials()) {
+            toast(R.string.penance_payment_mismatch);
+            return;
+        }
+        PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
+        if (!credentials.boundaryId().equals(manager.getActivePayPalBoundary())) {
+            toast(R.string.penance_payment_boundary_changed);
+            manager.cancelSettlement(settlementId);
             render();
-        });
+            return;
+        }
+        checkoutBusy = true;
+        render();
+        paypalClient.captureOrder(credentials, orderId, settlementId,
+                snapshot.getCheckoutCents(), activeClientMetadataId, result -> {
+                    checkoutBusy = false;
+                    if (binding == null) return;
+                    if (!result.isSuccess()) {
+                        if (paypalCredentials.isVaultRequested()
+                                && result.errorKind()
+                                == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
+                            paypalCredentials.markVaultUnavailable(credentials);
+                        }
+                        toast(getString(R.string.penance_checkout_failed, result.error()));
+                        render();
+                        return;
+                    }
+                    PayPalOrdersClient.Capture capture = result.value();
+                    if (paypalCredentials.isVaultRequested()) {
+                        paypalCredentials.recordVaultResult(credentials,
+                                capture.vaultStatus(), capture.vaultId(), capture.customerId());
+                    }
+                    if (!manager.completeSettlement(settlementId, snapshot.getCheckoutCents())) {
+                        toast(R.string.penance_payment_mismatch);
+                    } else toast(R.string.penance_payment_complete);
+                    render();
+                });
+    }
+
+    private void handlePayPalReturn(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+        Uri data = intent.getData();
+        if (data == null || !"subhub".equalsIgnoreCase(data.getScheme())
+                || !"paypal".equalsIgnoreCase(data.getHost())) return;
+        String metadata = data.getQueryParameter("cmid");
+        if (metadata != null && metadata.length() <= 36) activeClientMetadataId = metadata;
+        if ("/cancel".equalsIgnoreCase(data.getPath())) cancelCheckout();
+        else if ("/return".equalsIgnoreCase(data.getPath())) capturePayPalPayment();
     }
 
     private void cancelCheckout() {
         String settlementId = manager.getActiveSettlementId();
-        String orderId = manager.getActiveOrderId();
-        if (!orderId.isEmpty() && validBackend(manager.getBackendUrl())) {
-            paymentClient().cancelOrder(orderId, (ignored, error) -> { });
-        }
         manager.cancelSettlement(settlementId);
         toast(R.string.penance_cancelled);
         render();
@@ -371,10 +420,6 @@ public final class PenanceActivity extends AppCompatActivity {
                 .setMessage(R.string.penance_clear_body)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.penance_clear_now, (dialog, which) -> {
-                    String orderId = manager.getActiveOrderId();
-                    if (!orderId.isEmpty() && validBackend(manager.getBackendUrl())) {
-                        paymentClient().cancelOrder(orderId, (ignored, error) -> { });
-                    }
                     manager.forgiveAllUnpaid();
                     toast(R.string.penance_cleared);
                     render();
@@ -390,15 +435,27 @@ public final class PenanceActivity extends AppCompatActivity {
         binding.checkoutAmount.setText(PenanceManager.formatMoney(snapshot.getCheckoutCents()));
         binding.paidAmount.setText(PenanceManager.formatMoney(snapshot.getPaidCents()));
         boolean checkout = snapshot.getCheckoutCents() > 0;
-        boolean paymentAvailable = validBackend(manager.getBackendUrl());
-        binding.paymentAvailability.setText(paymentAvailable
-                ? R.string.penance_payment_ready : R.string.penance_payment_unavailable);
+        boolean paypalReady = paypalCredentials.hasCredentials();
+        boolean linkReady = validExternalUrl(manager.getPayPalLink());
+        boolean paymentAvailable = paypalReady || linkReady;
+        binding.paymentAvailability.setText(paypalReady
+                ? R.string.penance_payment_ready
+                : linkReady ? R.string.penance_payment_link_ready
+                : R.string.penance_payment_unavailable);
         binding.buttonSettle.setEnabled(
-                paymentAvailable && snapshot.getDueCents() > 0 && !checkout);
+                paymentAvailable && snapshot.getDueCents() > 0 && !checkout && !checkoutBusy);
         binding.buttonResumeCheckout.setVisibility(
                 checkout && !manager.getActiveApprovalUrl().isEmpty() ? View.VISIBLE : View.GONE);
         binding.buttonCancelCheckout.setVisibility(checkout ? View.VISIBLE : View.GONE);
-        if (checkout) binding.paymentStatus.setText(R.string.penance_payment_pending);
+        binding.buttonConfirmPayment.setVisibility(checkout ? View.VISIBLE : View.GONE);
+        boolean sandboxOrder = checkout && paypalReady
+                && !manager.getActiveOrderId().isEmpty()
+                && !manager.getActiveOrderId().equals(manager.getActiveSettlementId());
+        binding.buttonConfirmPayment.setText(sandboxOrder
+                ? R.string.penance_confirm_paid : R.string.penance_confirm_link_paid);
+        binding.buttonConfirmPayment.setEnabled(!checkoutBusy);
+        if (checkoutBusy) binding.paymentStatus.setText(R.string.penance_checking);
+        else if (checkout) binding.paymentStatus.setText(R.string.penance_payment_pending);
         else binding.paymentStatus.setText("");
         renderHistory(snapshot, now);
         renderRuleMathPreview();
@@ -442,43 +499,26 @@ public final class PenanceActivity extends AppCompatActivity {
         return getString(R.string.penance_history_detection);
     }
 
-    private PayPalCheckoutClient paymentClient() {
-        if (client == null) client = new PayPalCheckoutClient(manager.getBackendUrl());
-        return client;
-    }
-
-    private void setBusy(boolean busy) {
-        if (binding == null) return;
-        binding.buttonSettle.setEnabled(!busy);
-        binding.buttonResumeCheckout.setEnabled(!busy);
-        binding.buttonCancelCheckout.setEnabled(!busy);
-        binding.paymentStatus.setText(busy ? R.string.penance_checking : R.string.penance_payment_pending);
-    }
-
-    private static boolean validBackend(String value) {
-        try {
-            URI uri = URI.create(value);
-            if (uri.getHost() == null) return false;
-            if ("https".equalsIgnoreCase(uri.getScheme())) return true;
-            return BuildConfig.DEBUG && "http".equalsIgnoreCase(uri.getScheme())
-                    && ("10.0.2.2".equals(uri.getHost())
-                    || "127.0.0.1".equals(uri.getHost())
-                    || "localhost".equalsIgnoreCase(uri.getHost()));
-        } catch (IllegalArgumentException ignored) {
-            return false;
-        }
-    }
-
     private static boolean validExternalUrl(String value) {
         try {
             URI uri = URI.create(value);
             String host = uri.getHost();
             return host != null && "https".equalsIgnoreCase(uri.getScheme())
-                    && ("paypal.com".equalsIgnoreCase(host)
+                    && ("paypal.me".equalsIgnoreCase(host)
+                    || "paypal.com".equalsIgnoreCase(host)
                     || host.toLowerCase(Locale.ROOT).endsWith(".paypal.com"));
         } catch (IllegalArgumentException ignored) {
             return false;
         }
+    }
+
+    private static String paymentUrl(String baseUrl, int amountCents) {
+        URI uri = URI.create(baseUrl);
+        if (!"paypal.me".equalsIgnoreCase(uri.getHost())) return baseUrl;
+        String trimmed = baseUrl;
+        while (trimmed.endsWith("/")) trimmed = trimmed.substring(0, trimmed.length() - 1);
+        return trimmed + "/" + String.format(Locale.ROOT, "%.2f", amountCents / 100.0)
+                + PenanceManager.CURRENCY;
     }
 
     private static Integer parseEuros(String value) {
@@ -507,14 +547,9 @@ public final class PenanceActivity extends AppCompatActivity {
         Toast.makeText(this, text, Toast.LENGTH_LONG).show();
     }
 
-    private void closeClient() {
-        if (client != null) client.close();
-        client = null;
-    }
-
     @Override protected void onDestroy() {
         timer.removeCallbacks(tick);
-        closeClient();
+        if (paypalClient != null) paypalClient.close();
         binding = null;
         super.onDestroy();
     }

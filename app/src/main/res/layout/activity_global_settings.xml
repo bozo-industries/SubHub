@@ -151,6 +151,119 @@
                 android:orientation="vertical"
                 android:padding="12dp">
                 <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                    android:text="@string/app_mode_service_title" />
+                <TextView
+                    android:id="@+id/service_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="7dp"
+                    android:textColor="@color/text_primary"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:layout_marginTop="3dp"
+                    android:text="@string/app_mode_service_body" />
+                <Button
+                    android:id="@+id/button_accessibility_settings"
+                    style="@style/Widget.SubHub.PrimaryButton"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/app_mode_open_accessibility" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="9dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="12dp">
+                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                    android:text="@string/app_mode_rules_title" />
+                <CheckBox
+                    android:id="@+id/armed"
+                    android:layout_width="match_parent"
+                    android:layout_height="42dp"
+                    android:layout_marginTop="4dp"
+                    android:buttonTint="@color/accent"
+                    android:text="@string/app_mode_armed"
+                    android:textColor="@color/text_primary" />
+                <RadioGroup
+                    android:id="@+id/mode_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <RadioButton
+                        android:id="@+id/mode_always"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:buttonTint="@color/accent"
+                        android:text="@string/app_mode_always"
+                        android:textColor="@color/text_primary" />
+                    <RadioButton
+                        android:id="@+id/mode_selected"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:buttonTint="@color/accent"
+                        android:text="@string/app_mode_selected"
+                        android:textColor="@color/text_primary" />
+                </RadioGroup>
+                <Button
+                    android:id="@+id/button_save_recognition"
+                    style="@style/Widget.SubHub.PrimaryButton"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/app_mode_save" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/app_list_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="9dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="12dp">
+                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                    android:text="@string/app_selection_title" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:layout_marginTop="3dp"
+                    android:text="@string/app_selection_help" />
+                <TextView
+                    android:id="@+id/selected_count"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+                <ProgressBar
+                    android:id="@+id/loading_apps"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:layout_marginTop="14dp" />
+                <GridLayout
+                    android:id="@+id/app_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:alignmentMode="alignMargins"
+                    android:columnCount="@integer/app_picker_columns"
+                    android:orientation="horizontal" />
+                <Button
+                    android:id="@+id/button_save_apps"
+                    style="@style/Widget.SubHub.PrimaryButton"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/app_selection_save" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="9dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="12dp">
+                <TextView style="@style/Widget.BetaSafe.SectionHeader"
                     android:text="@string/global_app_settings_title" />
                 <GridLayout
                     android:layout_width="match_parent"
@@ -170,6 +283,140 @@
                         style="@style/Widget.SubHub.SettingsAction"
                         android:text="@string/global_security" />
                 </GridLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="9dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="12dp">
+                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                    android:text="@string/paypal_settings_title" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:layout_marginTop="3dp"
+                    android:text="@string/paypal_settings_help" />
+                <TextView style="@style/Widget.SubHub.FieldLabel"
+                    android:text="@string/paypal_environment_label" />
+                <RadioGroup
+                    android:id="@+id/paypal_environment"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <RadioButton
+                        android:id="@+id/paypal_environment_sandbox"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1"
+                        android:text="@string/paypal_environment_sandbox"
+                        android:textColor="@color/text_primary" />
+                    <RadioButton
+                        android:id="@+id/paypal_environment_live"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1"
+                        android:text="@string/paypal_environment_live"
+                        android:textColor="@color/text_primary" />
+                </RadioGroup>
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:text="@string/paypal_environment_help" />
+                <TextView
+                    android:id="@+id/paypal_sandbox_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="7dp"
+                    android:textColor="@color/accent"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+                <TextView style="@style/Widget.SubHub.FieldLabel"
+                    android:text="@string/paypal_client_id_label" />
+                <EditText
+                    android:id="@+id/paypal_client_id"
+                    android:layout_width="match_parent"
+                    android:layout_height="46dp"
+                    android:layout_marginTop="3dp"
+                    android:backgroundTint="@color/accent"
+                    android:hint="@string/paypal_client_id_hint"
+                    android:inputType="textNoSuggestions"
+                    android:singleLine="true"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted" />
+                <TextView style="@style/Widget.SubHub.FieldLabel"
+                    android:text="@string/paypal_client_secret_label" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:text="@string/paypal_client_secret_help" />
+                <EditText
+                    android:id="@+id/paypal_client_secret"
+                    android:layout_width="match_parent"
+                    android:layout_height="46dp"
+                    android:layout_marginTop="3dp"
+                    android:backgroundTint="@color/accent"
+                    android:hint="@string/paypal_client_secret_hint"
+                    android:inputType="textPassword"
+                    android:singleLine="true"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="7dp"
+                    android:orientation="horizontal">
+                    <Button
+                        android:id="@+id/button_save_paypal_sandbox"
+                        style="@style/Widget.SubHub.CompactOutlineButton"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:textColor="@color/text_primary"
+                        android:text="@string/paypal_sandbox_save" />
+                    <Button
+                        android:id="@+id/button_clear_paypal_sandbox"
+                        style="@style/Widget.SubHub.CompactOutlineButton"
+                        android:layout_width="0dp"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:textColor="@color/text_primary"
+                        android:text="@string/paypal_sandbox_clear" />
+                </LinearLayout>
+                <CheckBox
+                    android:id="@+id/paypal_vault_enabled"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minHeight="42dp"
+                    android:text="@string/paypal_vault_enable"
+                    android:textColor="@color/text_primary" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:text="@string/paypal_vault_help" />
+                <TextView
+                    android:id="@+id/paypal_vault_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/accent"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/paypal_link_help" />
+                <TextView style="@style/Widget.SubHub.FieldLabel"
+                    android:text="@string/paypal_link_label" />
+                <EditText
+                    android:id="@+id/paypal_link"
+                    android:layout_width="match_parent"
+                    android:layout_height="46dp"
+                    android:layout_marginTop="3dp"
+                    android:backgroundTint="@color/accent"
+                    android:hint="@string/paypal_link_hint"
+                    android:inputType="textUri"
+                    android:singleLine="true"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_muted" />
+                <Button
+                    android:id="@+id/button_save_paypal"
+                    style="@style/Widget.SubHub.PrimaryButton"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/paypal_settings_save" />
             </LinearLayout>
         </LinearLayout>
     </ScrollView>

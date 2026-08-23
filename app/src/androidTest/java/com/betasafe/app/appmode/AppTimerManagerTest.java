@@ -13,6 +13,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 @RunWith(AndroidJUnit4.class)
@@ -38,6 +39,19 @@ public final class AppTimerManagerTest {
 
     @After public void tearDown() {
         timers.saveSettings(false, 30, false, 120);
+        timers.saveAllowances(Set.of(), Map.of());
+    }
+
+    @Test public void eachLimitedAppCanHaveItsOwnAllowance() {
+        timers.saveSettings(true, 30, false, 120);
+        timers.saveAllowances(selected, Map.of(APP_ONE, 1, APP_TWO, 3));
+        timers.recordUsage(APP_ONE, 60_000L, selected, DAY_ONE);
+        timers.recordUsage(APP_TWO, 60_000L, selected, DAY_ONE);
+
+        assertEquals(AppTimerManager.LimitStatus.PER_APP,
+                timers.limitStatus(APP_ONE, selected, DAY_ONE));
+        assertEquals(AppTimerManager.LimitStatus.NONE,
+                timers.limitStatus(APP_TWO, selected, DAY_ONE));
     }
 
     @Test public void perAppLimitBlocksOnlySpentApp() {

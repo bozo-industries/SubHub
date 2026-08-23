@@ -43,6 +43,7 @@ import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.settings.CensorAppearance;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.AchievementManager;
+import com.betasafe.app.commitment.CommitmentManager;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -79,6 +80,7 @@ public final class ScreenCaptureService extends Service {
     private final DwellInfractionTracker dwellTracker = new DwellInfractionTracker();
     private volatile DetectorConfig detectorConfig;
     private volatile boolean overlayNeedsSourceFrame;
+    private volatile boolean explicitlyStoppedByController;
 
     public static Intent startIntent(Context context, int resultCode, Intent resultData) {
         return new Intent(context, ScreenCaptureService.class)
@@ -108,6 +110,8 @@ public final class ScreenCaptureService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) return START_NOT_STICKY;
         if (ACTION_STOP.equals(intent.getAction())) {
+            if (!CommitmentManager.mayStopProtection(this)) return START_STICKY;
+            explicitlyStoppedByController = true;
             ProtectionSessionManager.markMediaProjectionExplicitlyStopped(this);
             ResumeNotificationManager.cancel(this);
             stopSelf();
@@ -282,15 +286,17 @@ public final class ScreenCaptureService extends Service {
                 this, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         PendingIntent stop = PendingIntent.getService(
                 this, 1, stopIntent(this), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle(getString(R.string.notification_title))
                 .setContentText(getString(R.string.notification_text))
                 .setContentIntent(openApp)
-                .addAction(0, getString(R.string.notification_stop), stop)
                 .setOngoing(true)
-                .setSilent(true)
-                .build();
+                .setSilent(true);
+        if (!CommitmentManager.isActive(this)) {
+            builder.addAction(0, getString(R.string.notification_stop), stop);
+        }
+        return builder.build();
     }
 
     private void createNotificationChannel() {
@@ -323,6 +329,7 @@ public final class ScreenCaptureService extends Service {
         PopupStormManager.get().stop();
         if (projection != null) projection.stop();
         stopForeground(STOP_FOREGROUND_REMOVE);
+        if (!explicitlyStoppedByController) CommitmentManager.reinforceProtection(this);
         super.onDestroy();
     }
 

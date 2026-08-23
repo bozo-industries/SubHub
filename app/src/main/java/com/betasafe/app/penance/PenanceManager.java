@@ -3,7 +3,6 @@ package com.betasafe.app.penance;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-import com.betasafe.app.BuildConfig;
 import com.betasafe.app.settings.FeatureModuleManager;
 
 import java.time.ZoneId;
@@ -39,8 +38,10 @@ public final class PenanceManager {
     private static final String KEY_DETECTION_REMAINDER = "detection_batch_remainder";
     private static final String KEY_EVENTS = "events_v1";
     private static final String LEGACY_KEY_BACKEND_URL = "paypal_backend_url";
+    private static final String KEY_PAYPAL_LINK = "paypal_payment_link";
     private static final String KEY_ORDER_ID = "active_order_id";
     private static final String KEY_APPROVAL_URL = "active_approval_url";
+    private static final String KEY_PAYPAL_BOUNDARY = "active_paypal_boundary";
     private static final int MAX_EVENTS = 200;
     private static final Object LOCK = new Object();
 
@@ -120,8 +121,14 @@ public final class PenanceManager {
         }
     }
 
-    public String getBackendUrl() {
-        return normalizeBackendUrl(BuildConfig.PAYPAL_BACKEND_URL);
+    public String getPayPalLink() {
+        String value = preferences.getString(KEY_PAYPAL_LINK, "");
+        return value == null ? "" : value.trim();
+    }
+
+    public void savePayPalLink(String value) {
+        preferences.edit().putString(KEY_PAYPAL_LINK,
+                value == null ? "" : value.trim()).remove(LEGACY_KEY_BACKEND_URL).commit();
     }
 
     public void configure(boolean enabled, int strikeCents, int dailyCapCents,
@@ -304,12 +311,19 @@ public final class PenanceManager {
     }
 
     public void bindOrder(String settlementId, String orderId, String approvalUrl) {
+        bindOrder(settlementId, orderId, approvalUrl, "");
+    }
+
+    public void bindOrder(String settlementId, String orderId, String approvalUrl,
+            String paypalBoundary) {
         if (settlementId == null || settlementId.isEmpty()
                 || orderId == null || orderId.isEmpty()) return;
         synchronized (LOCK) {
             if (!settlementExists(loadEvents(), settlementId)) return;
             preferences.edit().putString(KEY_ORDER_ID, orderId)
-                    .putString(KEY_APPROVAL_URL, approvalUrl == null ? "" : approvalUrl).apply();
+                    .putString(KEY_APPROVAL_URL, approvalUrl == null ? "" : approvalUrl)
+                    .putString(KEY_PAYPAL_BOUNDARY,
+                            paypalBoundary == null ? "" : paypalBoundary).apply();
         }
     }
 
@@ -320,6 +334,11 @@ public final class PenanceManager {
 
     public String getActiveApprovalUrl() {
         String value = preferences.getString(KEY_APPROVAL_URL, "");
+        return value == null ? "" : value;
+    }
+
+    public String getActivePayPalBoundary() {
+        String value = preferences.getString(KEY_PAYPAL_BOUNDARY, "");
         return value == null ? "" : value;
     }
 
@@ -453,13 +472,8 @@ public final class PenanceManager {
     }
 
     private void clearOrderState() {
-        preferences.edit().remove(KEY_ORDER_ID).remove(KEY_APPROVAL_URL).apply();
-    }
-
-    private static String normalizeBackendUrl(String value) {
-        String trimmed = value == null ? "" : value.trim();
-        while (trimmed.endsWith("/")) trimmed = trimmed.substring(0, trimmed.length() - 1);
-        return trimmed;
+        preferences.edit().remove(KEY_ORDER_ID).remove(KEY_APPROVAL_URL)
+                .remove(KEY_PAYPAL_BOUNDARY).apply();
     }
 
     public static String formatMoney(int cents) {

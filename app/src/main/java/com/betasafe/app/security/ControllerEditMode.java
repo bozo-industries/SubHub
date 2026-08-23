@@ -7,6 +7,8 @@ import android.widget.TextView;
 
 import com.betasafe.app.MainActivity;
 import com.betasafe.app.R;
+import com.betasafe.app.commitment.CommitmentActivity;
+import com.betasafe.app.commitment.CommitmentManager;
 
 /** Shared Dom/Sub role toggle for settings-changing surfaces. */
 public final class ControllerEditMode {
@@ -22,7 +24,9 @@ public final class ControllerEditMode {
         this.activity = activity;
         this.button = button;
         this.listener = listener;
-        if (!ControllerPinManager.isDomModeActive() && !(activity instanceof MainActivity)) {
+        boolean activePactSurface = supportsSubSurface();
+        if (!ControllerPinManager.isDomModeActive() && !(activity instanceof MainActivity)
+                && !activePactSurface) {
             button.setVisibility(View.GONE);
             listener.onEditStateChanged(false);
             enterSubMode(activity);
@@ -66,10 +70,19 @@ public final class ControllerEditMode {
 
     private void toggle() {
         if (isEditing()) {
-            enterSubMode(activity);
+            if (supportsSubSurface()) {
+                ControllerPinManager.enterSubMode();
+                refresh();
+            } else {
+                enterSubMode(activity);
+            }
         } else {
             ControllerPinGate.require(activity, this::refresh, false);
         }
+    }
+
+    private boolean supportsSubSurface() {
+        return activity instanceof CommitmentActivity && CommitmentManager.isActive(activity);
     }
 
     /** Leaves all configuration surfaces and returns to the single Sub dashboard. */

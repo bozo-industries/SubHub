@@ -75,15 +75,12 @@
         <activity android:name=".help.HelpActivity" android:exported="false" />
         <activity android:name=".commitment.CommitmentActivity" android:exported="false" />
         <activity android:name=".appmode.AppModeActivity" android:exported="false" />
-        <activity
-            android:name=".penance.PenanceActivity"
-            android:exported="true"
-            android:launchMode="singleTop">
+        <activity android:name=".penance.PenanceActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="betasafe" android:host="paypal" />
+                <data android:scheme="subhub" android:host="paypal" />
             </intent-filter>
         </activity>
 

@@ -2,6 +2,7 @@ package com.betasafe.app.appmode;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -19,7 +20,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.betasafe.app.R;
+import com.betasafe.app.commitment.CommitmentManager;
+import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.settings.SettingsRepository;
+import com.betasafe.app.settings.GlobalSettingsActivity;
 
 import org.junit.After;
 import org.junit.Before;
@@ -41,23 +45,26 @@ public final class AppModeContractTest {
         preferences.edit().remove(AppModeManager.KEY_ARMED)
                 .remove(AppModeManager.KEY_MODE)
                 .remove(AppModeManager.KEY_SELECTED_PACKAGES)
-                .remove(AppModeManager.KEY_AUTO_RESUME).commit();
+                .remove(AppModeManager.KEY_TIMER_PACKAGES).commit();
         ProtectionSessionManager.markMediaProjectionExplicitlyStopped(context);
+        CommitmentManager.emergencyRelease(context);
+        ControllerPinManager.enterSubMode();
     }
 
     @After public void tearDown() {
         preferences.edit().remove(AppModeManager.KEY_ARMED)
                 .remove(AppModeManager.KEY_MODE)
                 .remove(AppModeManager.KEY_SELECTED_PACKAGES)
-                .remove(AppModeManager.KEY_AUTO_RESUME).commit();
+                .remove(AppModeManager.KEY_TIMER_PACKAGES).commit();
         ProtectionSessionManager.markMediaProjectionExplicitlyStopped(context);
+        CommitmentManager.emergencyRelease(context);
+        ControllerPinManager.enterSubMode();
         ResumeNotificationManager.cancel(context);
     }
 
     @Test public void selectedAppsAndBootIntentArePersisted() {
         AppModeManager manager = new AppModeManager(context);
-        manager.save(true, AppModePolicy.Mode.SELECTED_APPS, true,
-                Set.of("com.example.watched"));
+        manager.save(true, AppModePolicy.Mode.SELECTED_APPS, Set.of("com.example.watched"));
         AppModeManager restored = new AppModeManager(context);
         assertTrue(restored.isArmed());
         assertEquals(AppModePolicy.Mode.SELECTED_APPS, restored.getMode());
@@ -66,11 +73,37 @@ public final class AppModeContractTest {
         assertTrue(restored.isArmed());
     }
 
-    @Test public void disabledAutoResumeDisarmsAtBoot() {
+    @Test public void censorAndTimerAssignmentsAreIndependent() {
         AppModeManager manager = new AppModeManager(context);
-        manager.save(true, AppModePolicy.Mode.ALWAYS, false, Set.of());
+        manager.saveAppSelections(Set.of("com.example.censor"), Set.of("com.example.timer"));
+        assertEquals(Set.of("com.example.censor"), manager.getSelectedPackages());
+        assertEquals(Set.of("com.example.timer"), manager.getTimerPackages());
+    }
+
+    @Test public void normalBootPreservesTheLastArmedState() {
+        AppModeManager manager = new AppModeManager(context);
+        manager.save(true, AppModePolicy.Mode.ALWAYS, Set.of());
+        new BootReceiver().onReceive(context, new Intent(Intent.ACTION_BOOT_COMPLETED));
+        assertTrue(new AppModeManager(context).isArmed());
+
+        manager.setArmed(false);
         new BootReceiver().onReceive(context, new Intent(Intent.ACTION_BOOT_COMPLETED));
         assertFalse(new AppModeManager(context).isArmed());
+    }
+
+    @Test public void sealedPactRearmsAtBootAndRejectsSubModeDisarm() {
+        AppModeManager manager = new AppModeManager(context);
+        manager.setArmed(false);
+        assertTrue(CommitmentManager.start(
+                context, CommitmentManager.MIN_DURATION_MS, "keeper-code"));
+        assertTrue(manager.isArmed());
+
+        manager.setArmed(false);
+        new BootReceiver().onReceive(context, new Intent(Intent.ACTION_BOOT_COMPLETED));
+        assertTrue(manager.isArmed());
+
+        new BootReceiver().onReceive(context, new Intent(BootReceiver.ACTION_DISARM));
+        assertTrue(manager.isArmed());
     }
 
     @Test public void disarmNotificationActionAlsoClearsProjectionIntent() {
@@ -82,26 +115,29 @@ public final class AppModeContractTest {
         assertFalse(ProtectionSessionManager.needsMediaProjectionResume(context));
     }
 
-    @Test public void appModeScreenUsesTheStyledSafetySurface() {
-        new AppModeManager(context).save(true, AppModePolicy.Mode.SELECTED_APPS, true,
+    @Test public void limitsScreenOnlyContainsAllowanceControls() {
+        new AppModeManager(context).save(true, AppModePolicy.Mode.SELECTED_APPS,
                 Set.of("com.android.chrome"));
         try (ActivityScenario<AppModeActivity> scenario = ActivityScenario.launch(
                 AppModeActivity.class)) {
             scenario.onActivity(activity -> {
-                assertEquals(View.VISIBLE,
-                        activity.findViewById(R.id.button_accessibility_settings).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.button_save).getVisibility());
-                assertEquals(View.VISIBLE, activity.findViewById(R.id.app_list_card).getVisibility());
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.timer_card).getVisibility());
+                assertNull(activity.findViewById(R.id.button_accessibility_settings));
+                assertNull(activity.findViewById(R.id.app_list_card));
             });
         }
     }
 
-    @Test public void limitsAndAppSelectorStayVisibleInAllAppsMode() {
-        new AppModeManager(context).save(false, AppModePolicy.Mode.ALWAYS, true, Set.of());
-        try (ActivityScenario<AppModeActivity> scenario = ActivityScenario.launch(
-                AppModeActivity.class)) {
+    @Test public void globalSettingsOwnsRecognitionAndAppAssignments() {
+        new AppModeManager(context).save(false, AppModePolicy.Mode.ALWAYS, Set.of());
+        try (ActivityScenario<GlobalSettingsActivity> scenario = ActivityScenario.launch(
+                GlobalSettingsActivity.class)) {
             scenario.onActivity(activity -> {
-                assertEquals(View.VISIBLE, activity.findViewById(R.id.timer_card).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.button_accessibility_settings).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.button_save_recognition).getVisibility());
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.app_list_card).getVisibility());
             });
@@ -125,8 +161,8 @@ public final class AppModeContractTest {
     }
 
     @Test public void launcherPickerUsesACompactVerticalGrid() throws Exception {
-        try (ActivityScenario<AppModeActivity> scenario =
-                     ActivityScenario.launch(AppModeActivity.class)) {
+        try (ActivityScenario<GlobalSettingsActivity> scenario =
+                     ActivityScenario.launch(GlobalSettingsActivity.class)) {
             Thread.sleep(750L);
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             scenario.onActivity(activity -> {

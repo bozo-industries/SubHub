@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat;
 
 import com.betasafe.app.MainActivity;
 import com.betasafe.app.R;
+import com.betasafe.app.commitment.CommitmentManager;
 
 /** Visible boot/resume state. It never attempts to reuse or bypass capture consent. */
 public final class ResumeNotificationManager {
@@ -46,16 +47,18 @@ public final class ResumeNotificationManager {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         int message = projectionPending ? R.string.app_mode_notification_resume_projection
                 : R.string.app_mode_notification_armed;
-        notifications.notify(NOTIFICATION_ID, new NotificationCompat.Builder(context, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle(context.getString(R.string.app_mode_notification_title))
                 .setContentText(context.getString(message))
                 .setContentIntent(open)
-                .addAction(0, context.getString(R.string.app_mode_disarm), disarm)
                 .setOngoing(appModeArmed && !projectionPending)
                 .setAutoCancel(projectionPending)
-                .setSilent(true)
-                .build());
+                .setSilent(true);
+        if (!CommitmentManager.isActive(context)) {
+            builder.addAction(0, context.getString(R.string.app_mode_disarm), disarm);
+        }
+        notifications.notify(NOTIFICATION_ID, builder.build());
     }
 
     public static void cancel(Context context) {

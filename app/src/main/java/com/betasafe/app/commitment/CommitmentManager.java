@@ -4,6 +4,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
 
+import com.betasafe.app.appmode.AppModeManager;
+import com.betasafe.app.appmode.ResumeNotificationManager;
+import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.settings.SettingsRepository;
 
 import java.security.GeneralSecurityException;
@@ -13,10 +16,10 @@ import java.security.SecureRandom;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
-/** Bounded, app-local commitment pact. It never controls Android uninstall or emergency stops. */
+/** Bounded, app-local commitment pact guarded by the controller PIN. */
 public final class CommitmentManager {
     public static final long MIN_DURATION_MS = 30L * 60L * 1000L;
-    public static final long MAX_DURATION_MS = 7L * 24L * 60L * 60L * 1000L;
+    public static final long MAX_DURATION_MS = 30L * 24L * 60L * 60L * 1000L;
     private static final String KEY_ENDS_AT = "commitment_ends_at";
     private static final String KEY_STARTED_AT = "commitment_started_at";
     private static final String KEY_SALT = "commitment_code_salt";
@@ -48,6 +51,7 @@ public final class CommitmentManager {
                 .putString(KEY_SALT, Base64.encodeToString(salt, Base64.NO_WRAP))
                 .putString(KEY_HASH, Base64.encodeToString(hash, Base64.NO_WRAP))
                 .apply();
+        reinforceProtection(context);
         return true;
     }
 
@@ -87,9 +91,26 @@ public final class CommitmentManager {
         }
     }
 
-    /** The safety release is intentionally unconditional and must remain reachable in the UI. */
+    /** Dom mode may release the pact without the separate keeper code. */
     public static void emergencyRelease(Context context) {
         release(context);
+    }
+
+    /** Sub mode cannot stop protection while the pact is active. */
+    public static boolean mayStopProtection(Context context) {
+        return !isActive(context) || ControllerPinManager.isDomModeActive();
+    }
+
+    /** Re-arms the persistent capture path when Android has already granted it. */
+    public static void reinforceProtection(Context context) {
+        if (!isActive(context)) return;
+        new AppModeManager(context).setArmed(true);
+        ResumeNotificationManager.show(context);
+    }
+
+    /** A sealed pact always re-arms; otherwise App Mode retains its stored state. */
+    public static void applyBootPolicy(Context context) {
+        reinforceProtection(context);
     }
 
     public static long originalDurationMillis(Context context) {

@@ -39,6 +39,32 @@ public final class PenanceContractTest {
     @After public void tearDown() {
         context.getSharedPreferences(PenanceManager.PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().clear().commit();
+        new PayPalCredentialStore(context).clear();
+    }
+
+    @Test public void sandboxCredentialsAreEncryptedPerInstallAndCanBeCleared() {
+        PayPalCredentialStore store = new PayPalCredentialStore(context);
+        store.clear();
+        assertTrue(store.save(PayPalEnvironment.SANDBOX,
+                "sandbox-client-id", "sandbox-client-secret"));
+        PayPalCredentialStore.Credentials loaded = store.load();
+        assertEquals("sandbox-client-id", loaded.clientId());
+        assertEquals("sandbox-client-secret", loaded.secret());
+        store.setVaultRequested(true);
+        assertTrue(store.isVaultRequested());
+        for (Object raw : context.getSharedPreferences(
+                PayPalCredentialStore.PREFS_NAME, Context.MODE_PRIVATE)
+                .getAll().values()) {
+            assertNotNull(raw);
+            assertFalse("sandbox-client-id".equals(raw));
+            assertFalse("sandbox-client-secret".equals(raw));
+        }
+        store.selectEnvironment(PayPalEnvironment.LIVE);
+        assertEquals(PayPalEnvironment.LIVE, store.selectedEnvironment());
+        assertFalse(store.hasCredentials());
+        assertFalse(store.isVaultRequested());
+        store.clear();
+        assertFalse(store.hasCredentials());
     }
 
     @Test public void mercyCanForgiveAFalsePositiveWithoutCreatingPayment() {

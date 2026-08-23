@@ -31,13 +31,13 @@ MainActivity
 
 The clean source implements both capture branches as ordinary Java source under `app/src/main/java/com/betasafe/app`. Android's own consent dialog authorizes every MediaProjection session, while Android's accessibility settings control the alternate screenshot service. Export rendering and reverse censoring are also maintained source. The app does not silently grant or retain platform capture authority.
 
-`AppModeManager` persists whether automatic recognition is armed, whether every external app or only a selected package set is watched, and whether that armed preference should survive reboot. `ScreenshotAccessibilityService` consumes only window-state package transitions. It prewarms the local model once while capture remains asleep, tags every asynchronous frame with a capture epoch, and rejects a result after the foreground app changes. Leaving a watched package cancels screenshot scheduling, immediately removes every censor/popup window, and releases retained frame pixels; the Accessibility binding stays available for the next package transition. Input methods and transient Android-owned windows—including notifications, the shade, volume UI, and permission sheets—are ignored so they cannot replace the foreground app and strand recognition in a suspended state.
+`AppModeManager` persists whether automatic recognition is armed and whether every external app or only a selected package set is watched. The exact armed/disarmed state survives reboot. `ScreenshotAccessibilityService` consumes only window-state package transitions. It prewarms the local model once while capture remains asleep, tags every asynchronous frame with a capture epoch, and rejects a result after the foreground app changes. Leaving a watched package cancels screenshot scheduling, immediately removes every censor/popup window, and releases retained frame pixels; the Accessibility binding stays available for the next package transition. Input methods and transient Android-owned windows—including notifications, the shade, volume UI, and permission sheets—are ignored so they cannot replace the foreground app and strand recognition in a suspended state.
 
 Source-dependent effects transfer the already-owned capture bitmap to the overlay rather than copying another full-screen frame. `CustomImagePool` decodes a preset-bounded image set on its own loader thread, precomputes 129 center-crop aspect buckets per image, and keeps deterministic track-to-image assignments. The live draw path therefore selects prepared geometry and issues one bitmap draw; it performs no image decode or crop calculation per frame.
 
 `AppTimerManager` is a separate, opt-in policy for the watched package set. It stores per-app and combined daily foreground milliseconds under a local calendar-day key. The Accessibility service accounts elapsed time on accepted foreground transitions and a one-second boundary tick, independently of detector readiness and recognition mode. When either configured budget is exhausted, recognition is suspended if needed and Android's supported `GLOBAL_ACTION_HOME` returns the watched app to Home. Unwatched apps and disabled limits neither accrue nor enforce timer usage.
 
-`BootReceiver` is non-exported and performs no capture. At boot or package replacement it restores only the user's armed preference and, when a prior MediaProjection session was desired, posts a visible notification that returns to the app for fresh Android approval. Its Disarm action clears both automatic recognition and pending session intent.
+`BootReceiver` is non-exported and performs no capture. Normal boot preserves the last armed/disarmed state. An active Commitment Pact or Hardcore Mode forces the persisted App Mode state back to armed; a prior MediaProjection session can only produce a notification that returns to the app for fresh Android approval. The notification Disarm action clears automatic recognition and pending session intent only when a pact is not sealed.
 
 ## High-value code areas
 
@@ -73,13 +73,15 @@ No Retrofit-style product backend or remote license API was found in the applica
 
 The app also contains a diagnostics HTTP server on TCP port 8765. It constructs `ServerSocket(8765)`, exposes `/`, `/data`, and `/reset`, and has no apparent authentication. Because the socket is not explicitly bound to loopback, treat it as LAN-exposed whenever started. A future maintained implementation should remove it from release builds or bind it to loopback with explicit opt-in and authentication.
 
-The clean source reconstruction intentionally omits that diagnostics server. The purchased APK's own app code did not contain a billing, premium, entitlement, or remote-license gate in the audited DEX trees. The maintained source now adds an original, optional PayPal settlement feature: detector events write only to an on-device bounded ledger, while a separately deployed backend creates/captures PayPal orders and verifies webhooks. No merchant credential is compiled into Android.
+The clean source reconstruction intentionally omits that diagnostics server. The purchased APK's own app code did not contain a billing, premium, entitlement, or remote-license gate in the audited DEX trees. The maintained source adds an original, optional PayPal settlement feature whose detector events and bounded ledger remain on-device.
 
 ## Money Rules and payment boundary
 
 `PenanceManager` is the retained internal class name for the user-facing Money Rules feature. It stores opt-in rules, capped entries, correction-window state, settlement state, payment history, and the remainder toward an Every-N threshold in private app preferences. Both capture services forward only newly confirmed stable tracker IDs; repeated frames and the lifetime Blocks statistic do not backfill a rule. Editing unrelated costs or caps retains threshold progress, while changing Every-N resets it. Daily and weekly caps may reduce an otherwise eligible event to zero; the UI now reports that state explicitly while Stats continues counting the detection. The UI can remove a false positive during its correction window or clear every unpaid entry at any time.
 
-`payment-server/` owns PayPal OAuth, Orders v2 calls, capture, persistent order correlation, and webhook verification. Android sends a random settlement ID, exact bounded amount, and currency. PayPal approval returns through the backend to the app's `betasafe://paypal` route, but the backend does not capture on that redirect. Android requests capture only while the same local checkout remains active and accepts completion only when order ID, settlement ID, amount, and currency all match. The backend origin is injected into `BuildConfig` through a Gradle property or environment variable; it is not editable in the app, and release builds permit HTTPS origins only.
+`PayPalOrdersClient` selects only one of two compiled origins: `api-m.sandbox.paypal.com` or `api-m.paypal.com`. The Dom-only environment control is an authorization boundary: changing it clears credentials and saved-wallet state and cancels any active checkout. Dom Settings accepts the matching Client ID and secret, encrypts them with an Android Keystore AES-GCM key, and never compiles credentials into the APK. The app creates an Orders v2 order, opens PayPal approval, and captures only when the active boundary, local settlement ID, EUR amount, PayPal order, and returned capture all match. The official Magnes collector supplies a transaction-scoped client metadata ID under the same selected environment.
+
+Saved-wallet opt-in adds PayPal's `store_in_vault=ON_SUCCESS` attributes to the next explicitly approved order. A `VAULTED` response becomes ready only with both `vault.id` and `customer.id`; `APPROVED` without IDs remains pending, and vault capability errors become unavailable. These IDs are encrypted and bound to the environment and Client ID. An optional PayPal.Me or PayPal-hosted link remains available without API credentials. Because this design intentionally runs the merchant client on the phone, Keystore protects secrets at rest but does not provide the isolation or webhook reachability of a separate merchant service.
 
 ## JADX limitations
 
@@ -95,7 +97,7 @@ the controller PIN and restores the full feature-aware navigation and settings
 until the user explicitly returns to Sub mode or the process ends.
 
 This boundary is separate from Android permissions and the optional Commitment
-Pact. It is a consensual presentation and configuration boundary, not a device
+Pact. It is an app-local presentation and configuration boundary, not a device
 security guarantee. The Sub dashboard uses project-owned layouts, art, icons,
 copy, and a darker asymmetrical card system rather than reproducing the purchased
 reference app's screen hierarchy.
@@ -104,17 +106,17 @@ reference app's screen hierarchy.
 
 The maintained header and Help surfaces use the project-owned gothic header and demoness guardian art. They do not depend on the purchased APK's decorative assets.
 
-## Consent-first commitment pact
+## Commitment pact
 
-`CommitmentManager` stores only pact timestamps, bounded duration, a random salt, and a PBKDF2-HMAC-SHA256 keeper-code hash in the app's private settings. `CommitmentActivity` provides the setup ceremony, live countdown, keeper release, and a permanently reachable two-step safety release. While active, entry to censor settings and browser-shield configuration routes to the pact screen. Protection stopping remains fully operational through the main UI and foreground-service notification.
+`CommitmentManager` stores pact timing and keeper-code verification material in private settings. `CommitmentActivity` provides setup, a live countdown, keeper release, and a Dom-only release. While active, entry to censor settings and browser-shield configuration routes to the pact screen. Sub mode cannot stop protection from the home button or either notification action; Dom mode can stop it after the control PIN unlocks the session.
 
-This is intentionally an app-local consent ritual rather than a device-security primitive. Commitment Pact never activates or controls Device Admin. App-data clearing, system controls, and immediate protection stop remain available, and the UI states those boundaries before activation and while the pact is active.
+Commitment Pact does not activate Device Admin. Sealing immediately arms App Mode, reboot re-arms it when Android has already enabled Accessibility, and an unexpected MediaProjection end falls back to the persistent armed state. Android uninstall and data clearing remain outside the app.
 
 ## Device Admin and restart boundary
 
-`HardcoreModeReceiver` is an optional, Dom-only legacy Device Admin surface used solely for Android's supported deactivate-before-uninstall friction. Its metadata contains an empty `uses-policies` set: SubHub requests no wipe, password, camera, force-lock, or login-monitoring capability. Activation runs through Android's own approval UI, Android Settings can revoke it at any time, and revocation clears the local Hardcore preference. Force stop, app-data clearing, system controls, and the immediate protection stop remain available.
+`HardcoreModeReceiver` is an optional, Dom-only legacy Device Admin surface used solely for Android's supported deactivate-before-uninstall friction. Its metadata contains an empty `uses-policies` set: SubHub requests no wipe, password, camera, force-lock, or login-monitoring capability. Activation runs through Android's own approval UI, Android Settings can revoke it at any time, and revocation clears the local Hardcore preference.
 
-Device Admin is not treated as a keepalive mechanism, foreground-app signal, or capture grant. When active, `HardcoreModeManager` restores only the existing Accessibility App Mode armed/auto-resume intent at boot. Modern Android still requires a new MediaProjection consent token for every capture session and prevents target-35 apps from starting a MediaProjection foreground service from `BOOT_COMPLETED`.
+Device Admin is not treated as a keepalive mechanism, foreground-app signal, or capture grant. When active, `HardcoreModeManager` restores the existing Accessibility App Mode armed intent at boot. Modern Android still requires a new MediaProjection token for every capture session and prevents target-35 apps from starting a MediaProjection foreground service from `BOOT_COMPLETED`.
 
 The maintained design therefore separates restartable intent from non-restartable capture authority: Accessibility app mode may resume because the user enabled that service in Android settings, while whole-screen MediaProjection resumes only after the user taps the visible notification and approves Android's system dialog again.
 
