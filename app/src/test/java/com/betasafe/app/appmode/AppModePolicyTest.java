@@ -25,6 +25,8 @@ public final class AppModePolicyTest {
                 "com.betasafe.app", "com.betasafe.app", "com.example.ime"));
         assertFalse(AppModePolicy.shouldRecognize(true, AppModePolicy.Mode.ALWAYS, Set.of(),
                 "com.android.systemui", "com.betasafe.app", "com.example.ime"));
+        assertFalse(AppModePolicy.shouldRecognize(true, AppModePolicy.Mode.ALWAYS, Set.of(),
+                "", "com.betasafe.app", "com.example.ime"));
     }
 
     @Test public void keyboardWindowEventsDoNotReplaceTheForegroundApp() {
@@ -43,6 +45,9 @@ public final class AppModePolicyTest {
         assertTrue(AppModePolicy.shouldAcceptForegroundEvent(
                 "com.betasafe.app", "com.betasafe.app.MainActivity", "com.betasafe.app",
                 "com.example.ime"));
+        assertFalse(AppModePolicy.shouldAcceptForegroundEvent(
+                "com.betasafe.app", "com.betasafe.app.popup.PopupOverlayView",
+                "com.betasafe.app", "com.example.ime"));
     }
 
     @Test public void malformedPackageNamesAreNotPersisted() {

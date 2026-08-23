@@ -53,6 +53,11 @@ public final class OverlayController implements AutoCloseable {
         view.setTracks(tracks, captureWidth, captureHeight, frame);
     }
 
+    /** Immediately removes rendered content while keeping the lightweight window ready. */
+    public void clear() {
+        view.clearContent();
+    }
+
     public void setAppearance(CensorAppearance appearance) {
         view.setAppearance(appearance);
     }
@@ -63,7 +68,7 @@ public final class OverlayController implements AutoCloseable {
 
     @Override
     public void close() {
-        if (attached) windowManager.removeView(view);
+        if (attached) windowManager.removeViewImmediate(view);
         else view.release();
         attached = false;
     }
