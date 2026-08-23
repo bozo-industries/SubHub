@@ -12,7 +12,7 @@ import java.util.List;
 
 /** Bounded extraction of visible native app text from a user-enabled Accessibility session. */
 public final class AccessibilityTextSmutDetector {
-    private static final int MAX_NODES = 400;
+    private static final int MAX_NODES = 900;
     private static final int MAX_TEXT_LENGTH = 2_000;
     private final TextSmutDetectionFactory factory =
             new TextSmutDetectionFactory(new SmutTextClassifier());
@@ -36,8 +36,10 @@ public final class AccessibilityTextSmutDetector {
                 if (!text.isEmpty()) {
                     Rect bounds = new Rect();
                     node.getBoundsInScreen(bounds);
-                    Detection detection = factory.create(text, bounds, config, width, height);
-                    if (detection != null) result.add(detection);
+                    if (isUsefulTextRegion(node, bounds, width, height)) {
+                        Detection detection = factory.create(text, bounds, config, width, height);
+                        if (detection != null) result.add(detection);
+                    }
                 }
                 for (int index = 0; index < node.getChildCount(); index++) {
                     AccessibilityNodeInfo child = node.getChild(index);
@@ -48,7 +50,18 @@ public final class AccessibilityTextSmutDetector {
             }
         }
         while (!pending.isEmpty()) pending.removeFirst().recycle();
-        return Collections.unmodifiableList(result);
+        return Collections.unmodifiableList(
+                DetectionFusion.merge(Collections.emptyList(), result));
+    }
+
+    private static boolean isUsefulTextRegion(
+            AccessibilityNodeInfo node, Rect bounds, int width, int height) {
+        if (bounds.isEmpty()) return false;
+        long area = (long) bounds.width() * bounds.height();
+        long screen = (long) Math.max(1, width) * Math.max(1, height);
+        // Aggregate root/window descriptions duplicate descendant text and create screen-sized
+        // censors. Post-sized containers remain eligible; the projector reduces them to lines.
+        return node.getChildCount() == 0 || area * 100L < screen * 58L;
     }
 
     private static String textOf(AccessibilityNodeInfo node) {
@@ -56,6 +69,10 @@ public final class AccessibilityTextSmutDetector {
         CharSequence description = node.getContentDescription();
         String first = text == null ? "" : text.toString().trim();
         String second = description == null ? "" : description.toString().trim();
+        // Container descriptions commonly concatenate an entire social post, media, and actions.
+        // Descendant TextViews provide tighter bounds, so never duplicate that aggregate string.
+        if (first.isEmpty() && node.getChildCount() > 0) return "";
+        if (!first.isEmpty() && node.getChildCount() > 0) second = "";
         String combined = first;
         if (!second.isEmpty() && !second.equalsIgnoreCase(first)) {
             combined = first.isEmpty() ? second : first + " " + second;

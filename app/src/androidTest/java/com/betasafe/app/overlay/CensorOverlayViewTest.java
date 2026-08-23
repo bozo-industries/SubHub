@@ -160,6 +160,31 @@ public final class CensorOverlayViewTest {
         view.release();
     }
 
+    @Test public void textBarUsesTightTextPaddingAndFillsTheProjectedLine() {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.setAppearance(new CensorAppearance(
+                CensorAppearance.Type.BAR, 100, .50f, false, false,
+                CensorAppearance.BorderEffect.CLASSIC, false, Color.MAGENTA,
+                List.of(), false, 100, "rectangle", "SubHub", "Blocked"));
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        List<TrackedObject> tracks = tracker.update(List.of(new Detection(
+                "TEXT_SMUT_EXPLICIT", "text_smut", 1f,
+                new BBox(10, 40, 80, 20), true, false)));
+        view.setTracks(tracks, 100, 100, null);
+        view.measure(exactly(100), exactly(100));
+        view.layout(0, 0, 100, 100);
+
+        Bitmap rendered = draw(view, 100, 100);
+
+        assertEquals(Color.BLACK, rendered.getPixel(50, 42));
+        assertEquals(Color.BLACK, rendered.getPixel(50, 58));
+        assertEquals(Color.TRANSPARENT, rendered.getPixel(50, 30));
+        assertEquals(Color.TRANSPARENT, rendered.getPixel(50, 70));
+        rendered.recycle();
+        view.release();
+    }
+
     private static CensorAppearance appearance(CensorAppearance.Type type, boolean text) {
         return new CensorAppearance(type, 82, .08f, true, false,
                 CensorAppearance.BorderEffect.CLASSIC, text, Color.MAGENTA,

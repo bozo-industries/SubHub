@@ -202,9 +202,15 @@ final class CensorOverlayView extends View {
         float scaleX = (float) getWidth() / captureWidth;
         float scaleY = (float) getHeight() / captureHeight;
         for (TrackedObject track : tracks) {
-            setPaddedRect(track.getBox(), scaleX, scaleY);
+            boolean textRegion = "text_smut".equals(track.getCategory());
+            setPaddedRect(track.getBox(), scaleX, scaleY, textRegion);
             drawRect.offset(contentOffsetX, contentOffsetY);
-            drawEffect(canvas, drawRect, track.getId(), appearance.getType(), appearance.getIntensity());
+            if (textRegion && appearance.getType() == CensorAppearance.Type.BAR) {
+                drawSolid(canvas, drawRect, appearance.getIntensity());
+            } else {
+                drawEffect(canvas, drawRect, track.getId(), appearance.getType(),
+                        appearance.getIntensity());
+            }
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
             if (appearance.isShowText() && drawRect.height() >= dp(22)
                     && drawRect.width() >= dp(44)
@@ -226,7 +232,8 @@ final class CensorOverlayView extends View {
         float scaleY = (float) getHeight() / captureHeight;
         List<RectF> holes = new ArrayList<>();
         for (TrackedObject track : tracks) {
-            setPaddedRect(track.getBox(), scaleX, scaleY);
+            setPaddedRect(track.getBox(), scaleX, scaleY,
+                    "text_smut".equals(track.getCategory()));
             drawRect.offset(contentOffsetX, contentOffsetY);
             RectF hole = new RectF(drawRect);
             holes.add(hole);
@@ -238,9 +245,12 @@ final class CensorOverlayView extends View {
         }
     }
 
-    private void setPaddedRect(BBox box, float scaleX, float scaleY) {
-        float horizontal = box.getWidth() * appearance.getSizePadding() * scaleX;
-        float vertical = box.getHeight() * appearance.getSizePadding() * scaleY;
+    private void setPaddedRect(BBox box, float scaleX, float scaleY, boolean textRegion) {
+        float padding = textRegion
+                ? Math.min(0.025f, appearance.getSizePadding())
+                : appearance.getSizePadding();
+        float horizontal = box.getWidth() * padding * scaleX;
+        float vertical = box.getHeight() * padding * scaleY;
         drawRect.set(
                 Math.max(0, box.getX() * scaleX - horizontal),
                 Math.max(0, box.getY() * scaleY - vertical),

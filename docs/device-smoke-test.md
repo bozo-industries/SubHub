@@ -67,6 +67,14 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - Non-recording capture now compensates the visible overlay from Accessibility scroll deltas at event speed, carries motion that occurs during inference into the published frame, retains the correct pre-scroll source crop for blur/pixelate/glitch, and coalesces refresh work behind the existing single-flight screenshot guard.
 - The target APK and Android-test APK must both be reinstalled before focused instrumentation; installing only `installDebugAndroidTest` can leave an older target APK and produce misleading missing-class/layout failures.
 
+## 2026-08-23 native-text precision pass
+
+- Reported-feed regression phrases now cover direct explicit language, common separator/leet obfuscation, chastity and other D/s terminology, multi-signal reward/control language, sexual requests, and humiliation requests at the configured Balanced threshold while retaining ordinary relationship, gaming, health, and social-feed negatives.
+- Native Accessibility text exposes its matched normalized span. Exact multi-line TextViews and coarse leaf descriptions project that span to bounded line-height geometry rather than the full node/card bounds.
+- Aggregate container descriptions with children are ignored in favor of descendant text nodes. Text-to-text fusion keeps a precise contained child rectangle instead of unioning it with a parent, while adjacent explicit lines still form one stable tracked region.
+- Live text censors cap global size padding at 2.5%. Bar mode fills the projected text line directly instead of placing a second narrow strip inside an oversized rectangle.
+- Focused API 35 instrumentation passed native-node extraction/alignment and all five live-overlay renderer checks; the unit suite passed classifier, projection, fusion, safe-context, and obfuscation regressions.
+
 Notification and overlay grants were pre-authorized with ADB on this dedicated emulator so the test could focus on capture consent and runtime behavior. A normal installation still uses the explicit in-app permission flow.
 
 ## Remaining coverage
