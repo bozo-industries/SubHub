@@ -50,7 +50,26 @@ public final class OverlayController implements AutoCloseable {
             int captureWidth,
             int captureHeight,
             Bitmap frame) {
-        view.setTracks(tracks, captureWidth, captureHeight, frame);
+        update(tracks, captureWidth, captureHeight, frame, 0, 0);
+    }
+
+    /**
+     * Publishes a detector frame while compensating for scroll motion that happened after the
+     * screenshot was requested. Motion is expressed in screen pixels, not detector coordinates.
+     */
+    public void update(
+            List<TrackedObject> tracks,
+            int captureWidth,
+            int captureHeight,
+            Bitmap frame,
+            int motionX,
+            int motionY) {
+        view.setTracks(tracks, captureWidth, captureHeight, frame, motionX, motionY);
+    }
+
+    /** Moves the current lightweight overlay immediately while the next inference is pending. */
+    public void offsetContent(int deltaX, int deltaY) {
+        view.offsetContent(deltaX, deltaY);
     }
 
     /** Immediately removes rendered content while keeping the lightweight window ready. */

@@ -63,6 +63,8 @@ final class CensorOverlayView extends View {
     private int[] noisePixels;
     private long noiseTick = Long.MIN_VALUE;
     private String diagnostics = "";
+    private float contentOffsetX;
+    private float contentOffsetY;
 
     CensorOverlayView(Context context) {
         super(context);
@@ -98,9 +100,21 @@ final class CensorOverlayView extends View {
             int sourceWidth,
             int sourceHeight,
             Bitmap latestFrame) {
+        setTracks(value, sourceWidth, sourceHeight, latestFrame, 0, 0);
+    }
+
+    void setTracks(
+            List<TrackedObject> value,
+            int sourceWidth,
+            int sourceHeight,
+            Bitmap latestFrame,
+            int motionX,
+            int motionY) {
         tracks = new ArrayList<>(value);
         captureWidth = Math.max(1, sourceWidth);
         captureHeight = Math.max(1, sourceHeight);
+        contentOffsetX = motionX;
+        contentOffsetY = motionY;
         if (frame != null && frame != latestFrame && !frame.isRecycled()) frame.recycle();
         frame = latestFrame;
         Set<Integer> activeIds = new HashSet<>();
@@ -110,9 +124,18 @@ final class CensorOverlayView extends View {
         invalidate();
     }
 
+    void offsetContent(int deltaX, int deltaY) {
+        if (tracks.isEmpty()) return;
+        contentOffsetX += deltaX;
+        contentOffsetY += deltaY;
+        invalidate();
+    }
+
     /** Hide all censor pixels without treating an empty track list as reverse-mode content. */
     void clearContent() {
         tracks.clear();
+        contentOffsetX = 0;
+        contentOffsetY = 0;
         if (frame != null && !frame.isRecycled()) frame.recycle();
         frame = null;
         customImages.retainAssignments(new HashSet<>());
@@ -180,6 +203,7 @@ final class CensorOverlayView extends View {
         float scaleY = (float) getHeight() / captureHeight;
         for (TrackedObject track : tracks) {
             setPaddedRect(track.getBox(), scaleX, scaleY);
+            drawRect.offset(contentOffsetX, contentOffsetY);
             drawEffect(canvas, drawRect, track.getId(), appearance.getType(), appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
             if (appearance.isShowText() && drawRect.height() >= dp(22)
@@ -203,6 +227,7 @@ final class CensorOverlayView extends View {
         List<RectF> holes = new ArrayList<>();
         for (TrackedObject track : tracks) {
             setPaddedRect(track.getBox(), scaleX, scaleY);
+            drawRect.offset(contentOffsetX, contentOffsetY);
             RectF hole = new RectF(drawRect);
             holes.add(hole);
             drawShape(canvas, hole, clear);
@@ -641,14 +666,20 @@ final class CensorOverlayView extends View {
 
     private boolean prepareSourceRect(RectF destination) {
         if (frame == null || frame.isRecycled() || getWidth() <= 0 || getHeight() <= 0) return false;
+        // The retained frame predates any compensated scroll. Sample the original source pixels
+        // while drawing them at the translated destination so blur/pixelate/glitch remain stable.
+        float sourceLeft = destination.left - contentOffsetX;
+        float sourceTop = destination.top - contentOffsetY;
+        float sourceRight = destination.right - contentOffsetX;
+        float sourceBottom = destination.bottom - contentOffsetY;
         int left = Math.max(0, Math.min(frame.getWidth() - 1,
-                Math.round(destination.left / getWidth() * frame.getWidth())));
+                Math.round(sourceLeft / getWidth() * frame.getWidth())));
         int top = Math.max(0, Math.min(frame.getHeight() - 1,
-                Math.round(destination.top / getHeight() * frame.getHeight())));
+                Math.round(sourceTop / getHeight() * frame.getHeight())));
         int right = Math.max(left + 1, Math.min(frame.getWidth(),
-                Math.round(destination.right / getWidth() * frame.getWidth())));
+                Math.round(sourceRight / getWidth() * frame.getWidth())));
         int bottom = Math.max(top + 1, Math.min(frame.getHeight(),
-                Math.round(destination.bottom / getHeight() * frame.getHeight())));
+                Math.round(sourceBottom / getHeight() * frame.getHeight())));
         sourceRect.set(left, top, right, bottom);
         return true;
     }

@@ -46,6 +46,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** User-enabled screenshot capture mode backed by Android's accessibility consent screen. */
 public final class ScreenshotAccessibilityService extends AccessibilityService {
@@ -55,6 +56,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static volatile boolean recognitionActive;
 
     private final AtomicBoolean processing = new AtomicBoolean();
+    private final AtomicBoolean scrollRefreshPending = new AtomicBoolean();
+    private final AtomicLong cumulativeScrollX = new AtomicLong();
+    private final AtomicLong cumulativeScrollY = new AtomicLong();
     private final AtomicBoolean firstFrameReported = new AtomicBoolean();
     private final AtomicBoolean initializing = new AtomicBoolean();
     private final CaptureEpoch captureEpoch = new CaptureEpoch();
@@ -162,11 +166,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     @RequiresApi(Build.VERSION_CODES.R)
     private void requestScreenshot() {
         if (!running || !recognitionActive || !processing.compareAndSet(false, true)) return;
+        scrollRefreshPending.set(false);
         long requestedEpoch = captureEpoch.token();
+        long requestedScrollX = cumulativeScrollX.get();
+        long requestedScrollY = cumulativeScrollY.get();
         TakeScreenshotCallback callback = new TakeScreenshotCallback() {
             @Override
             public void onSuccess(ScreenshotResult result) {
-                process(result, requestedEpoch);
+                process(result, requestedEpoch, requestedScrollX, requestedScrollY);
             }
 
             @Override
@@ -174,7 +181,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 DiagnosticsRepository.failCode(
                         DIAGNOSTICS_MODE, "Screenshot error", errorCode);
                 Log.w(TAG, "Accessibility screenshot failed with code " + errorCode);
-                processing.set(false);
+                finishScreenshotRequest();
             }
         };
         // Android 14+ can capture the foreground app window directly. Unlike a display capture,
@@ -193,7 +200,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
-    private void process(ScreenshotResult result, long requestedEpoch) {
+    private void process(
+            ScreenshotResult result,
+            long requestedEpoch,
+            long requestedScrollX,
+            long requestedScrollY) {
         Bitmap wrapped = null;
         Bitmap frame = null;
         HardwareBuffer buffer = result.getHardwareBuffer();
@@ -250,8 +261,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             String diagnosticText = diagnosticsOverlayText(diagnostics);
             main.post(() -> {
                 if (isCurrentCapture(requestedEpoch) && overlay != null) {
+                    int motionX = clampScrollMotion(-(cumulativeScrollX.get() - requestedScrollX),
+                            width);
+                    int motionY = clampScrollMotion(-(cumulativeScrollY.get() - requestedScrollY),
+                            height);
                     overlay.setDiagnostics(diagnosticText);
-                    overlay.update(tracks, width, height, overlayFrame);
+                    overlay.update(tracks, width, height, overlayFrame, motionX, motionY);
                 }
                 else if (overlayFrame != null) overlayFrame.recycle();
             });
@@ -262,7 +277,19 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (frame != null && !frame.isRecycled()) frame.recycle();
             if (wrapped != null && !wrapped.isRecycled()) wrapped.recycle();
             buffer.close();
-            processing.set(false);
+            finishScreenshotRequest();
+        }
+    }
+
+    private static int clampScrollMotion(long value, int frameExtent) {
+        long limit = Math.max(1, frameExtent) * 2L;
+        return (int) Math.max(-limit, Math.min(limit, value));
+    }
+
+    private void finishScreenshotRequest() {
+        processing.set(false);
+        if (scrollRefreshPending.get() && running && recognitionActive && worker != null) {
+            worker.execute(this::requestScreenshot);
         }
     }
 
@@ -297,6 +324,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
             if (recognitionActive && packageName.equals(foregroundPackage)) {
                 dwellTracker.onScroll();
+                int deltaX = event.getScrollDeltaX();
+                int deltaY = event.getScrollDeltaY();
+                if (deltaX != 0 || deltaY != 0) {
+                    cumulativeScrollX.addAndGet(deltaX);
+                    cumulativeScrollY.addAndGet(deltaY);
+                    if (overlay != null) overlay.offsetContent(-deltaX, -deltaY);
+                    scrollRefreshPending.set(true);
+                    if (worker != null && !processing.get()) worker.execute(this::requestScreenshot);
+                }
             }
             return;
         }
@@ -321,6 +357,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         dwellTracker.clear();
         tapTracker.clear();
+        resetScrollCompensation();
         if (recognitionActive && worker != null) {
             worker.execute(() -> {
                 if (tracker != null) tracker.clear();
@@ -403,6 +440,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         recognitionActive = true;
         Log.i(TAG, "Recognition activated for foreground package " + foregroundPackage);
         firstFrameReported.set(false);
+        resetScrollCompensation();
         overlay = new OverlayController(
                 this, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY);
         CensorAppearance appearance = settings.loadAppearance();
@@ -432,6 +470,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         PopupStormManager.get().stop();
         dwellTracker.clear();
         tapTracker.clear();
+        resetScrollCompensation();
+    }
+
+    private void resetScrollCompensation() {
+        cumulativeScrollX.set(0L);
+        cumulativeScrollY.set(0L);
+        scrollRefreshPending.set(false);
     }
 
     @Override

@@ -137,6 +137,29 @@ public final class CensorOverlayViewTest {
         view.release();
     }
 
+    @Test public void scrollMotionMovesExistingCensorBeforeNextDetectorFrame() {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.setAppearance(new CensorAppearance(
+                CensorAppearance.Type.BOX, 1, 0f, false, false,
+                CensorAppearance.BorderEffect.CLASSIC, false, Color.MAGENTA,
+                List.of(), false, 100, "rectangle", "SubHub", "Blocked"));
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        List<TrackedObject> tracks = tracker.update(List.of(new Detection(
+                "EXPOSED_TEST", "EXPOSED", 1f, new BBox(20, 20, 60, 60), true, true)));
+        view.setTracks(tracks, 100, 100, null);
+        view.measure(exactly(100), exactly(100));
+        view.layout(0, 0, 100, 100);
+
+        view.offsetContent(0, -20);
+        Bitmap moved = draw(view, 100, 100);
+
+        assertEquals(Color.BLACK, moved.getPixel(50, 30));
+        assertEquals(Color.TRANSPARENT, moved.getPixel(50, 70));
+        moved.recycle();
+        view.release();
+    }
+
     private static CensorAppearance appearance(CensorAppearance.Type type, boolean text) {
         return new CensorAppearance(type, 82, .08f, true, false,
                 CensorAppearance.BorderEffect.CLASSIC, text, Color.MAGENTA,
