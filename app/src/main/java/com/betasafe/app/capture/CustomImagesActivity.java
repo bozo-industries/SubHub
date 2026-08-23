@@ -16,6 +16,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityCustomImagesBinding;
+import com.betasafe.app.security.ControllerEditMode;
+import com.betasafe.app.security.ControllerPinManager;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import java.util.ArrayList;
@@ -30,6 +32,7 @@ public final class CustomImagesActivity extends AppCompatActivity {
     private ExecutorService executor;
     private final List<Bitmap> thumbnails = new ArrayList<>();
     private ActivityResultLauncher<String[]> picker;
+    private ControllerEditMode editMode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +45,19 @@ public final class CustomImagesActivity extends AppCompatActivity {
                 new ActivityResultContracts.OpenMultipleDocuments(), this::importImages);
         binding.buttonBack.setOnClickListener(view -> finish());
         binding.buttonAdd.setOnClickListener(view -> picker.launch(new String[]{"image/*"}));
+        editMode = ControllerEditMode.bind(
+                this, binding.buttonEditLock, editing -> applyEditState());
+        rebuild();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (editMode != null) editMode.refresh();
+    }
+
+    private void applyEditState() {
+        if (binding == null) return;
+        binding.buttonAdd.setEnabled(ControllerPinManager.isSessionUnlocked());
         rebuild();
     }
 
@@ -53,7 +69,7 @@ public final class CustomImagesActivity extends AppCompatActivity {
             int added = manager.addImages(uris);
             runOnUiThread(() -> {
                 if (binding == null) return;
-                binding.buttonAdd.setEnabled(true);
+                binding.buttonAdd.setEnabled(ControllerPinManager.isSessionUnlocked());
                 binding.status.setText(getString(R.string.custom_images_added, added));
                 rebuild();
             });
@@ -107,6 +123,7 @@ public final class CustomImagesActivity extends AppCompatActivity {
         enabled.setText(R.string.custom_images_enabled);
         enabled.setTextColor(getColor(R.color.text_primary));
         enabled.setChecked(entry.isEnabled());
+        enabled.setEnabled(ControllerPinManager.isSessionUnlocked());
         enabled.setOnCheckedChangeListener((button, checked) ->
                 manager.setEnabled(entry.getId(), checked));
         controls.addView(enabled, new LinearLayout.LayoutParams(
@@ -115,7 +132,10 @@ public final class CustomImagesActivity extends AppCompatActivity {
         Button delete = new Button(this);
         delete.setText(R.string.delete);
         delete.setTextColor(getColor(R.color.accent));
-        delete.setBackgroundColor(getColor(android.R.color.transparent));
+        delete.setTextSize(12);
+        delete.setAllCaps(false);
+        delete.setBackgroundResource(R.drawable.bg_outline_button);
+        delete.setEnabled(ControllerPinManager.isSessionUnlocked());
         delete.setOnClickListener(view -> {
             manager.delete(entry.getId());
             rebuild();

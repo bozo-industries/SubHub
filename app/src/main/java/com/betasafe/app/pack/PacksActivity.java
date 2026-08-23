@@ -16,6 +16,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityPacksBinding;
+import com.betasafe.app.security.ControllerEditMode;
+import com.betasafe.app.security.ControllerPinManager;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -27,6 +29,7 @@ public final class PacksActivity extends AppCompatActivity {
     private ActivityPacksBinding binding;
     private PackManager manager;
     private ActivityResultLauncher<String[]> picker;
+    private ControllerEditMode editMode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +46,21 @@ public final class PacksActivity extends AppCompatActivity {
             manager.deactivate();
             rebuild();
         });
+        editMode = ControllerEditMode.bind(
+                this, binding.buttonEditLock, editing -> applyEditState());
+        rebuild();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (editMode != null) editMode.refresh();
+    }
+
+    private void applyEditState() {
+        if (binding == null) return;
+        boolean editing = ControllerPinManager.isSessionUnlocked();
+        binding.buttonImportPack.setEnabled(editing);
+        binding.buttonDeactivatePack.setEnabled(editing);
         rebuild();
     }
 
@@ -113,9 +131,10 @@ public final class PacksActivity extends AppCompatActivity {
         actions.setPadding(0, dp(8), 0, 0);
         boolean isActive = manifest.getPackId().equals(active);
         Button activate = actionButton(isActive ? R.string.pack_active : R.string.pack_activate);
-        activate.setEnabled(!isActive);
+        activate.setEnabled(ControllerPinManager.isSessionUnlocked() && !isActive);
         activate.setOnClickListener(view -> confirmActivation(pack));
         Button delete = actionButton(R.string.delete);
+        delete.setEnabled(ControllerPinManager.isSessionUnlocked());
         delete.setOnClickListener(view -> new AlertDialog.Builder(this)
                 .setTitle(R.string.pack_delete_title)
                 .setMessage(manifest.getName())
@@ -160,9 +179,10 @@ public final class PacksActivity extends AppCompatActivity {
     private Button actionButton(int label) {
         Button button = new Button(this);
         button.setText(label);
-        button.setTextSize(10);
+        button.setTextSize(11);
         button.setTextColor(getColor(R.color.accent));
-        button.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        button.setAllCaps(false);
+        button.setBackgroundResource(R.drawable.bg_outline_button);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
         return button;

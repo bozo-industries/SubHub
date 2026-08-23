@@ -43,6 +43,7 @@ import com.betasafe.app.help.HelpActivity;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.security.ControllerPinGate;
 import com.betasafe.app.security.ControllerPinManager;
+import com.betasafe.app.security.ControllerEditMode;
 import com.betasafe.app.util.AppShortcuts;
 import com.betasafe.app.util.SubHubNavigation;
 import androidx.appcompat.app.AlertDialog;
@@ -229,8 +230,7 @@ public final class MainActivity extends AppCompatActivity {
     private void renderEditState() {
         if (binding == null) return;
         boolean editing = ControllerPinManager.isSessionUnlocked();
-        editLockButton.setText(editing
-                ? R.string.controller_edit_unlocked : R.string.controller_edit_locked);
+        ControllerEditMode.renderButton(this, editLockButton);
         updateProtectionButton(ScreenCaptureService.isRunning());
     }
 

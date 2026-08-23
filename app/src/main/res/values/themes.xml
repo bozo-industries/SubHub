@@ -37,7 +37,7 @@
         <item name="android:fontFamily">monospace</item>
         <item name="android:lineSpacingExtra">2dp</item>
         <item name="android:textColor">@color/text_secondary</item>
-        <item name="android:textSize">11sp</item>
+        <item name="android:textSize">12sp</item>
     </style>
 
     <style name="Widget.BetaSafe.Statistic" parent="">
@@ -61,7 +61,7 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:gravity">center</item>
         <item name="android:textColor">@color/text_muted</item>
-        <item name="android:textSize">9sp</item>
+        <item name="android:textSize">10sp</item>
         <item name="android:textStyle">bold</item>
     </style>
 
@@ -69,7 +69,7 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textColor">@color/accent</item>
-        <item name="android:textSize">14sp</item>
+        <item name="android:textSize">15sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:letterSpacing">0.08</item>
     </style>
@@ -79,7 +79,7 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">12dp</item>
         <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">11sp</item>
+        <item name="android:textSize">12sp</item>
         <item name="android:textStyle">bold</item>
     </style>
 
@@ -88,7 +88,7 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">3dp</item>
         <item name="android:textColor">@color/text_muted</item>
-        <item name="android:textSize">10sp</item>
+        <item name="android:textSize">11sp</item>
     </style>
 
     <style name="Widget.SubHub.DayToggle" parent="">
@@ -98,7 +98,7 @@
         <item name="android:buttonTint">@color/accent</item>
         <item name="android:gravity">center_vertical</item>
         <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">11sp</item>
+        <item name="android:textSize">12sp</item>
     </style>
 
     <style name="Widget.SubHub.CompactOutlineButton" parent="">
@@ -106,8 +106,9 @@
         <item name="android:layout_height">44dp</item>
         <item name="android:layout_marginTop">3dp</item>
         <item name="android:background">@drawable/bg_outline_button</item>
+        <item name="android:backgroundTint">@null</item>
         <item name="android:textColor">@color/accent</item>
-        <item name="android:textSize">12sp</item>
+        <item name="android:textSize">13sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:gravity">center</item>
         <item name="android:includeFontPadding">false</item>
@@ -149,7 +150,7 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">1dp</item>
         <item name="android:textColor">@color/text_muted</item>
-        <item name="android:textSize">8sp</item>
+        <item name="android:textSize">10sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:gravity">center</item>
         <item name="android:includeFontPadding">false</item>
@@ -171,7 +172,7 @@
         <item name="android:buttonTint">@color/accent</item>
         <item name="android:gravity">center_vertical</item>
         <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">10sp</item>
+        <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:includeFontPadding">false</item>
     </style>
@@ -180,7 +181,7 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">44dp</item>
         <item name="android:textColor">@color/text_muted</item>
-        <item name="android:textSize">9sp</item>
+        <item name="android:textSize">10sp</item>
         <item name="android:includeFontPadding">false</item>
     </style>
 
@@ -189,7 +190,7 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:text">@string/penance_rule_cost_label</item>
         <item name="android:textColor">@color/text_secondary</item>
-        <item name="android:textSize">9sp</item>
+        <item name="android:textSize">10sp</item>
         <item name="android:textStyle">bold</item>
     </style>
 
@@ -204,7 +205,7 @@
         <item name="android:paddingHorizontal">10dp</item>
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textColorHint">@color/text_muted</item>
-        <item name="android:textSize">12sp</item>
+        <item name="android:textSize">13sp</item>
     </style>
 
     <style name="Widget.SubHub.IntegerInput" parent="Widget.SubHub.MoneyInput">
@@ -245,7 +246,7 @@
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">2dp</item>
         <item name="android:textColor">@color/text_muted</item>
-        <item name="android:textSize">9sp</item>
+        <item name="android:textSize">10sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:includeFontPadding">false</item>
     </style>
@@ -260,7 +261,7 @@
         <item name="android:focusable">true</item>
         <item name="android:gravity">center</item>
         <item name="android:textColor">@color/accent</item>
-        <item name="android:textSize">10sp</item>
+        <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:includeFontPadding">false</item>
     </style>
@@ -276,7 +277,7 @@
         <item name="android:paddingStart">7dp</item>
         <item name="android:paddingEnd">5dp</item>
         <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">9sp</item>
+        <item name="android:textSize">10sp</item>
     </style>
 
     <style name="Widget.SubHub.BottomTab" parent="">
@@ -284,14 +285,28 @@
         <item name="android:layout_height">match_parent</item>
         <item name="android:layout_weight">1</item>
         <item name="android:gravity">center</item>
-        <item name="android:drawablePadding">5dp</item>
-        <item name="android:textColor">@color/text_secondary</item>
-        <item name="android:textSize">10sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:includeFontPadding">false</item>
-        <item name="android:textAlignment">center</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingTop">5dp</item>
+        <item name="android:paddingBottom">5dp</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
+    </style>
+
+    <style name="Widget.SubHub.BottomTabIcon" parent="">
+        <item name="android:layout_width">28dp</item>
+        <item name="android:layout_height">28dp</item>
+    </style>
+
+    <style name="Widget.SubHub.BottomTabLabel" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:textAlignment">center</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
     </style>
 
     <style name="Widget.SubHub.ToolAction" parent="">
@@ -301,16 +316,18 @@
         <item name="android:layout_gravity">fill_horizontal</item>
         <item name="android:layout_margin">3dp</item>
         <item name="android:background">@drawable/bg_tool_tile</item>
+        <item name="android:backgroundTint">@null</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
         <item name="android:gravity">center</item>
         <item name="android:drawablePadding">7dp</item>
         <item name="android:drawableTint">@color/accent</item>
+        <item name="android:paddingHorizontal">8dp</item>
         <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">10sp</item>
+        <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:includeFontPadding">false</item>
-        <item name="android:textAlignment">center</item>
+        <item name="android:textAlignment">gravity</item>
     </style>
 
     <style name="Widget.SubHub.SettingsToggle" parent="">
@@ -324,7 +341,7 @@
         <item name="android:includeFontPadding">false</item>
         <item name="android:minHeight">0dp</item>
         <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">10sp</item>
+        <item name="android:textSize">11sp</item>
     </style>
 
     <style name="Widget.SubHub.SettingsAction" parent="">
@@ -342,7 +359,7 @@
         <item name="android:textAlignment">center</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textColor">@color/text_primary</item>
-        <item name="android:textSize">10sp</item>
+        <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
     </style>
 
@@ -355,7 +372,7 @@
         <item name="android:includeFontPadding">false</item>
         <item name="android:minHeight">0dp</item>
         <item name="android:textColor">@color/primary_button_text</item>
-        <item name="android:textSize">12sp</item>
+        <item name="android:textSize">13sp</item>
         <item name="android:textStyle">bold</item>
     </style>
 
@@ -369,7 +386,23 @@
         <item name="android:stateListAnimator">@null</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textColor">@color/accent</item>
-        <item name="android:textSize">11sp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="Widget.SubHub.ControllerEdit" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:background">@drawable/bg_bottom_tab_active</item>
+        <item name="android:clickable">true</item>
+        <item name="android:drawablePadding">4dp</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:minWidth">76dp</item>
+        <item name="android:paddingHorizontal">9dp</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">10sp</item>
         <item name="android:textStyle">bold</item>
     </style>
 </resources>

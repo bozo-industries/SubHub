@@ -24,6 +24,7 @@ import com.betasafe.app.overlay.CensorPhrases;
 import com.betasafe.app.pack.LockedSettings;
 import com.betasafe.app.security.ControllerPinGate;
 import com.betasafe.app.security.ControllerPinManager;
+import com.betasafe.app.security.ControllerEditMode;
 import com.betasafe.app.pack.PackManager;
 import com.betasafe.app.pack.PacksActivity;
 import com.betasafe.app.profiles.ProfilesActivity;
@@ -213,8 +214,7 @@ public final class SettingsActivity extends AppCompatActivity {
 
     private void applyLockState() {
         boolean editing = ControllerPinManager.isSessionUnlocked();
-        binding.buttonEditLock.setText(editing
-                ? R.string.controller_edit_unlocked : R.string.controller_edit_locked);
+        ControllerEditMode.renderButton(this, binding.buttonEditLock);
         setEnabledRecursive(binding.styleGroup,
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE));
         binding.intensitySeek.setEnabled(

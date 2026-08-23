@@ -8,13 +8,52 @@
     android:layout_gravity="bottom"
     android:background="@drawable/bg_bottom_pill"
     android:elevation="12dp"
+    android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:gravity="center_vertical" android:padding="6dp">
+    android:padding="6dp">
 
-    <TextView android:id="@+id/nav_censor" style="@style/Widget.SubHub.BottomTab"
-        android:drawableTop="@drawable/ic_nav_censor" android:text="@string/nav_censor" />
-    <TextView android:id="@+id/nav_limits" style="@style/Widget.SubHub.BottomTab"
-        android:drawableTop="@drawable/ic_nav_limits" android:text="@string/nav_limits" />
-    <TextView android:id="@+id/nav_money" style="@style/Widget.SubHub.BottomTab"
-        android:drawableTop="@drawable/ic_nav_money" android:text="@string/nav_money" />
+    <LinearLayout
+        android:id="@+id/nav_censor"
+        style="@style/Widget.SubHub.BottomTab"
+        android:contentDescription="@string/nav_censor">
+        <ImageView
+            android:id="@+id/nav_censor_icon"
+            style="@style/Widget.SubHub.BottomTabIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_nav_censor" />
+        <TextView
+            android:id="@+id/nav_censor_label"
+            style="@style/Widget.SubHub.BottomTabLabel"
+            android:text="@string/nav_censor" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/nav_limits"
+        style="@style/Widget.SubHub.BottomTab"
+        android:contentDescription="@string/nav_limits">
+        <ImageView
+            android:id="@+id/nav_limits_icon"
+            style="@style/Widget.SubHub.BottomTabIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_nav_limits" />
+        <TextView
+            android:id="@+id/nav_limits_label"
+            style="@style/Widget.SubHub.BottomTabLabel"
+            android:text="@string/nav_limits" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/nav_money"
+        style="@style/Widget.SubHub.BottomTab"
+        android:contentDescription="@string/nav_money">
+        <ImageView
+            android:id="@+id/nav_money_icon"
+            style="@style/Widget.SubHub.BottomTabIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_nav_money" />
+        <TextView
+            android:id="@+id/nav_money_label"
+            style="@style/Widget.SubHub.BottomTabLabel"
+            android:text="@string/nav_money" />
+    </LinearLayout>
 </LinearLayout>

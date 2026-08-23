@@ -208,7 +208,7 @@
         <item>Online search suggestions (sends typed queries to Google)</item>
     </string-array>
     <string name="stats_title">LIFETIME PROTECTION</string>
-    <string name="stats_blocks">BLOCKS</string>
+    <string name="stats_blocks">LIFETIME BLOCKS</string>
     <string name="stats_time">PROTECTED</string>
     <string name="stats_sessions">SESSIONS</string>
     <string name="foundation_ready">PROTECTION PIPELINE READY</string>
@@ -246,7 +246,7 @@
     <string name="statistics_history">SESSION HISTORY</string>
     <string name="statistics_no_history">Complete a protection session to begin the trend.</string>
     <string name="statistics_session_row">%1$s · %2$s · %3$d blocks</string>
-    <string name="milestone_next">Next: %1$d blocks (%2$d/%1$d)</string>
+    <string name="milestone_next">Next lifetime milestone: %1$d blocks (%2$d/%1$d)</string>
     <string name="milestone_5">5 blocks censored</string>
     <string name="milestone_10">10 blocks censored! Keep going!</string>
     <string name="milestone_15">15 blocks censored</string>
@@ -534,6 +534,8 @@
     <string name="penance_rules_title">MONEY RULES</string>
     <string name="penance_rules_body">Mix and match what counts. Each enabled rule has its own cost; shared daily and weekly limits cap the total.</string>
     <string name="penance_local_only_note">WHAT COSTS MONEY: enabled rules add entries to a private local balance. They never charge PayPal. Money leaves an account only after you tap Review payment and explicitly approve PayPal.</string>
+    <string name="penance_rule_math_preview">Lifetime Blocks never backfill this rule. Only new stable regions seen after Money Rules is enabled count; repeated frames of the same region do not. A money event is created whenever the saved counter reaches %1$d. Example: %2$d new regions → 5 events × %3$s = %4$s before the %5$s daily and %6$s weekly caps. Saved progress toward the next event: %7$d/%1$d.</string>
+    <string name="penance_rule_math_invalid">Enter valid cost, Every N, daily-cap, and weekly-cap values to preview the rule math.</string>
     <string name="penance_enabled">Enable money rules</string>
     <string name="penance_strike_hint">Example: 1.00</string>
     <string name="penance_strike_label">AMOUNT PER NEW DETECTION (€)</string>
@@ -674,7 +676,9 @@
     <string name="controller_pin_unlock_body">Enter the controller PIN to change SubHub settings. A successful unlock stays active for five minutes.</string>
     <string name="controller_pin_unlock">UNLOCK</string>
     <string name="controller_pin_wrong">That PIN is not correct.</string>
-    <string name="controller_edit_locked">🔒 EDIT</string>
-    <string name="controller_edit_unlocked">🔓 EDITING</string>
+    <string name="controller_edit_locked">EDIT</string>
+    <string name="controller_edit_unlocked">EDITING</string>
+    <string name="controller_edit_locked_description">Unlock controller edit mode</string>
+    <string name="controller_edit_unlocked_description">Lock controller edit mode</string>
     <string name="controller_edit_lock_hint">Settings are read-only. Tap EDIT and enter the controller PIN to make changes.</string>
 </resources>

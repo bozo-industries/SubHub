@@ -47,6 +47,8 @@ import com.betasafe.app.commitment.CommitmentActivity;
 import com.betasafe.app.commitment.CommitmentManager;
 import com.betasafe.app.databinding.ActivityBrowserBinding;
 import com.betasafe.app.detection.DetectionEngine;
+import com.betasafe.app.security.ControllerEditMode;
+import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
 
@@ -91,6 +93,7 @@ public final class BrowserActivity extends AppCompatActivity {
     private int activeTabId = -1;
     private View fullscreenView;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
+    private ControllerEditMode editMode;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -120,6 +123,8 @@ public final class BrowserActivity extends AppCompatActivity {
         binding.buttonGo.setOnClickListener(view -> navigate());
         binding.buttonBookmarks.setOnClickListener(view -> showBookmarks());
         binding.buttonShields.setOnClickListener(view -> showShieldSettings());
+        editMode = ControllerEditMode.bind(
+                this, binding.buttonEditLock, editing -> { });
         binding.address.setOnItemClickListener((parent, view, position, id) -> navigate());
         binding.address.setOnEditorActionListener((view, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_GO
@@ -140,6 +145,11 @@ public final class BrowserActivity extends AppCompatActivity {
             @Override public void handleOnBackPressed() { goBackOrFinish(); }
         });
         createTab(false, "https://www.google.com");
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (editMode != null) editMode.refresh();
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -331,6 +341,20 @@ public final class BrowserActivity extends AppCompatActivity {
                 preferences.getBoolean(KEY_HIDE_BACKGROUNDS, false),
                 preferences.getBoolean(KEY_SITE_FILTERS, true),
                 preferences.getBoolean(KEY_SUGGESTIONS, false)};
+        if (!ControllerPinManager.isSessionUnlocked()) {
+            StringBuilder summary = new StringBuilder();
+            for (int index = 0; index < labels.length; index++) {
+                if (summary.length() > 0) summary.append('\n');
+                summary.append(checked[index] ? "✓  " : "○  ").append(labels[index]);
+            }
+            summary.append("\n\n").append(getString(R.string.controller_edit_lock_hint));
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.browser_shields)
+                    .setMessage(summary.toString())
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return;
+        }
         new AlertDialog.Builder(this)
                 .setTitle(R.string.browser_shields)
                 .setMultiChoiceItems(labels, checked, (dialog, which, value) -> checked[which] = value)

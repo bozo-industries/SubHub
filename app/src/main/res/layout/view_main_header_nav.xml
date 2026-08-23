@@ -40,12 +40,10 @@
         </LinearLayout>
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_marginTop="1dp" android:text="@string/header_subtitle"
-            android:textColor="@color/text_secondary" android:textSize="11sp" />
+            android:textColor="@color/text_secondary" android:textSize="12sp" />
     </LinearLayout>
 
-    <TextView android:id="@+id/button_edit_lock" android:layout_width="wrap_content" android:layout_height="32dp"
-        android:background="@drawable/bg_bottom_tab_active" android:gravity="center"
-        android:clickable="true" android:focusable="true" android:paddingHorizontal="10dp"
-        android:text="@string/controller_edit_locked"
-        android:textColor="@color/text_primary" android:textSize="8sp" android:textStyle="bold" />
+    <TextView android:id="@+id/button_edit_lock"
+        style="@style/Widget.SubHub.ControllerEdit"
+        android:text="@string/controller_edit_locked" />
 </LinearLayout>

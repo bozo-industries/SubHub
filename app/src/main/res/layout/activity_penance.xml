@@ -28,13 +28,11 @@
                         android:textStyle="bold" />
                     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:layout_marginTop="2dp" android:text="@string/penance_subtitle"
-                        android:textColor="@color/text_secondary" android:textSize="10sp" />
+                        android:textColor="@color/text_secondary" android:textSize="12sp" />
                 </LinearLayout>
-                <TextView android:id="@+id/button_edit_lock" android:layout_width="wrap_content" android:layout_height="32dp"
-                    android:background="@drawable/bg_bottom_tab_active" android:gravity="center"
-                    android:clickable="true" android:focusable="true" android:paddingHorizontal="10dp"
-                    android:text="@string/controller_edit_locked"
-                    android:textColor="@color/text_primary" android:textSize="8sp" android:textStyle="bold" />
+                <TextView android:id="@+id/button_edit_lock"
+                    style="@style/Widget.SubHub.ControllerEdit"
+                    android:text="@string/controller_edit_locked" />
             </LinearLayout>
 
             <LinearLayout style="@style/Widget.SubHub.CompactCard">
@@ -70,6 +68,11 @@
                     android:layout_marginTop="6dp" android:background="@drawable/bg_stat_card"
                     android:padding="10dp" android:text="@string/penance_local_only_note"
                     android:textColor="@color/text_primary" android:textSize="10sp" />
+                <TextView android:id="@+id/rule_math_preview"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp" android:background="@drawable/bg_stat_card"
+                    android:lineSpacingExtra="2dp" android:padding="10dp"
+                    android:textColor="@color/text_secondary" android:textSize="11sp" />
                 <CheckBox android:id="@+id/ledger_enabled" android:layout_width="match_parent"
                     android:layout_height="42dp" android:layout_marginTop="4dp"
                     android:buttonTint="@color/accent" android:text="@string/penance_enabled"

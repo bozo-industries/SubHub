@@ -22,6 +22,7 @@ import androidx.core.content.ContextCompat;
 
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityHelpBinding;
+import com.betasafe.app.security.ControllerEditMode;
 import com.betasafe.app.util.LocaleHelper;
 
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ import java.util.List;
 /** Source-native help, permission repair, and per-app language selection. */
 public final class HelpActivity extends AppCompatActivity {
     private ActivityHelpBinding binding;
+    private ControllerEditMode editMode;
     private final ActivityResultLauncher<Intent> overlaySettings = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(), result -> renderPermissions());
     private final ActivityResultLauncher<String> notificationPermission = registerForActivityResult(
@@ -47,10 +49,16 @@ public final class HelpActivity extends AppCompatActivity {
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         binding.buttonLanguage.setOnClickListener(view -> showLanguageChooser());
         addSections();
+        editMode = ControllerEditMode.bind(this, binding.buttonEditLock, editing -> {
+            binding.buttonFixPermissions.setEnabled(editing);
+            binding.buttonAccessibility.setEnabled(editing);
+            binding.buttonLanguage.setEnabled(editing);
+        });
     }
 
     @Override protected void onResume() {
         super.onResume();
+        if (editMode != null) editMode.refresh();
         renderPermissions();
         renderLanguage();
     }
@@ -90,7 +98,7 @@ public final class HelpActivity extends AppCompatActivity {
         TextView content = new TextView(this);
         content.setText(body);
         content.setTextColor(getColor(R.color.text_secondary));
-        content.setTextSize(11);
+        content.setTextSize(12);
         content.setLineSpacing(dp(2), 1f);
         content.setPadding(0, 0, 0, dp(6));
         content.setVisibility(View.GONE);

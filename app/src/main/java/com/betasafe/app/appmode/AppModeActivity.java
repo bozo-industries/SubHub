@@ -25,6 +25,7 @@ import com.betasafe.app.databinding.ActivityAppModeBinding;
 import com.betasafe.app.service.ScreenshotAccessibilityService;
 import com.betasafe.app.security.ControllerPinGate;
 import com.betasafe.app.security.ControllerPinManager;
+import com.betasafe.app.security.ControllerEditMode;
 import com.betasafe.app.util.SubHubNavigation;
 
 import java.text.Collator;
@@ -111,8 +112,7 @@ public final class AppModeActivity extends AppCompatActivity {
     private void applyEditState() {
         if (binding == null) return;
         editingUnlocked = ControllerPinManager.isSessionUnlocked();
-        binding.buttonEditLock.setText(editingUnlocked
-                ? R.string.controller_edit_unlocked : R.string.controller_edit_locked);
+        ControllerEditMode.renderButton(this, binding.buttonEditLock);
         View[] editable = {binding.buttonAccessibilitySettings, binding.armed,
                 binding.modeAlways, binding.modeSelected, binding.autoResume, binding.buttonSave,
                 binding.scheduleEnabled, binding.perAppLimitEnabled, binding.totalLimitEnabled};

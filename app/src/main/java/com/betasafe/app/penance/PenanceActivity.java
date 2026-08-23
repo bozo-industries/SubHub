@@ -5,6 +5,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -18,6 +20,7 @@ import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityPenanceBinding;
 import com.betasafe.app.security.ControllerPinGate;
 import com.betasafe.app.security.ControllerPinManager;
+import com.betasafe.app.security.ControllerEditMode;
 import com.betasafe.app.util.SubHubNavigation;
 
 import java.math.BigDecimal;
@@ -34,6 +37,11 @@ public final class PenanceActivity extends AppCompatActivity {
     private ActivityPenanceBinding binding;
     private PenanceManager manager;
     private PayPalCheckoutClient client;
+    private final TextWatcher ruleMathWatcher = new TextWatcher() {
+        @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
+        @Override public void onTextChanged(CharSequence value, int start, int before, int count) {}
+        @Override public void afterTextChanged(Editable value) { renderRuleMathPreview(); }
+    };
     private final Handler timer = new Handler(Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -49,6 +57,7 @@ public final class PenanceActivity extends AppCompatActivity {
         manager = new PenanceManager(this);
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.MONEY);
         populateRules();
+        attachRuleMathListeners();
 
         binding.buttonBack.setOnClickListener(view -> finish());
         binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
@@ -64,6 +73,7 @@ public final class PenanceActivity extends AppCompatActivity {
                     PenanceInfraction.NEW_DETECTION, 1, System.currentTimeMillis());
             render();
         });
+        renderRuleMathPreview();
         handleReturn(getIntent());
         render();
         applyEditState();
@@ -92,8 +102,7 @@ public final class PenanceActivity extends AppCompatActivity {
     private void applyEditState() {
         if (binding == null) return;
         boolean editing = ControllerPinManager.isSessionUnlocked();
-        binding.buttonEditLock.setText(editing
-                ? R.string.controller_edit_unlocked : R.string.controller_edit_locked);
+        ControllerEditMode.renderButton(this, binding.buttonEditLock);
         View[] editable = {binding.ledgerEnabled, binding.ruleDetectionEnabled,
                 binding.ruleDetectionAmount, binding.detectionBatch, binding.ruleDwellEnabled,
                 binding.ruleDwellAmount, binding.ruleTapEnabled, binding.ruleTapAmount,
@@ -134,9 +143,43 @@ public final class PenanceActivity extends AppCompatActivity {
         toggle.setOnCheckedChangeListener((button, checked) -> {
             amount.setEnabled(checked && ControllerPinManager.isSessionUnlocked());
             amount.setAlpha(checked ? 1f : 0.45f);
+            renderRuleMathPreview();
         });
         amount.setEnabled(toggle.isChecked() && ControllerPinManager.isSessionUnlocked());
         amount.setAlpha(toggle.isChecked() ? 1f : 0.45f);
+    }
+
+    private void attachRuleMathListeners() {
+        binding.ruleDetectionAmount.addTextChangedListener(ruleMathWatcher);
+        binding.detectionBatch.addTextChangedListener(ruleMathWatcher);
+        binding.dailyCap.addTextChangedListener(ruleMathWatcher);
+        binding.weeklyCap.addTextChangedListener(ruleMathWatcher);
+        binding.ledgerEnabled.setOnCheckedChangeListener((button, checked) ->
+                renderRuleMathPreview());
+    }
+
+    private void renderRuleMathPreview() {
+        if (binding == null) return;
+        Integer cents = parseEuros(binding.ruleDetectionAmount.getText().toString());
+        Integer batch = parseInteger(binding.detectionBatch.getText().toString());
+        Integer daily = parseEuros(binding.dailyCap.getText().toString());
+        Integer weekly = parseEuros(binding.weeklyCap.getText().toString());
+        if (cents == null || batch == null || daily == null || weekly == null
+                || cents < PenancePolicy.MIN_STRIKE_CENTS
+                || cents > PenancePolicy.MAX_STRIKE_CENTS
+                || batch < PenancePolicy.MIN_DETECTION_BATCH
+                || batch > PenancePolicy.MAX_DETECTION_BATCH
+                || daily < cents || weekly < daily) {
+            binding.ruleMathPreview.setText(R.string.penance_rule_math_invalid);
+            return;
+        }
+        int exampleRegions = batch * 5;
+        int progress = batch == manager.getDetectionBatch()
+                ? manager.getDetectionRemainder() : 0;
+        binding.ruleMathPreview.setText(getString(R.string.penance_rule_math_preview,
+                batch, exampleRegions, PenanceManager.formatMoney(cents),
+                PenanceManager.formatMoney(cents * 5), PenanceManager.formatMoney(daily),
+                PenanceManager.formatMoney(weekly), progress));
     }
 
     private void saveRules() {
@@ -338,6 +381,7 @@ public final class PenanceActivity extends AppCompatActivity {
         if (checkout) binding.paymentStatus.setText(R.string.penance_payment_pending);
         else binding.paymentStatus.setText("");
         renderHistory(snapshot, now);
+        renderRuleMathPreview();
     }
 
     private void renderHistory(PenanceSnapshot snapshot, long nowMillis) {
