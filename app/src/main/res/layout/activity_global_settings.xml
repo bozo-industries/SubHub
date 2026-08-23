@@ -234,26 +234,40 @@
                     android:layout_marginTop="5dp"
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
-                <ProgressBar
-                    android:id="@+id/loading_apps"
-                    style="?android:attr/progressBarStyleSmall"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:layout_marginTop="14dp" />
-                <GridLayout
-                    android:id="@+id/app_list"
+                <Button
+                    android:id="@+id/button_toggle_apps"
+                    style="@style/Widget.SubHub.CompactOutlineButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:alignmentMode="alignMargins"
-                    android:columnCount="@integer/app_picker_columns"
-                    android:orientation="horizontal" />
-                <Button
-                    android:id="@+id/button_save_apps"
-                    style="@style/Widget.SubHub.PrimaryButton"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/app_selection_save" />
+                    android:text="@string/app_selection_expand" />
+                <LinearLayout
+                    android:id="@+id/app_list_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+                    <ProgressBar
+                        android:id="@+id/loading_apps"
+                        style="?android:attr/progressBarStyleSmall"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:layout_marginTop="14dp" />
+                    <GridLayout
+                        android:id="@+id/app_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:alignmentMode="alignMargins"
+                        android:columnCount="@integer/app_picker_columns"
+                        android:orientation="horizontal" />
+                    <Button
+                        android:id="@+id/button_save_apps"
+                        style="@style/Widget.SubHub.PrimaryButton"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/app_selection_save" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
@@ -378,15 +392,8 @@
                         android:textColor="@color/text_primary"
                         android:text="@string/paypal_sandbox_clear" />
                 </LinearLayout>
-                <CheckBox
-                    android:id="@+id/paypal_vault_enabled"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:minHeight="42dp"
-                    android:text="@string/paypal_vault_enable"
-                    android:textColor="@color/text_primary" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:layout_marginTop="8dp"
                     android:text="@string/paypal_vault_help" />
                 <TextView
                     android:id="@+id/paypal_vault_status"
@@ -396,6 +403,16 @@
                     android:textColor="@color/accent"
                     android:textSize="11sp"
                     android:textStyle="bold" />
+                <CheckBox
+                    android:id="@+id/paypal_auto_pay_enabled"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minHeight="42dp"
+                    android:text="@string/paypal_auto_pay_enable"
+                    android:textColor="@color/text_primary" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:text="@string/paypal_auto_pay_help" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:layout_marginTop="8dp"
                     android:text="@string/paypal_link_help" />

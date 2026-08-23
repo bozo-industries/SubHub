@@ -7,6 +7,7 @@ import android.content.Intent;
 import com.betasafe.app.commitment.CommitmentManager;
 import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.security.HardcoreModeManager;
+import com.betasafe.app.penance.HardcoreAutoPayManager;
 
 /** Restores persisted intent after boot without silently starting MediaProjection. */
 public final class BootReceiver extends BroadcastReceiver {
@@ -30,6 +31,7 @@ public final class BootReceiver extends BroadcastReceiver {
             mode.applyBootPolicy();
             CommitmentManager.applyBootPolicy(context);
             new HardcoreModeManager(context).applyBootPolicy();
+            HardcoreAutoPayManager.schedule(context);
         }
         ResumeNotificationManager.show(context);
     }

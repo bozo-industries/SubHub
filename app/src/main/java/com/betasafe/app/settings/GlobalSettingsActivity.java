@@ -32,6 +32,7 @@ import com.betasafe.app.commitment.CommitmentActivity;
 import com.betasafe.app.diagnostics.DiagnosticsActivity;
 import com.betasafe.app.help.HelpActivity;
 import com.betasafe.app.penance.PenanceManager;
+import com.betasafe.app.penance.HardcoreAutoPayManager;
 import com.betasafe.app.penance.PayPalCredentialStore;
 import com.betasafe.app.penance.PayPalEnvironment;
 import com.betasafe.app.profiles.ProfilesActivity;
@@ -62,10 +63,11 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private HardcoreModeManager hardcore;
     private AppModeManager appMode;
     private PayPalCredentialStore paypalCredentials;
+    private HardcoreAutoPayManager autoPay;
     private ActivityResultLauncher<Intent> hardcoreActivation;
     private boolean updatingHardcore;
     private boolean updatingPaypalEnvironment;
-    private boolean updatingPaypalVault;
+    private boolean updatingAutoPay;
     private boolean editingUnlocked;
     private final Set<String> censorPackages = new LinkedHashSet<>();
     private final Set<String> timerPackages = new LinkedHashSet<>();
@@ -79,6 +81,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         hardcore = new HardcoreModeManager(this);
         appMode = new AppModeManager(this);
         paypalCredentials = new PayPalCredentialStore(this);
+        autoPay = new HardcoreAutoPayManager(this);
         censorPackages.addAll(appMode.getSelectedPackages());
         timerPackages.addAll(appMode.getTimerPackages());
         hardcoreActivation = registerForActivityResult(
@@ -103,9 +106,6 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.paypalEnvironment.check(credentials.environment() == PayPalEnvironment.LIVE
                 ? R.id.paypal_environment_live : R.id.paypal_environment_sandbox);
         updatingPaypalEnvironment = false;
-        updatingPaypalVault = true;
-        binding.paypalVaultEnabled.setChecked(paypalCredentials.isVaultRequested());
-        updatingPaypalVault = false;
         binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
         binding.buttonHelp.setOnClickListener(view ->
                 startActivity(new Intent(this, HelpActivity.class)));
@@ -113,8 +113,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                 startActivity(new Intent(this, ProfilesActivity.class)));
         binding.buttonDiagnostics.setOnClickListener(view ->
                 startActivity(new Intent(this, DiagnosticsActivity.class)));
-        binding.buttonCommitment.setOnClickListener(view ->
-                startActivity(new Intent(this, CommitmentActivity.class)));
+        binding.buttonCommitment.setVisibility(View.GONE);
         binding.switchModuleCensor.setOnCheckedChangeListener((button, checked) -> saveModules());
         binding.switchModuleLimits.setOnCheckedChangeListener((button, checked) -> saveModules());
         binding.switchModuleWallet.setOnCheckedChangeListener((button, checked) -> saveModules());
@@ -132,9 +131,16 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.paypalEnvironment.setOnCheckedChangeListener((group, checkedId) -> {
             if (!updatingPaypalEnvironment) changePayPalEnvironment(checkedId);
         });
-        binding.paypalVaultEnabled.setOnCheckedChangeListener((button, checked) -> {
-            if (!updatingPaypalVault) changePayPalVault(checked);
+        binding.paypalAutoPayEnabled.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingAutoPay) changeAutoPay(checked);
         });
+        binding.buttonToggleApps.setOnClickListener(view -> {
+            boolean show = binding.appListContent.getVisibility() != View.VISIBLE;
+            binding.appListContent.setVisibility(show ? View.VISIBLE : View.GONE);
+            binding.buttonToggleApps.setText(show
+                    ? R.string.app_selection_collapse : R.string.app_selection_expand);
+        });
+        binding.appListContent.setVisibility(View.GONE);
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.SETTINGS);
         loadApps();
         applyEditState();
@@ -176,7 +182,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.buttonClearPaypalSandbox.setEnabled(editingUnlocked);
         binding.paypalEnvironmentSandbox.setEnabled(editingUnlocked);
         binding.paypalEnvironmentLive.setEnabled(editingUnlocked);
-        binding.paypalVaultEnabled.setEnabled(editingUnlocked);
+        binding.paypalAutoPayEnabled.setEnabled(editingUnlocked);
         if (hardcore != null && hardcore.isEnabled()) {
             binding.armed.setChecked(true);
             binding.armed.setEnabled(false);
@@ -274,7 +280,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                         ? R.string.paypal_environment_status_ready
                         : R.string.paypal_environment_status_off,
                 environment == PayPalEnvironment.LIVE ? "LIVE" : "SANDBOX"));
-        PayPalCredentialStore.VaultStatus vault = paypalCredentials.vaultState().status();
+        PayPalCredentialStore.VaultState vaultState = paypalCredentials.vaultState();
+        PayPalCredentialStore.VaultStatus vault = vaultState.status();
         int vaultStatus;
         switch (vault) {
             case READY: vaultStatus = R.string.paypal_vault_status_ready; break;
@@ -283,10 +290,13 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
             case REQUESTED: vaultStatus = R.string.paypal_vault_status_requested; break;
             default: vaultStatus = R.string.paypal_vault_status_off;
         }
-        binding.paypalVaultStatus.setText(vaultStatus);
-        updatingPaypalVault = true;
-        binding.paypalVaultEnabled.setChecked(paypalCredentials.isVaultRequested());
-        updatingPaypalVault = false;
+        binding.paypalVaultStatus.setText(vaultState.isReady()
+                && !vaultState.maskedPayer().isEmpty()
+                ? getString(R.string.paypal_vault_status_linked, vaultState.maskedPayer())
+                : getString(vaultStatus));
+        updatingAutoPay = true;
+        binding.paypalAutoPayEnabled.setChecked(autoPay.isEnabled());
+        updatingAutoPay = false;
     }
 
     private PayPalEnvironment selectedPayPalEnvironment() {
@@ -319,39 +329,42 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         updatingPaypalEnvironment = false;
     }
 
-    private void changePayPalVault(boolean enabled) {
+    private void changeAutoPay(boolean enabled) {
         if (!editingUnlocked) {
             refreshPayPalSandboxState();
             return;
         }
         if (!enabled) {
-            paypalCredentials.setVaultRequested(false);
+            autoPay.disable();
             refreshPayPalSandboxState();
             return;
         }
-        if (!paypalCredentials.hasCredentials()) {
-            updatingPaypalVault = true;
-            binding.paypalVaultEnabled.setChecked(false);
-            updatingPaypalVault = false;
-            Toast.makeText(this, R.string.paypal_vault_connect_first,
+        if (!paypalCredentials.vaultState().isReady()) {
+            updatingAutoPay = true;
+            binding.paypalAutoPayEnabled.setChecked(false);
+            updatingAutoPay = false;
+            Toast.makeText(this, R.string.paypal_auto_pay_link_first,
                     Toast.LENGTH_SHORT).show();
             return;
         }
         new AlertDialog.Builder(this)
-                .setTitle(R.string.paypal_vault_allow_title)
-                .setMessage(R.string.paypal_vault_allow_body)
+                .setTitle(R.string.paypal_auto_pay_allow_title)
+                .setMessage(R.string.paypal_auto_pay_allow_body)
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> {
-                    updatingPaypalVault = true;
-                    binding.paypalVaultEnabled.setChecked(false);
-                    updatingPaypalVault = false;
+                    updatingAutoPay = true;
+                    binding.paypalAutoPayEnabled.setChecked(false);
+                    updatingAutoPay = false;
                 })
                 .setOnCancelListener(dialog -> {
-                    updatingPaypalVault = true;
-                    binding.paypalVaultEnabled.setChecked(false);
-                    updatingPaypalVault = false;
+                    updatingAutoPay = true;
+                    binding.paypalAutoPayEnabled.setChecked(false);
+                    updatingAutoPay = false;
                 })
-                .setPositiveButton(R.string.paypal_vault_allow, (dialog, which) -> {
-                    paypalCredentials.setVaultRequested(true);
+                .setPositiveButton(R.string.paypal_auto_pay_allow, (dialog, which) -> {
+                    if (!autoPay.enable()) {
+                        Toast.makeText(this, R.string.paypal_auto_pay_link_first,
+                                Toast.LENGTH_SHORT).show();
+                    }
                     refreshPayPalSandboxState();
                 })
                 .show();

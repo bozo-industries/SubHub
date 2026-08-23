@@ -14,8 +14,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.betasafe.app.R;
-import com.betasafe.app.commitment.CommitmentManager;
-
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +28,7 @@ public final class HardcoreSettingsGuard {
     private final AccessibilityService service;
     private final WindowManager windows;
     private final List<View> badges = new ArrayList<>();
+    private final List<Rect> guardedBounds = new ArrayList<>();
 
     public HardcoreSettingsGuard(AccessibilityService service) {
         this.service = service;
@@ -37,14 +36,20 @@ public final class HardcoreSettingsGuard {
     }
 
     public void refresh(String foregroundPackage, AccessibilityNodeInfo root) {
-        clear();
-        if (!shouldGuard(new HardcoreModeManager(service).isEnabled(),
-                CommitmentManager.isActive(service), ControllerPinManager.isDomModeActive(),
-                foregroundPackage) || root == null || !isSubHubPage(root)) return;
+        boolean hardcore = new HardcoreModeManager(service).isEnabled();
+        boolean domMode = ControllerPinManager.isDomModeActive();
+        boolean targetPage = root != null && isSubHubPage(root);
+        if (!shouldGuard(hardcore, domMode, foregroundPackage) || !targetPage) {
+            clear();
+            return;
+        }
         List<Rect> controls = new ArrayList<>();
         collectControls(root, controls, new int[]{0});
+        if (sameBounds(controls, guardedBounds)) return;
+        clear();
         for (int index = 0; index < Math.min(MAX_BADGES, controls.size()); index++) {
-            showBadge(controls.get(index));
+            Rect bounds = controls.get(index);
+            if (showBadge(bounds)) guardedBounds.add(new Rect(bounds));
         }
     }
 
@@ -53,11 +58,20 @@ public final class HardcoreSettingsGuard {
             try { windows.removeViewImmediate(badge); } catch (RuntimeException ignored) {}
         }
         badges.clear();
+        guardedBounds.clear();
     }
 
-    static boolean shouldGuard(boolean hardcore, boolean pact, boolean domMode,
-            String foregroundPackage) {
-        return hardcore && pact && !domMode && SETTINGS_PACKAGE.equals(foregroundPackage);
+    private static boolean sameBounds(List<Rect> left, List<Rect> right) {
+        int size = Math.min(MAX_BADGES, left.size());
+        if (size != right.size()) return false;
+        for (int index = 0; index < size; index++) {
+            if (!left.get(index).equals(right.get(index))) return false;
+        }
+        return true;
+    }
+
+    static boolean shouldGuard(boolean hardcore, boolean domMode, String foregroundPackage) {
+        return hardcore && !domMode && SETTINGS_PACKAGE.equals(foregroundPackage);
     }
 
     static int overlayFlags() {
@@ -154,13 +168,13 @@ public final class HardcoreSettingsGuard {
         controls.add(new Rect(candidate));
     }
 
-    private void showBadge(Rect rawBounds) {
+    private boolean showBadge(Rect rawBounds) {
         android.util.DisplayMetrics display = service.getResources().getDisplayMetrics();
         Rect bounds = new Rect(
                 Math.max(0, rawBounds.left), Math.max(0, rawBounds.top),
                 Math.min(display.widthPixels, rawBounds.right),
                 Math.min(display.heightPixels, rawBounds.bottom));
-        if (bounds.width() <= 0 || bounds.height() <= 0) return;
+        if (bounds.width() <= 0 || bounds.height() <= 0) return false;
 
         TextView badge = new TextView(service);
         badge.setText(R.string.hardcore_settings_badge);
@@ -179,7 +193,6 @@ public final class HardcoreSettingsGuard {
             if (event.getActionMasked() == MotionEvent.ACTION_UP) {
                 Toast.makeText(service, R.string.hardcore_settings_blocked,
                         Toast.LENGTH_SHORT).show();
-                view.performClick();
             }
             return true;
         });
@@ -191,12 +204,13 @@ public final class HardcoreSettingsGuard {
         params.gravity = Gravity.TOP | Gravity.START;
         params.x = bounds.left;
         params.y = bounds.top;
-        params.setTitle("SubHub pact guard");
+        params.setTitle("SubHub Hardcore guard");
         try {
             windows.addView(badge, params);
             badges.add(badge);
-        } catch (RuntimeException ignored) {
-            // Settings may have changed between node inspection and overlay attachment.
+            return true;
+        } catch (RuntimeException error) {
+            return false;
         }
     }
 

@@ -12,6 +12,10 @@ public final class PayPalRequestPolicy {
         return settlementId + "-capture";
     }
 
+    public static String autoRequestId(String settlementId) {
+        return settlementId + "-auto";
+    }
+
     public static boolean isTransientStatus(int status) {
         return status == 408 || status == 429 || status >= 500;
     }

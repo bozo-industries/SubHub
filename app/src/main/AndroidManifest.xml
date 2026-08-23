@@ -113,6 +113,16 @@
         </receiver>
 
         <receiver
+            android:name=".penance.HardcoreAutoPayReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".commitment.CommitmentExpiryReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
             android:name=".security.HardcoreModeReceiver"
             android:description="@string/hardcore_admin_description"
             android:exported="true"

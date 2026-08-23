@@ -34,12 +34,14 @@ public final class PenanceContractTest {
         context.getSharedPreferences(PenanceManager.PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().clear().commit();
         manager = new PenanceManager(context);
+        new HardcoreAutoPayManager(context).disable();
     }
 
     @After public void tearDown() {
         context.getSharedPreferences(PenanceManager.PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().clear().commit();
         new PayPalCredentialStore(context).clear();
+        new HardcoreAutoPayManager(context).disable();
     }
 
     @Test public void sandboxCredentialsAreEncryptedPerInstallAndCanBeCleared() {
@@ -50,8 +52,8 @@ public final class PenanceContractTest {
         PayPalCredentialStore.Credentials loaded = store.load();
         assertEquals("sandbox-client-id", loaded.clientId());
         assertEquals("sandbox-client-secret", loaded.secret());
-        store.setVaultRequested(true);
-        assertTrue(store.isVaultRequested());
+        assertEquals(PayPalCredentialStore.VaultStatus.REQUESTED,
+                store.vaultState().status());
         for (Object raw : context.getSharedPreferences(
                 PayPalCredentialStore.PREFS_NAME, Context.MODE_PRIVATE)
                 .getAll().values()) {
@@ -62,7 +64,8 @@ public final class PenanceContractTest {
         store.selectEnvironment(PayPalEnvironment.LIVE);
         assertEquals(PayPalEnvironment.LIVE, store.selectedEnvironment());
         assertFalse(store.hasCredentials());
-        assertFalse(store.isVaultRequested());
+        assertEquals(PayPalCredentialStore.VaultStatus.DISCONNECTED,
+                store.vaultState().status());
         store.clear();
         assertFalse(store.hasCredentials());
     }
@@ -77,6 +80,31 @@ public final class PenanceContractTest {
         assertTrue(manager.forgiveLatestInMercy(now));
         assertEquals(0, manager.snapshot(now).getMercyCents());
         assertTrue(manager.getActiveOrderId().isEmpty());
+    }
+
+    @Test public void autoPayRequiresAReadyEnvironmentBoundSavedWallet() {
+        PayPalCredentialStore store = new PayPalCredentialStore(context);
+        assertTrue(store.save(PayPalEnvironment.SANDBOX, "client", "secret"));
+        PayPalCredentialStore.Credentials credentials = store.load();
+        store.recordVaultResult(credentials, "VAULTED", "vault-1", "customer-1",
+                "payer@example.com", "PAYER-1234");
+        assertEquals("p•••@e•••.com", store.vaultState().maskedPayer());
+        HardcoreAutoPayManager auto = new HardcoreAutoPayManager(context);
+        assertTrue(auto.enable());
+        assertTrue(auto.isEnabled());
+        store.selectEnvironment(PayPalEnvironment.LIVE);
+        assertFalse(auto.isEnabled());
+    }
+
+    @Test public void automaticCheckoutIsNotMistakenForManualConfirmation() {
+        long now = System.currentTimeMillis();
+        manager.configure(true, 100, 500, 2_000, 0);
+        manager.recordStrikes(1, now);
+        PenanceManager.Settlement settlement = manager.beginSettlement(now);
+        assertNotNull(settlement);
+        manager.markAutomaticSettlement(settlement.getId(), "boundary");
+        assertEquals(PenanceManager.CheckoutMode.HARDCORE_AUTO,
+                manager.getActiveCheckoutMode());
     }
 
     @Test public void settlementRequiresAnExactConfirmedAmount() {
@@ -204,7 +232,7 @@ public final class PenanceContractTest {
             });
         }
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            scenario.onActivity(activity -> assertEquals(View.VISIBLE,
+            scenario.onActivity(activity -> assertEquals(View.GONE,
                     activity.findViewById(R.id.penance_card).getVisibility()));
         }
     }

@@ -32,8 +32,7 @@ public final class PayPalOrdersClient {
     }
 
     public void createOrder(PayPalCredentialStore.Credentials credentials,
-            String settlementId, int amountCents, boolean requestVault,
-            Callback<Order> callback) {
+            String settlementId, int amountCents, Callback<Order> callback) {
         network.execute(() -> {
             try {
                 String clientMetadataId = riskData.collect(
@@ -57,14 +56,13 @@ public final class PayPalOrdersClient {
                                 .put("shipping_preference", "NO_SHIPPING")
                                 .put("return_url", callbackUrl(RETURN_URL, clientMetadataId))
                                 .put("cancel_url", callbackUrl(CANCEL_URL, clientMetadataId)));
-                if (requestVault) {
-                    body.put("payment_source", new JSONObject().put("paypal",
-                            new JSONObject().put("attributes", new JSONObject().put("vault",
-                                    new JSONObject()
-                                            .put("store_in_vault", "ON_SUCCESS")
-                                            .put("usage_type", "MERCHANT")
-                                            .put("customer_type", "CONSUMER")))));
-                }
+                body.put("payment_source", new JSONObject().put("paypal",
+                        new JSONObject().put("attributes", new JSONObject().put("vault",
+                                new JSONObject()
+                                        .put("store_in_vault", "ON_SUCCESS")
+                                        .put("usage_type", "MERCHANT")
+                                        .put("usage_pattern", "UNSCHEDULED_POSTPAID")
+                                        .put("customer_type", "CONSUMER")))));
                 JSONObject response = request(credentials.environment(), "POST",
                         "/v2/checkout/orders", token,
                         body.toString(), PayPalRequestPolicy.createRequestId(settlementId),
@@ -102,46 +100,109 @@ public final class PayPalOrdersClient {
                 JSONObject response = request(credentials.environment(), "POST",
                         "/v2/checkout/orders/" + orderId + "/capture", token, "{}",
                         PayPalRequestPolicy.captureRequestId(settlementId), metadata);
-                if (!"COMPLETED".equalsIgnoreCase(response.optString("status"))) {
-                    throw new IllegalStateException("PayPal order is not completed");
-                }
-                JSONArray units = response.optJSONArray("purchase_units");
-                JSONObject unit = units == null || units.length() == 0
-                        ? null : units.optJSONObject(0);
-                if (unit == null || !settlementId.equals(unit.optString("custom_id"))) {
-                    throw new IllegalStateException("PayPal settlement reference did not match");
-                }
-                JSONObject payments = unit.optJSONObject("payments");
-                JSONArray captures = payments == null ? null : payments.optJSONArray("captures");
-                JSONObject capture = captures == null || captures.length() == 0
-                        ? null : captures.optJSONObject(0);
-                if (capture == null
-                        || !"COMPLETED".equalsIgnoreCase(capture.optString("status"))) {
-                    throw new IllegalStateException("PayPal capture is not completed");
-                }
-                JSONObject amount = capture == null ? null : capture.optJSONObject("amount");
-                if (amount == null
-                        || !PenanceManager.CURRENCY.equalsIgnoreCase(
-                                amount.optString("currency_code"))
-                        || expectedAmountCents != cents(amount.optString("value"))) {
-                    throw new IllegalStateException("PayPal capture amount did not match");
-                }
-                JSONObject paypal = response.optJSONObject("payment_source") == null
-                        ? null : response.optJSONObject("payment_source").optJSONObject("paypal");
-                JSONObject attributes = paypal == null ? null : paypal.optJSONObject("attributes");
-                if (attributes == null && paypal != null) {
-                    attributes = paypal.optJSONObject("attribute");
-                }
-                JSONObject vault = attributes == null ? null : attributes.optJSONObject("vault");
-                JSONObject customer = vault == null ? null : vault.optJSONObject("customer");
-                deliver(callback, Result.success(new Capture(capture.optString("id"),
-                        vault == null ? "" : vault.optString("status"),
-                        vault == null ? "" : vault.optString("id"),
-                        customer == null ? "" : customer.optString("id"))));
+                deliver(callback, Result.success(parseCapture(
+                        response, settlementId, expectedAmountCents)));
             } catch (Exception error) {
                 deliver(callback, Result.failure(safeMessage(error), classify(error)));
             }
         });
+    }
+
+    /** Captures a saved PayPal wallet for an explicitly authorized Hardcore pact. */
+    public void createStoredWalletPayment(PayPalCredentialStore.Credentials credentials,
+            String settlementId, int amountCents, String vaultId,
+            Callback<Capture> callback) {
+        network.execute(() -> {
+            try {
+                String cleanVaultId = vaultId == null ? "" : vaultId.trim();
+                if (cleanVaultId.isEmpty()) {
+                    throw new ReauthorizationRequiredException(
+                            "The saved PayPal wallet must be linked again");
+                }
+                String clientMetadataId = riskData.collect(
+                        credentials.clientId(), credentials.environment());
+                if (clientMetadataId.isEmpty()) {
+                    throw new IllegalStateException("PayPal risk data was unavailable");
+                }
+                String token = accessToken(credentials);
+                JSONObject unit = new JSONObject()
+                        .put("reference_id", settlementId)
+                        .put("custom_id", settlementId)
+                        .put("amount", new JSONObject()
+                                .put("currency_code", PenanceManager.CURRENCY)
+                                .put("value", decimalAmount(amountCents)));
+                JSONObject paypal = new JSONObject()
+                        .put("vault_id", cleanVaultId)
+                        .put("stored_credential", new JSONObject()
+                                .put("payment_initiator", "MERCHANT")
+                                .put("usage", "SUBSEQUENT")
+                                .put("usage_pattern", "UNSCHEDULED_POSTPAID"));
+                JSONObject body = new JSONObject()
+                        .put("intent", "CAPTURE")
+                        .put("purchase_units", new JSONArray().put(unit))
+                        .put("payment_source", new JSONObject().put("paypal", paypal));
+                JSONObject response = request(credentials.environment(), "POST",
+                        "/v2/checkout/orders", token, body.toString(),
+                        PayPalRequestPolicy.autoRequestId(settlementId), clientMetadataId);
+                String status = response.optString("status", "");
+                if ("PAYER_ACTION_REQUIRED".equalsIgnoreCase(status)
+                        || !link(response.optJSONArray("links"), "payer-action").isEmpty()
+                        || !link(response.optJSONArray("links"), "approve").isEmpty()) {
+                    throw new ReauthorizationRequiredException(
+                            "PayPal requires the wallet owner to approve again");
+                }
+                deliver(callback, Result.success(parseCapture(
+                        response, settlementId, amountCents)));
+            } catch (Exception error) {
+                deliver(callback, Result.failure(safeMessage(error), classify(error)));
+            }
+        });
+    }
+
+    private static Capture parseCapture(JSONObject response, String settlementId,
+            int expectedAmountCents) throws Exception {
+        if (!"COMPLETED".equalsIgnoreCase(response.optString("status"))) {
+            throw new IllegalStateException("PayPal order is not completed");
+        }
+        JSONArray units = response.optJSONArray("purchase_units");
+        JSONObject unit = units == null || units.length() == 0
+                ? null : units.optJSONObject(0);
+        if (unit == null || !settlementId.equals(unit.optString("custom_id"))) {
+            throw new IllegalStateException("PayPal settlement reference did not match");
+        }
+        JSONObject payments = unit.optJSONObject("payments");
+        JSONArray captures = payments == null ? null : payments.optJSONArray("captures");
+        JSONObject capture = captures == null || captures.length() == 0
+                ? null : captures.optJSONObject(0);
+        if (capture == null || !"COMPLETED".equalsIgnoreCase(capture.optString("status"))) {
+            throw new IllegalStateException("PayPal capture is not completed");
+        }
+        JSONObject amount = capture.optJSONObject("amount");
+        if (amount == null
+                || !PenanceManager.CURRENCY.equalsIgnoreCase(amount.optString("currency_code"))
+                || expectedAmountCents != cents(amount.optString("value"))) {
+            throw new IllegalStateException("PayPal capture amount did not match");
+        }
+        JSONObject source = response.optJSONObject("payment_source");
+        JSONObject paypal = source == null ? null : source.optJSONObject("paypal");
+        JSONObject attributes = paypal == null ? null : paypal.optJSONObject("attributes");
+        if (attributes == null && paypal != null) attributes = paypal.optJSONObject("attribute");
+        JSONObject vault = attributes == null ? null : attributes.optJSONObject("vault");
+        JSONObject customer = vault == null ? null : vault.optJSONObject("customer");
+        JSONObject payer = response.optJSONObject("payer");
+        String payerEmail = paypal == null ? "" : paypal.optString("email_address", "");
+        String payerAccountId = paypal == null ? "" : paypal.optString("account_id", "");
+        if (payerEmail.isEmpty() && payer != null) {
+            payerEmail = payer.optString("email_address", "");
+        }
+        if (payerAccountId.isEmpty() && payer != null) {
+            payerAccountId = payer.optString("payer_id", "");
+        }
+        return new Capture(capture.optString("id"),
+                vault == null ? "" : vault.optString("status"),
+                vault == null ? "" : vault.optString("id"),
+                customer == null ? "" : customer.optString("id"),
+                payerEmail, payerAccountId);
     }
 
     private String accessToken(PayPalCredentialStore.Credentials credentials)
@@ -322,15 +383,34 @@ public final class PayPalOrdersClient {
     }
 
     private static ErrorKind classify(Exception error) {
+        if (error instanceof ReauthorizationRequiredException) {
+            return ErrorKind.REAUTHORIZATION_REQUIRED;
+        }
         if (error instanceof PayPalApiException) {
             PayPalApiException api = (PayPalApiException) error;
             if (PayPalVaultPolicy.isUnavailableIssue(api.issue)) {
                 return ErrorKind.VAULT_UNAVAILABLE;
             }
+            if (reauthorizationIssue(api.issue)) {
+                return ErrorKind.REAUTHORIZATION_REQUIRED;
+            }
             if (api.status == 401 || api.status == 403) return ErrorKind.AUTHENTICATION;
+            if (PayPalRequestPolicy.isTransientStatus(api.status)) return ErrorKind.TRANSIENT;
             return ErrorKind.API;
         }
         return error instanceof IOException ? ErrorKind.NETWORK : ErrorKind.CONFIGURATION;
+    }
+
+    private static boolean reauthorizationIssue(String issue) {
+        String normalized = issue == null ? "" : issue.trim().toUpperCase(Locale.ROOT);
+        return normalized.contains("PAYER_ACTION_REQUIRED")
+                || normalized.contains("PAYMENT_SOURCE_DECLINED")
+                || normalized.contains("PAYMENT_SOURCE_INFO_CANNOT_BE_VERIFIED")
+                || normalized.contains("INSTRUMENT_DECLINED");
+    }
+
+    private static final class ReauthorizationRequiredException extends IOException {
+        private ReauthorizationRequiredException(String message) { super(message); }
     }
 
     private static final class PayPalApiException extends IOException {
@@ -353,7 +433,10 @@ public final class PayPalOrdersClient {
 
     public interface Callback<T> { void complete(Result<T> result); }
 
-    public enum ErrorKind { NETWORK, AUTHENTICATION, VAULT_UNAVAILABLE, CONFIGURATION, API }
+    public enum ErrorKind {
+        NETWORK, TRANSIENT, AUTHENTICATION, VAULT_UNAVAILABLE,
+        REAUTHORIZATION_REQUIRED, CONFIGURATION, API
+    }
 
     public static final class Result<T> {
         private final T value;
@@ -395,15 +478,22 @@ public final class PayPalOrdersClient {
         private final String vaultStatus;
         private final String vaultId;
         private final String customerId;
-        private Capture(String id, String vaultStatus, String vaultId, String customerId) {
+        private final String payerEmail;
+        private final String payerAccountId;
+        private Capture(String id, String vaultStatus, String vaultId, String customerId,
+                String payerEmail, String payerAccountId) {
             this.id = id;
             this.vaultStatus = vaultStatus;
             this.vaultId = vaultId;
             this.customerId = customerId;
+            this.payerEmail = payerEmail;
+            this.payerAccountId = payerAccountId;
         }
         public String id() { return id; }
         public String vaultStatus() { return vaultStatus; }
         public String vaultId() { return vaultId; }
         public String customerId() { return customerId; }
+        public String payerEmail() { return payerEmail; }
+        public String payerAccountId() { return payerAccountId; }
     }
 }

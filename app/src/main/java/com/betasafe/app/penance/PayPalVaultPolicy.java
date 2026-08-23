@@ -31,4 +31,28 @@ final class PayPalVaultPolicy {
                 || normalized.contains("PERMISSION_DENIED");
         return vaultRelated && unavailable;
     }
+
+    static String maskedPayer(String email, String accountId) {
+        String cleanEmail = email == null ? "" : email.trim();
+        int at = cleanEmail.indexOf('@');
+        if (at > 0 && at < cleanEmail.length() - 1) {
+            String local = cleanEmail.substring(0, at);
+            String domain = cleanEmail.substring(at + 1);
+            int dot = domain.lastIndexOf('.');
+            String domainName = dot > 0 ? domain.substring(0, dot) : domain;
+            String suffix = dot > 0 ? domain.substring(dot) : "";
+            return maskPart(local) + "@" + maskPart(domainName) + suffix;
+        }
+        String cleanAccount = accountId == null ? "" : accountId.trim();
+        if (cleanAccount.length() > 4) {
+            return "PayPal ••••" + cleanAccount.substring(cleanAccount.length() - 4);
+        }
+        return cleanAccount.isEmpty() ? "" : "PayPal " + cleanAccount;
+    }
+
+    private static String maskPart(String value) {
+        if (value == null || value.isEmpty()) return "•";
+        if (value.length() == 1) return value + "•••";
+        return value.substring(0, 1) + "•••";
+    }
 }

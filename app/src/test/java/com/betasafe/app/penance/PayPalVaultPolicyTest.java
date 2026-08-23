@@ -28,4 +28,11 @@ public final class PayPalVaultPolicyTest {
         assertFalse(PayPalVaultPolicy.isUnavailableIssue("INSTRUMENT_DECLINED"));
         assertFalse(PayPalVaultPolicy.isUnavailableIssue("PERMISSION_DENIED"));
     }
+
+    @Test public void payerIdentityIsMaskedBeforeDisplay() {
+        assertEquals("a•••@e•••.com",
+                PayPalVaultPolicy.maskedPayer("alice@example.com", ""));
+        assertEquals("PayPal ••••5678",
+                PayPalVaultPolicy.maskedPayer("", "payer-12345678"));
+    }
 }

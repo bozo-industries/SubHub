@@ -7,12 +7,14 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public final class PayPalRequestPolicyTest {
-    @Test public void createAndCaptureUseSeparateStableIdempotencyKeys() {
+    @Test public void manualAndAutomaticFlowsUseSeparateStableIdempotencyKeys() {
         String settlement = "0f503239-84c9-45ee-94d4-900bed63ba7f";
         assertEquals(settlement + "-create",
                 PayPalRequestPolicy.createRequestId(settlement));
         assertEquals(settlement + "-capture",
                 PayPalRequestPolicy.captureRequestId(settlement));
+        assertEquals(settlement + "-auto",
+                PayPalRequestPolicy.autoRequestId(settlement));
     }
 
     @Test public void onlyTransientHttpFailuresAreRetried() {
