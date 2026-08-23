@@ -157,20 +157,11 @@ public final class CensorRenderer implements AutoCloseable {
     }
 
     private boolean drawCustom(Canvas canvas, RectF rect, int id) {
-        Bitmap bitmap = customImages.bitmapFor(id);
+        CustomImagePool.PreparedImage prepared = customImages.imageFor(id);
+        Bitmap bitmap = prepared == null ? null : prepared.bitmap();
         if (bitmap == null || bitmap.isRecycled()) return false;
-        float sourceRatio = (float) bitmap.getWidth() / bitmap.getHeight();
         float targetRatio = rect.width() / Math.max(1f, rect.height());
-        Rect crop;
-        if (sourceRatio > targetRatio) {
-            int width = Math.round(bitmap.getHeight() * targetRatio);
-            int left = (bitmap.getWidth() - width) / 2;
-            crop = new Rect(left, 0, left + width, bitmap.getHeight());
-        } else {
-            int height = Math.round(bitmap.getWidth() / targetRatio);
-            int top = (bitmap.getHeight() - height) / 2;
-            crop = new Rect(0, top, bitmap.getWidth(), top + height);
-        }
+        Rect crop = prepared.cropFor(targetRatio);
         canvas.drawBitmap(bitmap, crop, rect, filtered);
         return true;
     }

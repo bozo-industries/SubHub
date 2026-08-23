@@ -222,8 +222,8 @@ public final class ScreenCaptureService extends Service {
             DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
                     DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
             String diagnosticText = diagnosticsOverlayText(diagnostics);
-            Bitmap overlayFrame = overlayNeedsSourceFrame
-                    ? frame.copy(Bitmap.Config.ARGB_8888, false) : null;
+            Bitmap overlayFrame = overlayNeedsSourceFrame ? frame : null;
+            if (overlayFrame != null) frame = null;
             if (firstFrameReported.compareAndSet(false, true)) {
                 Log.i(TAG, "First frame processed with "
                         + detector.getActiveModel() + " on " + detector.getActiveProvider()
@@ -241,7 +241,7 @@ public final class ScreenCaptureService extends Service {
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
             Log.w(TAG, "Frame processing failed", error);
         } finally {
-            if (frame != null) frame.recycle();
+            if (frame != null && !frame.isRecycled()) frame.recycle();
             processing.set(false);
         }
     }

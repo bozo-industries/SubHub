@@ -23,6 +23,7 @@ public final class DetectorConfig {
     private final float velocitySmoothing;
     private final float maxExtrapolationMs;
     private final boolean detectCovered;
+    private final int inferenceThreads;
 
     private DetectorConfig(Builder builder) {
         enabledCategories = Collections.unmodifiableSet(new LinkedHashSet<>(builder.enabledCategories));
@@ -42,6 +43,7 @@ public final class DetectorConfig {
         velocitySmoothing = builder.velocitySmoothing;
         maxExtrapolationMs = builder.maxExtrapolationMs;
         detectCovered = builder.detectCovered;
+        inferenceThreads = builder.inferenceThreads;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -62,6 +64,7 @@ public final class DetectorConfig {
     public float getVelocitySmoothing() { return velocitySmoothing; }
     public float getMaxExtrapolationMs() { return maxExtrapolationMs; }
     public boolean isDetectCovered() { return detectCovered; }
+    public int getInferenceThreads() { return inferenceThreads; }
 
     public static final class Builder {
         private Set<String> enabledCategories = NudeNetClassCatalog.DEFAULT_ENABLED;
@@ -81,6 +84,7 @@ public final class DetectorConfig {
         private float velocitySmoothing = 0.55f;
         private float maxExtrapolationMs = 180f;
         private boolean detectCovered;
+        private int inferenceThreads = 2;
 
         public Builder enabledCategories(Set<String> value) { enabledCategories = value; return this; }
         public Builder confidenceThreshold(float value) { confidenceThreshold = value; return this; }
@@ -99,6 +103,7 @@ public final class DetectorConfig {
         public Builder velocitySmoothing(float value) { velocitySmoothing = value; return this; }
         public Builder maxExtrapolationMs(float value) { maxExtrapolationMs = value; return this; }
         public Builder detectCovered(boolean value) { detectCovered = value; return this; }
+        public Builder inferenceThreads(int value) { inferenceThreads = value; return this; }
 
         public DetectorConfig build() {
             if (enabledCategories == null || modelFilename == null || modelFilename.trim().isEmpty()) {
@@ -109,7 +114,8 @@ public final class DetectorConfig {
                     || inferenceResolution <= 0 || captureScale <= 0f || captureScale > 1f
                     || renderAlpha < 0f || renderAlpha > 1f
                     || velocitySmoothing < 0f || velocitySmoothing > 1f
-                    || idleThresholdFrames < 0 || maxExtrapolationMs < 0f) {
+                    || idleThresholdFrames < 0 || maxExtrapolationMs < 0f
+                    || inferenceThreads < 1 || inferenceThreads > 4) {
                 throw new IllegalArgumentException("Detector configuration is out of range");
             }
             return new DetectorConfig(this);
