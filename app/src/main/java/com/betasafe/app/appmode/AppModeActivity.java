@@ -11,6 +11,7 @@ import android.provider.Settings;
 import android.view.View;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
@@ -37,6 +38,7 @@ import java.util.concurrent.Executors;
 public final class AppModeActivity extends AppCompatActivity {
     private ActivityAppModeBinding binding;
     private AppModeManager manager;
+    private AppTimerManager timers;
     private final Set<String> selectedPackages = new LinkedHashSet<>();
     private final ExecutorService loader = Executors.newSingleThreadExecutor();
 
@@ -45,17 +47,29 @@ public final class AppModeActivity extends AppCompatActivity {
         binding = ActivityAppModeBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         manager = new AppModeManager(this);
+        timers = new AppTimerManager(this);
         selectedPackages.addAll(manager.getSelectedPackages());
         binding.armed.setChecked(manager.isArmed());
         binding.autoResume.setChecked(manager.isAutoResumeEnabled());
         binding.modeGroup.check(manager.getMode() == AppModePolicy.Mode.SELECTED_APPS
                 ? R.id.mode_selected : R.id.mode_always);
+        AppTimerManager.Settings timerSettings = timers.loadSettings();
+        binding.perAppLimitEnabled.setChecked(timerSettings.perAppEnabled);
+        binding.perAppLimitMinutes.setText(String.valueOf(timerSettings.perAppMinutes));
+        binding.totalLimitEnabled.setChecked(timerSettings.totalEnabled);
+        binding.totalLimitMinutes.setText(String.valueOf(timerSettings.totalMinutes));
+        binding.perAppLimitEnabled.setOnCheckedChangeListener((button, checked) ->
+                renderTimerControls());
+        binding.totalLimitEnabled.setOnCheckedChangeListener((button, checked) ->
+                renderTimerControls());
         binding.buttonBack.setOnClickListener(view -> finish());
         binding.buttonAccessibilitySettings.setOnClickListener(view ->
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         binding.buttonSave.setOnClickListener(view -> save());
         binding.modeGroup.setOnCheckedChangeListener((group, checkedId) -> renderMode());
         renderMode();
+        renderTimerControls();
+        renderTimerUsage();
         loadApps();
     }
 
@@ -71,17 +85,77 @@ public final class AppModeActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.app_mode_select_one, Toast.LENGTH_SHORT).show();
             return;
         }
+        Integer perAppMinutes = readMinutes(binding.perAppLimitMinutes,
+                binding.perAppLimitEnabled.isChecked());
+        Integer totalMinutes = readMinutes(binding.totalLimitMinutes,
+                binding.totalLimitEnabled.isChecked());
+        if (perAppMinutes == null || totalMinutes == null) {
+            Toast.makeText(this, R.string.app_timer_invalid_minutes, Toast.LENGTH_SHORT).show();
+            return;
+        }
         manager.save(binding.armed.isChecked(), mode, binding.autoResume.isChecked(),
                 selectedPackages);
+        timers.saveSettings(binding.perAppLimitEnabled.isChecked(), perAppMinutes,
+                binding.totalLimitEnabled.isChecked(), totalMinutes);
         if (binding.armed.isChecked()) ResumeNotificationManager.show(this);
         else ResumeNotificationManager.cancel(this);
         Toast.makeText(this, R.string.app_mode_saved, Toast.LENGTH_SHORT).show();
+        binding.buttonSave.setText(R.string.app_mode_saved_button);
+        binding.buttonSave.postDelayed(() -> {
+            if (binding != null) binding.buttonSave.setText(R.string.app_mode_save);
+        }, 1400L);
         renderServiceStatus();
+        if (binding.armed.isChecked() && !accessibilityEnabled()) {
+            Toast.makeText(this, R.string.app_mode_enable_prompt, Toast.LENGTH_LONG).show();
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+        }
     }
 
     private void renderMode() {
         boolean selected = binding.modeSelected.isChecked();
         binding.appListCard.setVisibility(selected ? View.VISIBLE : View.GONE);
+        binding.timerCard.setVisibility(selected ? View.VISIBLE : View.GONE);
+    }
+
+    private void renderTimerControls() {
+        binding.perAppLimitMinutes.setEnabled(binding.perAppLimitEnabled.isChecked());
+        binding.totalLimitMinutes.setEnabled(binding.totalLimitEnabled.isChecked());
+        binding.perAppLimitMinutes.setAlpha(binding.perAppLimitEnabled.isChecked() ? 1f : 0.5f);
+        binding.totalLimitMinutes.setAlpha(binding.totalLimitEnabled.isChecked() ? 1f : 0.5f);
+    }
+
+    private void renderTimerUsage() {
+        AppTimerManager.UsageSnapshot usage = timers.snapshot("", System.currentTimeMillis());
+        if (usage.totalUsedMillis <= 0L) {
+            binding.timerUsageStatus.setText(R.string.app_timer_usage_none);
+        } else {
+            binding.timerUsageStatus.setText(getString(R.string.app_timer_usage_total,
+                    formatUsage(usage.totalUsedMillis)));
+        }
+    }
+
+    private Integer readMinutes(EditText input, boolean required) {
+        String value = input.getText() == null ? "" : input.getText().toString().trim();
+        if (!required) {
+            try {
+                return AppTimerManager.sanitizeMinutes(Integer.parseInt(value));
+            } catch (NumberFormatException ignored) {
+                return 1;
+            }
+        }
+        try {
+            int minutes = Integer.parseInt(value);
+            return minutes >= 1 && minutes <= 1440 ? minutes : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private String formatUsage(long millis) {
+        long totalMinutes = Math.max(0L, millis) / 60_000L;
+        long hours = totalMinutes / 60L;
+        long minutes = totalMinutes % 60L;
+        return hours > 0L ? hours + "h " + minutes + "m" : minutes + "m";
     }
 
     private void renderServiceStatus() {

@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CompoundButton;
+import android.widget.RadioButton;
 import android.widget.SeekBar;
 import android.widget.Toast;
 
@@ -26,6 +27,7 @@ import com.betasafe.app.pack.PacksActivity;
 import com.betasafe.app.profiles.ProfilesActivity;
 import com.betasafe.app.popup.PopupStormActivity;
 import com.betasafe.app.stats.StatsRepository;
+import com.betasafe.app.util.ParityNavigation;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -42,6 +44,8 @@ public final class SettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivitySettingsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        binding.getRoot().setFocusableInTouchMode(true);
+        binding.getRoot().requestFocus();
         repository = new SettingsRepository(this);
         stats = new StatsRepository(this);
         new PackManager(this);
@@ -49,12 +53,13 @@ public final class SettingsActivity extends AppCompatActivity {
         attachListeners();
         applyLockState();
         binding.buttonBack.setOnClickListener(view -> finish());
+        ParityNavigation.bind(this, binding.getRoot(), ParityNavigation.Screen.SETTINGS);
     }
 
     private void bindValues() {
         bindingValues = true;
         CensorAppearance appearance = repository.loadAppearance();
-        binding.styleGroup.check(radioFor(appearance.getType()));
+        setCheckedStyle(radioFor(appearance.getType()));
         binding.intensitySeek.setProgress(appearance.getIntensity());
         binding.intensityValue.setText(percent(appearance.getIntensity()));
         int padding = Math.round(appearance.getSizePadding() * 100);
@@ -104,7 +109,18 @@ public final class SettingsActivity extends AppCompatActivity {
     }
 
     private void attachListeners() {
-        binding.styleGroup.setOnCheckedChangeListener((group, checkedId) -> saveAll());
+        for (int id : styleRadioIds()) {
+            RadioButton radio = findViewById(id);
+            radio.setOnCheckedChangeListener((button, checked) -> {
+                if (bindingValues || !checked) return;
+                bindingValues = true;
+                for (int otherId : styleRadioIds()) {
+                    if (otherId != button.getId()) ((RadioButton) findViewById(otherId)).setChecked(false);
+                }
+                bindingValues = false;
+                saveAll();
+            });
+        }
         binding.borderEffectGroup.setOnCheckedChangeListener((group, checkedId) -> saveAll());
         binding.presetGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (bindingValues) return;
@@ -247,12 +263,12 @@ public final class SettingsActivity extends AppCompatActivity {
         if (bindingValues) return;
         String previousStyle = repository.preferences().getString(
                 SettingsRepository.KEY_CENSOR_TYPE, "box");
-        String selectedStyle = typeFor(binding.styleGroup.getCheckedRadioButtonId())
+        String selectedStyle = typeFor(checkedStyleId())
                 .getPreferenceValue();
         String selectedBorder = borderFor(binding.borderEffectGroup.getCheckedRadioButtonId())
                 .preferenceValue();
         repository.saveAppearance(
-                typeFor(binding.styleGroup.getCheckedRadioButtonId()),
+                typeFor(checkedStyleId()),
                 binding.intensitySeek.getProgress(),
                 binding.switchBorder.isChecked(),
                 binding.switchText.isChecked());
@@ -332,6 +348,25 @@ public final class SettingsActivity extends AppCompatActivity {
             case ERROR_POPUP: return R.id.radio_error;
             default: return R.id.radio_box;
         }
+    }
+
+    private void setCheckedStyle(int checkedId) {
+        for (int id : styleRadioIds()) {
+            ((RadioButton) findViewById(id)).setChecked(id == checkedId);
+        }
+    }
+
+    private int checkedStyleId() {
+        for (int id : styleRadioIds()) {
+            if (((RadioButton) findViewById(id)).isChecked()) return id;
+        }
+        return R.id.radio_box;
+    }
+
+    private static int[] styleRadioIds() {
+        return new int[]{R.id.radio_box, R.id.radio_pixelate, R.id.radio_blur,
+                R.id.radio_bar, R.id.radio_custom, R.id.radio_static, R.id.radio_glitch,
+                R.id.radio_tape, R.id.radio_error};
     }
 
     private CensorAppearance.Type typeFor(int id) {

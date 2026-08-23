@@ -27,13 +27,15 @@ public final class StatsSnapshot {
     private final Set<String> borderEffectsTried;
     private final Set<String> activeDates;
     private final long allCategoryCensors;
+    private final long currentSessionSeconds;
 
     StatsSnapshot(long totalBlocks, long totalSessionSeconds, int sessions, int currentStreak,
             String lastSessionDate, long totalProtectedSeconds, int currentSessionBlocks,
             int peakSessionBlocks, long longestSessionSeconds, int browserSessions,
             int browserPages, long exportedImages, int profiles, int customPhrases,
             int censorStyleChanges, boolean borderColorChanged, Set<String> censorStylesTried,
-            Set<String> borderEffectsTried, Set<String> activeDates, long allCategoryCensors) {
+            Set<String> borderEffectsTried, Set<String> activeDates, long allCategoryCensors,
+            long currentSessionSeconds) {
         this.totalBlocks = totalBlocks;
         this.totalSessionSeconds = totalSessionSeconds;
         this.sessions = sessions;
@@ -54,6 +56,7 @@ public final class StatsSnapshot {
         this.borderEffectsTried = immutable(borderEffectsTried);
         this.activeDates = immutable(activeDates);
         this.allCategoryCensors = allCategoryCensors;
+        this.currentSessionSeconds = Math.max(0, currentSessionSeconds);
     }
 
     public long getTotalBlocks() { return totalBlocks; }
@@ -77,11 +80,23 @@ public final class StatsSnapshot {
     public Set<String> getActiveDates() { return activeDates; }
     public long getAllCategoryCensors() { return allCategoryCensors; }
 
+    /** Elapsed time for the currently active protection session, or zero while idle. */
+    public long getCurrentSessionSeconds() { return currentSessionSeconds; }
+
     public static String formatDuration(long totalSeconds) {
         long hours = totalSeconds / 3600;
         long minutes = (totalSeconds % 3600) / 60;
         if (hours > 0) return String.format(Locale.ROOT, "%dh %02dm", hours, minutes);
         return String.format(Locale.ROOT, "%dm", minutes);
+    }
+
+    public static String formatClock(long totalSeconds) {
+        long safe = Math.max(0, totalSeconds);
+        long hours = safe / 3600;
+        long minutes = (safe % 3600) / 60;
+        long seconds = safe % 60;
+        if (hours > 0) return String.format(Locale.ROOT, "%02d:%02d:%02d", hours, minutes, seconds);
+        return String.format(Locale.ROOT, "%02d:%02d", minutes, seconds);
     }
 
     private static Set<String> immutable(Set<String> values) {

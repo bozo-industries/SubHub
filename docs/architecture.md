@@ -30,6 +30,8 @@ The clean source implements both capture branches as ordinary Java source under 
 
 `AppModeManager` persists whether automatic recognition is armed, whether every external app or only a selected package set is watched, and whether that armed preference should survive reboot. `ScreenshotAccessibilityService` consumes only window-state package transitions. In selected-app mode, leaving the active package cancels screenshot scheduling and closes inference-adjacent UI/state; the Accessibility binding stays available for the next package transition without running the detector. Input-method transitions are ignored so opening a keyboard does not falsely suspend recognition.
 
+`AppTimerManager` adds a separate, opt-in policy to selected-app mode. It stores per-app and combined daily foreground milliseconds under a local calendar-day key. The Accessibility service accounts elapsed time on accepted foreground transitions and a one-second boundary tick, independently of detector readiness. When either configured budget is exhausted, recognition is suspended and Android's supported `GLOBAL_ACTION_HOME` returns the selected app to Home. Unselected apps, all-app recognition mode, and disabled limits neither accrue nor enforce timer usage.
+
 `BootReceiver` is non-exported and performs no capture. At boot or package replacement it restores only the user's armed preference and, when a prior MediaProjection session was desired, posts a visible notification that returns to the app for fresh Android approval. Its Disarm action clears both automatic recognition and pending session intent.
 
 ## High-value code areas

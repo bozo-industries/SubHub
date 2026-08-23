@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat;
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityHelpBinding;
 import com.betasafe.app.util.LocaleHelper;
+import com.betasafe.app.util.ParityNavigation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,7 +40,10 @@ public final class HelpActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityHelpBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        binding.getRoot().setFocusableInTouchMode(true);
+        binding.getRoot().requestFocus();
         binding.buttonBack.setOnClickListener(view -> finish());
+        ParityNavigation.bind(this, binding.getRoot(), ParityNavigation.Screen.HELP);
         binding.buttonFixPermissions.setOnClickListener(view -> repairNextPermission());
         binding.buttonAccessibility.setOnClickListener(view ->
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
@@ -73,10 +77,10 @@ public final class HelpActivity extends AppCompatActivity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setBackgroundResource(R.drawable.bg_card);
-        card.setPadding(dp(18), dp(8), dp(18), dp(12));
+        card.setPadding(dp(14), dp(4), dp(14), dp(8));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        if (binding.helpSections.getChildCount() > 0) params.topMargin = dp(10);
+        if (binding.helpSections.getChildCount() > 0) params.topMargin = dp(5);
         card.setLayoutParams(params);
         TextView header = new TextView(this);
         header.setText(getString(title) + "  +");
@@ -84,7 +88,7 @@ public final class HelpActivity extends AppCompatActivity {
         header.setTextSize(13);
         header.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setMinHeight(dp(54));
+        header.setMinHeight(dp(48));
         TextView content = new TextView(this);
         content.setText(body);
         content.setTextColor(getColor(R.color.text_secondary));

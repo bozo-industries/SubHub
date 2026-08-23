@@ -10,7 +10,7 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 
 ## Evidence
 
-- A clean `testDebugUnitTest`, `assembleDebug`, `lintDebug`, 35-test `connectedDebugAndroidTest`, `assembleRelease`, and `lintRelease` run completed successfully.
+- A clean `testDebugUnitTest`, `assembleDebug`, `lintDebug`, 40-test `connectedDebugAndroidTest`, `assembleRelease`, and `lintRelease` run completed successfully.
 - A streamed `adb install -r` completed successfully.
 - Main, Settings, and Browser screens launched through normal in-app navigation with no fatal exception.
 - The first-run disclosure, gothic/demoness shell, ten-section Help screen, permission status/repair controls, and complete 11-choice language dialog rendered correctly.
@@ -32,6 +32,15 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - The new purple-demoness App Mode screen rendered correctly with its Android-service status, all/selected mode controls, auto-resume disclosure, save action, real launcher icons, and exact package labels.
 - App-mode instrumentation verified persisted selected-package state, auto-resume enabled/disabled boot behavior, explicit notification Disarm clearing both Accessibility and MediaProjection intent, launcher-only package discovery, and a non-exported boot receiver.
 - With Calendar as the sole watched package, the live Accessibility service activated recognition on Calendar, loaded the licensed FP16 detector through NNAPI, processed a 1080×2400 frame in 77 ms, ignored its own overlay window event, and suspended immediately when Android Settings became foreground.
+
+## 2026-08-23 parity and timer pass
+
+- The shared Home, Settings, Browser, Help, and Export shell was matched against side-by-side licensed-app captures: compact burgundy background, dark cards, pink active underline, five-icon tab strip, dense typography, and the original browser-style chrome.
+- A 15-activity visual smoke run launched and captured every user-facing surface without a crash.
+- Home's protection action switched to its active state, the restored current-session timer advanced once per second, and active session state survived activity recreation.
+- Manual MediaProjection loaded `320n_fp16.onnx` through NNAPI and processed its first 486×1080 frame in 131 ms.
+- Selected-app Accessibility mode activated on Calendar, loaded the detector through NNAPI, processed its first 1080×2400 frame in 45 ms, and suspended on the unselected Clock package.
+- App-timer contracts cover per-app, combined, unselected-app, disabled, and local-day-reset behavior. In the live service, Android Settings was selected with a one-minute per-app budget; at the boundary the service logged `PER_APP` enforcement and Android reported the Nexus Launcher as `topResumedActivity`. Reopening a spent app follows the same pre-recognition budget check.
 
 Notification and overlay grants were pre-authorized with ADB on this dedicated emulator so the test could focus on capture consent and runtime behavior. A normal installation still uses the explicit in-app permission flow.
 

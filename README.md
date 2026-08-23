@@ -23,13 +23,14 @@ C:\Users\user\Code\BetaSafe-private\
 - Monetization-gate audit: no billing/paywall/entitlement code found; every scripted build rechecks this invariant
 - Clean source baseline: builds, installs, and runs independently as `com.betasafe.app`
 - Clean release variant: unsigned release APK assembly and release lint pass; release manifest has no cleartext override or Device Admin surface
-- API 35 emulator suite: 35 instrumented contracts plus unit/build/lint checks pass for UI/settings, browser/download/full-screen workflows, both consent-driven capture modes, app-mode persistence/boot/disarm behavior, NNAPI inference, every censor style/border/reverse shape, custom-image import, MediaStore export, profiles/packs, diagnostics, statistics/achievements, Popup Storm, Help/onboarding/locales/shortcuts, commitment safety, penance safety, and clean stop behavior
+- API 35 emulator suite: unit, instrumented, build, and lint checks cover UI/settings, browser/download/full-screen workflows, both consent-driven capture modes, app-mode persistence/boot/disarm behavior, daily app budgets, NNAPI inference, every censor style/border/reverse shape, custom-image import, MediaStore export, profiles/packs, diagnostics, statistics/achievements, Popup Storm, Help/onboarding/locales/shortcuts, commitment safety, penance safety, and clean stop behavior
 - Help and language surface: ten expandable source-authored guides, guided permission repair, first-run disclosure, two launcher shortcuts, and the recovered 11-choice locale selector are working; shell copy is localized and deeper untranslated copy falls back to English
 - Consent-first commitment: bounded 30-minute to 7-day keeper-code pacts seal app configuration with an explicit countdown and unconditional safety release; they never use Device Admin, block uninstall/data clearing, or delay stopping protection
 - Battery-aware app mode: the user-enabled Accessibility service can recognize in every external app or only selected launcher apps; selected mode keeps only the platform event binding alive and suspends screenshot scheduling, inference, tracking, and overlays everywhere else
+- Opt-in daily app limits: selected-app mode can enforce an independent per-app budget, one combined budget across all selected apps, or both; only foreground time accrues, usage resets at local midnight, and a spent selected app is returned to Android Home
 - Honest restart behavior: reboot restores the armed preference and can post a visible resume notification, while MediaProjection always requires fresh Android consent and never starts silently at boot
 - Consent-first Penance Treasury: new detector tracks can add locally bounded EUR strikes with daily/weekly caps and a false-positive mercy window; settlement uses an explicit PayPal approval and a separate backend, while safety release never creates a charge
-- Visual identity: original generated purple-demoness guardian, gothic header, horned-shield launcher icon, and Popup Storm sample are tracked project assets and appear throughout the maintained shell; vendor badges and detector models remain private imports
+- Visual identity: the maintained shell now follows the licensed app's compact burgundy utility layout, shared five-tab navigation, dense cards, pink active states, and browser chrome. Project-owned purple-demoness art remains available for features that benefit from illustration without displacing the original information hierarchy
 
 A patched APK signed with a new local key cannot update an installation signed by the vendor key. Export any settings you need before uninstalling the original, or change the package ID so both builds can coexist. Keep the same private local key for every later BetaSafe update.
 
@@ -68,7 +69,7 @@ To produce a detector-capable local APK, import the two licensed models directly
 
 The editable debug APK is written to `app\build\outputs\apk\debug\app-debug.apk` with package ID `com.betasafe.app`, so it can coexist with the vendor-signed installation.
 
-See [API 35 Device Smoke Test](docs/device-smoke-test.md) for the verified runtime path and the remaining physical-device coverage.
+See [API 35 Device Smoke Test](docs/device-smoke-test.md) and [Visual Parity Audit](docs/visual-parity.md) for the verified runtime path, matched-screen review, and remaining physical-device coverage.
 
 To sign, provide a private keystore path and process-scoped password variables. Password values are never passed as command-line arguments:
 
