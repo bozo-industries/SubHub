@@ -27,7 +27,8 @@ public final class AppModePolicy {
     public static boolean shouldAcceptForegroundEvent(
             String packageName, String className, String ownPackage, String inputMethodPackage) {
         String candidate = clean(packageName);
-        if (candidate.isEmpty() || candidate.equals(clean(inputMethodPackage))) return false;
+        if (candidate.isEmpty() || candidate.equals(clean(inputMethodPackage))
+                || isTransientSystemSurface(candidate)) return false;
         if (!candidate.equals(clean(ownPackage))) return true;
         // Accessibility overlays are hosted by this package too. Only Activity window events are
         // genuine foreground transitions; package-owned overlay views must not stop recognition.
@@ -48,6 +49,17 @@ public final class AppModePolicy {
 
     private static boolean isSystemSurface(String packageName) {
         return "android".equals(packageName) || "com.android.systemui".equals(packageName);
+    }
+
+    /**
+     * Windows owned by Android chrome do not replace the app underneath them. Treating a
+     * notification shade, heads-up notification, volume panel, or permission sheet as a real
+     * foreground transition suspends selected-app recognition without a guaranteed return event.
+     */
+    private static boolean isTransientSystemSurface(String packageName) {
+        return isSystemSurface(packageName)
+                || "com.android.permissioncontroller".equals(packageName)
+                || "com.google.android.permissioncontroller".equals(packageName);
     }
 
     private static String clean(String value) {
