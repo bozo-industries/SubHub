@@ -46,6 +46,9 @@ public final class ControllerPinGate {
                         pin.setError(activity.getString(R.string.controller_pin_invalid));
                     } else {
                         dialog.dismiss();
+                        // First launch opens into the clean Sub dashboard. The PIN holder can
+                        // explicitly enter Dom mode after setup.
+                        ControllerPinManager.enterSubMode();
                         authorized.run();
                     }
                 });
@@ -58,7 +61,7 @@ public final class ControllerPinGate {
             ensureConfigured(activity, authorized);
             return;
         }
-        if (ControllerPinManager.isSessionUnlocked()) {
+        if (ControllerPinManager.isDomModeActive()) {
             authorized.run();
             return;
         }

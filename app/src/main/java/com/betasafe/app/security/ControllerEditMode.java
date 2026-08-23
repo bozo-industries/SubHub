@@ -1,12 +1,14 @@
 package com.betasafe.app.security;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.view.View;
 import android.widget.TextView;
 
+import com.betasafe.app.MainActivity;
 import com.betasafe.app.R;
 
-/** Shared, explicit controller edit toggle for every settings-changing surface. */
+/** Shared Dom/Sub role toggle for settings-changing surfaces. */
 public final class ControllerEditMode {
     public interface Listener {
         void onEditStateChanged(boolean editing);
@@ -20,6 +22,12 @@ public final class ControllerEditMode {
         this.activity = activity;
         this.button = button;
         this.listener = listener;
+        if (!ControllerPinManager.isDomModeActive() && !(activity instanceof MainActivity)) {
+            button.setVisibility(View.GONE);
+            listener.onEditStateChanged(false);
+            enterSubMode(activity);
+            return;
+        }
         button.setOnClickListener(view -> toggle());
         refresh();
     }
@@ -30,7 +38,7 @@ public final class ControllerEditMode {
     }
 
     public static void renderButton(Activity activity, TextView button) {
-        boolean editing = ControllerPinManager.isSessionUnlocked();
+        boolean editing = ControllerPinManager.isDomModeActive();
         button.setText(editing
                 ? R.string.controller_edit_unlocked : R.string.controller_edit_locked);
         button.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
@@ -41,7 +49,7 @@ public final class ControllerEditMode {
     }
 
     public boolean isEditing() {
-        return ControllerPinManager.isSessionUnlocked();
+        return ControllerPinManager.isDomModeActive();
     }
 
     public void refresh() {
@@ -58,10 +66,19 @@ public final class ControllerEditMode {
 
     private void toggle() {
         if (isEditing()) {
-            ControllerPinManager.lockNow();
-            refresh();
+            enterSubMode(activity);
         } else {
             ControllerPinGate.require(activity, this::refresh, false);
         }
+    }
+
+    /** Leaves all configuration surfaces and returns to the single Sub dashboard. */
+    public static void enterSubMode(Activity activity) {
+        ControllerPinManager.enterSubMode();
+        if (activity instanceof MainActivity) return;
+        activity.startActivity(new Intent(activity, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        activity.finish();
+        activity.overridePendingTransition(0, 0);
     }
 }

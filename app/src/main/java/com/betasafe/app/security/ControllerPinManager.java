@@ -13,14 +13,13 @@ import java.security.SecureRandom;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
-/** Salted, app-local controller PIN with a short in-memory-style settings session. */
+/** Salted, app-local controller PIN with a process-local Dom-mode session. */
 public final class ControllerPinManager {
     private static final String KEY_SALT = "controller_pin_salt";
     private static final String KEY_HASH = "controller_pin_hash";
     private static final int ITERATIONS = 150_000;
     private static final int KEY_BITS = 256;
-    private static final long UNLOCK_WINDOW_MILLIS = 5L * 60L * 1_000L;
-    private static volatile long unlockedUntilElapsedRealtime;
+    private static volatile boolean domModeActive;
 
     private ControllerPinManager() {}
 
@@ -40,7 +39,7 @@ public final class ControllerPinManager {
                     .putString(KEY_SALT, Base64.encodeToString(salt, Base64.NO_WRAP))
                     .putString(KEY_HASH, Base64.encodeToString(hash, Base64.NO_WRAP))
                     .commit();
-            markUnlocked();
+            enterDomMode();
             return true;
         } catch (GeneralSecurityException exception) {
             return false;
@@ -55,7 +54,7 @@ public final class ControllerPinManager {
             byte[] expected = Base64.decode(preferences.getString(KEY_HASH, ""), Base64.NO_WRAP);
             byte[] actual = derive(normalize(pin), salt);
             boolean matches = MessageDigest.isEqual(expected, actual);
-            if (matches) markUnlocked();
+            if (matches) enterDomMode();
             return matches;
         } catch (IllegalArgumentException | GeneralSecurityException exception) {
             return false;
@@ -63,16 +62,23 @@ public final class ControllerPinManager {
     }
 
     public static boolean isSessionUnlocked() {
-        return android.os.SystemClock.elapsedRealtime() < unlockedUntilElapsedRealtime;
+        return isDomModeActive();
     }
 
     public static void lockNow() {
-        unlockedUntilElapsedRealtime = 0L;
+        enterSubMode();
     }
 
-    private static void markUnlocked() {
-        unlockedUntilElapsedRealtime = android.os.SystemClock.elapsedRealtime()
-                + UNLOCK_WINDOW_MILLIS;
+    public static boolean isDomModeActive() {
+        return domModeActive;
+    }
+
+    public static void enterDomMode() {
+        domModeActive = true;
+    }
+
+    public static void enterSubMode() {
+        domModeActive = false;
     }
 
     private static String normalize(String pin) {
