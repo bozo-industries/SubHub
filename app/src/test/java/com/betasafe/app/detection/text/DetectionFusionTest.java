@@ -41,6 +41,16 @@ public final class DetectionFusionTest {
         assertEquals(2, merged.size());
     }
 
+    @Test public void coarseParentDoesNotEnlargeSpecificChildLine() {
+        Detection parent = text(new BBox(60, 500, 960, 620));
+        Detection line = text(new BBox(80, 610, 900, 58));
+        List<Detection> merged = DetectionFusion.merge(
+                Collections.emptyList(), Arrays.asList(parent, line));
+
+        assertEquals(1, merged.size());
+        assertEquals(line.getBox(), merged.get(0).getBox());
+    }
+
     private static Detection text(BBox box) {
         return new Detection("TEXT_SMUT_EXPLICIT", "text_smut", 0.9f, box, true, false);
     }

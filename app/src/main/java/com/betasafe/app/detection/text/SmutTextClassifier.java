@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -20,6 +21,8 @@ public final class SmutTextClassifier {
     private static final Pattern COMBINING_MARKS = Pattern.compile("\\p{M}+");
     private static final Pattern NON_WORD = Pattern.compile("[^a-z0-9]+", Pattern.CASE_INSENSITIVE);
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    private static final Pattern LETTER_SPACED = Pattern.compile(
+            "(?:(?<=^)|(?<=\\s))(?:[a-z]\\s+){2,}[a-z](?=\\s|$)");
 
     public Match classify(String source, TextSmutConfig config) {
         if (config == null || !config.isEnabled() || source == null) return Match.none();
@@ -29,14 +32,21 @@ public final class SmutTextClassifier {
         int explicit = 0;
         int fetish = 0;
         int solicitation = 0;
+        int matchStart = text.length();
+        int matchEnd = 0;
         for (Rule rule : RULES) {
-            if (!config.getEnabledCategories().contains(rule.category)
-                    || !rule.pattern.matcher(text).find()) continue;
+            if (!config.getEnabledCategories().contains(rule.category)) continue;
+            Matcher matcher = rule.pattern.matcher(text);
+            if (!matcher.find()) continue;
             if (TextSmutConfig.CATEGORY_EXPLICIT.equals(rule.category)) explicit += rule.points;
             else if (TextSmutConfig.CATEGORY_FETISH.equals(rule.category)) fetish += rule.points;
             else if (TextSmutConfig.CATEGORY_SOLICITATION.equals(rule.category)) {
                 solicitation += rule.points;
             }
+            do {
+                matchStart = Math.min(matchStart, matcher.start());
+                matchEnd = Math.max(matchEnd, matcher.end());
+            } while (matcher.find());
         }
 
         int score = explicit + fetish + solicitation;
@@ -53,12 +63,14 @@ public final class SmutTextClassifier {
         }
         if (solicitation > strongest) category = TextSmutConfig.CATEGORY_SOLICITATION;
         float confidence = Math.min(0.99f, 0.55f + score * 0.07f);
-        return new Match(true, category, score, confidence);
+        return new Match(true, category, score, confidence,
+                matchStart == text.length() ? 0 : matchStart,
+                Math.max(matchStart + 1, matchEnd), text.length());
     }
 
     static String normalize(String source) {
-        String decomposed = Normalizer.normalize(source, Normalizer.Form.NFKD)
-                .toLowerCase(Locale.ROOT)
+        String decomposed = foldHomoglyphs(Normalizer.normalize(source, Normalizer.Form.NFKD)
+                .toLowerCase(Locale.ROOT))
                 .replace('0', 'o')
                 .replace('1', 'i')
                 .replace('3', 'e')
@@ -68,7 +80,27 @@ public final class SmutTextClassifier {
                 .replace('@', 'a')
                 .replace('$', 's');
         String plain = COMBINING_MARKS.matcher(decomposed).replaceAll("");
-        return WHITESPACE.matcher(NON_WORD.matcher(plain).replaceAll(" ")).replaceAll(" ").trim();
+        String words = WHITESPACE.matcher(
+                NON_WORD.matcher(plain).replaceAll(" ")).replaceAll(" ").trim();
+        return collapseLetterSpacing(words);
+    }
+
+    private static String foldHomoglyphs(String value) {
+        return value
+                .replace('а', 'a').replace('е', 'e').replace('і', 'i')
+                .replace('о', 'o').replace('р', 'p').replace('с', 'c')
+                .replace('х', 'x').replace('у', 'y');
+    }
+
+    private static String collapseLetterSpacing(String value) {
+        Matcher matcher = LETTER_SPACED.matcher(value);
+        StringBuffer result = new StringBuffer(value.length());
+        while (matcher.find()) {
+            matcher.appendReplacement(result,
+                    Matcher.quoteReplacement(matcher.group().replace(" ", "")));
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     private static List<Rule> rules() {
@@ -76,15 +108,28 @@ public final class SmutTextClassifier {
         values.add(rule(TextSmutConfig.CATEGORY_EXPLICIT, 4,
                 "clit(?:oris)?|puss(?:y|ies)|cock(?:s)?|dick(?:s)?|penis(?:es)?|"
                         + "vagin(?:a|as|al)|cum(?:ming|s|med)?|orgasm(?:s|ic)?|ejaculat\\w*|"
-                        + "masturbat\\w*|blowjobs?|handjobs?|hentai|porn(?:o|ography)?|nudes?|nsfw|smut|erotica?"));
+                        + "masturbat\\w*|blowjobs?|handjobs?|hentai|porn(?:o|ography)?|nudes?|nsfw|"
+                        + "smut|erotica?|rapeslop|rapeplay|rapey|horny|arous(?:ed|ing)|moan(?:ing|s)?"));
         values.add(rule(TextSmutConfig.CATEGORY_EXPLICIT, 2,
-                "sex(?:ual|ually)?|fuck\\w*|suck\\w*|naked|breasts?|boobs?|nipples?|anal|genitals?"));
-        values.add(rule(TextSmutConfig.CATEGORY_FETISH, 3,
-                "bdsm|strap on|strapon|chastity|cuck\\w*|goon\\w*|bondage|fetish|kink\\w*|noncon"));
+                "sex(?:ual|ually)?|fuck\\w*|suck\\w*|naked|breasts?|boobs?|nipples?|anal|genitals?|"
+                        + "slut(?:s|ty)?|whores?|lewd|thirst trap"));
+        values.add(rule(TextSmutConfig.CATEGORY_FETISH, 4,
+                "bdsm|strap on|strapon|chastity(?: cage)?|cuck\\w*|goon\\w*|bondage|fetish|"
+                        + "kink\\w*|noncon|non con|cnc|findom|paypig|siss(?:y|ies)|femdom|dominatrix|"
+                        + "petplay|degrad(?:e|ed|ing|ation)"));
         values.add(rule(TextSmutConfig.CATEGORY_FETISH, 2,
-                "strap|edg(?:e|ed|ing)|spank\\w*|whip\\w*|breed\\w*|domme|submissive|humiliat\\w*"));
+                "strap|edg(?:e|ed|ing)|spank\\w*|whip\\w*|breed\\w*|domme|submissive|"
+                        + "humiliat\\w*|keyholders?|deni(?:al|ed)|locked up|caged|owned"));
+        values.add(rule(TextSmutConfig.CATEGORY_FETISH, 2,
+                "daddy|mommy|master|mistress|slave|owner|good girls?|good boys?|"
+                        + "bad girls?|bad boys?|little one|needy"));
+        values.add(rule(TextSmutConfig.CATEGORY_FETISH, 2,
+                "force\\w*|obey|behav(?:e|ing)|permission|reward|punish\\w*|eyes forward|"
+                        + "on your knees|hands behind|beg(?:ging)?|locked up|use you|ruin you"));
+        values.add(rule(TextSmutConfig.CATEGORY_FETISH, 4,
+                "call(?:ed|ing)? (?:me |you |them |him |her )?(?:a )?loser|voice message.*loser"));
         values.add(rule(TextSmutConfig.CATEGORY_FETISH, 1,
-                "daddy|mommy|master|slave|force\\w*|obey|punish\\w*|feet|armpits?"));
+                "feet|armpits?|sir|ma am|good pet|collar(?:ed)?"));
         values.add(phrase(TextSmutConfig.CATEGORY_SOLICITATION, 5,
                 "send nudes", "suck my", "suck the", "ride me", "touch yourself",
                 "make me cum", "make you cum", "open your legs", "open my legs",
@@ -120,17 +165,24 @@ public final class SmutTextClassifier {
     }
 
     public static final class Match {
-        private static final Match NONE = new Match(false, "", 0, 0f);
+        private static final Match NONE = new Match(false, "", 0, 0f, 0, 0, 0);
         private final boolean matched;
         private final String category;
         private final int score;
         private final float confidence;
+        private final int startIndex;
+        private final int endIndex;
+        private final int normalizedLength;
 
-        private Match(boolean matched, String category, int score, float confidence) {
+        private Match(boolean matched, String category, int score, float confidence,
+                int startIndex, int endIndex, int normalizedLength) {
             this.matched = matched;
             this.category = category;
             this.score = score;
             this.confidence = confidence;
+            this.startIndex = startIndex;
+            this.endIndex = endIndex;
+            this.normalizedLength = normalizedLength;
         }
 
         public static Match none() { return NONE; }
@@ -138,5 +190,8 @@ public final class SmutTextClassifier {
         public String getCategory() { return category; }
         public int getScore() { return score; }
         public float getConfidence() { return confidence; }
+        public int getStartIndex() { return startIndex; }
+        public int getEndIndex() { return endIndex; }
+        public int getNormalizedLength() { return normalizedLength; }
     }
 }

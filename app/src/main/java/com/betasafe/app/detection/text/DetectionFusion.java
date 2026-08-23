@@ -28,18 +28,36 @@ public final class DetectionFusion {
         for (int index = 0; index < merged.size(); index++) {
             Detection existing = merged.get(index);
             if (!shouldFuse(existing, candidate)) continue;
-            BBox union = union(existing.getBox(), candidate.getBox());
+            BBox fused = fusedBox(existing, candidate);
             Detection preferred = "text_smut".equals(existing.getCategory()) ? candidate : existing;
             merged.set(index, new Detection(
                     preferred.getClassName(),
                     preferred.getCategory(),
                     Math.max(existing.getConfidence(), candidate.getConfidence()),
-                    union,
+                    fused,
                     existing.isNsfw() || candidate.isNsfw(),
                     existing.isExposed() || candidate.isExposed()));
             return;
         }
         merged.add(candidate);
+    }
+
+    private static BBox fusedBox(Detection first, Detection second) {
+        boolean textPair = "text_smut".equals(first.getCategory())
+                && "text_smut".equals(second.getCategory());
+        if (textPair) {
+            long intersection = intersection(first.getBox(), second.getBox());
+            long firstArea = first.getBox().getArea();
+            long secondArea = second.getBox().getArea();
+            long smaller = Math.min(firstArea, secondArea);
+            long larger = Math.max(firstArea, secondArea);
+            float containment = smaller == 0 ? 0f : (float) intersection / smaller;
+            // A coarse parent Accessibility description must never enlarge a precise child line.
+            if (containment >= 0.70f && larger >= smaller * 2L) {
+                return firstArea <= secondArea ? first.getBox() : second.getBox();
+            }
+        }
+        return union(first.getBox(), second.getBox());
     }
 
     private static boolean shouldFuse(Detection first, Detection second) {
