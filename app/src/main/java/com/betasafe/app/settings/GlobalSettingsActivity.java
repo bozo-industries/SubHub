@@ -54,8 +54,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
 
     private void toggleEditSession() {
         if (ControllerPinManager.isSessionUnlocked()) {
-            ControllerPinManager.lockNow();
-            applyEditState();
+            ControllerEditMode.enterSubMode(this);
         } else ControllerPinGate.require(this, this::applyEditState, false);
     }
 

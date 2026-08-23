@@ -87,6 +87,19 @@ JADX emitted method-level errors in application code including `MainActivity`, `
 
 ## App shell and language surface
 
+SubHub now has one product-wide Dom/Sub presentation boundary. Sub mode is the
+default after process start and shows one aggregate dashboard containing only
+enabled modules and their active state. It exposes Start/Stop Protection but no
+bottom navigation, configuration links, or editable controls. Dom mode requires
+the controller PIN and restores the full feature-aware navigation and settings
+until the user explicitly returns to Sub mode or the process ends.
+
+This boundary is separate from Android permissions and the optional Commitment
+Pact. It is a consensual presentation and configuration boundary, not a device
+security guarantee. The Sub dashboard uses project-owned layouts, art, icons,
+copy, and a darker asymmetrical card system rather than reproducing the purchased
+reference app's screen hierarchy.
+
 `MainActivity` owns a non-blocking first-run card and two dynamic launcher shortcuts routed through its exported entry point. `HelpActivity` owns current permission status, one-step overlay/notification repair, the accessibility-settings handoff, language selection, and ten source-authored expandable guides. `LocaleHelper` persists the recovered 11-choice language set through AppCompat per-app locales. Navigation, onboarding, permission repair, and Help section labels have localized resources; untranslated detail deliberately uses Android's English resource fallback.
 
 The maintained header and Help surfaces use the project-owned gothic header and demoness guardian art. They do not depend on the purchased APK's decorative assets.

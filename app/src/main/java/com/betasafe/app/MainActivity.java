@@ -32,6 +32,7 @@ import com.betasafe.app.penance.PenanceSnapshot;
 import com.betasafe.app.service.ScreenCaptureService;
 import com.betasafe.app.service.ScreenshotAccessibilityService;
 import com.betasafe.app.appmode.AppModeManager;
+import com.betasafe.app.appmode.AppTimerManager;
 import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.settings.SettingsActivity;
 import com.betasafe.app.stats.StatsRepository;
@@ -42,12 +43,14 @@ import com.betasafe.app.stats.MilestoneManager;
 import com.betasafe.app.help.HelpActivity;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.settings.CaptureMethod;
+import com.betasafe.app.settings.CensorAppearance;
 import com.betasafe.app.settings.FeatureModuleManager;
 import com.betasafe.app.settings.GlobalSettingsActivity;
 import com.betasafe.app.appmode.ResumeNotificationManager;
 import com.betasafe.app.security.ControllerPinGate;
 import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.security.ControllerEditMode;
+import com.betasafe.app.detection.text.TextSmutConfig;
 import com.betasafe.app.util.AppShortcuts;
 import com.betasafe.app.util.SubHubNavigation;
 import androidx.appcompat.app.AlertDialog;
@@ -74,7 +77,8 @@ public final class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        if (SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.CENSOR)) return;
+        if (ControllerPinManager.isDomModeActive()
+                && SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.CENSOR)) return;
         editLockButton = findViewById(R.id.button_edit_lock);
         projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
@@ -143,6 +147,7 @@ public final class MainActivity extends AppCompatActivity {
         String action = intent.getAction();
         intent.setAction(Intent.ACTION_MAIN);
         if (AppShortcuts.ACTION_OPEN_BROWSER.equals(action)) {
+            if (!ControllerPinManager.isDomModeActive()) return;
             AppShortcuts.reportUsed(this, "open_browser");
             startActivity(new Intent(this, BrowserActivity.class));
         } else if (AppShortcuts.ACTION_START_PROTECTION.equals(action)) {
@@ -244,21 +249,114 @@ public final class MainActivity extends AppCompatActivity {
                     : getString(R.string.penance_home_inactive));
             showProgressUnlocks(new StatsRepository(this).load());
             renderEditState();
+            renderSubDashboard();
         }
     }
 
     private void toggleEditSession() {
-        if (ControllerPinManager.isSessionUnlocked()) {
-            ControllerPinManager.lockNow();
+        if (ControllerPinManager.isDomModeActive()) {
+            ControllerPinManager.enterSubMode();
             renderEditState();
         } else ControllerPinGate.require(this, this::renderEditState, false);
     }
 
     private void renderEditState() {
         if (binding == null) return;
-        boolean editing = ControllerPinManager.isSessionUnlocked();
+        boolean domMode = ControllerPinManager.isDomModeActive();
         ControllerEditMode.renderButton(this, editLockButton);
+        TextView headerSubtitle = findViewById(R.id.header_subtitle);
+        if (headerSubtitle != null) headerSubtitle.setText(domMode
+                ? R.string.header_subtitle_dom : R.string.header_subtitle_sub);
+        binding.domContent.setVisibility(domMode ? View.VISIBLE : View.GONE);
+        binding.subDashboard.setVisibility(domMode ? View.GONE : View.VISIBLE);
+        int bottom = dp(domMode ? 116 : 26);
+        binding.pageContent.setPaddingRelative(binding.pageContent.getPaddingStart(),
+                binding.pageContent.getPaddingTop(), binding.pageContent.getPaddingEnd(), bottom);
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
+        renderSubDashboard();
         updateProtectionButton(ScreenCaptureService.isRunning());
+    }
+
+    private void renderSubDashboard() {
+        if (binding == null || ControllerPinManager.isDomModeActive()) return;
+        FeatureModuleManager modules = new FeatureModuleManager(this);
+        boolean censorEnabled = modules.isCensorEnabled();
+        boolean limitsEnabled = modules.isLimitsEnabled();
+        boolean walletEnabled = modules.isWalletEnabled();
+        binding.subCensorCard.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
+        binding.subLimitsCard.setVisibility(limitsEnabled ? View.VISIBLE : View.GONE);
+        binding.subWalletCard.setVisibility(walletEnabled ? View.VISIBLE : View.GONE);
+        binding.subModulesEmpty.setVisibility(!censorEnabled && !limitsEnabled && !walletEnabled
+                ? View.VISIBLE : View.GONE);
+        binding.buttonProtection.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
+        binding.protectionStatusRow.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
+        binding.runtimeStatus.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
+        binding.modeHint.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
+
+        long now = System.currentTimeMillis();
+        if (censorEnabled) {
+            boolean active = ScreenCaptureService.isRunning()
+                    || ScreenshotAccessibilityService.isRecognitionActive();
+            boolean armed = new AppModeManager(this).isEffectivelyArmed(now);
+            binding.subCensorVoice.setText(active ? R.string.sub_censor_active
+                    : armed ? R.string.sub_censor_armed : R.string.sub_censor_idle);
+            SettingsRepository settings = new SettingsRepository(this);
+            CensorAppearance appearance = settings.loadAppearance();
+            TextSmutConfig textSmut = settings.loadTextSmutConfig();
+            String detector = getString(textSmut.isEnabled()
+                    ? R.string.sub_censor_detection_images_text
+                    : R.string.sub_censor_detection_images);
+            String capture = getString(settings.loadCaptureMethod() == CaptureMethod.APP_MODE
+                    ? R.string.sub_capture_app_watch : R.string.sub_capture_screen_session);
+            binding.subCensorSummary.setText(getString(R.string.sub_censor_summary,
+                    friendlyEffectName(appearance.getType()), detector + " · " + capture));
+            StatsSnapshot stats = new StatsRepository(this).load();
+            binding.subCensorStats.setText(getString(R.string.sub_censor_stats,
+                    stats.getCurrentSessionBlocks(),
+                    StatsSnapshot.formatClock(stats.getCurrentSessionSeconds())));
+        }
+
+        if (limitsEnabled) {
+            AppModeManager appMode = new AppModeManager(this);
+            AppTimerManager.Settings timer = new AppTimerManager(this).loadSettings();
+            String limits;
+            if (timer.perAppEnabled && timer.totalEnabled) {
+                limits = getString(R.string.sub_limits_both,
+                        timer.perAppMinutes, timer.totalMinutes);
+            } else if (timer.perAppEnabled) {
+                limits = getString(R.string.sub_limits_per_app, timer.perAppMinutes);
+            } else if (timer.totalEnabled) {
+                limits = getString(R.string.sub_limits_combined, timer.totalMinutes);
+            } else {
+                limits = getString(R.string.sub_limits_none);
+            }
+            binding.subLimitsSummary.setText(timer.anyEnabled()
+                    ? getString(R.string.sub_limits_selected,
+                            appMode.getSelectedPackages().size(), limits)
+                    : limits);
+            binding.subLimitsDetail.setText(appMode.isEffectivelyArmed(now)
+                    ? R.string.sub_limits_armed : R.string.sub_limits_sleeping);
+        }
+
+        if (walletEnabled) {
+            PenanceSnapshot wallet = new PenanceManager(this).snapshot(now);
+            binding.subWalletVoice.setText(wallet.isEnabled()
+                    ? R.string.sub_wallet_active : R.string.sub_wallet_inactive);
+            binding.subWalletSummary.setText(getString(R.string.sub_wallet_summary,
+                    PenanceManager.formatMoney(wallet.getDueCents()),
+                    PenanceManager.formatMoney(wallet.getMercyCents()),
+                    PenanceManager.formatMoney(wallet.getPaidCents())));
+        }
+    }
+
+    private String friendlyEffectName(CensorAppearance.Type type) {
+        String raw = type == null ? "BOX" : type.name();
+        String spaced = raw.replace('_', ' ').toLowerCase(java.util.Locale.ROOT);
+        return Character.toUpperCase(spaced.charAt(0)) + spaced.substring(1);
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     @Override protected void onPause() {
@@ -305,6 +403,7 @@ public final class MainActivity extends AppCompatActivity {
         binding.statsBlocks.setText(String.valueOf(stats.getCurrentSessionBlocks()));
         binding.statsTime.setText(StatsSnapshot.formatClock(stats.getCurrentSessionSeconds()));
         binding.statsSessions.setText(String.valueOf(stats.getSessions()));
+        renderSubDashboard();
     }
 
     private void showProgressUnlocks(StatsSnapshot stats) {

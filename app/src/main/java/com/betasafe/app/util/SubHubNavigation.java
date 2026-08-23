@@ -15,6 +15,7 @@ import com.betasafe.app.appmode.AppModeActivity;
 import com.betasafe.app.penance.PenanceActivity;
 import com.betasafe.app.settings.FeatureModuleManager;
 import com.betasafe.app.settings.GlobalSettingsActivity;
+import com.betasafe.app.security.ControllerPinManager;
 
 /** Feature-aware product navigation with Settings always available. */
 public final class SubHubNavigation {
@@ -23,6 +24,10 @@ public final class SubHubNavigation {
     private SubHubNavigation() {}
 
     public static void bind(Activity activity, View root, Screen active) {
+        View navigation = root.findViewById(R.id.bottom_navigation);
+        boolean domMode = ControllerPinManager.isDomModeActive();
+        setVisible(navigation, domMode);
+        if (!domMode) return;
         FeatureModuleManager modules = new FeatureModuleManager(activity);
         setVisible(root.findViewById(R.id.nav_censor), modules.isCensorEnabled());
         setVisible(root.findViewById(R.id.nav_limits), modules.isLimitsEnabled());

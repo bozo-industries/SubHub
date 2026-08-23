@@ -96,8 +96,7 @@ public final class PenanceActivity extends AppCompatActivity {
 
     private void toggleEditSession() {
         if (ControllerPinManager.isSessionUnlocked()) {
-            ControllerPinManager.lockNow();
-            applyEditState();
+            ControllerEditMode.enterSubMode(this);
         } else ControllerPinGate.require(this, this::applyEditState, false);
     }
 

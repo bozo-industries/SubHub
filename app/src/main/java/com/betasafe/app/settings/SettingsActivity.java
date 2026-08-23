@@ -68,8 +68,7 @@ public final class SettingsActivity extends AppCompatActivity {
 
     private void toggleEditSession() {
         if (ControllerPinManager.isSessionUnlocked()) {
-            ControllerPinManager.lockNow();
-            applyLockState();
+            ControllerEditMode.enterSubMode(this);
         } else {
             ControllerPinGate.require(this, this::applyLockState, false);
         }
