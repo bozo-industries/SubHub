@@ -29,6 +29,7 @@ import com.betasafe.app.databinding.ActivityAppModeBinding;
 import com.betasafe.app.service.ScreenshotAccessibilityService;
 import com.betasafe.app.security.ControllerPinGate;
 import com.betasafe.app.security.ControllerPinManager;
+import com.betasafe.app.security.HardcoreModeManager;
 import com.betasafe.app.security.ControllerEditMode;
 import com.betasafe.app.util.SubHubNavigation;
 
@@ -121,6 +122,13 @@ public final class AppModeActivity extends AppCompatActivity {
                 binding.modeAlways, binding.modeSelected, binding.autoResume, binding.buttonSave,
                 binding.scheduleEnabled, binding.perAppLimitEnabled, binding.totalLimitEnabled};
         for (View view : editable) view.setEnabled(editingUnlocked);
+        boolean hardcore = new HardcoreModeManager(this).isEnabled();
+        if (hardcore) {
+            binding.armed.setChecked(true);
+            binding.autoResume.setChecked(true);
+            binding.armed.setEnabled(false);
+            binding.autoResume.setEnabled(false);
+        }
         renderTimerControls();
         renderScheduleControls();
         for (int index = 0; index < binding.appList.getChildCount(); index++) {
@@ -160,7 +168,9 @@ public final class AppModeActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.app_schedule_select_day, Toast.LENGTH_SHORT).show();
             return;
         }
-        manager.save(binding.armed.isChecked(), mode, binding.autoResume.isChecked(),
+        boolean hardcore = new HardcoreModeManager(this).isEnabled();
+        manager.save(hardcore || binding.armed.isChecked(), mode,
+                hardcore || binding.autoResume.isChecked(),
                 selectedPackages);
         schedule.save(binding.scheduleEnabled.isChecked(), selectedDays,
                 scheduleStartMinute, scheduleEndMinute);

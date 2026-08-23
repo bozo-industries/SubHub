@@ -102,17 +102,25 @@ public final class PenanceActivity extends AppCompatActivity {
 
     private void applyEditState() {
         if (binding == null) return;
-        boolean editing = ControllerPinManager.isSessionUnlocked();
+        boolean editing = ControllerPinManager.isDomModeActive();
         ControllerEditMode.renderButton(this, binding.buttonEditLock);
+        binding.buttonEditLock.setVisibility(editing ? View.VISIBLE : View.GONE);
+        binding.buttonBack.setVisibility(editing ? View.GONE : View.VISIBLE);
+        binding.penanceSubtitle.setText(editing
+                ? R.string.penance_subtitle : R.string.penance_sub_checkout_subtitle);
+        binding.ruleConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
+        binding.safetyConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
+        binding.correctionsCard.setVisibility(editing ? View.VISIBLE : View.GONE);
         View[] editable = {binding.ledgerEnabled, binding.ruleDetectionEnabled,
                 binding.ruleDetectionAmount, binding.detectionBatch, binding.ruleDwellEnabled,
                 binding.ruleDwellAmount, binding.ruleTapEnabled, binding.ruleTapAmount,
                 binding.ruleAppOpenEnabled, binding.ruleAppOpenAmount, binding.dailyCap,
                 binding.weeklyCap, binding.mercyMinutes, binding.dwellSeconds,
-                binding.paymentConsent, binding.buttonSaveRules, binding.buttonSettle,
-                binding.buttonResumeCheckout, binding.buttonCancelCheckout,
+                binding.paymentConsent, binding.buttonSaveRules,
                 binding.buttonForgiveLatest, binding.buttonClearUnpaid, binding.buttonTestStrike};
         for (View view : editable) view.setEnabled(editing);
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.MONEY);
+        render();
     }
 
     @Override protected void onPause() {
@@ -385,8 +393,8 @@ public final class PenanceActivity extends AppCompatActivity {
         boolean paymentAvailable = validBackend(manager.getBackendUrl());
         binding.paymentAvailability.setText(paymentAvailable
                 ? R.string.penance_payment_ready : R.string.penance_payment_unavailable);
-        binding.buttonSettle.setEnabled(ControllerPinManager.isSessionUnlocked()
-                && paymentAvailable && snapshot.getDueCents() > 0 && !checkout);
+        binding.buttonSettle.setEnabled(
+                paymentAvailable && snapshot.getDueCents() > 0 && !checkout);
         binding.buttonResumeCheckout.setVisibility(
                 checkout && !manager.getActiveApprovalUrl().isEmpty() ? View.VISIBLE : View.GONE);
         binding.buttonCancelCheckout.setVisibility(checkout ? View.VISIBLE : View.GONE);
@@ -441,10 +449,9 @@ public final class PenanceActivity extends AppCompatActivity {
 
     private void setBusy(boolean busy) {
         if (binding == null) return;
-        boolean editing = ControllerPinManager.isSessionUnlocked();
-        binding.buttonSettle.setEnabled(editing && !busy);
-        binding.buttonResumeCheckout.setEnabled(editing && !busy);
-        binding.buttonCancelCheckout.setEnabled(editing && !busy);
+        binding.buttonSettle.setEnabled(!busy);
+        binding.buttonResumeCheckout.setEnabled(!busy);
+        binding.buttonCancelCheckout.setEnabled(!busy);
         binding.paymentStatus.setText(busy ? R.string.penance_checking : R.string.penance_payment_pending);
     }
 

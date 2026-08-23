@@ -67,6 +67,51 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="9dp"
+                android:background="@drawable/bg_sub_hero"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingTop="14dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="14dp">
+                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                    android:text="@string/hardcore_title" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/hardcore_body" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_hardcore_mode"
+                    style="@style/Widget.SubHub.SettingsToggle"
+                    android:layout_width="match_parent"
+                    android:layout_marginTop="5dp"
+                    android:text="@string/hardcore_toggle" />
+                <TextView
+                    android:id="@+id/hardcore_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="@string/hardcore_status_off"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+                <TextView
+                    android:id="@+id/button_hardcore_system"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="9dp"
+                    android:background="@drawable/bg_outline_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:text="@string/hardcore_open_admin"
+                    android:textColor="@color/accent"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">

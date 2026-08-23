@@ -129,6 +129,8 @@ public final class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(this, CommitmentActivity.class)));
         binding.buttonPenanceView.setOnClickListener(view ->
                 startActivity(new Intent(this, PenanceActivity.class)));
+        binding.subWalletPay.setOnClickListener(view ->
+                startActivity(new Intent(this, PenanceActivity.class)));
         boolean seen = getSharedPreferences(SettingsRepository.PREFERENCES_NAME, MODE_PRIVATE)
                 .getBoolean("has_seen_onboarding", false);
         binding.onboardingCard.setVisibility(seen ? View.GONE : View.VISIBLE);
@@ -346,6 +348,11 @@ public final class MainActivity extends AppCompatActivity {
                     PenanceManager.formatMoney(wallet.getDueCents()),
                     PenanceManager.formatMoney(wallet.getMercyCents()),
                     PenanceManager.formatMoney(wallet.getPaidCents())));
+            boolean checkout = wallet.getCheckoutCents() > 0;
+            binding.subWalletPay.setVisibility(wallet.getDueCents() > 0 || checkout
+                    ? View.VISIBLE : View.GONE);
+            binding.subWalletPay.setText(checkout
+                    ? R.string.sub_wallet_resume : R.string.sub_wallet_pay);
         }
     }
 
