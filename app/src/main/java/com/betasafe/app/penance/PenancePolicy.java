@@ -61,7 +61,7 @@ public final class PenancePolicy {
         return clamp(value, MIN_DETECTION_BATCH, MAX_DETECTION_BATCH);
     }
 
-    private static int periodTotal(List<PenanceEvent> events, long nowMillis,
+    static int periodTotal(List<PenanceEvent> events, long nowMillis,
             ZoneId zoneId, boolean day) {
         LocalDate now = Instant.ofEpochMilli(nowMillis).atZone(zoneId).toLocalDate();
         WeekFields weekFields = WeekFields.of(Locale.getDefault());

@@ -42,6 +42,7 @@ public final class ControllerEditSessionTest {
 
     @Test public void censorSettingsAreReadOnlyWhenSessionLocks() {
         assertLocked(SettingsActivity.class, R.id.radio_box);
+        assertLocked(SettingsActivity.class, R.id.switch_smut_text);
     }
 
     @Test public void limitsSettingsAreReadOnlyWhenSessionLocks() {

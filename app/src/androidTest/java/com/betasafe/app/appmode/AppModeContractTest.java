@@ -11,10 +11,12 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.view.View;
+import android.widget.GridLayout;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.betasafe.app.R;
 import com.betasafe.app.settings.SettingsRepository;
@@ -119,6 +121,23 @@ public final class AppModeContractTest {
             assertFalse(receiver.exported);
         } catch (PackageManager.NameNotFoundException error) {
             throw new AssertionError(error);
+        }
+    }
+
+    @Test public void launcherPickerUsesACompactTwoOrThreeRowHorizontalGrid() throws Exception {
+        try (ActivityScenario<AppModeActivity> scenario =
+                     ActivityScenario.launch(AppModeActivity.class)) {
+            Thread.sleep(750L);
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            scenario.onActivity(activity -> {
+                GridLayout grid = activity.findViewById(R.id.app_list);
+                int expected = activity.getResources().getInteger(R.integer.app_picker_rows);
+                assertTrue(expected == 2 || expected == 3);
+                assertEquals(expected, grid.getRowCount());
+                assertTrue(grid.getChildCount() > expected);
+                assertEquals(grid.getChildAt(0).getLeft(), grid.getChildAt(1).getLeft());
+                assertTrue(grid.getChildAt(expected).getLeft() > grid.getChildAt(0).getLeft());
+            });
         }
     }
 }

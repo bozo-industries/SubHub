@@ -101,6 +101,22 @@ public final class PenanceManager {
                 preferences.getInt(KEY_DETECTION_REMAINDER, 0)));
     }
 
+    public int getDailyRemainingCents(long nowMillis) {
+        synchronized (LOCK) {
+            int used = PenancePolicy.periodTotal(
+                    loadEvents(), nowMillis, ZoneId.systemDefault(), true);
+            return Math.max(0, getDailyCapCents() - used);
+        }
+    }
+
+    public int getWeeklyRemainingCents(long nowMillis) {
+        synchronized (LOCK) {
+            int used = PenancePolicy.periodTotal(
+                    loadEvents(), nowMillis, ZoneId.systemDefault(), false);
+            return Math.max(0, getWeeklyCapCents() - used);
+        }
+    }
+
     public String getBackendUrl() {
         return normalizeBackendUrl(BuildConfig.PAYPAL_BACKEND_URL);
     }
@@ -174,7 +190,7 @@ public final class PenanceManager {
                 if (billableCount <= 0) return 0;
             }
             List<PenanceEvent> events = loadEvents();
-            trimHistory(events);
+            trimHistoryForInsertion(events);
             if (events.size() >= MAX_EVENTS) return 0;
             int amount = PenancePolicy.boundedCharge(events, nowMillis, billableCount,
                     getInfractionCents(infraction), getDailyCapCents(), getWeeklyCapCents(),
@@ -405,6 +421,22 @@ public final class PenanceManager {
                 }
             }
             if (removable < 0) break;
+            events.remove(removable);
+        }
+    }
+
+    private static void trimHistoryForInsertion(List<PenanceEvent> events) {
+        while (events.size() >= MAX_EVENTS) {
+            int removable = -1;
+            for (int index = 0; index < events.size(); index++) {
+                PenanceEvent.Status status = events.get(index).getStatus();
+                if (status == PenanceEvent.Status.PAID
+                        || status == PenanceEvent.Status.FORGIVEN) {
+                    removable = index;
+                    break;
+                }
+            }
+            if (removable < 0) return;
             events.remove(removable);
         }
     }

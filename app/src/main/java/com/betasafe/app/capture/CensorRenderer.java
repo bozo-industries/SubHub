@@ -7,10 +7,13 @@ import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.SweepGradient;
+import android.graphics.Typeface;
 
 import com.betasafe.app.detection.BBox;
 import com.betasafe.app.detection.Detection;
@@ -30,6 +33,9 @@ public final class CensorRenderer implements AutoCloseable {
     private final Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint filtered = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    private final Paint nearest = new Paint();
+    private final Paint cyanShift = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final Paint redShift = new Paint(Paint.FILTER_BITMAP_FLAG);
 
     public CensorRenderer(Context context) {
         this.context = context.getApplicationContext();
@@ -38,6 +44,13 @@ public final class CensorRenderer implements AutoCloseable {
         border.setStyle(Paint.Style.STROKE);
         text.setTextAlign(Paint.Align.CENTER);
         text.setFakeBoldText(true);
+        nearest.setFilterBitmap(false);
+        cyanShift.setAlpha(90);
+        cyanShift.setColorFilter(new PorterDuffColorFilter(
+                Color.rgb(0, 180, 255), PorterDuff.Mode.SRC_ATOP));
+        redShift.setAlpha(90);
+        redShift.setColorFilter(new PorterDuffColorFilter(
+                Color.rgb(255, 0, 80), PorterDuff.Mode.SRC_ATOP));
     }
 
     public RenderResult renderWithDetection(Bitmap source, DetectionEngine engine)
@@ -111,12 +124,7 @@ public final class CensorRenderer implements AutoCloseable {
                 drawGlitch(canvas, source, rect, id, intensity);
                 break;
             case TAPE:
-                fill.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
-                        new int[]{Color.rgb(8, 8, 12), Color.rgb(255, 0, 128),
-                                Color.rgb(8, 8, 12)}, null, Shader.TileMode.REPEAT));
-                fill.setAlpha(255);
-                canvas.drawRoundRect(rect, 8, 8, fill);
-                fill.setShader(null);
+                drawTape(canvas, source, rect, id, intensity);
                 break;
             case ERROR_POPUP:
                 drawErrorPopup(canvas, rect, appearance);
@@ -145,14 +153,25 @@ public final class CensorRenderer implements AutoCloseable {
     private void drawPixelate(
             Canvas canvas, Bitmap source, RectF destination, int intensity, boolean soften) {
         Rect sourceRect = sourceRect(source, destination);
-        int divisor = Math.max(3, soften ? 3 + intensity / 8 : 3 + intensity / 5);
+        int clamped = Math.max(1, Math.min(100, intensity));
+        int divisor;
+        if (soften) {
+            divisor = Math.max(2, Math.round(2 + (clamped - 1) / 99f * 18f));
+        } else {
+            int minimum = Math.max(1, Math.min(sourceRect.width(), sourceRect.height()));
+            float fraction = (clamped - 1) / 99f;
+            int minimumBlock = Math.max(3, Math.round(minimum * .025f));
+            int maximumBlock = Math.max(minimumBlock + 1, Math.round(minimum * .45f));
+            divisor = Math.max(2, Math.min(minimum,
+                    Math.round(minimumBlock + (maximumBlock - minimumBlock)
+                            * fraction * fraction)));
+        }
         int width = Math.max(1, sourceRect.width() / divisor);
         int height = Math.max(1, sourceRect.height() / divisor);
         Bitmap small = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        Paint paint = new Paint(soften
-                ? Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG : 0);
-        new Canvas(small).drawBitmap(source, sourceRect, new Rect(0, 0, width, height), paint);
-        canvas.drawBitmap(small, null, destination, paint);
+        new Canvas(small).drawBitmap(source, sourceRect,
+                new Rect(0, 0, width, height), filtered);
+        canvas.drawBitmap(small, null, destination, soften ? filtered : nearest);
         small.recycle();
     }
 
@@ -167,49 +186,184 @@ public final class CensorRenderer implements AutoCloseable {
     }
 
     private void drawStatic(Canvas canvas, RectF rect, int id, int intensity) {
-        int cell = Math.max(3, 2 + intensity / 12);
+        int clamped = Math.max(1, Math.min(100, intensity));
+        int cell = Math.max(2, Math.min(7, 7 - clamped / 20));
+        float contrast = .35f + clamped / 100f * .65f;
         long seed = id * 1103515245L + Float.floatToIntBits(rect.left);
         for (float y = rect.top; y < rect.bottom; y += cell) {
             for (float x = rect.left; x < rect.right; x += cell) {
                 seed = seed * 6364136223846793005L + 1442695040888963407L;
-                int value = (int) ((seed >>> 56) & 0xff);
+                int raw = (int) ((seed >>> 56) & 0xff);
+                int value = Math.max(0, Math.min(255,
+                        Math.round(128f * (1f - contrast) + raw * contrast)));
                 fill.setColor(Color.rgb(value, value, value));
                 fill.setAlpha(255);
                 canvas.drawRect(x, y, Math.min(rect.right, x + cell),
                         Math.min(rect.bottom, y + cell), fill);
             }
         }
-    }
-
-    private void drawGlitch(Canvas canvas, Bitmap source, RectF rect, int id, int intensity) {
-        canvas.drawBitmap(source, sourceRect(source, rect), rect, filtered);
-        int bands = 4 + intensity / 12;
-        float height = rect.height() / bands;
-        for (int index = 0; index < bands; index++) {
-            float top = rect.top + index * height;
-            float offset = ((index + id) % 3 - 1) * (3 + intensity / 10f);
-            fill.setColor((index & 1) == 0 ? Color.CYAN : Color.MAGENTA);
-            fill.setAlpha(75);
-            canvas.drawRect(rect.left + offset, top, rect.right + offset,
-                    Math.min(rect.bottom, top + height * .45f), fill);
+        fill.setColor(Color.BLACK);
+        fill.setAlpha(70);
+        for (float y = rect.top; y < rect.bottom; y += Math.max(4, cell * 2f)) {
+            canvas.drawRect(rect.left, y, rect.right, Math.min(rect.bottom, y + 1f), fill);
         }
     }
 
+    private void drawGlitch(Canvas canvas, Bitmap source, RectF rect, int id, int intensity) {
+        Rect sourceRegion = sourceRect(source, rect);
+        int save = canvas.save();
+        canvas.clipRect(rect);
+        canvas.drawBitmap(source, sourceRegion, rect, filtered);
+        float strength = Math.max(1, Math.min(100, intensity)) / 100f;
+        float shift = Math.max(2f, (.02f + .06f * strength) * rect.width());
+        RectF shifted = new RectF(rect);
+        shifted.offset(-shift, 0);
+        canvas.drawBitmap(source, sourceRegion, shifted, cyanShift);
+        shifted.offset(shift * 2f, 0);
+        canvas.drawBitmap(source, sourceRegion, shifted, redShift);
+        int bands = Math.max(3, Math.round(4 + strength * 8));
+        int sourceBandHeight = Math.max(2, sourceRegion.height() / 14);
+        for (int index = 0; index < bands; index++) {
+            int available = Math.max(1, sourceRegion.height() - sourceBandHeight);
+            int sourceTop = sourceRegion.top + hashInt(id * 131L + index * 31L) % available;
+            int sourceBottom = Math.min(sourceRegion.bottom, sourceTop + sourceBandHeight);
+            float topRatio = (sourceTop - sourceRegion.top) / (float) sourceRegion.height();
+            float bottomRatio = (sourceBottom - sourceRegion.top) / (float) sourceRegion.height();
+            float offset = ((index % 3) - 1) * shift;
+            Rect bandSource = new Rect(sourceRegion.left, sourceTop,
+                    sourceRegion.right, sourceBottom);
+            RectF bandDestination = new RectF(rect.left + offset,
+                    rect.top + rect.height() * topRatio, rect.right + offset,
+                    rect.top + rect.height() * bottomRatio);
+            canvas.drawBitmap(source, bandSource, bandDestination, filtered);
+            fill.setColor(Color.WHITE);
+            fill.setAlpha(48);
+            canvas.drawRect(rect.left, bandDestination.top, rect.right,
+                    bandDestination.bottom, fill);
+        }
+        canvas.restoreToCount(save);
+    }
+
+    private void drawTape(
+            Canvas canvas, Bitmap source, RectF rect, int id, int intensity) {
+        int save = canvas.save();
+        canvas.clipRect(rect);
+        filtered.setAlpha(70);
+        canvas.drawBitmap(source, sourceRect(source, rect), rect, filtered);
+        filtered.setAlpha(255);
+        fill.setShader(null);
+        fill.setColor(Color.rgb(18, 18, 22));
+        fill.setAlpha(210);
+        canvas.drawRect(rect, fill);
+        float spacing = Math.max(16f, Math.min(52f,
+                50f - Math.max(1, Math.min(100, intensity)) * .25f));
+        Paint red = new Paint(Paint.ANTI_ALIAS_FLAG);
+        red.setColor(Color.rgb(229, 57, 53));
+        red.setStrokeWidth(Math.max(5f, spacing / 3f));
+        Paint yellow = new Paint(Paint.ANTI_ALIAS_FLAG);
+        yellow.setColor(Color.rgb(243, 211, 59));
+        yellow.setStrokeWidth(Math.max(3f, spacing / 5f));
+        float shift = id * 7f % spacing;
+        float rise = rect.height() * .45f;
+        for (float x = rect.left - rect.width(); x < rect.right + rect.width(); x += spacing) {
+            canvas.drawLine(x + shift, rect.bottom, x + shift + rise, rect.top, red);
+        }
+        for (float x = rect.left - rect.width() + spacing / 2f;
+             x < rect.right + rect.width(); x += spacing) {
+            canvas.drawLine(x + shift, rect.bottom, x + shift + rise, rect.top, yellow);
+        }
+        canvas.restoreToCount(save);
+    }
+
     private void drawErrorPopup(Canvas canvas, RectF rect, CensorAppearance appearance) {
-        fill.setColor(Color.rgb(232, 232, 238));
+        if (rect.width() < 82 || rect.height() < 46) {
+            fill.setColor(Color.rgb(245, 245, 245));
+            fill.setAlpha(255);
+            canvas.drawRect(rect, fill);
+            fill.setColor(Color.rgb(215, 38, 48));
+            float radius = Math.max(4, Math.min(rect.width(), rect.height()) / 10f);
+            float cx = rect.left + 6 + radius;
+            canvas.drawCircle(cx, rect.centerY(), radius, fill);
+            return;
+        }
+        RectF shadow = new RectF(rect);
+        shadow.offset(3, 3);
+        fill.setColor(Color.argb(58, 0, 0, 0));
+        canvas.drawRect(shadow, fill);
+        fill.setColor(Color.rgb(240, 240, 240));
         fill.setAlpha(255);
         canvas.drawRect(rect, fill);
-        float header = Math.min(rect.height() * .32f, Math.max(24, rect.height() * .2f));
-        fill.setColor(appearance.getBorderColor());
-        canvas.drawRect(rect.left, rect.top, rect.right, rect.top + header, fill);
-        text.setColor(Color.WHITE);
-        text.setTextSize(Math.max(10, header * .45f));
-        drawFittedText(canvas, appearance.getErrorTitle(), rect.centerX(),
-                rect.top + header * .68f, rect.width() - 12);
+        border.setColor(Color.rgb(118, 118, 118));
+        border.setStrokeWidth(1);
+        canvas.drawRect(rect, border);
+        float header = Math.max(21, Math.min(32, rect.height() * .22f));
+        fill.setColor(Color.WHITE);
+        canvas.drawRect(rect.left + 1, rect.top + 1, rect.right - 1, rect.top + header, fill);
+        float iconSize = Math.max(14, Math.min(38,
+                Math.min(rect.width(), rect.height()) * .22f));
+        float iconLeft = rect.left + Math.max(10, rect.width() * .07f);
+        float iconTop = rect.top + header + Math.max(8, rect.height() * .08f);
+        fill.setColor(Color.rgb(215, 38, 48));
+        canvas.drawCircle(iconLeft + iconSize / 2f, iconTop + iconSize / 2f,
+                iconSize / 2f, fill);
+        border.setColor(Color.WHITE);
+        border.setStrokeWidth(Math.max(2, iconSize / 8f));
+        float a = iconSize * .30f;
+        float b = iconSize * .70f;
+        canvas.drawLine(iconLeft + a, iconTop + a, iconLeft + b, iconTop + b, border);
+        canvas.drawLine(iconLeft + b, iconTop + a, iconLeft + a, iconTop + b, border);
+
         text.setColor(Color.rgb(20, 20, 28));
-        text.setTextSize(Math.max(9, Math.min(24, rect.height() * .12f)));
-        drawFittedText(canvas, appearance.getErrorMessage(), rect.centerX(),
-                rect.top + header + rect.height() * .28f, rect.width() - 12);
+        text.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL));
+        text.setTextAlign(Paint.Align.LEFT);
+        text.setTextSize(Math.max(8, Math.min(12, header - 8)));
+        canvas.drawText(appearance.getErrorTitle(), rect.left + 10,
+                rect.top + header * .68f, text);
+        float messageLeft = iconLeft + iconSize + Math.max(9, rect.width() * .05f);
+        text.setTextSize(Math.max(8, Math.min(13, rect.height() * .12f)));
+        drawWrappedText(canvas, appearance.getErrorMessage(), messageLeft,
+                iconTop - 2 + text.getTextSize(), rect.right - 12, rect.bottom - 12);
+        float buttonHeight = Math.max(20, Math.min(30, rect.height() * .20f));
+        float buttonWidth = Math.max(58, Math.min(92, rect.width() * .28f));
+        RectF button = new RectF(rect.right - buttonWidth - 12,
+                rect.bottom - buttonHeight - 10, rect.right - 12, rect.bottom - 10);
+        fill.setColor(Color.rgb(250, 250, 250));
+        canvas.drawRect(button, fill);
+        border.setColor(Color.rgb(0, 120, 215));
+        border.setStrokeWidth(1);
+        canvas.drawRect(button, border);
+        text.setTextAlign(Paint.Align.CENTER);
+        text.setTextSize(Math.max(8, Math.min(11, buttonHeight - 10)));
+        canvas.drawText("OK", button.centerX(),
+                button.centerY() - (text.ascent() + text.descent()) / 2f, text);
+        text.setTypeface(Typeface.DEFAULT_BOLD);
+    }
+
+    private void drawWrappedText(
+            Canvas canvas, String value, float left, float baseline, float right, float bottom) {
+        String line = "";
+        float lineHeight = text.getTextSize() * 1.18f;
+        for (String word : value.split(" ")) {
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (text.measureText(candidate) <= right - left || line.isEmpty()) line = candidate;
+            else {
+                if (baseline > bottom) return;
+                canvas.drawText(line, left, baseline, text);
+                baseline += lineHeight;
+                line = word;
+            }
+        }
+        if (!line.isEmpty() && baseline <= bottom) canvas.drawText(line, left, baseline, text);
+    }
+
+    private static long mix(long seed) {
+        long first = (seed ^ (seed >>> 33)) * -49064778989728563L;
+        long second = (first ^ (first >>> 33)) * -4265267296055464877L;
+        return second ^ (second >>> 33);
+    }
+
+    private static int hashInt(long seed) {
+        return (int) (mix(seed) & 0x7fffffffL);
     }
 
     private void drawBorder(Canvas canvas, RectF rect, CensorAppearance appearance) {

@@ -19,6 +19,7 @@ import com.betasafe.app.commitment.CommitmentManager;
 import com.betasafe.app.databinding.ActivitySettingsBinding;
 import com.betasafe.app.detection.DetectionPreset;
 import com.betasafe.app.detection.DetectorConfig;
+import com.betasafe.app.detection.text.TextSmutConfig;
 import com.betasafe.app.diagnostics.DiagnosticsActivity;
 import com.betasafe.app.overlay.CensorPhrases;
 import com.betasafe.app.pack.LockedSettings;
@@ -103,6 +104,17 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.switchArmpits.setChecked(categories.contains("armpits"));
         binding.switchCovered.setChecked(containsCoveredCategory(categories));
 
+        TextSmutConfig textSmut = repository.loadTextSmutConfig();
+        binding.switchSmutText.setChecked(textSmut.isEnabled());
+        binding.smutSensitivityGroup.check(radioFor(textSmut.getSensitivity()));
+        Set<String> smutCategories = textSmut.getEnabledCategories();
+        binding.switchSmutExplicit.setChecked(
+                smutCategories.contains(TextSmutConfig.CATEGORY_EXPLICIT));
+        binding.switchSmutFetish.setChecked(
+                smutCategories.contains(TextSmutConfig.CATEGORY_FETISH));
+        binding.switchSmutSolicitation.setChecked(
+                smutCategories.contains(TextSmutConfig.CATEGORY_SOLICITATION));
+
         Set<String> phraseCategories = repository.preferences().getStringSet(
                 SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES,
                 CensorPhrases.DEFAULT_ENABLED);
@@ -133,6 +145,7 @@ public final class SettingsActivity extends AppCompatActivity {
             });
         }
         binding.borderEffectGroup.setOnCheckedChangeListener((group, checkedId) -> saveAll());
+        binding.smutSensitivityGroup.setOnCheckedChangeListener((group, checkedId) -> saveAll());
         binding.presetGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (bindingValues) return;
             DetectionPreset preset = presetFor(checkedId);
@@ -184,6 +197,13 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.switchFeet.setOnCheckedChangeListener(changed);
         binding.switchArmpits.setOnCheckedChangeListener(changed);
         binding.switchCovered.setOnCheckedChangeListener(changed);
+        binding.switchSmutText.setOnCheckedChangeListener((button, checked) -> {
+            saveAll();
+            applyLockState();
+        });
+        binding.switchSmutExplicit.setOnCheckedChangeListener(changed);
+        binding.switchSmutFetish.setOnCheckedChangeListener(changed);
+        binding.switchSmutSolicitation.setOnCheckedChangeListener(changed);
         binding.switchPhraseShort.setOnCheckedChangeListener(changed);
         binding.switchPhraseDenial.setOnCheckedChangeListener(changed);
         binding.switchPhraseHumiliation.setOnCheckedChangeListener(changed);
@@ -247,6 +267,16 @@ public final class SettingsActivity extends AppCompatActivity {
                 binding.switchMaleChest, binding.switchBelly, binding.switchFeet,
                 binding.switchArmpits, binding.switchCovered};
         for (CompoundButton category : categories) category.setEnabled(categoriesEnabled);
+        binding.switchSmutText.setEnabled(
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_TEXT_SMUT_ENABLED));
+        boolean smutDetailsEnabled = editing && binding.switchSmutText.isChecked();
+        setEnabledRecursive(binding.smutSensitivityGroup, smutDetailsEnabled
+                && !LockedSettings.isLocked(SettingsRepository.KEY_TEXT_SMUT_SENSITIVITY));
+        boolean smutCategoriesEnabled = smutDetailsEnabled
+                && !LockedSettings.isLocked(SettingsRepository.KEY_TEXT_SMUT_CATEGORIES);
+        binding.switchSmutExplicit.setEnabled(smutCategoriesEnabled);
+        binding.switchSmutFetish.setEnabled(smutCategoriesEnabled);
+        binding.switchSmutSolicitation.setEnabled(smutCategoriesEnabled);
         boolean phrasesEnabled =
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES);
         CompoundButton[] phraseCategories = {
@@ -320,6 +350,20 @@ public final class SettingsActivity extends AppCompatActivity {
             categories.add("armpits_covered");
         }
         repository.saveDetection(binding.confidenceSeek.getProgress(), categories);
+        Set<String> smutCategories = new LinkedHashSet<>();
+        if (binding.switchSmutExplicit.isChecked()) {
+            smutCategories.add(TextSmutConfig.CATEGORY_EXPLICIT);
+        }
+        if (binding.switchSmutFetish.isChecked()) {
+            smutCategories.add(TextSmutConfig.CATEGORY_FETISH);
+        }
+        if (binding.switchSmutSolicitation.isChecked()) {
+            smutCategories.add(TextSmutConfig.CATEGORY_SOLICITATION);
+        }
+        repository.saveTextSmutConfig(new TextSmutConfig(
+                binding.switchSmutText.isChecked(),
+                textSensitivityFor(binding.smutSensitivityGroup.getCheckedRadioButtonId()),
+                smutCategories));
         stats.recordCensorStyleTried(selectedStyle);
         stats.recordBorderEffectTried(selectedBorder);
         if (!selectedStyle.equals(previousStyle)) stats.incrementCensorStyleChanges();
@@ -417,6 +461,18 @@ public final class SettingsActivity extends AppCompatActivity {
             case ULTRA: return R.id.radio_preset_ultra;
             default: return R.id.radio_preset_medium;
         }
+    }
+
+    private int radioFor(int textSensitivity) {
+        if (textSensitivity == TextSmutConfig.SENSITIVITY_STRICT) return R.id.radio_smut_strict;
+        if (textSensitivity == TextSmutConfig.SENSITIVITY_BROAD) return R.id.radio_smut_broad;
+        return R.id.radio_smut_balanced;
+    }
+
+    private int textSensitivityFor(int id) {
+        if (id == R.id.radio_smut_strict) return TextSmutConfig.SENSITIVITY_STRICT;
+        if (id == R.id.radio_smut_broad) return TextSmutConfig.SENSITIVITY_BROAD;
+        return TextSmutConfig.SENSITIVITY_BALANCED;
     }
 
     private DetectionPreset presetFor(int id) {

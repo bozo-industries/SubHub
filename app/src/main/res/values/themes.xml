@@ -112,6 +112,9 @@
         <item name="android:textStyle">bold</item>
         <item name="android:gravity">center</item>
         <item name="android:includeFontPadding">false</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingHorizontal">8dp</item>
+        <item name="android:singleLine">true</item>
     </style>
 
     <style name="Widget.SubHub.CompactCard" parent="">
@@ -158,7 +161,7 @@
 
     <style name="Widget.SubHub.RuleTile" parent="">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">158dp</item>
+        <item name="android:layout_height">146dp</item>
         <item name="android:layout_columnWeight">1</item>
         <item name="android:layout_margin">3dp</item>
         <item name="android:background">@drawable/bg_stat_card</item>
@@ -179,7 +182,9 @@
 
     <style name="Widget.SubHub.RuleHelp" parent="">
         <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">44dp</item>
+        <item name="android:layout_height">32dp</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:maxLines">2</item>
         <item name="android:textColor">@color/text_muted</item>
         <item name="android:textSize">10sp</item>
         <item name="android:includeFontPadding">false</item>
@@ -202,7 +207,13 @@
         <item name="android:hint">@string/penance_strike_hint</item>
         <item name="android:inputType">numberDecimal</item>
         <item name="android:maxLines">1</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:minHeight">0dp</item>
         <item name="android:paddingHorizontal">10dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+        <item name="android:singleLine">true</item>
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textColorHint">@color/text_muted</item>
         <item name="android:textSize">13sp</item>
@@ -260,10 +271,14 @@
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
         <item name="android:gravity">center</item>
+        <item name="android:ellipsize">end</item>
         <item name="android:textColor">@color/accent</item>
         <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:includeFontPadding">false</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingHorizontal">6dp</item>
+        <item name="android:singleLine">true</item>
     </style>
 
     <style name="Widget.BetaSafe.OptionRadio" parent="">
@@ -311,7 +326,7 @@
 
     <style name="Widget.SubHub.ToolAction" parent="">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">54dp</item>
+        <item name="android:layout_height">58dp</item>
         <item name="android:layout_columnWeight">1</item>
         <item name="android:layout_gravity">fill_horizontal</item>
         <item name="android:layout_margin">3dp</item>
@@ -320,9 +335,11 @@
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
         <item name="android:gravity">center</item>
-        <item name="android:drawablePadding">7dp</item>
+        <item name="android:drawablePadding">3dp</item>
         <item name="android:drawableTint">@color/accent</item>
         <item name="android:paddingHorizontal">8dp</item>
+        <item name="android:paddingTop">7dp</item>
+        <item name="android:paddingBottom">1dp</item>
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
@@ -361,6 +378,8 @@
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:singleLine">true</item>
     </style>
 
     <style name="Widget.SubHub.PrimaryButton" parent="">
@@ -374,6 +393,9 @@
         <item name="android:textColor">@color/primary_button_text</item>
         <item name="android:textSize">13sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:paddingHorizontal">10dp</item>
+        <item name="android:singleLine">true</item>
     </style>
 
     <style name="Widget.SubHub.DefaultButton" parent="android:style/Widget.Button">
@@ -388,6 +410,8 @@
         <item name="android:textColor">@color/accent</item>
         <item name="android:textSize">12sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:singleLine">true</item>
     </style>
 
     <style name="Widget.SubHub.ControllerEdit" parent="">
@@ -404,5 +428,7 @@
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textSize">10sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:singleLine">true</item>
     </style>
 </resources>

@@ -14,8 +14,11 @@ MainActivity
                                  |-- selected launcher packages
                                   |
                                   v
-                           DetectionEngine
-                           ONNX Runtime + 320n model
+                 DetectionEngine + native-text classifier
+                    ONNX model + Accessibility nodes
+                                  |
+                                  v
+                           DetectionFusion
                                   |
                                   v
                             ObjectTracker
@@ -24,7 +27,7 @@ MainActivity
               OverlayController / CensorRenderer / ReverseCensorView
 ```
 
-`DetectionEngine` accepts screen bitmaps, runs an 18-class detector, applies confidence filtering/NMS, and produces bounding boxes. The tracker stabilizes detections between frames. Rendering is split between system overlays and image/export rendering. Capture is deliberately single-flight; the performance preset bounds ONNX intra-op concurrency to one through four threads instead of allowing overlapping screenshot/inference jobs to queue stale frames.
+`DetectionEngine` accepts screen bitmaps, runs an 18-class detector, applies confidence filtering/NMS, and produces bounding boxes. In Accessibility App Mode, a bounded native-node classifier can also identify visible explicit text without OCR. `DetectionFusion` merges overlapping visual and native-text regions before the tracker, so the same stable post is censored and counted once rather than once per screenshot. Rendering is split between system overlays and image/export rendering. Capture is deliberately single-flight; the performance preset bounds ONNX intra-op concurrency to one through four threads instead of allowing overlapping screenshot/inference jobs to queue stale frames.
 
 The clean source implements both capture branches as ordinary Java source under `app/src/main/java/com/betasafe/app`. Android's own consent dialog authorizes every MediaProjection session, while Android's accessibility settings control the alternate screenshot service. Export rendering and reverse censoring are also maintained source. The app does not silently grant or retain platform capture authority.
 
@@ -74,7 +77,7 @@ The clean source reconstruction intentionally omits that diagnostics server. The
 
 ## Money Rules and payment boundary
 
-`PenanceManager` is the retained internal class name for the user-facing Money Rules feature. It stores opt-in rules, capped entries, correction-window state, settlement state, payment history, and the remainder toward an Every-N threshold in private app preferences. Both capture services forward only newly confirmed stable tracker IDs; repeated frames and the lifetime Blocks statistic do not backfill a rule. Editing unrelated costs or caps retains threshold progress, while changing Every-N resets it. The UI previews the exact event math and can remove a false positive during its correction window or clear every unpaid entry at any time.
+`PenanceManager` is the retained internal class name for the user-facing Money Rules feature. It stores opt-in rules, capped entries, correction-window state, settlement state, payment history, and the remainder toward an Every-N threshold in private app preferences. Both capture services forward only newly confirmed stable tracker IDs; repeated frames and the lifetime Blocks statistic do not backfill a rule. Editing unrelated costs or caps retains threshold progress, while changing Every-N resets it. Daily and weekly caps may reduce an otherwise eligible event to zero; the UI now reports that state explicitly while Stats continues counting the detection. The UI can remove a false positive during its correction window or clear every unpaid entry at any time.
 
 `payment-server/` owns PayPal OAuth, Orders v2 calls, capture, persistent order correlation, and webhook verification. Android sends a random settlement ID, exact bounded amount, and currency. PayPal approval returns through the backend to the app's `betasafe://paypal` route, but the backend does not capture on that redirect. Android requests capture only while the same local checkout remains active and accepts completion only when order ID, settlement ID, amount, and currency all match. The backend origin is injected into `BuildConfig` through a Gradle property or environment variable; it is not editable in the app, and release builds permit HTTPS origins only.
 

@@ -48,14 +48,16 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 
 ## 2026-08-23 renderer, controller, and responsive QA pass
 
-- A clean 44-test unit suite, 54-test connected instrumentation suite, and debug assembly completed with zero failures.
+- A clean 53-test unit suite, 59-test connected instrumentation suite, focused 31-test device regression pass, lint, and debug assembly completed with zero failures.
 - The live overlay corpus rendered all nine censor effects continuously into a generated contact sheet. Consecutive source-frame refreshes remained opaque, custom phrases produced visible glyph pixels, and distant pixels outside each tracked region stayed transparent.
 - Source-dependent effects now transfer the owned capture frame to the overlay without a second full-screen copy. Custom images decode asynchronously, reuse 129 precomputed aspect-crop buckets, retain deterministic track assignments, and are bounded by the selected performance preset.
 - Low/Medium/High/Ultra use bounded 1/2/3/4-thread ONNX kernel budgets while the capture loop remains single-flight. This allows useful inference parallelism without overlapping captures or queued stale frames.
 - Android System UI, notification, and permission-controller windows are rejected as transient foreground events. Unit regression coverage proves those events cannot replace the watched package; ordinary app transitions remain accepted.
 - The controller EDIT boundary now covers Money, Limits, censor configuration, browser shields, custom images, profiles, packs, Popup Storm, diagnostics, commitment setup, permission repair, and destructive export settings. Locked pages remain readable; safety releases and non-configuration operations remain reachable.
-- Money Rules now distinguishes Lifetime Blocks from post-enable rule events, previews Every-N math and caps live, preserves the saved remainder across ordinary rule edits, and resets it only when the batch threshold changes or rules are disabled.
-- A 19-page real screenshot map passed at 1080×2400/420 dpi and 1600×2560/240 dpi. A 15-page landscape pass also completed at 2560×1600/240 dpi. The final phone review verified centered icon-over-label Censor tools, vertically centered pill navigation, readable shared buttons, larger shared type, and a text-only EDIT control.
+- Money Rules now distinguishes Lifetime Blocks from post-enable rule events, previews Every-N math and caps live, preserves the saved remainder across ordinary rule edits, resets it only when the batch threshold changes or rules are disabled, and explicitly reports when the daily or weekly cap makes an otherwise eligible event worth zero.
+- App Mode classifies bounded visible Accessibility text locally without OCR, merges it with overlapping model detections, and sends the fused boxes through the existing stable tracker so the same post does not create repeated money events.
+- Image-heavy `.bbpack` inputs use explicit archive, entry, extracted-size, and entry-count bounds with actionable rejection messages instead of the former 50 MiB blanket failure.
+- A 20-page real screenshot map passed at the phone profile and 1600×2560/240 dpi tablet profile. The final review verified centered icon-over-label Censor tools, vertically centered pill navigation, readable shared buttons/inputs, the compact three-row app picker, reduced main-flow copy, and a text-only EDIT control.
 
 Notification and overlay grants were pre-authorized with ADB on this dedicated emulator so the test could focus on capture consent and runtime behavior. A normal installation still uses the explicit in-app permission flow.
 
