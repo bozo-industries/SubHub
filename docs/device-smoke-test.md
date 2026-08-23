@@ -1,6 +1,6 @@
 # API 35 device smoke test
 
-- Date: 2026-08-22
+- Date: 2026-08-23
 - Device: dedicated `betasafe_api35` Android Emulator, Google APIs x86_64
 - Package: `com.betasafe.app`
 
@@ -45,6 +45,17 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - App-timer contracts cover per-app, combined, unselected-app, disabled, and local-day-reset behavior. Timers use the watched package set independently of censor recognition mode. In the live service, Android Settings was selected with a one-minute per-app budget; at the boundary the service logged `PER_APP` enforcement and Android reported the Nexus Launcher as `topResumedActivity`. Reopening a spent app follows the same pre-recognition budget check.
 - The clean Accessibility declaration was corrected so Android can bind the signature-permission-protected service on target 35. A live all-app cycle prewarmed `320n_fp16.onnx` under NNAPI while capture slept, activated on Android Settings, produced its first processed 1080×2400 frame about 0.58 seconds after the foreground transition (138 ms inference), and suspended on return to SubHub. Window-manager inspection found no Accessibility overlay remaining after suspension.
 - Automatic capture now invalidates in-flight frames on every accepted package transition, uses immediate overlay/popup teardown, and explicitly hides cleared reverse-mode content. The Accessibility event reaction timeout is 100 ms; screenshot cadence uses a 350 ms floor to avoid Android's rate-limit failures. Default solid boxes render as alpha-255 black and no longer retain an unnecessary second full-screen bitmap.
+
+## 2026-08-23 renderer, controller, and responsive QA pass
+
+- A clean 44-test unit suite, 54-test connected instrumentation suite, and debug assembly completed with zero failures.
+- The live overlay corpus rendered all nine censor effects continuously into a generated contact sheet. Consecutive source-frame refreshes remained opaque, custom phrases produced visible glyph pixels, and distant pixels outside each tracked region stayed transparent.
+- Source-dependent effects now transfer the owned capture frame to the overlay without a second full-screen copy. Custom images decode asynchronously, reuse 129 precomputed aspect-crop buckets, retain deterministic track assignments, and are bounded by the selected performance preset.
+- Low/Medium/High/Ultra use bounded 1/2/3/4-thread ONNX kernel budgets while the capture loop remains single-flight. This allows useful inference parallelism without overlapping captures or queued stale frames.
+- Android System UI, notification, and permission-controller windows are rejected as transient foreground events. Unit regression coverage proves those events cannot replace the watched package; ordinary app transitions remain accepted.
+- The controller EDIT boundary now covers Money, Limits, censor configuration, browser shields, custom images, profiles, packs, Popup Storm, diagnostics, commitment setup, permission repair, and destructive export settings. Locked pages remain readable; safety releases and non-configuration operations remain reachable.
+- Money Rules now distinguishes Lifetime Blocks from post-enable rule events, previews Every-N math and caps live, preserves the saved remainder across ordinary rule edits, and resets it only when the batch threshold changes or rules are disabled.
+- A 19-page real screenshot map passed at 1080×2400/420 dpi and 1600×2560/240 dpi. A 15-page landscape pass also completed at 2560×1600/240 dpi. The final phone review verified centered icon-over-label Censor tools, vertically centered pill navigation, readable shared buttons, larger shared type, and a text-only EDIT control.
 
 Notification and overlay grants were pre-authorized with ADB on this dedicated emulator so the test could focus on capture consent and runtime behavior. A normal installation still uses the explicit in-app permission flow.
 
