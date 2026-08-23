@@ -13,6 +13,9 @@ import com.betasafe.app.overlay.CensorPhrases;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 /** Typed access to preference keys retained for compatibility with the original app. */
 public final class SettingsRepository {
@@ -38,6 +41,8 @@ public final class SettingsRepository {
     public static final String KEY_TEXT_SMUT_ENABLED = "text_smut_enabled";
     public static final String KEY_TEXT_SMUT_SENSITIVITY = "text_smut_sensitivity";
     public static final String KEY_TEXT_SMUT_CATEGORIES = "text_smut_categories";
+    public static final String KEY_CAPTURE_METHOD = "capture_method";
+    public static final String KEY_EFFECT_PALETTE_PREFIX = "effect_palette_";
 
     private final SharedPreferences preferences;
 
@@ -94,6 +99,16 @@ public final class SettingsRepository {
                 .apply();
     }
 
+    public CaptureMethod loadCaptureMethod() {
+        return CaptureMethod.fromPreference(preferences.getString(
+                KEY_CAPTURE_METHOD, CaptureMethod.SCREEN_RECORDING.preferenceValue()));
+    }
+
+    public void saveCaptureMethod(CaptureMethod method) {
+        CaptureMethod safe = method == null ? CaptureMethod.SCREEN_RECORDING : method;
+        preferences.edit().putString(KEY_CAPTURE_METHOD, safe.preferenceValue()).apply();
+    }
+
     public CensorAppearance loadAppearance() {
         int borderColor;
         try {
@@ -101,9 +116,10 @@ public final class SettingsRepository {
         } catch (IllegalArgumentException error) {
             borderColor = Color.rgb(255, 0, 128);
         }
+        CensorAppearance.Type type = CensorAppearance.Type.fromPreference(
+                preferences.getString(KEY_CENSOR_TYPE, "box"));
         return new CensorAppearance(
-                CensorAppearance.Type.fromPreference(
-                        preferences.getString(KEY_CENSOR_TYPE, "box")),
+                type,
                 preferences.getInt(KEY_CENSOR_INTENSITY, 50),
                 preferences.getFloat(KEY_CENSOR_SIZE_PADDING, 0.20f),
                 preferences.getBoolean(KEY_SHOW_BORDER, true),
@@ -112,6 +128,7 @@ public final class SettingsRepository {
                         preferences.getString(KEY_BORDER_EFFECT, "classic")),
                 preferences.getBoolean(KEY_SHOW_TEXT, true),
                 borderColor,
+                loadEffectPalette(type),
                 CensorPhrases.build(
                         preferences.getStringSet(
                                 KEY_ENABLED_PHRASE_CATEGORIES, CensorPhrases.DEFAULT_ENABLED),
@@ -121,6 +138,48 @@ public final class SettingsRepository {
                 preferences.getString(KEY_REVERSE_CUTOUT_SHAPE, "rectangle"),
                 preferences.getString(KEY_ERROR_TITLE, "SubHub"),
                 preferences.getString(KEY_ERROR_TEXT, "Access blocked."));
+    }
+
+    public EffectPalette loadEffectPalette(CensorAppearance.Type type) {
+        EffectPalette defaults = EffectPalette.defaultsFor(type);
+        return new EffectPalette(
+                readColor(paletteKey(type, 1), defaults.first()),
+                readColor(paletteKey(type, 2), defaults.second()),
+                readColor(paletteKey(type, 3), defaults.third()));
+    }
+
+    public void saveEffectPalette(CensorAppearance.Type type, EffectPalette palette) {
+        if (type == null || palette == null) return;
+        preferences.edit()
+                .putString(paletteKey(type, 1), colorString(palette.first()))
+                .putString(paletteKey(type, 2), colorString(palette.second()))
+                .putString(paletteKey(type, 3), colorString(palette.third()))
+                .apply();
+    }
+
+    public static String paletteKey(CensorAppearance.Type type, int slot) {
+        CensorAppearance.Type safe = type == null ? CensorAppearance.Type.BOX : type;
+        return KEY_EFFECT_PALETTE_PREFIX + safe.getPreferenceValue() + "_" + slot;
+    }
+
+    public static List<String> palettePreferenceKeys() {
+        List<String> keys = new ArrayList<>();
+        for (CensorAppearance.Type type : CensorAppearance.Type.values()) {
+            for (int slot = 1; slot <= 3; slot++) keys.add(paletteKey(type, slot));
+        }
+        return Collections.unmodifiableList(keys);
+    }
+
+    private int readColor(String key, int fallback) {
+        try {
+            return Color.parseColor(preferences.getString(key, colorString(fallback)));
+        } catch (IllegalArgumentException error) {
+            return fallback;
+        }
+    }
+
+    public static String colorString(int color) {
+        return String.format(Locale.ROOT, "#%08X", color);
     }
 
     public void saveAppearance(

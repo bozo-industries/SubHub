@@ -24,6 +24,8 @@ import com.betasafe.app.penance.PenanceActivity;
 import com.betasafe.app.popup.PopupStormActivity;
 import com.betasafe.app.profiles.ProfilesActivity;
 import com.betasafe.app.settings.SettingsActivity;
+import com.betasafe.app.settings.GlobalSettingsActivity;
+import com.betasafe.app.settings.FeatureModuleManager;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -38,6 +40,7 @@ public final class ControllerEditSessionTest {
             assertTrue(ControllerPinManager.setPin(context, "2468"));
         }
         ControllerPinManager.lockNow();
+        new FeatureModuleManager(context).save(true, true, true);
     }
 
     @Test public void censorSettingsAreReadOnlyWhenSessionLocks() {
@@ -51,6 +54,10 @@ public final class ControllerEditSessionTest {
 
     @Test public void moneySettingsAreReadOnlyWhenSessionLocks() {
         assertLocked(PenanceActivity.class, R.id.ledger_enabled);
+    }
+
+    @Test public void globalFeatureSettingsAreReadOnlyWhenSessionLocks() {
+        assertLocked(GlobalSettingsActivity.class, R.id.switch_module_censor);
     }
 
     @Test public void secondaryConfigurationSurfacesAreReadOnlyWhenSessionLocks() {

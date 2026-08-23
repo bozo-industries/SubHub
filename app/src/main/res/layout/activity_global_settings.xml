@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/settings_page"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_main">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="@dimen/page_margin"
+            android:paddingTop="10dp"
+            android:paddingEnd="@dimen/page_margin"
+            android:paddingBottom="116dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="9dp"
+                android:background="@drawable/bg_header_card"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="14dp">
+                <ImageView
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_bottom_tab_active"
+                    android:contentDescription="@string/nav_settings"
+                    android:padding="9dp"
+                    android:src="@drawable/ic_tab_settings"
+                    android:tint="@color/accent" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:letterSpacing="0.1"
+                        android:text="@string/global_settings_title"
+                        android:textColor="@color/text_primary"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/global_settings_subtitle"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
+                </LinearLayout>
+                <TextView
+                    android:id="@+id/button_edit_lock"
+                    style="@style/Widget.SubHub.ControllerEdit"
+                    android:text="@string/controller_edit_locked" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="12dp">
+                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                    android:text="@string/global_features_title" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:layout_marginTop="3dp"
+                    android:text="@string/global_features_help" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_module_censor"
+                    style="@style/Widget.SubHub.SettingsToggle"
+                    android:layout_width="match_parent"
+                    android:text="@string/global_feature_censor" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:text="@string/global_feature_censor_help" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_module_limits"
+                    style="@style/Widget.SubHub.SettingsToggle"
+                    android:layout_width="match_parent"
+                    android:text="@string/global_feature_limits" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:text="@string/global_feature_limits_help" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_module_wallet"
+                    style="@style/Widget.SubHub.SettingsToggle"
+                    android:layout_width="match_parent"
+                    android:text="@string/global_feature_wallet" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:text="@string/global_feature_wallet_help" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="9dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="12dp">
+                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                    android:text="@string/global_app_settings_title" />
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:columnCount="2">
+                    <TextView android:id="@+id/button_help"
+                        style="@style/Widget.SubHub.SettingsAction"
+                        android:text="@string/global_help" />
+                    <TextView android:id="@+id/button_profiles"
+                        style="@style/Widget.SubHub.SettingsAction"
+                        android:text="@string/global_backup" />
+                    <TextView android:id="@+id/button_diagnostics"
+                        style="@style/Widget.SubHub.SettingsAction"
+                        android:text="@string/global_diagnostics" />
+                    <TextView android:id="@+id/button_commitment"
+                        style="@style/Widget.SubHub.SettingsAction"
+                        android:text="@string/global_security" />
+                </GridLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <include layout="@layout/view_bottom_pill_nav" />
+</FrameLayout>

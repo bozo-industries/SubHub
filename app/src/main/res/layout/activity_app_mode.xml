@@ -166,14 +166,10 @@
                 android:textColor="@color/text_secondary" android:textSize="11sp" />
             <TextView android:id="@+id/selected_count" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textColor="@color/text_secondary" android:textSize="11sp" />
             <ProgressBar android:id="@+id/loading_apps" style="?android:attr/progressBarStyleSmall" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:layout_marginTop="16dp" />
-            <HorizontalScrollView android:layout_width="match_parent"
+            <GridLayout android:id="@+id/app_list" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                android:clipToPadding="false" android:fillViewport="false"
-                android:overScrollMode="ifContentScrolls" android:scrollbars="none">
-                <GridLayout android:id="@+id/app_list" android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" android:alignmentMode="alignMargins"
-                    android:orientation="vertical" android:rowCount="@integer/app_picker_rows" />
-            </HorizontalScrollView>
+                android:alignmentMode="alignMargins" android:orientation="horizontal"
+                android:columnCount="@integer/app_picker_columns" />
         </LinearLayout>
 
     </LinearLayout>

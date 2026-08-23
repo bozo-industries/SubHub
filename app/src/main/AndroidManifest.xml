@@ -42,6 +42,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".settings.GlobalSettingsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".browser.BrowserActivity"
             android:exported="false" />
 

@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.betasafe.app.settings.SettingsRepository;
+import com.betasafe.app.settings.FeatureModuleManager;
 import com.betasafe.app.stats.StatsRepository;
 
 import org.json.JSONArray;
@@ -27,15 +28,22 @@ public final class ProfileManager {
             SettingsRepository.KEY_ANIMATE_BORDER,
             SettingsRepository.KEY_SHOW_TEXT,
             SettingsRepository.KEY_REVERSE_MODE,
-            SettingsRepository.KEY_TEXT_SMUT_ENABLED);
-    private static final List<String> STRING_KEYS = Arrays.asList(
+            SettingsRepository.KEY_TEXT_SMUT_ENABLED,
+            FeatureModuleManager.KEY_CENSOR_ENABLED,
+            FeatureModuleManager.KEY_LIMITS_ENABLED,
+            FeatureModuleManager.KEY_WALLET_ENABLED);
+    private static final List<String> STRING_KEYS = new ArrayList<>(Arrays.asList(
             SettingsRepository.KEY_DETECTION_PRESET,
             SettingsRepository.KEY_CENSOR_TYPE,
+            SettingsRepository.KEY_CAPTURE_METHOD,
             SettingsRepository.KEY_BORDER_EFFECT,
             SettingsRepository.KEY_BORDER_COLOR,
             SettingsRepository.KEY_REVERSE_CUTOUT_SHAPE,
             SettingsRepository.KEY_ERROR_TITLE,
-            SettingsRepository.KEY_ERROR_TEXT);
+            SettingsRepository.KEY_ERROR_TEXT));
+    static {
+        STRING_KEYS.addAll(SettingsRepository.palettePreferenceKeys());
+    }
     private static final List<String> INT_KEYS = Arrays.asList(
             SettingsRepository.KEY_CENSOR_INTENSITY,
             SettingsRepository.KEY_CONFIDENCE,

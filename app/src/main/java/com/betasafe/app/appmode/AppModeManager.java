@@ -3,8 +3,11 @@ package com.betasafe.app.appmode;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.provider.Settings;
+import android.accessibilityservice.AccessibilityServiceInfo;
+import android.view.accessibility.AccessibilityManager;
 
 import com.betasafe.app.settings.SettingsRepository;
+import com.betasafe.app.settings.FeatureModuleManager;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -64,6 +67,7 @@ public final class AppModeManager {
     }
 
     public boolean shouldRecognize(String foregroundPackage) {
+        if (!new FeatureModuleManager(context).isCensorEnabled()) return false;
         return AppModePolicy.shouldRecognize(isEffectivelyArmed(System.currentTimeMillis()),
                 getMode(), getSelectedPackages(),
                 foregroundPackage, context.getPackageName(), inputMethodPackage());
@@ -71,6 +75,18 @@ public final class AppModeManager {
 
     public boolean isEffectivelyArmed(long nowMillis) {
         return isArmed() || new WeeklyScheduleManager(context).isActive(nowMillis);
+    }
+
+    public boolean isAccessibilityEnabled() {
+        AccessibilityManager accessibility = context.getSystemService(AccessibilityManager.class);
+        if (accessibility == null) return false;
+        for (AccessibilityServiceInfo service : accessibility
+                .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)) {
+            if (service.getResolveInfo() != null
+                    && context.getPackageName().equals(
+                    service.getResolveInfo().serviceInfo.packageName)) return true;
+        }
+        return false;
     }
 
     /** A boot never grants capture authority. It only preserves or disarms prior user intent. */

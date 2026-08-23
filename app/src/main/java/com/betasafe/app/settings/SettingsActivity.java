@@ -1,18 +1,26 @@
 package com.betasafe.app.settings;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.text.InputType;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CompoundButton;
+import android.widget.EditText;
+import android.widget.GridLayout;
+import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.SeekBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.betasafe.app.R;
-import com.betasafe.app.appmode.AppModeActivity;
 import com.betasafe.app.capture.CustomImagesActivity;
 import com.betasafe.app.commitment.CommitmentActivity;
 import com.betasafe.app.commitment.CommitmentManager;
@@ -20,7 +28,6 @@ import com.betasafe.app.databinding.ActivitySettingsBinding;
 import com.betasafe.app.detection.DetectionPreset;
 import com.betasafe.app.detection.DetectorConfig;
 import com.betasafe.app.detection.text.TextSmutConfig;
-import com.betasafe.app.diagnostics.DiagnosticsActivity;
 import com.betasafe.app.overlay.CensorPhrases;
 import com.betasafe.app.pack.LockedSettings;
 import com.betasafe.app.security.ControllerPinGate;
@@ -28,12 +35,12 @@ import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.security.ControllerEditMode;
 import com.betasafe.app.pack.PackManager;
 import com.betasafe.app.pack.PacksActivity;
-import com.betasafe.app.profiles.ProfilesActivity;
 import com.betasafe.app.popup.PopupStormActivity;
 import com.betasafe.app.stats.StatsRepository;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.IntConsumer;
 
 /** Styled, source-native editor for live detector and censor preferences. */
 public final class SettingsActivity extends AppCompatActivity {
@@ -71,6 +78,8 @@ public final class SettingsActivity extends AppCompatActivity {
     private void bindValues() {
         bindingValues = true;
         CensorAppearance appearance = repository.loadAppearance();
+        binding.captureMethodGroup.check(repository.loadCaptureMethod() == CaptureMethod.APP_MODE
+                ? R.id.radio_capture_app_mode : R.id.radio_capture_recording);
         setCheckedStyle(radioFor(appearance.getType()));
         binding.intensitySeek.setProgress(appearance.getIntensity());
         binding.intensityValue.setText(percent(appearance.getIntensity()));
@@ -84,6 +93,8 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.switchReverse.setChecked(appearance.isReverseMode());
         binding.reverseStrengthSeek.setProgress(appearance.getReverseStrength());
         binding.reverseStrengthValue.setText(percent(appearance.getReverseStrength()));
+        renderPaletteControls();
+        renderColorButton(binding.borderColor, appearance.getBorderColor());
 
         DetectionPreset preset = repository.loadDetectionPreset();
         binding.presetGroup.check(radioFor(preset));
@@ -132,6 +143,7 @@ public final class SettingsActivity extends AppCompatActivity {
     }
 
     private void attachListeners() {
+        binding.captureMethodGroup.setOnCheckedChangeListener((group, checkedId) -> saveAll());
         for (int id : styleRadioIds()) {
             RadioButton radio = findViewById(id);
             radio.setOnCheckedChangeListener((button, checked) -> {
@@ -142,6 +154,7 @@ public final class SettingsActivity extends AppCompatActivity {
                 }
                 bindingValues = false;
                 saveAll();
+                renderPaletteControls();
             });
         }
         binding.borderEffectGroup.setOnCheckedChangeListener((group, checkedId) -> saveAll());
@@ -218,18 +231,22 @@ public final class SettingsActivity extends AppCompatActivity {
         });
         binding.buttonCustomImages.setOnClickListener(view ->
                 startActivity(new Intent(this, CustomImagesActivity.class)));
-        binding.buttonProfiles.setOnClickListener(view ->
-                startActivity(new Intent(this, ProfilesActivity.class)));
         binding.buttonPacks.setOnClickListener(view ->
                 startActivity(new Intent(this, PacksActivity.class)));
         binding.buttonPopupStorm.setOnClickListener(view ->
                 startActivity(new Intent(this, PopupStormActivity.class)));
-        binding.buttonDiagnostics.setOnClickListener(view ->
-                startActivity(new Intent(this, DiagnosticsActivity.class)));
-        binding.buttonCommitment.setOnClickListener(view ->
-                startActivity(new Intent(this, CommitmentActivity.class)));
-        binding.buttonAppMode.setOnClickListener(view ->
-                startActivity(new Intent(this, AppModeActivity.class)));
+        binding.paletteColorOne.setOnClickListener(view -> pickEffectColor(1));
+        binding.paletteColorTwo.setOnClickListener(view -> pickEffectColor(2));
+        binding.paletteColorThree.setOnClickListener(view -> pickEffectColor(3));
+        binding.borderColor.setOnClickListener(view -> showColorDialog(
+                getString(R.string.border_color_label), repository.loadAppearance().getBorderColor(),
+                color -> {
+                    repository.preferences().edit().putString(
+                            SettingsRepository.KEY_BORDER_COLOR,
+                            SettingsRepository.colorString(color)).apply();
+                    renderColorButton(binding.borderColor, color);
+                    stats.setBorderColorChanged();
+                }));
     }
 
     private void applyLockState() {
@@ -237,12 +254,19 @@ public final class SettingsActivity extends AppCompatActivity {
         ControllerEditMode.renderButton(this, binding.buttonEditLock);
         setEnabledRecursive(binding.styleGroup,
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE));
+        setEnabledRecursive(binding.captureMethodGroup,
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CAPTURE_METHOD));
         binding.intensitySeek.setEnabled(
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_INTENSITY));
         binding.paddingSeek.setEnabled(
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_SIZE_PADDING));
         binding.switchBorder.setEnabled(
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_BORDER));
+        boolean paletteEnabled = editing
+                && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE);
+        setEnabledRecursive(binding.effectPaletteGroup, paletteEnabled);
+        binding.borderColor.setEnabled(
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_BORDER_COLOR));
         binding.switchText.setEnabled(
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_TEXT));
         binding.switchAnimateBorder.setEnabled(
@@ -293,6 +317,170 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.packLockStatus.setText(getString(R.string.pack_lock_status, lockCount));
     }
 
+    private void renderPaletteControls() {
+        CensorAppearance.Type type = typeFor(checkedStyleId());
+        int count = paletteSlotCount(type);
+        binding.effectPaletteGroup.setVisibility(count == 0 ? View.GONE : View.VISIBLE);
+        binding.paletteColorOneField.setVisibility(count >= 1 ? View.VISIBLE : View.GONE);
+        binding.paletteColorTwoField.setVisibility(count >= 2 ? View.VISIBLE : View.GONE);
+        binding.paletteColorThreeField.setVisibility(count >= 3 ? View.VISIBLE : View.GONE);
+        if (count == 0) return;
+        int[] labels = paletteLabels(type);
+        binding.paletteColorOneLabel.setText(labels[0]);
+        if (count >= 2) binding.paletteColorTwoLabel.setText(labels[1]);
+        if (count >= 3) binding.paletteColorThreeLabel.setText(labels[2]);
+        EffectPalette palette = repository.loadEffectPalette(type);
+        renderColorButton(binding.paletteColorOne, palette.first());
+        renderColorButton(binding.paletteColorTwo, palette.second());
+        renderColorButton(binding.paletteColorThree, palette.third());
+    }
+
+    private void pickEffectColor(int slot) {
+        CensorAppearance.Type type = typeFor(checkedStyleId());
+        EffectPalette current = repository.loadEffectPalette(type);
+        int selected = slot == 1 ? current.first() : slot == 2 ? current.second() : current.third();
+        int[] labels = paletteLabels(type);
+        showColorDialog(getString(labels[Math.max(0, Math.min(2, slot - 1))]), selected, color -> {
+            EffectPalette updated = new EffectPalette(
+                    slot == 1 ? color : current.first(),
+                    slot == 2 ? color : current.second(),
+                    slot == 3 ? color : current.third());
+            repository.saveEffectPalette(type, updated);
+            renderPaletteControls();
+        });
+    }
+
+    private void showColorDialog(String title, int current, IntConsumer accepted) {
+        int padding = Math.round(16 * getResources().getDisplayMetrics().density);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(padding, 0, padding, 0);
+
+        TextView fieldLabel = new TextView(this);
+        fieldLabel.setText(R.string.color_hex_label);
+        fieldLabel.setTextColor(getColor(R.color.text_primary));
+        fieldLabel.setTextSize(12f);
+        content.addView(fieldLabel);
+
+        EditText hex = new EditText(this);
+        hex.setSingleLine(true);
+        hex.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        hex.setText(SettingsRepository.colorString(current).substring(3));
+        hex.setSelection(hex.length());
+        hex.setTextColor(getColor(R.color.text_primary));
+        hex.setHintTextColor(getColor(R.color.text_muted));
+        content.addView(hex, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+
+        TextView presetsLabel = new TextView(this);
+        presetsLabel.setText(R.string.color_picker_presets);
+        presetsLabel.setTextColor(getColor(R.color.text_primary));
+        presetsLabel.setTextSize(12f);
+        presetsLabel.setPadding(0, dp(8), 0, dp(4));
+        content.addView(presetsLabel);
+
+        GridLayout presets = new GridLayout(this);
+        presets.setColumnCount(4);
+        int[] colors = {Color.BLACK, Color.WHITE, Color.rgb(255, 0, 128),
+                Color.rgb(169, 76, 255), Color.rgb(215, 38, 48),
+                Color.rgb(243, 211, 59), Color.rgb(0, 180, 255), Color.rgb(18, 18, 22)};
+        for (int index = 0; index < colors.length; index++) {
+            int color = colors[index];
+            TextView swatch = new TextView(this);
+            swatch.setContentDescription(SettingsRepository.colorString(color));
+            swatch.setBackground(swatchBackground(color));
+            swatch.setOnClickListener(view -> {
+                hex.setText(SettingsRepository.colorString(color).substring(3));
+                hex.setSelection(hex.length());
+            });
+            GridLayout.LayoutParams params = new GridLayout.LayoutParams(
+                    GridLayout.spec(index / 4), GridLayout.spec(index % 4, 1f));
+            params.width = 0;
+            params.height = dp(42);
+            params.setMargins(dp(3), dp(3), dp(3), dp(3));
+            presets.addView(swatch, params);
+        }
+        content.addView(presets, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(content)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(view -> {
+                    try {
+                        String raw = hex.getText().toString().trim();
+                        if (!raw.startsWith("#")) raw = "#" + raw;
+                        int color = Color.parseColor(raw);
+                        accepted.accept(Color.argb(255, Color.red(color),
+                                Color.green(color), Color.blue(color)));
+                        dialog.dismiss();
+                    } catch (IllegalArgumentException error) {
+                        hex.setError(getString(R.string.color_invalid));
+                    }
+                }));
+        dialog.show();
+    }
+
+    private void renderColorButton(TextView button, int color) {
+        button.setText(SettingsRepository.colorString(color).substring(3));
+        button.setTextColor(isLight(color) ? Color.BLACK : Color.WHITE);
+        button.setGravity(Gravity.CENTER);
+        button.setBackground(swatchBackground(color));
+    }
+
+    private GradientDrawable swatchBackground(int color) {
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(color);
+        background.setCornerRadius(dp(12));
+        background.setStroke(dp(1), getColor(R.color.accent));
+        return background;
+    }
+
+    private static boolean isLight(int color) {
+        return Color.red(color) * 299 + Color.green(color) * 587 + Color.blue(color) * 114
+                >= 160_000;
+    }
+
+    private int paletteSlotCount(CensorAppearance.Type type) {
+        switch (type) {
+            case BOX:
+            case BAR: return 1;
+            case STATIC: return 2;
+            case GLITCH:
+            case TAPE:
+            case ERROR_POPUP: return 3;
+            default: return 0;
+        }
+    }
+
+    private int[] paletteLabels(CensorAppearance.Type type) {
+        switch (type) {
+            case STATIC:
+                return new int[]{R.string.effect_color_dark, R.string.effect_color_light,
+                        R.string.effect_color_light};
+            case GLITCH:
+                return new int[]{R.string.effect_color_left_shift,
+                        R.string.effect_color_right_shift, R.string.effect_color_flash};
+            case TAPE:
+                return new int[]{R.string.effect_color_base,
+                        R.string.effect_color_stripe_one, R.string.effect_color_stripe_two};
+            case ERROR_POPUP:
+                return new int[]{R.string.effect_color_panel,
+                        R.string.effect_color_alert, R.string.effect_color_action};
+            default:
+                return new int[]{R.string.effect_color_fill,
+                        R.string.effect_color_light, R.string.effect_color_flash};
+        }
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
     private static void setEnabledRecursive(View view, boolean enabled) {
         view.setEnabled(enabled);
         if (!(view instanceof ViewGroup)) return;
@@ -304,6 +492,8 @@ public final class SettingsActivity extends AppCompatActivity {
 
     private void saveAll() {
         if (bindingValues) return;
+        repository.saveCaptureMethod(binding.radioCaptureAppMode.isChecked()
+                ? CaptureMethod.APP_MODE : CaptureMethod.SCREEN_RECORDING);
         String previousStyle = repository.preferences().getString(
                 SettingsRepository.KEY_CENSOR_TYPE, "box");
         String selectedStyle = typeFor(checkedStyleId())
