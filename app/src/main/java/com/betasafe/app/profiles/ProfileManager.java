@@ -26,7 +26,8 @@ public final class ProfileManager {
             SettingsRepository.KEY_SHOW_BORDER,
             SettingsRepository.KEY_ANIMATE_BORDER,
             SettingsRepository.KEY_SHOW_TEXT,
-            SettingsRepository.KEY_REVERSE_MODE);
+            SettingsRepository.KEY_REVERSE_MODE,
+            SettingsRepository.KEY_TEXT_SMUT_ENABLED);
     private static final List<String> STRING_KEYS = Arrays.asList(
             SettingsRepository.KEY_DETECTION_PRESET,
             SettingsRepository.KEY_CENSOR_TYPE,
@@ -37,12 +38,14 @@ public final class ProfileManager {
             SettingsRepository.KEY_ERROR_TEXT);
     private static final List<String> INT_KEYS = Arrays.asList(
             SettingsRepository.KEY_CENSOR_INTENSITY,
-            SettingsRepository.KEY_CONFIDENCE);
+            SettingsRepository.KEY_CONFIDENCE,
+            SettingsRepository.KEY_TEXT_SMUT_SENSITIVITY);
     private static final List<String> FLOAT_KEYS = Arrays.asList(
             SettingsRepository.KEY_CENSOR_SIZE_PADDING,
             SettingsRepository.KEY_REVERSE_STRENGTH);
     private static final List<String> STRING_SET_KEYS = Arrays.asList(
             SettingsRepository.KEY_ENABLED_CATEGORIES,
+            SettingsRepository.KEY_TEXT_SMUT_CATEGORIES,
             SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES,
             SettingsRepository.KEY_CUSTOM_PHRASES);
 

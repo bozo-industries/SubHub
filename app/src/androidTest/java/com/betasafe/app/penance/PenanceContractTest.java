@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.view.View;
+import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -123,6 +124,32 @@ public final class PenanceContractTest {
 
         manager.configure(true, rules, 500, 2_000, 0, 10, 3);
         assertEquals(0, manager.getDetectionRemainder());
+    }
+
+    @Test public void reachedDailyCapIsVisibleAndExplainsWhyNoMoneyWasAdded() {
+        long now = System.currentTimeMillis();
+        manager.configure(true, 100, 500, 2_000, 0);
+        assertEquals(500, manager.recordStrikes(5, now));
+        assertEquals(0, manager.getDailyRemainingCents(now));
+        assertEquals(1_500, manager.getWeeklyRemainingCents(now));
+
+        try (ActivityScenario<PenanceActivity> scenario =
+                     ActivityScenario.launch(PenanceActivity.class)) {
+            scenario.onActivity(activity -> assertEquals(
+                    activity.getString(R.string.penance_daily_cap_reached),
+                    ((TextView) activity.findViewById(R.id.rule_math_preview))
+                            .getText().toString()));
+        }
+    }
+
+    @Test public void fullHistoryDropsOldForgivenEntriesBeforeRejectingNewOnes() {
+        long now = System.currentTimeMillis();
+        manager.configure(true, 1, 50_000, 200_000, 0);
+        for (int index = 0; index < 200; index++) {
+            assertEquals(1, manager.recordStrikes(1, now + index));
+        }
+        manager.forgiveAllUnpaid();
+        assertEquals(1, manager.recordStrikes(1, now + 201));
     }
 
     @Test public void styledTreasuryAndMainEntryRemainAvailable() {

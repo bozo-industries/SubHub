@@ -10,11 +10,15 @@ import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
+import android.view.Gravity;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -334,34 +338,66 @@ public final class AppModeActivity extends AppCompatActivity {
         binding.loadingApps.setVisibility(View.GONE);
         binding.appList.removeAllViews();
         Set<String> installed = new LinkedHashSet<>();
-        for (AppEntry entry : entries) {
+        int rows = Math.max(2, getResources().getInteger(R.integer.app_picker_rows));
+        int tileWidth = getResources().getConfiguration().smallestScreenWidthDp >= 600
+                ? dp(132) : dp(106);
+        int tileHeight = dp(92);
+        for (int index = 0; index < entries.size(); index++) {
+            AppEntry entry = entries.get(index);
             installed.add(entry.packageName);
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(4), 0, dp(4));
+            LinearLayout tile = new LinearLayout(this);
+            tile.setOrientation(LinearLayout.VERTICAL);
+            tile.setGravity(Gravity.CENTER);
+            tile.setPadding(dp(7), dp(5), dp(7), dp(5));
+            tile.setContentDescription(entry.label + ", " + entry.packageName);
 
+            FrameLayout iconArea = new FrameLayout(this);
             ImageView icon = new ImageView(this);
             icon.setImageDrawable(entry.icon);
-            LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(42), dp(42));
-            iconParams.setMarginEnd(dp(10));
-            row.addView(icon, iconParams);
+            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(38), dp(38),
+                    Gravity.CENTER);
+            iconArea.addView(icon, iconParams);
 
             CheckBox check = new CheckBox(this);
-            check.setText(entry.label + "\n" + entry.packageName);
-            check.setTextColor(getColor(R.color.text_primary));
-            check.setTextSize(12f);
             check.setChecked(selectedPackages.contains(entry.packageName));
             check.setEnabled(editingUnlocked);
+            check.setPadding(0, 0, 0, 0);
             CompoundButtonCompat.setButtonTintList(check,
                     ColorStateList.valueOf(getColor(R.color.accent)));
+            FrameLayout.LayoutParams checkParams = new FrameLayout.LayoutParams(dp(28), dp(28),
+                    Gravity.END | Gravity.TOP);
+            iconArea.addView(check, checkParams);
+            tile.addView(iconArea, new LinearLayout.LayoutParams(dp(72), dp(44)));
+
+            TextView label = new TextView(this);
+            label.setText(entry.label);
+            label.setTextColor(getColor(R.color.text_primary));
+            label.setTextSize(11f);
+            label.setGravity(Gravity.CENTER);
+            label.setMaxLines(2);
+            label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            tile.addView(label, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(36)));
+
+            Runnable renderSelection = () -> tile.setBackgroundResource(check.isChecked()
+                    ? R.drawable.bg_app_picker_tile_selected : R.drawable.bg_app_picker_tile);
+            renderSelection.run();
             check.setOnCheckedChangeListener((button, checked) -> {
                 if (checked) selectedPackages.add(entry.packageName);
                 else selectedPackages.remove(entry.packageName);
+                renderSelection.run();
                 renderSelectedCount();
             });
-            row.addView(check, new LinearLayout.LayoutParams(0, dp(58), 1f));
-            binding.appList.addView(row);
+            tile.setOnClickListener(view -> {
+                if (editingUnlocked) check.setChecked(!check.isChecked());
+            });
+            GridLayout.LayoutParams tileParams = new GridLayout.LayoutParams(
+                    GridLayout.spec(index % rows), GridLayout.spec(index / rows));
+            tileParams.width = tileWidth;
+            tileParams.height = tileHeight;
+            tileParams.setMargins(dp(3), dp(3), dp(3), dp(3));
+            binding.appList.addView(tile, tileParams);
         }
         selectedPackages.retainAll(installed);
         renderSelectedCount();

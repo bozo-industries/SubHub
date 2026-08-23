@@ -7,6 +7,7 @@ import android.graphics.Color;
 import com.betasafe.app.detection.DetectorConfig;
 import com.betasafe.app.detection.DetectionPreset;
 import com.betasafe.app.detection.NudeNetClassCatalog;
+import com.betasafe.app.detection.text.TextSmutConfig;
 import com.betasafe.app.overlay.CensorPhrases;
 
 import java.util.Collections;
@@ -34,6 +35,9 @@ public final class SettingsRepository {
     public static final String KEY_REVERSE_CUTOUT_SHAPE = "reverse_cutout_shape";
     public static final String KEY_ERROR_TITLE = "error_popup_title";
     public static final String KEY_ERROR_TEXT = "error_popup_text";
+    public static final String KEY_TEXT_SMUT_ENABLED = "text_smut_enabled";
+    public static final String KEY_TEXT_SMUT_SENSITIVITY = "text_smut_sensitivity";
+    public static final String KEY_TEXT_SMUT_CATEGORIES = "text_smut_categories";
 
     private final SharedPreferences preferences;
 
@@ -62,6 +66,25 @@ public final class SettingsRepository {
     public DetectionPreset loadDetectionPreset() {
         return DetectionPreset.fromPreference(
                 preferences.getString(KEY_DETECTION_PRESET, DetectionPreset.MEDIUM.preferenceValue()));
+    }
+
+    public TextSmutConfig loadTextSmutConfig() {
+        Set<String> stored = preferences.getStringSet(
+                KEY_TEXT_SMUT_CATEGORIES, TextSmutConfig.DEFAULT_CATEGORIES);
+        return new TextSmutConfig(
+                preferences.getBoolean(KEY_TEXT_SMUT_ENABLED, true),
+                preferences.getInt(
+                        KEY_TEXT_SMUT_SENSITIVITY, TextSmutConfig.SENSITIVITY_BALANCED),
+                stored == null ? TextSmutConfig.DEFAULT_CATEGORIES : stored);
+    }
+
+    public void saveTextSmutConfig(TextSmutConfig config) {
+        preferences.edit()
+                .putBoolean(KEY_TEXT_SMUT_ENABLED, config.isEnabled())
+                .putInt(KEY_TEXT_SMUT_SENSITIVITY, config.getSensitivity())
+                .putStringSet(KEY_TEXT_SMUT_CATEGORIES,
+                        new LinkedHashSet<>(config.getEnabledCategories()))
+                .apply();
     }
 
     public void saveDetectionPreset(DetectionPreset preset) {

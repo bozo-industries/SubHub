@@ -134,6 +134,7 @@ public final class PenanceActivity extends AppCompatActivity {
         binding.mercyMinutes.setText(String.valueOf(manager.getMercyMinutes()));
         binding.dwellSeconds.setText(String.valueOf(manager.getDwellSeconds()));
         binding.detectionBatch.setText(String.valueOf(manager.getDetectionBatch()));
+        binding.paymentConsent.setChecked(manager.isEnabled());
     }
 
     private void populateRule(
@@ -160,6 +161,17 @@ public final class PenanceActivity extends AppCompatActivity {
 
     private void renderRuleMathPreview() {
         if (binding == null) return;
+        long now = System.currentTimeMillis();
+        if (manager.isEnabled() && manager.isInfractionEnabled(PenanceInfraction.NEW_DETECTION)) {
+            if (manager.getDailyRemainingCents(now) == 0) {
+                binding.ruleMathPreview.setText(R.string.penance_daily_cap_reached);
+                return;
+            }
+            if (manager.getWeeklyRemainingCents(now) == 0) {
+                binding.ruleMathPreview.setText(R.string.penance_weekly_cap_reached);
+                return;
+            }
+        }
         Integer cents = parseEuros(binding.ruleDetectionAmount.getText().toString());
         Integer batch = parseInteger(binding.detectionBatch.getText().toString());
         Integer daily = parseEuros(binding.dailyCap.getText().toString());
@@ -221,7 +233,6 @@ public final class PenanceActivity extends AppCompatActivity {
             return;
         }
         manager.configure(enabled, rules, daily, weekly, mercy, dwell, detectionBatch);
-        binding.paymentConsent.setChecked(false);
         closeClient();
         toast(R.string.penance_rules_saved);
         render();

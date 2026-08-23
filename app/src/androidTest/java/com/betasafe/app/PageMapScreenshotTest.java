@@ -34,6 +34,7 @@ public final class PageMapScreenshotTest {
     @Test public void captureAllPages() throws Exception {
         capture("01-censor-home", MainActivity.class);
         capture("02-limits", AppModeActivity.class);
+        captureScrolled("02b-limits-app-picker", AppModeActivity.class, 6);
         capture("03-money", PenanceActivity.class);
         captureScrolled("03b-money-rules-and-safety", PenanceActivity.class, 2);
         captureScrolled("03c-money-checkout-and-history", PenanceActivity.class, 5);

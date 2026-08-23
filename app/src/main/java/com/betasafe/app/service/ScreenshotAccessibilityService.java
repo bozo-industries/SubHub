@@ -22,6 +22,9 @@ import com.betasafe.app.detection.DetectionEngine;
 import com.betasafe.app.detection.DetectorConfig;
 import com.betasafe.app.detection.ObjectTracker;
 import com.betasafe.app.detection.TrackedObject;
+import com.betasafe.app.detection.text.AccessibilityTextSmutDetector;
+import com.betasafe.app.detection.text.DetectionFusion;
+import com.betasafe.app.detection.text.TextSmutConfig;
 import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.popup.PopupStormManager;
@@ -63,8 +66,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private StatsRepository stats;
     private DetectionEngine detector;
     private ObjectTracker tracker;
+    private final AccessibilityTextSmutDetector accessibilityText =
+            new AccessibilityTextSmutDetector();
     private OverlayController overlay;
     private volatile DetectorConfig detectorConfig;
+    private volatile TextSmutConfig textSmutConfig;
     private volatile boolean overlayNeedsSourceFrame;
     private volatile String foregroundPackage = "";
     private AppTimerManager timers;
@@ -116,6 +122,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         try {
             DetectorConfig config = settings.loadDetectorConfig();
             detectorConfig = config;
+            textSmutConfig = settings.loadTextSmutConfig();
             if (detector == null) {
                 detector = new DetectionEngine(this, config);
                 detector.initialize();
@@ -194,7 +201,22 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             wrapped = Bitmap.wrapHardwareBuffer(buffer, result.getColorSpace());
             if (wrapped == null) return;
             frame = wrapped.copy(Bitmap.Config.ARGB_8888, false);
-            List<Detection> detections = detector.detect(frame);
+            List<Detection> visualDetections = detector.detect(frame);
+            TextSmutConfig currentTextConfig = textSmutConfig;
+            List<Detection> accessibilityDetections = Collections.emptyList();
+            if (currentTextConfig != null && currentTextConfig.isEnabled()) {
+                AccessibilityNodeInfo root = getRootInActiveWindow();
+                if (root != null) {
+                    try {
+                        accessibilityDetections = accessibilityText.detect(
+                                root, currentTextConfig, frame.getWidth(), frame.getHeight());
+                    } finally {
+                        root.recycle();
+                    }
+                }
+            }
+            List<Detection> detections = DetectionFusion.merge(
+                    visualDetections, accessibilityDetections);
             if (!isCurrentCapture(requestedEpoch)) return;
             List<TrackedObject> tracks = tracker.update(detections);
             DetectorConfig currentConfig = detectorConfig;
@@ -259,6 +281,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         });
         DetectorConfig config = settings.loadDetectorConfig();
         detectorConfig = config;
+        textSmutConfig = settings.loadTextSmutConfig();
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
         PopupStormManager.get().reloadSettings(this);

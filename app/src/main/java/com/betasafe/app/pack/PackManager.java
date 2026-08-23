@@ -37,13 +37,12 @@ public final class PackManager {
     private static final String STATE_PREFS = "betablocker_pack_state";
     private static final String KEY_ACTIVE = "active_pack_id";
     private static final String KEY_BACKUP = "active_pack_backup";
-    private static final long MAX_ARCHIVE_BYTES = 50L * 1024L * 1024L;
-    private static final long MAX_ENTRY_BYTES = 25L * 1024L * 1024L;
-    private static final long MAX_TOTAL_BYTES = 100L * 1024L * 1024L;
-    private static final int MAX_ENTRIES = 256;
     private static final Set<String> ALLOWED_KEYS = Collections.unmodifiableSet(
             new LinkedHashSet<>(Arrays.asList(
                     SettingsRepository.KEY_ENABLED_CATEGORIES,
+                    SettingsRepository.KEY_TEXT_SMUT_ENABLED,
+                    SettingsRepository.KEY_TEXT_SMUT_SENSITIVITY,
+                    SettingsRepository.KEY_TEXT_SMUT_CATEGORIES,
                     SettingsRepository.KEY_CONFIDENCE,
                     SettingsRepository.KEY_CENSOR_TYPE,
                     SettingsRepository.KEY_CENSOR_INTENSITY,
@@ -103,7 +102,8 @@ public final class PackManager {
             try (InputStream input = context.getContentResolver().openInputStream(uri);
                  FileOutputStream output = new FileOutputStream(archive)) {
                 if (input == null) throw new IOException("Selected pack is unavailable");
-                copyBounded(input, output, MAX_ARCHIVE_BYTES);
+                PackInputLimiter.copy(input, output,
+                        PackInputLimiter.MAX_ARCHIVE_BYTES, "Pack archive");
             }
             if (!staging.mkdirs()) throw new IOException("Could not create pack staging directory");
             extractArchive(archive, staging);
@@ -211,7 +211,8 @@ public final class PackManager {
             try (FileInputStream input = new FileInputStream(source);
                  FileOutputStream output = new FileOutputStream(
                          new File(destination, "image-" + index++ + extension))) {
-                copyBounded(input, output, MAX_ENTRY_BYTES);
+                PackInputLimiter.copy(input, output,
+                        PackInputLimiter.MAX_ENTRY_BYTES, "Pack image");
             }
         }
     }
@@ -223,7 +224,9 @@ public final class PackManager {
                 new BufferedInputStream(new FileInputStream(archive)))) {
             ZipEntry entry;
             while ((entry = zip.getNextEntry()) != null) {
-                if (++entries > MAX_ENTRIES) throw new IOException("Pack contains too many entries");
+                if (++entries > PackInputLimiter.MAX_ENTRIES) {
+                    throw new IOException("Pack contains too many entries");
+                }
                 String name = entry.getName().replace('\\', '/');
                 if (name.startsWith("/") || name.contains("../") || name.contains(":")
                         || name.indexOf('\u0000') >= 0) throw new IOException("Unsafe pack path");
@@ -244,8 +247,11 @@ public final class PackManager {
                     while ((read = zip.read(buffer)) >= 0) {
                         entryBytes += read;
                         total += read;
-                        if (entryBytes > MAX_ENTRY_BYTES || total > MAX_TOTAL_BYTES) {
-                            throw new IOException("Pack extraction limit exceeded");
+                        if (entryBytes > PackInputLimiter.MAX_ENTRY_BYTES) {
+                            throw new IOException("A pack file is larger than the supported 96 MiB limit");
+                        }
+                        if (total > PackInputLimiter.MAX_TOTAL_BYTES) {
+                            throw new IOException("Pack expands beyond the supported 512 MiB limit");
                         }
                         output.write(buffer, 0, read);
                     }
@@ -401,6 +407,9 @@ public final class PackManager {
         values.put("reverseMode", SettingsRepository.KEY_REVERSE_MODE);
         values.put("reverseStrength", SettingsRepository.KEY_REVERSE_STRENGTH);
         values.put("categories", SettingsRepository.KEY_ENABLED_CATEGORIES);
+        values.put("textSmut", SettingsRepository.KEY_TEXT_SMUT_ENABLED);
+        values.put("textSmutSensitivity", SettingsRepository.KEY_TEXT_SMUT_SENSITIVITY);
+        values.put("textSmutCategories", SettingsRepository.KEY_TEXT_SMUT_CATEGORIES);
         return Collections.unmodifiableMap(values);
     }
 
@@ -421,19 +430,6 @@ public final class PackManager {
         File[] children = target.listFiles();
         if (children != null) for (File child : children) deleteTree(child);
         if (!target.delete()) target.deleteOnExit();
-    }
-
-    private static void copyBounded(InputStream input, FileOutputStream output, long limit)
-            throws IOException {
-        byte[] buffer = new byte[8192];
-        long total = 0;
-        int read;
-        while ((read = input.read(buffer)) >= 0) {
-            total += read;
-            if (total > limit) throw new IOException("Pack input limit exceeded");
-            output.write(buffer, 0, read);
-        }
-        output.flush();
     }
 
     private static String readBounded(File file, int limit) throws IOException {

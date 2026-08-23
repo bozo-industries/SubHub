@@ -419,6 +419,133 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:letterSpacing="0.1"
+                android:text="@string/text_smut_title"
+                android:textColor="@color/accent"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/text_smut_description"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="7dp"
+                android:columnCount="2">
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_smut_text"
+                    style="@style/Widget.SubHub.SettingsToggle"
+                    android:layout_columnSpan="2"
+                    android:text="@string/text_smut_enable" />
+            </GridLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="9dp"
+                android:text="@string/text_smut_sensitivity"
+                android:textColor="@color/text_secondary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/text_smut_sensitivity_help"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp" />
+
+            <RadioGroup
+                android:id="@+id/smut_sensitivity_group"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+                <RadioButton
+                    android:id="@+id/radio_smut_strict"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:buttonTint="@color/accent"
+                    android:gravity="center_vertical"
+                    android:text="@string/text_smut_strict"
+                    android:textColor="@color/text_primary"
+                    android:textSize="10sp" />
+                <RadioButton
+                    android:id="@+id/radio_smut_balanced"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1.25"
+                    android:buttonTint="@color/accent"
+                    android:gravity="center_vertical"
+                    android:text="@string/text_smut_balanced"
+                    android:textColor="@color/text_primary"
+                    android:textSize="10sp" />
+                <RadioButton
+                    android:id="@+id/radio_smut_broad"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:buttonTint="@color/accent"
+                    android:gravity="center_vertical"
+                    android:text="@string/text_smut_broad"
+                    android:textColor="@color/text_primary"
+                    android:textSize="10sp" />
+            </RadioGroup>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="7dp"
+                android:text="@string/text_smut_categories"
+                android:textColor="@color/text_secondary"
+                android:textStyle="bold" />
+
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:columnCount="2">
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_smut_explicit"
+                    style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/text_smut_explicit" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_smut_fetish"
+                    style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/text_smut_fetish" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_smut_solicitation"
+                    style="@style/Widget.SubHub.SettingsToggle"
+                    android:text="@string/text_smut_solicitation" />
+            </GridLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/text_smut_stability_note"
+                android:textColor="@color/text_muted"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="9dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.1"
                 android:text="@string/phrases_title"
                 android:textColor="@color/accent"
                 android:textSize="13sp"
