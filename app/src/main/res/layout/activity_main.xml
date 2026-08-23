@@ -170,8 +170,10 @@
         <LinearLayout android:id="@+id/dom_content"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:background="@drawable/bg_card" android:orientation="vertical" android:padding="11dp">
+        <LinearLayout android:id="@+id/capture_method_card"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:background="@drawable/bg_card" android:orientation="vertical"
+            android:padding="11dp" android:visibility="gone">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:letterSpacing="0.15" android:text="@string/home_capture_mode"
                 android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />

@@ -10,6 +10,7 @@ import android.provider.Settings;
 import com.betasafe.app.R;
 import com.betasafe.app.appmode.AppModeManager;
 import com.betasafe.app.appmode.ResumeNotificationManager;
+import com.betasafe.app.penance.HardcoreAutoPayManager;
 import com.betasafe.app.settings.SettingsRepository;
 
 /**
@@ -69,7 +70,10 @@ public final class HardcoreModeManager {
     public boolean finishActivation() {
         boolean active = isAdminActive();
         preferences.edit().putBoolean(KEY_REQUESTED, active).commit();
-        if (active) reinforceAutomaticMode();
+        if (active) {
+            reinforceAutomaticMode();
+            HardcoreAutoPayManager.schedule(context);
+        }
         return active;
     }
 
@@ -78,6 +82,7 @@ public final class HardcoreModeManager {
     }
 
     public void disable() {
+        HardcoreAutoPayManager.cancel(context);
         preferences.edit().putBoolean(KEY_REQUESTED, false).commit();
         if (policies != null && policies.isAdminActive(admin)) {
             policies.removeActiveAdmin(admin);
@@ -87,15 +92,20 @@ public final class HardcoreModeManager {
     public void onAdminEnabled() {
         preferences.edit().putBoolean(KEY_REQUESTED, true).commit();
         reinforceAutomaticMode();
+        HardcoreAutoPayManager.schedule(context);
     }
 
     public void onAdminDisabled() {
+        HardcoreAutoPayManager.cancel(context);
         preferences.edit().putBoolean(KEY_REQUESTED, false).commit();
     }
 
     /** Restores only the user's scanning intent; Android permissions remain independently revocable. */
     public void applyBootPolicy() {
-        if (isEnabled()) reinforceAutomaticMode();
+        if (isEnabled()) {
+            reinforceAutomaticMode();
+            HardcoreAutoPayManager.schedule(context);
+        }
     }
 
     private void reinforceAutomaticMode() {

@@ -21,10 +21,12 @@ public final class PayPalCredentialStore {
     private static final String KEY_ENVIRONMENT = "environment";
     private static final String KEY_CLIENT_ID = "client_id";
     private static final String KEY_SECRET = "client_secret";
-    private static final String KEY_VAULT_REQUESTED = "vault_requested";
+    private static final String LEGACY_KEY_VAULT_REQUESTED = "vault_requested";
     private static final String KEY_VAULT_STATUS = "vault_status";
     private static final String KEY_VAULT_ID = "vault_id";
     private static final String KEY_CUSTOMER_ID = "customer_id";
+    private static final String KEY_PAYER_EMAIL = "payer_email";
+    private static final String KEY_PAYER_ACCOUNT_ID = "payer_account_id";
     private static final String KEY_VAULT_BOUNDARY = "vault_boundary";
     private static final String KEY_ALIAS = "subhub_paypal_sandbox_v1";
     private static final String ANDROID_KEY_STORE = "AndroidKeyStore";
@@ -87,71 +89,64 @@ public final class PayPalCredentialStore {
                 .putString(KEY_ENVIRONMENT, selected.name()).commit();
     }
 
-    public boolean isVaultRequested() {
-        return preferences().getBoolean(KEY_VAULT_REQUESTED, false);
-    }
-
-    public void setVaultRequested(boolean requested) {
-        SharedPreferences.Editor editor = preferences().edit();
-        if (!requested) {
-            clearVault(editor);
-        } else {
-            editor.putBoolean(KEY_VAULT_REQUESTED, true);
-            if (!preferences().contains(KEY_VAULT_STATUS)) {
-                editor.putString(KEY_VAULT_STATUS, VaultStatus.REQUESTED.name());
-            }
-        }
-        editor.commit();
-    }
-
     public VaultState vaultState() {
-        if (!isVaultRequested()) return VaultState.disabled();
         Credentials credentials = load();
-        if (!credentials.isComplete()) return VaultState.requested();
+        if (!credentials.isComplete()) return VaultState.disconnected();
         String boundary = decrypt(preferences().getString(KEY_VAULT_BOUNDARY, ""));
         if (!boundary.isEmpty() && !credentials.boundaryId().equals(boundary)) {
             clearVault(preferences().edit()).commit();
-            return VaultState.disabled();
+            return VaultState.requested();
         }
         VaultStatus status = VaultStatus.stored(
                 preferences().getString(KEY_VAULT_STATUS, VaultStatus.REQUESTED.name()));
         String vaultId = decrypt(preferences().getString(KEY_VAULT_ID, ""));
         String customerId = decrypt(preferences().getString(KEY_CUSTOMER_ID, ""));
+        String payerEmail = decrypt(preferences().getString(KEY_PAYER_EMAIL, ""));
+        String payerAccountId = decrypt(preferences().getString(KEY_PAYER_ACCOUNT_ID, ""));
         if (status == VaultStatus.READY && (vaultId.isEmpty() || customerId.isEmpty())) {
             status = VaultStatus.PENDING;
         }
-        return new VaultState(status, vaultId, customerId);
+        return new VaultState(status, vaultId, customerId,
+                PayPalVaultPolicy.maskedPayer(payerEmail, payerAccountId));
     }
 
     public void recordVaultResult(Credentials credentials, String rawStatus,
-            String vaultId, String customerId) {
-        if (credentials == null || !credentials.isComplete() || !isVaultRequested()) return;
+            String vaultId, String customerId, String payerEmail, String payerAccountId) {
+        if (credentials == null || !credentials.isComplete()) return;
         String cleanVaultId = vaultId == null ? "" : vaultId.trim();
         String cleanCustomerId = customerId == null ? "" : customerId.trim();
         VaultStatus status = PayPalVaultPolicy.resultStatus(
                 rawStatus, cleanVaultId, cleanCustomerId);
         SharedPreferences.Editor editor = preferences().edit()
-                .putBoolean(KEY_VAULT_REQUESTED, true)
                 .putString(KEY_VAULT_STATUS, status.name())
-                .putString(KEY_VAULT_BOUNDARY, encrypt(credentials.boundaryId()));
+                .putString(KEY_VAULT_BOUNDARY, encrypt(credentials.boundaryId()))
+                .remove(LEGACY_KEY_VAULT_REQUESTED);
         if (!cleanVaultId.isEmpty()) editor.putString(KEY_VAULT_ID, encrypt(cleanVaultId));
         if (!cleanCustomerId.isEmpty()) {
             editor.putString(KEY_CUSTOMER_ID, encrypt(cleanCustomerId));
+        }
+        String cleanEmail = payerEmail == null ? "" : payerEmail.trim();
+        String cleanAccount = payerAccountId == null ? "" : payerAccountId.trim();
+        if (!cleanEmail.isEmpty()) editor.putString(KEY_PAYER_EMAIL, encrypt(cleanEmail));
+        if (!cleanAccount.isEmpty()) {
+            editor.putString(KEY_PAYER_ACCOUNT_ID, encrypt(cleanAccount));
         }
         editor.commit();
     }
 
     public void markVaultUnavailable(Credentials credentials) {
-        if (credentials == null || !credentials.isComplete() || !isVaultRequested()) return;
+        if (credentials == null || !credentials.isComplete()) return;
         preferences().edit()
                 .putString(KEY_VAULT_STATUS, VaultStatus.UNAVAILABLE.name())
                 .putString(KEY_VAULT_BOUNDARY, encrypt(credentials.boundaryId()))
-                .remove(KEY_VAULT_ID).remove(KEY_CUSTOMER_ID).commit();
+                .remove(KEY_VAULT_ID).remove(KEY_CUSTOMER_ID)
+                .remove(KEY_PAYER_EMAIL).remove(KEY_PAYER_ACCOUNT_ID).commit();
     }
 
     private static SharedPreferences.Editor clearVault(SharedPreferences.Editor editor) {
-        return editor.remove(KEY_VAULT_REQUESTED).remove(KEY_VAULT_STATUS)
-                .remove(KEY_VAULT_ID).remove(KEY_CUSTOMER_ID).remove(KEY_VAULT_BOUNDARY);
+        return editor.remove(LEGACY_KEY_VAULT_REQUESTED).remove(KEY_VAULT_STATUS)
+                .remove(KEY_VAULT_ID).remove(KEY_CUSTOMER_ID).remove(KEY_PAYER_EMAIL)
+                .remove(KEY_PAYER_ACCOUNT_ID).remove(KEY_VAULT_BOUNDARY);
     }
 
     private SharedPreferences preferences() {
@@ -203,7 +198,7 @@ public final class PayPalCredentialStore {
     }
 
     public enum VaultStatus {
-        DISABLED, REQUESTED, PENDING, READY, UNAVAILABLE;
+        DISCONNECTED, REQUESTED, PENDING, READY, UNAVAILABLE;
 
         static VaultStatus stored(String value) {
             try { return valueOf(value == null ? "" : value); }
@@ -215,18 +210,26 @@ public final class PayPalCredentialStore {
         private final VaultStatus status;
         private final String vaultId;
         private final String customerId;
+        private final String maskedPayer;
 
-        private VaultState(VaultStatus status, String vaultId, String customerId) {
+        private VaultState(VaultStatus status, String vaultId, String customerId,
+                String maskedPayer) {
             this.status = status;
             this.vaultId = vaultId;
             this.customerId = customerId;
+            this.maskedPayer = maskedPayer;
         }
 
-        static VaultState disabled() { return new VaultState(VaultStatus.DISABLED, "", ""); }
-        static VaultState requested() { return new VaultState(VaultStatus.REQUESTED, "", ""); }
+        static VaultState disconnected() {
+            return new VaultState(VaultStatus.DISCONNECTED, "", "", "");
+        }
+        static VaultState requested() {
+            return new VaultState(VaultStatus.REQUESTED, "", "", "");
+        }
         public VaultStatus status() { return status; }
         public String vaultId() { return vaultId; }
         public String customerId() { return customerId; }
+        public String maskedPayer() { return maskedPayer; }
         public boolean isReady() { return status == VaultStatus.READY; }
     }
 

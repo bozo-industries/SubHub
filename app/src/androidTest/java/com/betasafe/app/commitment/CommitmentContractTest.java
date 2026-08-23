@@ -2,11 +2,9 @@ package com.betasafe.app.commitment;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.view.View;
 import android.widget.TextView;
 
@@ -18,7 +16,6 @@ import com.betasafe.app.MainActivity;
 import com.betasafe.app.R;
 import com.betasafe.app.appmode.AppModeManager;
 import com.betasafe.app.security.ControllerPinManager;
-import com.betasafe.app.settings.SettingsRepository;
 
 import org.junit.After;
 import org.junit.Before;
@@ -42,35 +39,29 @@ public final class CommitmentContractTest {
         ControllerPinManager.enterSubMode();
     }
 
-    @Test public void codeIsHashedAndCanReleaseThePact() {
-        assertTrue(CommitmentManager.start(context, 2L * 60L * 60L * 1000L, "keeper-code"));
+    @Test public void pactNeedsOnlyADurationAndEndsThroughTheDomRecoveryBoundary() {
+        assertTrue(CommitmentManager.start(context, 2L * 60L * 60L * 1000L));
         assertTrue(CommitmentManager.isActive(context));
-        SharedPreferences preferences = context.getSharedPreferences(
-                SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE);
-        for (Object stored : preferences.getAll().values()) {
-            assertNotEquals("keeper-code", stored);
-        }
-        assertFalse(CommitmentManager.verifyAndRelease(context, "wrong-code"));
-        assertTrue(CommitmentManager.isActive(context));
-        assertTrue(CommitmentManager.verifyAndRelease(context, "keeper-code"));
+        CommitmentManager.emergencyRelease(context);
         assertFalse(CommitmentManager.isActive(context));
     }
 
     @Test public void durationIsBoundedAndEmergencyReleaseIsUnconditional() {
-        assertTrue(CommitmentManager.start(context, 1L, "1234"));
+        assertTrue(CommitmentManager.start(context, 1L));
         assertEquals(CommitmentManager.MIN_DURATION_MS,
                 CommitmentManager.originalDurationMillis(context));
         CommitmentManager.emergencyRelease(context);
         assertFalse(CommitmentManager.isActive(context));
-        assertTrue(CommitmentManager.start(context, Long.MAX_VALUE, "1234"));
+        assertTrue(CommitmentManager.start(context, Long.MAX_VALUE));
         assertEquals(CommitmentManager.MAX_DURATION_MS,
                 CommitmentManager.originalDurationMillis(context));
     }
 
-    @Test public void frontPageOffersFourPactTimersInDomMode() {
-        ControllerPinManager.enterDomMode();
+    @Test public void frontPageOffersFourPactTimersOnlyInSubMode() {
+        ControllerPinManager.enterSubMode();
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
+                activity.findViewById(R.id.button_edit_lock).performClick();
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.commitment_start_panel).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.commitment_timer_1h).getVisibility());
@@ -79,10 +70,15 @@ public final class CommitmentContractTest {
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.commitment_timer_30d).getVisibility());
             });
         }
+        ControllerPinManager.enterDomMode();
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(activity -> assertEquals(View.GONE,
+                    activity.findViewById(R.id.commitment_card).getVisibility()));
+        }
     }
 
     @Test public void activePactShowsCountdownAndHidesDomReleaseFromSubMode() {
-        assertTrue(CommitmentManager.start(context, CommitmentManager.MIN_DURATION_MS, "1234"));
+        assertTrue(CommitmentManager.start(context, CommitmentManager.MIN_DURATION_MS));
         assertFalse(ControllerPinManager.isDomModeActive());
         try (ActivityScenario<CommitmentActivity> scenario =
                      ActivityScenario.launch(CommitmentActivity.class)) {
@@ -100,15 +96,15 @@ public final class CommitmentContractTest {
     }
 
     @Test public void sealingArmsProtectionAndRequiresDomModeToStop() {
-        assertTrue(CommitmentManager.start(context, CommitmentManager.MIN_DURATION_MS, "1234"));
+        assertTrue(CommitmentManager.start(context, CommitmentManager.MIN_DURATION_MS));
         assertTrue(new AppModeManager(context).isArmed());
         assertFalse(CommitmentManager.mayStopProtection(context));
         ControllerPinManager.enterDomMode();
-        assertTrue(CommitmentManager.mayStopProtection(context));
+        assertFalse(CommitmentManager.mayStopProtection(context));
     }
 
     @Test public void pactNeverDisablesMainProtectionControl() {
-        assertTrue(CommitmentManager.start(context, CommitmentManager.MIN_DURATION_MS, "1234"));
+        assertTrue(CommitmentManager.start(context, CommitmentManager.MIN_DURATION_MS));
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
                 assertTrue(activity.findViewById(R.id.button_protection).isEnabled());

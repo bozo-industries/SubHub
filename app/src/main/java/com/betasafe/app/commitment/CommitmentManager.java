@@ -1,20 +1,16 @@
 package com.betasafe.app.commitment;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
-import android.util.Base64;
 
 import com.betasafe.app.appmode.AppModeManager;
 import com.betasafe.app.appmode.ResumeNotificationManager;
-import com.betasafe.app.security.ControllerPinManager;
+import com.betasafe.app.penance.HardcoreAutoPayManager;
+import com.betasafe.app.service.ScreenCaptureService;
 import com.betasafe.app.settings.SettingsRepository;
-
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 
 /** Bounded, app-local commitment pact guarded by the controller PIN. */
 public final class CommitmentManager {
@@ -25,45 +21,37 @@ public final class CommitmentManager {
     private static final String KEY_SALT = "commitment_code_salt";
     private static final String KEY_HASH = "commitment_code_hash";
     private static final String KEY_DURATION = "commitment_duration";
-    private static final int ITERATIONS = 120_000;
-    private static final int KEY_BITS = 256;
+    private static final int EXPIRY_REQUEST = 8317;
 
     private CommitmentManager() {}
 
-    public static boolean start(Context context, long requestedDurationMs, String code) {
-        String value = code == null ? "" : code.trim();
-        if (value.length() < 4 || value.length() > 64) return false;
+    public static boolean start(Context context, long requestedDurationMs) {
         long duration = Math.max(MIN_DURATION_MS,
                 Math.min(MAX_DURATION_MS, requestedDurationMs));
-        byte[] salt = new byte[16];
-        new SecureRandom().nextBytes(salt);
-        byte[] hash;
-        try {
-            hash = derive(value, salt);
-        } catch (GeneralSecurityException exception) {
-            return false;
-        }
         long now = System.currentTimeMillis();
+        long endsAt = now + duration;
         preferences(context).edit()
                 .putLong(KEY_STARTED_AT, now)
-                .putLong(KEY_ENDS_AT, now + duration)
+                .putLong(KEY_ENDS_AT, endsAt)
                 .putLong(KEY_DURATION, duration)
-                .putString(KEY_SALT, Base64.encodeToString(salt, Base64.NO_WRAP))
-                .putString(KEY_HASH, Base64.encodeToString(hash, Base64.NO_WRAP))
+                .remove(KEY_SALT).remove(KEY_HASH)
                 .apply();
+        scheduleExpiry(context, endsAt);
         reinforceProtection(context);
+        HardcoreAutoPayManager.schedule(context);
         return true;
+    }
+
+    /** Compatibility for older callers; keeper codes are no longer part of a pact. */
+    public static boolean start(Context context, long requestedDurationMs, String ignoredCode) {
+        return start(context, requestedDurationMs);
     }
 
     public static boolean isActive(Context context) {
         SharedPreferences values = preferences(context);
         long end = values.getLong(KEY_ENDS_AT, 0L);
         if (end <= System.currentTimeMillis()) {
-            if (end != 0L) release(context);
-            return false;
-        }
-        if (!values.contains(KEY_HASH)) {
-            release(context);
+            if (end != 0L) expire(context);
             return false;
         }
         return true;
@@ -77,28 +65,17 @@ public final class CommitmentManager {
     }
 
     public static boolean verifyAndRelease(Context context, String code) {
-        if (!isActive(context)) return true;
-        SharedPreferences values = preferences(context);
-        try {
-            byte[] salt = Base64.decode(values.getString(KEY_SALT, ""), Base64.NO_WRAP);
-            byte[] expected = Base64.decode(values.getString(KEY_HASH, ""), Base64.NO_WRAP);
-            byte[] actual = derive(code == null ? "" : code.trim(), salt);
-            if (!MessageDigest.isEqual(expected, actual)) return false;
-            release(context);
-            return true;
-        } catch (IllegalArgumentException | GeneralSecurityException exception) {
-            return false;
-        }
+        return !isActive(context);
     }
 
     /** Dom mode may release the pact without the separate keeper code. */
     public static void emergencyRelease(Context context) {
-        release(context);
+        expire(context);
     }
 
     /** Sub mode cannot stop protection while the pact is active. */
     public static boolean mayStopProtection(Context context) {
-        return !isActive(context) || ControllerPinManager.isDomModeActive();
+        return !isActive(context);
     }
 
     /** Re-arms the persistent capture path when Android has already granted it. */
@@ -110,6 +87,8 @@ public final class CommitmentManager {
 
     /** A sealed pact always re-arms; otherwise App Mode retains its stored state. */
     public static void applyBootPolicy(Context context) {
+        if (!isActive(context)) return;
+        scheduleExpiry(context, preferences(context).getLong(KEY_ENDS_AT, 0L));
         reinforceProtection(context);
     }
 
@@ -121,10 +100,15 @@ public final class CommitmentManager {
         return preferences(context).getLong(KEY_STARTED_AT, 0L);
     }
 
-    private static void release(Context context) {
+    static void expire(Context context) {
         preferences(context).edit()
                 .remove(KEY_STARTED_AT).remove(KEY_ENDS_AT).remove(KEY_DURATION)
                 .remove(KEY_SALT).remove(KEY_HASH).apply();
+        cancelExpiry(context);
+        new AppModeManager(context).setArmed(false);
+        context.stopService(new Intent(context, ScreenCaptureService.class));
+        ResumeNotificationManager.cancel(context);
+        HardcoreAutoPayManager.cancel(context);
     }
 
     private static SharedPreferences preferences(Context context) {
@@ -132,13 +116,23 @@ public final class CommitmentManager {
                 SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE);
     }
 
-    private static byte[] derive(String code, byte[] salt) throws GeneralSecurityException {
-        PBEKeySpec spec = new PBEKeySpec(code.toCharArray(), salt, ITERATIONS, KEY_BITS);
-        try {
-            return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-                    .generateSecret(spec).getEncoded();
-        } finally {
-            spec.clearPassword();
-        }
+    private static void scheduleExpiry(Context context, long endsAt) {
+        alarm(context).setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, endsAt, expiryIntent(context));
+    }
+
+    private static void cancelExpiry(Context context) {
+        alarm(context).cancel(expiryIntent(context));
+    }
+
+    private static AlarmManager alarm(Context context) {
+        return (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+    }
+
+    private static PendingIntent expiryIntent(Context context) {
+        Intent intent = new Intent(context, CommitmentExpiryReceiver.class)
+                .setAction("com.betasafe.app.action.PACT_EXPIRED");
+        return PendingIntent.getBroadcast(context, EXPIRY_REQUEST, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 }

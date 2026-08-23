@@ -248,6 +248,7 @@ public final class PenanceActivity extends AppCompatActivity {
             return;
         }
         manager.configure(enabled, rules, daily, weekly, mercy, dwell, detectionBatch);
+        HardcoreAutoPayManager.schedule(this);
         toast(R.string.penance_rules_saved);
         render();
     }
@@ -287,14 +288,12 @@ public final class PenanceActivity extends AppCompatActivity {
         checkoutBusy = true;
         render();
         PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
-        boolean requestVault = paypalCredentials.isVaultRequested();
         paypalClient.createOrder(credentials, settlement.getId(),
-                settlement.getAmountCents(), requestVault, result -> {
+                settlement.getAmountCents(), result -> {
                     checkoutBusy = false;
                     if (binding == null) return;
                     if (!result.isSuccess()) {
-                        if (requestVault
-                                && result.errorKind()
+                        if (result.errorKind()
                                 == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
                             paypalCredentials.markVaultUnavailable(credentials);
                         }
@@ -322,6 +321,10 @@ public final class PenanceActivity extends AppCompatActivity {
     }
 
     private void confirmPayment() {
+        if (manager.getActiveCheckoutMode() == PenanceManager.CheckoutMode.HARDCORE_AUTO) {
+            toast(R.string.paypal_auto_payment_processing);
+            return;
+        }
         String settlementId = manager.getActiveSettlementId();
         String orderId = manager.getActiveOrderId();
         PenanceSnapshot snapshot = manager.snapshot(System.currentTimeMillis());
@@ -366,8 +369,7 @@ public final class PenanceActivity extends AppCompatActivity {
                     checkoutBusy = false;
                     if (binding == null) return;
                     if (!result.isSuccess()) {
-                        if (paypalCredentials.isVaultRequested()
-                                && result.errorKind()
+                        if (result.errorKind()
                                 == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
                             paypalCredentials.markVaultUnavailable(credentials);
                         }
@@ -376,10 +378,9 @@ public final class PenanceActivity extends AppCompatActivity {
                         return;
                     }
                     PayPalOrdersClient.Capture capture = result.value();
-                    if (paypalCredentials.isVaultRequested()) {
-                        paypalCredentials.recordVaultResult(credentials,
-                                capture.vaultStatus(), capture.vaultId(), capture.customerId());
-                    }
+                    paypalCredentials.recordVaultResult(credentials,
+                            capture.vaultStatus(), capture.vaultId(), capture.customerId(),
+                            capture.payerEmail(), capture.payerAccountId());
                     if (!manager.completeSettlement(settlementId, snapshot.getCheckoutCents())) {
                         toast(R.string.penance_payment_mismatch);
                     } else toast(R.string.penance_payment_complete);
@@ -435,19 +436,28 @@ public final class PenanceActivity extends AppCompatActivity {
         binding.checkoutAmount.setText(PenanceManager.formatMoney(snapshot.getCheckoutCents()));
         binding.paidAmount.setText(PenanceManager.formatMoney(snapshot.getPaidCents()));
         boolean checkout = snapshot.getCheckoutCents() > 0;
+        boolean automaticCheckout = checkout && manager.getActiveCheckoutMode()
+                == PenanceManager.CheckoutMode.HARDCORE_AUTO;
         boolean paypalReady = paypalCredentials.hasCredentials();
         boolean linkReady = validExternalUrl(manager.getPayPalLink());
         boolean paymentAvailable = paypalReady || linkReady;
-        binding.paymentAvailability.setText(paypalReady
-                ? R.string.penance_payment_ready
-                : linkReady ? R.string.penance_payment_link_ready
-                : R.string.penance_payment_unavailable);
+        PayPalCredentialStore.VaultState vaultState = paypalCredentials.vaultState();
+        if (vaultState.isReady() && !vaultState.maskedPayer().isEmpty()) {
+            binding.paymentAvailability.setText(getString(
+                    R.string.paypal_vault_status_linked, vaultState.maskedPayer()));
+        } else binding.paymentAvailability.setText(paypalReady
+                    ? R.string.penance_payment_ready
+                    : linkReady ? R.string.penance_payment_link_ready
+                    : R.string.penance_payment_unavailable);
         binding.buttonSettle.setEnabled(
                 paymentAvailable && snapshot.getDueCents() > 0 && !checkout && !checkoutBusy);
         binding.buttonResumeCheckout.setVisibility(
-                checkout && !manager.getActiveApprovalUrl().isEmpty() ? View.VISIBLE : View.GONE);
-        binding.buttonCancelCheckout.setVisibility(checkout ? View.VISIBLE : View.GONE);
-        binding.buttonConfirmPayment.setVisibility(checkout ? View.VISIBLE : View.GONE);
+                checkout && !automaticCheckout && !manager.getActiveApprovalUrl().isEmpty()
+                        ? View.VISIBLE : View.GONE);
+        binding.buttonCancelCheckout.setVisibility(
+                checkout && !automaticCheckout ? View.VISIBLE : View.GONE);
+        binding.buttonConfirmPayment.setVisibility(
+                checkout && !automaticCheckout ? View.VISIBLE : View.GONE);
         boolean sandboxOrder = checkout && paypalReady
                 && !manager.getActiveOrderId().isEmpty()
                 && !manager.getActiveOrderId().equals(manager.getActiveSettlementId());
@@ -455,7 +465,9 @@ public final class PenanceActivity extends AppCompatActivity {
                 ? R.string.penance_confirm_paid : R.string.penance_confirm_link_paid);
         binding.buttonConfirmPayment.setEnabled(!checkoutBusy);
         if (checkoutBusy) binding.paymentStatus.setText(R.string.penance_checking);
-        else if (checkout) binding.paymentStatus.setText(R.string.penance_payment_pending);
+        else if (automaticCheckout) {
+            binding.paymentStatus.setText(R.string.paypal_auto_payment_processing);
+        } else if (checkout) binding.paymentStatus.setText(R.string.penance_payment_pending);
         else binding.paymentStatus.setText("");
         renderHistory(snapshot, now);
         renderRuleMathPreview();

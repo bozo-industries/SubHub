@@ -88,6 +88,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private String lastBlockedPackage = "";
     private long lastBlockedAtMillis;
     private HardcoreSettingsGuard hardcoreSettingsGuard;
+    private final Runnable settledHardcoreGuardRefresh = this::refreshHardcoreSettingsGuard;
     private final Runnable timerTick = new Runnable() {
         @Override public void run() {
             if (!running) return;
@@ -327,8 +328,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 ? "" : event.getPackageName().toString();
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
                 || event.getEventType() == AccessibilityEvent.TYPE_WINDOWS_CHANGED
-                || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                || event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             main.post(this::refreshHardcoreSettingsGuard);
+            main.removeCallbacks(settledHardcoreGuardRefresh);
+            main.postDelayed(settledHardcoreGuardRefresh, 180L);
         }
         if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
             if (recognitionActive && packageName.equals(foregroundPackage)) {
@@ -447,7 +451,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (hardcoreSettingsGuard == null) return;
         AccessibilityNodeInfo root = getRootInActiveWindow();
         try {
-            hardcoreSettingsGuard.refresh(foregroundPackage, root);
+            String activePackage = root != null && root.getPackageName() != null
+                    ? root.getPackageName().toString() : foregroundPackage;
+            hardcoreSettingsGuard.refresh(activePackage, root);
         } finally {
             if (root != null) root.recycle();
         }
@@ -526,6 +532,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (detector != null) detector.close();
         if (hardcoreSettingsGuard != null) hardcoreSettingsGuard.clear();
         hardcoreSettingsGuard = null;
+        main.removeCallbacks(settledHardcoreGuardRefresh);
         dwellTracker.clear();
         tapTracker.clear();
         recognitionActive = false;

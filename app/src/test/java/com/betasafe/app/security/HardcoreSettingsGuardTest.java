@@ -8,17 +8,15 @@ import android.view.WindowManager;
 import org.junit.Test;
 
 public final class HardcoreSettingsGuardTest {
-    @Test public void guardRequiresHardcoreSealedPactSubModeAndAndroidSettings() {
+    @Test public void guardRequiresHardcoreSubModeAndAndroidSettings() {
         assertTrue(HardcoreSettingsGuard.shouldGuard(
-                true, true, false, "com.android.settings"));
+                true, false, "com.android.settings"));
         assertFalse(HardcoreSettingsGuard.shouldGuard(
-                false, true, false, "com.android.settings"));
+                false, false, "com.android.settings"));
         assertFalse(HardcoreSettingsGuard.shouldGuard(
-                true, false, false, "com.android.settings"));
+                true, true, "com.android.settings"));
         assertFalse(HardcoreSettingsGuard.shouldGuard(
-                true, true, true, "com.android.settings"));
-        assertFalse(HardcoreSettingsGuard.shouldGuard(
-                true, true, false, "com.android.chrome"));
+                true, false, "com.android.chrome"));
     }
 
     @Test public void destructiveSettingsLabelsAndIdsAreRecognized() {

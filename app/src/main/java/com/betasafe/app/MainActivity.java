@@ -64,6 +64,7 @@ public final class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> projectionPermission;
     private ActivityResultLauncher<Intent> overlayPermission;
     private ActivityResultLauncher<String> notificationPermission;
+    private long selectedPactDurationMs;
     private final Handler uiTimer = new Handler(Looper.getMainLooper());
     private final Runnable uiTick = new Runnable() {
         @Override public void run() {
@@ -89,6 +90,7 @@ public final class MainActivity extends AppCompatActivity {
                         Intent service = ScreenCaptureService.startIntent(
                                 this, result.getResultCode(), result.getData());
                         ContextCompat.startForegroundService(this, service);
+                        startSelectedPact();
                         updateProtectionButton(true);
                     } else {
                         showStatus(R.string.capture_cancelled);
@@ -110,8 +112,7 @@ public final class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(this, SettingsActivity.class)));
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
         binding.buttonCensorSettings.setOnClickListener(view ->
-                startActivity(new Intent(this, CommitmentManager.isActive(this)
-                        ? CommitmentActivity.class : SettingsActivity.class)));
+                startActivity(new Intent(this, SettingsActivity.class)));
         binding.buttonBrowser.setOnClickListener(view ->
                 startActivity(new Intent(this, BrowserActivity.class)));
         binding.buttonExport.setOnClickListener(view ->
@@ -125,12 +126,15 @@ public final class MainActivity extends AppCompatActivity {
             startActivity(new Intent(this, HelpActivity.class));
         });
         binding.onboardingDismiss.setOnClickListener(view -> markOnboardingSeen());
-        binding.buttonCommitmentView.setOnClickListener(view ->
-                startActivity(new Intent(this, CommitmentActivity.class)));
-        binding.commitmentTimer1h.setOnClickListener(view -> openCommitmentDuration(60L * 60L * 1000L));
-        binding.commitmentTimer24h.setOnClickListener(view -> openCommitmentDuration(24L * 60L * 60L * 1000L));
-        binding.commitmentTimer7d.setOnClickListener(view -> openCommitmentDuration(7L * 24L * 60L * 60L * 1000L));
-        binding.commitmentTimer30d.setOnClickListener(view -> openCommitmentDuration(30L * 24L * 60L * 60L * 1000L));
+        binding.buttonCommitmentView.setVisibility(View.GONE);
+        binding.commitmentTimer1h.setOnClickListener(view ->
+                selectPactDuration(60L * 60L * 1000L));
+        binding.commitmentTimer24h.setOnClickListener(view ->
+                selectPactDuration(24L * 60L * 60L * 1000L));
+        binding.commitmentTimer7d.setOnClickListener(view ->
+                selectPactDuration(7L * 24L * 60L * 60L * 1000L));
+        binding.commitmentTimer30d.setOnClickListener(view ->
+                selectPactDuration(30L * 24L * 60L * 60L * 1000L));
         binding.buttonPenanceView.setOnClickListener(view ->
                 startActivity(new Intent(this, PenanceActivity.class)));
         binding.subWalletPay.setOnClickListener(view ->
@@ -193,6 +197,7 @@ public final class MainActivity extends AppCompatActivity {
         }
         if (new SettingsRepository(this).loadCaptureMethod() == CaptureMethod.APP_MODE) {
             appMode.setArmed(true);
+            startSelectedPact();
             ResumeNotificationManager.show(this);
             if (!appMode.isAccessibilityEnabled()) {
                 showStatus(R.string.capture_method_enable_accessibility);
@@ -229,22 +234,44 @@ public final class MainActivity extends AppCompatActivity {
         Snackbar.make(binding.getRoot(), message, Snackbar.LENGTH_LONG).show();
     }
 
-    private void openCommitmentDuration(long durationMillis) {
-        if (!ControllerPinManager.isDomModeActive() || CommitmentManager.isActive(this)) return;
-        startActivity(new Intent(this, CommitmentActivity.class)
-                .putExtra(CommitmentActivity.EXTRA_DURATION_MS, durationMillis));
+    private void selectPactDuration(long durationMillis) {
+        if (ControllerPinManager.isDomModeActive() || CommitmentManager.isActive(this)) return;
+        selectedPactDurationMs = selectedPactDurationMs == durationMillis ? 0L : durationMillis;
+        renderPactSelection();
+    }
+
+    private void startSelectedPact() {
+        if (selectedPactDurationMs <= 0L || CommitmentManager.isActive(this)) return;
+        CommitmentManager.start(this, selectedPactDurationMs);
+        selectedPactDurationMs = 0L;
+        renderCommitmentState();
+    }
+
+    private void renderPactSelection() {
+        pactButton(binding.commitmentTimer1h, 60L * 60L * 1000L);
+        pactButton(binding.commitmentTimer24h, 24L * 60L * 60L * 1000L);
+        pactButton(binding.commitmentTimer7d, 7L * 24L * 60L * 60L * 1000L);
+        pactButton(binding.commitmentTimer30d, 30L * 24L * 60L * 60L * 1000L);
+    }
+
+    private void pactButton(TextView button, long duration) {
+        boolean selected = selectedPactDurationMs == duration;
+        button.setBackgroundResource(selected
+                ? R.drawable.bg_primary_button : R.drawable.bg_outline_button);
+        button.setTextColor(getColor(selected ? R.color.text_primary : R.color.accent));
     }
 
     private void renderCommitmentState() {
         if (binding == null) return;
         boolean active = CommitmentManager.isActive(this);
         boolean domMode = ControllerPinManager.isDomModeActive();
-        binding.commitmentCard.setVisibility(active || domMode ? View.VISIBLE : View.GONE);
-        binding.commitmentStartPanel.setVisibility(domMode && !active ? View.VISIBLE : View.GONE);
+        binding.commitmentCard.setVisibility(active || !domMode ? View.VISIBLE : View.GONE);
+        binding.commitmentStartPanel.setVisibility(!domMode && !active ? View.VISIBLE : View.GONE);
         binding.commitmentActivePanel.setVisibility(active ? View.VISIBLE : View.GONE);
         if (active) binding.commitmentStatus.setText(getString(
                 R.string.commitment_active_remaining,
                 CommitmentActivity.formatDuration(CommitmentManager.remainingMillis(this))));
+        renderPactSelection();
     }
 
     private void updateProtectionButton(boolean running) {
@@ -263,8 +290,7 @@ public final class MainActivity extends AppCompatActivity {
             uiTimer.post(uiTick);
             renderCommitmentState();
             PenanceSnapshot penance = new PenanceManager(this).snapshot(System.currentTimeMillis());
-            boolean walletEnabled = new FeatureModuleManager(this).isWalletEnabled();
-            binding.penanceCard.setVisibility(walletEnabled ? View.VISIBLE : View.GONE);
+            binding.penanceCard.setVisibility(View.GONE);
             binding.penanceStatus.setText(penance.isEnabled()
                     ? getString(R.string.penance_home_status,
                             PenanceManager.formatMoney(penance.getDueCents()),
@@ -309,10 +335,9 @@ public final class MainActivity extends AppCompatActivity {
         boolean limitsEnabled = modules.isLimitsEnabled();
         boolean walletEnabled = modules.isWalletEnabled();
         binding.subCensorCard.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
-        binding.subLimitsCard.setVisibility(limitsEnabled ? View.VISIBLE : View.GONE);
-        binding.subWalletCard.setVisibility(walletEnabled ? View.VISIBLE : View.GONE);
-        binding.subModulesEmpty.setVisibility(!censorEnabled && !limitsEnabled && !walletEnabled
-                ? View.VISIBLE : View.GONE);
+        binding.subLimitsCard.setVisibility(View.GONE);
+        binding.subWalletCard.setVisibility(View.GONE);
+        binding.subModulesEmpty.setVisibility(!censorEnabled ? View.VISIBLE : View.GONE);
         binding.buttonProtection.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
         binding.protectionStatusRow.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
         binding.runtimeStatus.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);

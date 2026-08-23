@@ -18,7 +18,7 @@ import com.betasafe.app.settings.SettingsActivity;
 
 import java.util.Locale;
 
-/** Timed commitment ceremony with keeper-code and controller-PIN release paths. */
+/** Read-only pact countdown with a Dom recovery release. Pacts start from Sub Home. */
 public final class CommitmentActivity extends AppCompatActivity {
     public static final String EXTRA_DURATION_MS = "commitment_duration_ms";
     private ActivityCommitmentBinding binding;
@@ -38,10 +38,7 @@ public final class CommitmentActivity extends AppCompatActivity {
         binding = ActivityCommitmentBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         binding.buttonBack.setOnClickListener(view -> finish());
-        binding.buttonSealPact.setOnClickListener(view -> sealPact());
-        binding.buttonKeeperRelease.setOnClickListener(view -> keeperRelease());
         binding.buttonEmergencyRelease.setOnClickListener(view -> confirmEmergencyRelease());
-        applyRequestedDuration();
         editMode = ControllerEditMode.bind(
                 this, binding.buttonEditLock, editing -> applyEditState());
         renderState();
@@ -109,7 +106,7 @@ public final class CommitmentActivity extends AppCompatActivity {
     private void renderState() {
         if (binding == null) return;
         boolean active = CommitmentManager.isActive(this);
-        binding.setupPanel.setVisibility(active ? View.GONE : View.VISIBLE);
+        binding.setupPanel.setVisibility(View.GONE);
         binding.activePanel.setVisibility(active ? View.VISIBLE : View.GONE);
         if (active) binding.countdown.setText(formatDuration(
                 CommitmentManager.remainingMillis(this)));

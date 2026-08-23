@@ -42,15 +42,18 @@ public final class PenanceManager {
     private static final String KEY_ORDER_ID = "active_order_id";
     private static final String KEY_APPROVAL_URL = "active_approval_url";
     private static final String KEY_PAYPAL_BOUNDARY = "active_paypal_boundary";
+    private static final String KEY_CHECKOUT_MODE = "active_checkout_mode";
     private static final int MAX_EVENTS = 200;
     private static final Object LOCK = new Object();
 
     private final SharedPreferences preferences;
     private final FeatureModuleManager modules;
+    private final Context context;
 
     public PenanceManager(Context context) {
-        preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        modules = new FeatureModuleManager(context);
+        this.context = context.getApplicationContext();
+        preferences = this.context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        modules = new FeatureModuleManager(this.context);
     }
 
     public boolean isEnabled() {
@@ -210,6 +213,7 @@ public final class PenanceManager {
             events.add(new PenanceEvent(UUID.randomUUID().toString(), nowMillis, mercyEnds,
                     amount, billableCount, infraction, PenanceEvent.Status.OPEN, ""));
             saveEvents(events);
+            HardcoreAutoPayManager.schedule(context);
             return amount;
         }
     }
@@ -257,6 +261,7 @@ public final class PenanceManager {
                 if (event.isInMercy(nowMillis)) {
                     events.set(index, event.withStatus(PenanceEvent.Status.FORGIVEN, ""));
                     saveEvents(events);
+                    HardcoreAutoPayManager.schedule(context);
                     return true;
                 }
             }
@@ -277,6 +282,7 @@ public final class PenanceManager {
             }
             saveEvents(events);
             clearOrderState();
+            HardcoreAutoPayManager.schedule(context);
         }
     }
 
@@ -311,11 +317,17 @@ public final class PenanceManager {
     }
 
     public void bindOrder(String settlementId, String orderId, String approvalUrl) {
-        bindOrder(settlementId, orderId, approvalUrl, "");
+        bindOrder(settlementId, orderId, approvalUrl, "", CheckoutMode.LINK);
     }
 
     public void bindOrder(String settlementId, String orderId, String approvalUrl,
             String paypalBoundary) {
+        bindOrder(settlementId, orderId, approvalUrl, paypalBoundary,
+                CheckoutMode.API_APPROVAL);
+    }
+
+    private void bindOrder(String settlementId, String orderId, String approvalUrl,
+            String paypalBoundary, CheckoutMode mode) {
         if (settlementId == null || settlementId.isEmpty()
                 || orderId == null || orderId.isEmpty()) return;
         synchronized (LOCK) {
@@ -323,7 +335,28 @@ public final class PenanceManager {
             preferences.edit().putString(KEY_ORDER_ID, orderId)
                     .putString(KEY_APPROVAL_URL, approvalUrl == null ? "" : approvalUrl)
                     .putString(KEY_PAYPAL_BOUNDARY,
-                            paypalBoundary == null ? "" : paypalBoundary).apply();
+                            paypalBoundary == null ? "" : paypalBoundary)
+                    .putString(KEY_CHECKOUT_MODE, mode.name()).apply();
+        }
+    }
+
+    public void markAutomaticSettlement(String settlementId, String paypalBoundary) {
+        if (settlementId == null || settlementId.isEmpty()) return;
+        synchronized (LOCK) {
+            if (!settlementExists(loadEvents(), settlementId)) return;
+            preferences.edit().remove(KEY_ORDER_ID).remove(KEY_APPROVAL_URL)
+                    .putString(KEY_PAYPAL_BOUNDARY,
+                            paypalBoundary == null ? "" : paypalBoundary)
+                    .putString(KEY_CHECKOUT_MODE, CheckoutMode.HARDCORE_AUTO.name()).apply();
+        }
+    }
+
+    public CheckoutMode getActiveCheckoutMode() {
+        try {
+            return CheckoutMode.valueOf(preferences.getString(
+                    KEY_CHECKOUT_MODE, CheckoutMode.NONE.name()));
+        } catch (IllegalArgumentException ignored) {
+            return CheckoutMode.NONE;
         }
     }
 
@@ -366,6 +399,7 @@ public final class PenanceManager {
             }
             saveEvents(events);
             clearOrderState();
+            HardcoreAutoPayManager.schedule(context);
         }
     }
 
@@ -391,7 +425,21 @@ public final class PenanceManager {
             }
             saveEvents(events);
             clearOrderState();
+            HardcoreAutoPayManager.schedule(context);
             return true;
+        }
+    }
+
+    /** Earliest time an open correction window becomes payable, or zero when none exists. */
+    public long nextDueAtMillis() {
+        synchronized (LOCK) {
+            long next = Long.MAX_VALUE;
+            for (PenanceEvent event : loadEvents()) {
+                if (event.getStatus() == PenanceEvent.Status.OPEN) {
+                    next = Math.min(next, event.getMercyEndsAtMillis());
+                }
+            }
+            return next == Long.MAX_VALUE ? 0L : next;
         }
     }
 
@@ -473,8 +521,10 @@ public final class PenanceManager {
 
     private void clearOrderState() {
         preferences.edit().remove(KEY_ORDER_ID).remove(KEY_APPROVAL_URL)
-                .remove(KEY_PAYPAL_BOUNDARY).apply();
+                .remove(KEY_PAYPAL_BOUNDARY).remove(KEY_CHECKOUT_MODE).apply();
     }
+
+    public enum CheckoutMode { NONE, LINK, API_APPROVAL, HARDCORE_AUTO }
 
     public static String formatMoney(int cents) {
         return String.format(Locale.ROOT, "€%.2f", Math.max(0, cents) / 100.0);
