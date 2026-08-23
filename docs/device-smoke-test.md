@@ -28,7 +28,7 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - The first captured 324×720 frame completed inference in 97 ms on the emulator.
 - Stopping from the app removed `ScreenCaptureService` and persisted the protected-session duration.
 - Log review found no `FATAL EXCEPTION`, pipeline-start failure, or frame-processing failure.
-- The release merged manifest contained neither a cleartext override nor any Device Admin surface; the debug APK verified with its normal v2 debug signature.
+- The release merged manifest contained no cleartext override. The later optional Hardcore Mode pass adds a policy-empty Device Admin receiver; the debug APK verified with its normal v2 debug signature.
 - The new purple-demoness App Mode screen rendered correctly with its Android-service status, all/selected mode controls, auto-resume disclosure, save action, real launcher icons, and exact package labels.
 - App-mode instrumentation verified persisted selected-package state, auto-resume enabled/disabled boot behavior, explicit notification Disarm clearing both Accessibility and MediaProjection intent, launcher-only package discovery, and a non-exported boot receiver.
 - With Calendar as the sole watched package, the live Accessibility service activated recognition on Calendar, loaded the licensed FP16 detector through NNAPI, processed a 1080×2400 frame in 77 ms, ignored its own overlay window event, and suspended immediately when Android Settings became foreground.
@@ -44,7 +44,7 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - Selected-app Accessibility mode activated on Calendar, loaded the detector through NNAPI, processed its first 1080×2400 frame in 45 ms, and suspended on the unselected Clock package.
 - App-timer contracts cover per-app, combined, unselected-app, disabled, and local-day-reset behavior. Timers use the watched package set independently of censor recognition mode. In the live service, Android Settings was selected with a one-minute per-app budget; at the boundary the service logged `PER_APP` enforcement and Android reported the Nexus Launcher as `topResumedActivity`. Reopening a spent app follows the same pre-recognition budget check.
 - The clean Accessibility declaration was corrected so Android can bind the signature-permission-protected service on target 35. A live all-app cycle prewarmed `320n_fp16.onnx` under NNAPI while capture slept, activated on Android Settings, produced its first processed 1080×2400 frame about 0.58 seconds after the foreground transition (138 ms inference), and suspended on return to SubHub. Window-manager inspection found no Accessibility overlay remaining after suspension.
-- Automatic capture now invalidates in-flight frames on every accepted package transition, uses immediate overlay/popup teardown, and explicitly hides cleared reverse-mode content. The Accessibility event reaction timeout is 100 ms; screenshot cadence uses a 350 ms floor to avoid Android's rate-limit failures. Default solid boxes render as alpha-255 black and no longer retain an unnecessary second full-screen bitmap.
+- Automatic capture now invalidates in-flight frames on every accepted package transition, uses immediate overlay/popup teardown, and explicitly hides cleared reverse-mode content. The Accessibility event reaction timeout is 16 ms; screenshot cadence still uses a 350 ms floor to avoid Android's rate-limit failures. Scroll events translate retained censor regions immediately and queue a single fresh capture, so rendering responsiveness is independent of inference cadence. Default solid boxes render as alpha-255 black and no longer retain an unnecessary second full-screen bitmap.
 
 ## 2026-08-23 renderer, controller, and responsive QA pass
 
@@ -58,6 +58,14 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - App Mode classifies bounded visible Accessibility text locally without OCR, merges it with overlapping model detections, and sends the fused boxes through the existing stable tracker so the same post does not create repeated money events.
 - Image-heavy `.bbpack` inputs use explicit archive, entry, extracted-size, and entry-count bounds with actionable rejection messages instead of the former 50 MiB blanket failure.
 - A 20-page real screenshot map passed at the phone profile and 1600×2560/240 dpi tablet profile. The final review verified centered icon-over-label Censor tools, vertically centered pill navigation, readable shared buttons/inputs, the compact three-row app picker, reduced main-flow copy, and a text-only EDIT control.
+
+## 2026-08-23 Hardcore, Sub Wallet, and scroll-motion pass
+
+- Focused instrumentation passed the policy-empty Device Admin contract and the Sub Wallet boundary: Sub mode hides rule, safety, correction, and edit controls while leaving balance and checkout visible.
+- The live Android 15 approval screen displayed SubHub's revocable explanation and no password, wipe, camera, lock, or monitoring operations. Activation appeared in `dumpsys device_policy`; the in-app release action removed it immediately.
+- The Dom Settings screen rendered the consent-gated Hardcore card in the established purple theme. Active state correctly directed the user to the separate Accessibility permission when scanning access was absent.
+- Non-recording capture now compensates the visible overlay from Accessibility scroll deltas at event speed, carries motion that occurs during inference into the published frame, retains the correct pre-scroll source crop for blur/pixelate/glitch, and coalesces refresh work behind the existing single-flight screenshot guard.
+- The target APK and Android-test APK must both be reinstalled before focused instrumentation; installing only `installDebugAndroidTest` can leave an older target APK and produce misleading missing-class/layout failures.
 
 Notification and overlay grants were pre-authorized with ADB on this dedicated emulator so the test could focus on capture consent and runtime behavior. A normal installation still uses the explicit in-app permission flow.
 
