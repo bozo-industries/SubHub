@@ -29,11 +29,11 @@ public final class AppModeManager {
     }
 
     public boolean isArmed() {
-        return preferences.getBoolean(KEY_ARMED, true);
+        return preferences.getBoolean(KEY_ARMED, false);
     }
 
     public void setArmed(boolean armed) {
-        preferences.edit().putBoolean(KEY_ARMED, armed).apply();
+        preferences.edit().putBoolean(KEY_ARMED, armed).commit();
     }
 
     public AppModePolicy.Mode getMode() {
@@ -60,7 +60,7 @@ public final class AppModeManager {
                 .putBoolean(KEY_AUTO_RESUME, autoResume)
                 .putStringSet(KEY_SELECTED_PACKAGES,
                         new LinkedHashSet<>(AppModePolicy.sanitizePackages(selectedPackages)))
-                .apply();
+                .commit();
     }
 
     public boolean shouldRecognize(String foregroundPackage) {

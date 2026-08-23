@@ -8,11 +8,13 @@ import android.util.Log;
 import android.view.Display;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
+import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
 
 import com.betasafe.app.appmode.AppModeManager;
 import com.betasafe.app.appmode.AppModePolicy;
+import com.betasafe.app.appmode.AppTimerManager;
 import com.betasafe.app.detection.Detection;
 import com.betasafe.app.detection.DetectionEngine;
 import com.betasafe.app.detection.DetectorConfig;
@@ -28,6 +30,7 @@ import com.betasafe.app.stats.AchievementManager;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -56,6 +59,19 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private OverlayController overlay;
     private volatile DetectorConfig detectorConfig;
     private volatile String foregroundPackage = "";
+    private AppTimerManager timers;
+    private long foregroundSinceMillis;
+    private String lastBlockedPackage = "";
+    private long lastBlockedAtMillis;
+    private final Runnable timerTick = new Runnable() {
+        @Override public void run() {
+            if (!running) return;
+            long now = System.currentTimeMillis();
+            accountForegroundUsage(now);
+            enforceForegroundLimit(now);
+            main.postDelayed(this, 1_000L);
+        }
+    };
 
     public static boolean isRunning() { return running; }
     public static boolean isRecognitionActive() { return recognitionActive; }
@@ -70,11 +86,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         settings = new SettingsRepository(this);
         stats = new StatsRepository(this);
+        timers = new AppTimerManager(this);
         settings.preferences().registerOnSharedPreferenceChangeListener(listener);
         running = true;
 
         worker = Executors.newSingleThreadScheduledExecutor();
         main.post(this::reevaluateRecognition);
+        main.post(timerTick);
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -201,7 +219,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event == null || event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+        if (event == null || (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && event.getEventType() != AccessibilityEvent.TYPE_WINDOWS_CHANGED)) {
             return;
         }
         String packageName = event.getPackageName() == null
@@ -210,7 +229,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         AppModeManager mode = new AppModeManager(this);
         if (!AppModePolicy.shouldAcceptForegroundEvent(packageName, className, getPackageName(),
                 mode.inputMethodPackage())) return;
+        long now = System.currentTimeMillis();
+        accountForegroundUsage(now);
         foregroundPackage = packageName;
+        foregroundSinceMillis = now;
         if (recognitionActive && worker != null) {
             worker.execute(() -> {
                 if (tracker != null) tracker.clear();
@@ -218,8 +240,47 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         main.post(() -> {
             if (overlay != null) overlay.update(Collections.emptyList(), 1, 1, null);
+            if (enforceForegroundLimit(System.currentTimeMillis())) return;
             reevaluateRecognition();
         });
+    }
+
+    private void accountForegroundUsage(long nowMillis) {
+        long started = foregroundSinceMillis;
+        foregroundSinceMillis = nowMillis;
+        if (timers == null || started <= 0L || nowMillis <= started) return;
+        AppModeManager mode = new AppModeManager(this);
+        if (!mode.isArmed() || mode.getMode() != AppModePolicy.Mode.SELECTED_APPS) return;
+        timers.recordUsage(foregroundPackage, nowMillis - started,
+                mode.getSelectedPackages(), nowMillis);
+    }
+
+    /** Returns true when the current foreground app was dismissed for a spent budget. */
+    private boolean enforceForegroundLimit(long nowMillis) {
+        if (timers == null || foregroundPackage.isEmpty()) return false;
+        AppModeManager mode = new AppModeManager(this);
+        if (!mode.isArmed() || mode.getMode() != AppModePolicy.Mode.SELECTED_APPS) return false;
+        Set<String> selected = mode.getSelectedPackages();
+        AppTimerManager.LimitStatus status = timers.limitStatus(
+                foregroundPackage, selected, nowMillis);
+        if (status == AppTimerManager.LimitStatus.NONE) return false;
+
+        String blockedPackage = foregroundPackage;
+        deactivateRecognition();
+        boolean repeated = blockedPackage.equals(lastBlockedPackage)
+                && nowMillis - lastBlockedAtMillis < 3_000L;
+        lastBlockedPackage = blockedPackage;
+        lastBlockedAtMillis = nowMillis;
+        int message = status == AppTimerManager.LimitStatus.PER_APP
+                ? com.betasafe.app.R.string.app_timer_blocked_app
+                : com.betasafe.app.R.string.app_timer_blocked_total;
+        if (!repeated) Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        Log.i(TAG, "Daily app limit enforced for " + blockedPackage + " (" + status + ")");
+        if (performGlobalAction(GLOBAL_ACTION_HOME)) {
+            foregroundPackage = "";
+            foregroundSinceMillis = 0L;
+        }
+        return true;
     }
 
     private void reevaluateRecognition() {
@@ -277,7 +338,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        accountForegroundUsage(System.currentTimeMillis());
         running = false;
+        main.removeCallbacks(timerTick);
         deactivateRecognition();
         if (settings != null) {
             settings.preferences().unregisterOnSharedPreferenceChangeListener(listener);

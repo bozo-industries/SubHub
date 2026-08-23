@@ -35,6 +35,8 @@ public final class StatsRepository {
     private static final String KEY_PROFILES_COUNT = "profiles_count";
     private static final String KEY_SESSIONS_COUNT = "sessions_count";
     private static final String KEY_SESSION_HISTORY = "session_history";
+    private static final String KEY_ACTIVE_SESSION_START = "active_session_start_ms";
+    private static final String KEY_ACTIVE_SESSION_BLOCKS = "active_session_blocks";
     private static final String KEY_TOTAL_BLOCKS = "total_blocks_all_time";
     private static final String KEY_TOTAL_PROTECTED_TIME = "total_protected_time";
     private static final String KEY_TOTAL_SESSION_TIME = "total_session_time";
@@ -57,11 +59,14 @@ public final class StatsRepository {
 
     public void startSession() {
         synchronized (SESSION_LOCK) {
+            restoreActiveSession();
             if (sessionStartMs != 0) return;
             sessionStartMs = System.currentTimeMillis();
             sessionBlocks = 0;
             SEEN_TRACK_IDS.clear();
             preferences.edit()
+                    .putLong(KEY_ACTIVE_SESSION_START, sessionStartMs)
+                    .putInt(KEY_ACTIVE_SESSION_BLOCKS, 0)
                     .putInt(KEY_SESSIONS_COUNT, preferences.getInt(KEY_SESSIONS_COUNT, 0) + 1)
                     .apply();
             updateStreak();
@@ -92,6 +97,7 @@ public final class StatsRepository {
             if (added == 0) return 0;
             sessionBlocks += added;
             SharedPreferences.Editor edit = preferences.edit()
+                    .putInt(KEY_ACTIVE_SESSION_BLOCKS, sessionBlocks)
                     .putLong(KEY_TOTAL_BLOCKS, preferences.getLong(KEY_TOTAL_BLOCKS, 0) + added);
             if (sessionBlocks > preferences.getInt(KEY_PEAK_SESSION_BLOCKS, 0)) {
                 edit.putInt(KEY_PEAK_SESSION_BLOCKS, sessionBlocks);
@@ -109,6 +115,7 @@ public final class StatsRepository {
 
     public void endSession() {
         synchronized (SESSION_LOCK) {
+            restoreActiveSession();
             if (sessionStartMs == 0) return;
             long started = sessionStartMs;
             long durationSeconds = Math.max(0, (System.currentTimeMillis() - started) / 1000);
@@ -122,6 +129,8 @@ public final class StatsRepository {
             }
             edit.apply();
             appendSessionHistory(started, durationSeconds, sessionBlocks);
+            preferences.edit().remove(KEY_ACTIVE_SESSION_START)
+                    .remove(KEY_ACTIVE_SESSION_BLOCKS).apply();
             sessionStartMs = 0;
             sessionBlocks = 0;
             SEEN_TRACK_IDS.clear();
@@ -130,12 +139,15 @@ public final class StatsRepository {
 
     public StatsSnapshot load() {
         synchronized (SESSION_LOCK) {
+            restoreActiveSession();
             long protectedSeconds = preferences.getLong(KEY_TOTAL_PROTECTED_TIME, 0);
             long totalSessionSeconds = preferences.getLong(KEY_TOTAL_SESSION_TIME, 0);
+            long currentSessionSeconds = 0;
             if (sessionStartMs > 0) {
-                long live = Math.max(0, (System.currentTimeMillis() - sessionStartMs) / 1000);
-                protectedSeconds += live;
-                totalSessionSeconds += live;
+                currentSessionSeconds = Math.max(0,
+                        (System.currentTimeMillis() - sessionStartMs) / 1000);
+                protectedSeconds += currentSessionSeconds;
+                totalSessionSeconds += currentSessionSeconds;
             }
             return new StatsSnapshot(preferences.getLong(KEY_TOTAL_BLOCKS, 0),
                     totalSessionSeconds, preferences.getInt(KEY_SESSIONS_COUNT, 0),
@@ -152,8 +164,23 @@ public final class StatsRepository {
                     preferences.getBoolean(KEY_BORDER_COLOR_CHANGED, false),
                     mutableSet(KEY_CENSOR_STYLES_TRIED), mutableSet(KEY_BORDER_EFFECTS_TRIED),
                     mutableSet(KEY_ACTIVE_DATES),
-                    preferences.getLong(KEY_ALL_CATEGORIES_CENSORS, 0));
+                    preferences.getLong(KEY_ALL_CATEGORIES_CENSORS, 0),
+                    currentSessionSeconds);
         }
+    }
+
+    private void restoreActiveSession() {
+        if (sessionStartMs != 0) return;
+        long stored = preferences.getLong(KEY_ACTIVE_SESSION_START, 0);
+        long now = System.currentTimeMillis();
+        // Discard impossible/corrupt timestamps instead of displaying an unbounded timer.
+        if (stored <= 0 || stored > now || now - stored > 7L * 24L * 60L * 60L * 1000L) {
+            if (stored != 0) preferences.edit().remove(KEY_ACTIVE_SESSION_START)
+                    .remove(KEY_ACTIVE_SESSION_BLOCKS).apply();
+            return;
+        }
+        sessionStartMs = stored;
+        sessionBlocks = Math.max(0, preferences.getInt(KEY_ACTIVE_SESSION_BLOCKS, 0));
     }
 
     public List<SessionEntry> getSessionHistory() {

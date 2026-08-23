@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
+import android.os.SystemClock;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -29,6 +30,7 @@ public final class StatsAndAchievementsTest {
 
         StatsRepository repository = new StatsRepository(context);
         repository.startSession();
+        SystemClock.sleep(1100L);
         Set<String> allCategories = new LinkedHashSet<>(Arrays.asList(
                 "genitals_female", "genitals_male", "breasts", "buttocks", "anus",
                 "face", "belly", "male_chest", "feet", "armpits", "genitals_covered",
@@ -38,6 +40,7 @@ public final class StatsAndAchievementsTest {
         StatsSnapshot live = repository.load();
         assertEquals(2, live.getTotalBlocks());
         assertEquals(2, live.getCurrentSessionBlocks());
+        assertTrue(live.getCurrentSessionSeconds() >= 1);
         assertEquals(2, live.getAllCategoryCensors());
         assertEquals(1, live.getCurrentStreak());
         assertFalse(live.getActiveDates().isEmpty());

@@ -27,6 +27,7 @@ import com.betasafe.app.detection.DetectionEngine;
 import com.betasafe.app.settings.CensorAppearance;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
+import com.betasafe.app.util.ParityNavigation;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,6 +59,7 @@ public final class ExportActivity extends AppCompatActivity {
                 new ActivityResultContracts.OpenMultipleDocuments(), this::startExport);
 
         binding.buttonBack.setOnClickListener(view -> finish());
+        ParityNavigation.bind(this, binding.getRoot(), ParityNavigation.Screen.EXPORT);
         binding.buttonPickImages.setOnClickListener(
                 view -> picker.launch(new String[]{"image/*"}));
         binding.buttonCancelExport.setOnClickListener(view -> cancelled.set(true));

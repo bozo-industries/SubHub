@@ -10,22 +10,21 @@
         android:orientation="vertical"
         android:paddingBottom="28dp">
 
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="205dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp" android:layout_marginTop="32dp"
+            android:background="@drawable/bg_header_card" android:orientation="vertical" android:padding="16dp">
+            <TextView android:id="@+id/button_back" android:layout_width="wrap_content"
+                android:layout_height="40dp" android:gravity="center_vertical" android:text="@string/back"
+                android:textColor="@color/accent" android:textSize="11sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:letterSpacing="0.1" android:text="@string/app_mode_title"
+                android:textColor="@color/text_primary" android:textSize="18sp" android:textStyle="bold" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" android:text="@string/app_mode_subtitle"
+                android:textColor="@color/text_secondary" android:textSize="11sp" />
+        </LinearLayout>
 
-            <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:alpha="0.72" android:contentDescription="@null" android:scaleType="centerCrop" android:src="@drawable/betasafe_gothic_header" />
-            <View android:layout_width="match_parent" android:layout_height="match_parent" android:background="#550D0D14" />
-            <TextView android:id="@+id/button_back" android:layout_width="wrap_content" android:layout_height="48dp" android:layout_gravity="top|start" android:layout_marginStart="20dp" android:layout_marginTop="8dp" android:gravity="center_vertical" android:text="@string/back" android:textColor="@color/accent" android:textStyle="bold" />
-            <ImageView android:layout_width="145dp" android:layout_height="155dp" android:layout_gravity="bottom|start" android:contentDescription="@string/popup_guardian_desc" android:scaleType="centerInside" android:src="@drawable/betasafe_demoness_guardian" />
-
-            <LinearLayout android:layout_width="220dp" android:layout_height="wrap_content" android:layout_gravity="center_vertical|end" android:layout_marginEnd="22dp" android:orientation="vertical">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:letterSpacing="0.1" android:text="@string/app_mode_title" android:textColor="@color/text_primary" android:textSize="21sp" android:textStyle="bold" />
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="@string/app_mode_subtitle" android:textColor="@color/text_secondary" android:textSize="11sp" />
-            </LinearLayout>
-        </FrameLayout>
-
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="20dp" android:layout_marginTop="16dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="18dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="20dp" android:layout_marginTop="14dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="14dp">
             <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/app_mode_service_title" />
             <TextView android:id="@+id/service_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="@color/text_primary" android:textStyle="bold" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/app_mode_service_body" android:textColor="@color/text_secondary" android:textSize="11sp" />
@@ -41,6 +40,40 @@
             </RadioGroup>
             <CheckBox android:id="@+id/auto_resume" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:buttonTint="@color/accent" android:text="@string/app_mode_auto_resume" android:textColor="@color/text_secondary" android:textSize="11sp" />
             <Button android:id="@+id/button_save" android:layout_width="match_parent" android:layout_height="54dp" android:layout_marginTop="12dp" android:background="@drawable/bg_primary_button" android:text="@string/app_mode_save" android:textColor="@color/text_primary" android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/timer_card" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="12dp" android:background="@drawable/bg_card"
+            android:orientation="vertical" android:padding="18dp">
+            <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                android:text="@string/app_timer_title" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="6dp" android:text="@string/app_timer_body"
+                android:textColor="@color/text_secondary" android:textSize="11sp" />
+
+            <CheckBox android:id="@+id/per_app_limit_enabled" android:layout_width="match_parent"
+                android:layout_height="44dp" android:layout_marginTop="8dp"
+                android:buttonTint="@color/accent" android:text="@string/app_timer_per_app"
+                android:textColor="@color/text_primary" />
+            <EditText android:id="@+id/per_app_limit_minutes" android:layout_width="match_parent"
+                android:layout_height="44dp" android:backgroundTint="@color/accent"
+                android:hint="@string/app_timer_minutes_hint" android:inputType="number"
+                android:maxLength="4" android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted" />
+
+            <CheckBox android:id="@+id/total_limit_enabled" android:layout_width="match_parent"
+                android:layout_height="44dp" android:layout_marginTop="8dp"
+                android:buttonTint="@color/accent" android:text="@string/app_timer_combined"
+                android:textColor="@color/text_primary" />
+            <EditText android:id="@+id/total_limit_minutes" android:layout_width="match_parent"
+                android:layout_height="44dp" android:backgroundTint="@color/accent"
+                android:hint="@string/app_timer_minutes_hint" android:inputType="number"
+                android:maxLength="4" android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted" />
+            <TextView android:id="@+id/timer_usage_status" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="10dp"
+                android:textColor="@color/text_secondary" android:textSize="11sp" />
         </LinearLayout>
 
         <LinearLayout android:id="@+id/app_list_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="20dp" android:layout_marginTop="12dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="18dp">

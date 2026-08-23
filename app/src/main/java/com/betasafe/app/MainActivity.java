@@ -9,9 +9,10 @@ import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.View;
-import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -28,6 +29,9 @@ import com.betasafe.app.penance.PenanceActivity;
 import com.betasafe.app.penance.PenanceManager;
 import com.betasafe.app.penance.PenanceSnapshot;
 import com.betasafe.app.service.ScreenCaptureService;
+import com.betasafe.app.service.ScreenshotAccessibilityService;
+import com.betasafe.app.appmode.AppModeManager;
+import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.settings.SettingsActivity;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.StatsSnapshot;
@@ -37,6 +41,7 @@ import com.betasafe.app.stats.MilestoneManager;
 import com.betasafe.app.help.HelpActivity;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.util.AppShortcuts;
+import com.betasafe.app.util.ParityNavigation;
 import androidx.appcompat.app.AlertDialog;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -47,6 +52,13 @@ public final class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> projectionPermission;
     private ActivityResultLauncher<Intent> overlayPermission;
     private ActivityResultLauncher<String> notificationPermission;
+    private final Handler uiTimer = new Handler(Looper.getMainLooper());
+    private final Runnable uiTick = new Runnable() {
+        @Override public void run() {
+            renderRuntimeState();
+            uiTimer.postDelayed(this, 1000L);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,14 +92,7 @@ public final class MainActivity extends AppCompatActivity {
         binding.buttonProtection.setOnClickListener(this::toggleProtection);
         binding.buttonAccessibilityCapture.setOnClickListener(view ->
                 startActivity(new Intent(this, AppModeActivity.class)));
-        binding.tabHome.setOnClickListener(view -> selectTab(binding.tabHome, R.string.tab_home));
-        binding.tabSettings.setOnClickListener(view -> openSettings());
-        binding.tabBrowser.setOnClickListener(
-                view -> startActivity(new Intent(this, BrowserActivity.class)));
-        binding.tabExport.setOnClickListener(
-                view -> startActivity(new Intent(this, ExportActivity.class)));
-        binding.tabHelp.setOnClickListener(
-                view -> startActivity(new Intent(this, HelpActivity.class)));
+        ParityNavigation.bind(this, binding.getRoot(), ParityNavigation.Screen.HOME);
         binding.buttonStatistics.setOnClickListener(view ->
                 startActivity(new Intent(this, StatsActivity.class)));
         binding.onboardingHelp.setOnClickListener(view -> {
@@ -131,11 +136,6 @@ public final class MainActivity extends AppCompatActivity {
         binding.onboardingCard.setVisibility(View.GONE);
     }
 
-    private void openSettings() {
-        startActivity(new Intent(this, CommitmentManager.isActive(this)
-                ? CommitmentActivity.class : SettingsActivity.class));
-    }
-
     private void toggleProtection(View view) {
         if (ScreenCaptureService.isRunning()) {
             startService(ScreenCaptureService.stopIntent(this));
@@ -171,30 +171,18 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void updateProtectionButton(boolean running) {
-        binding.buttonProtection.setText(running ? R.string.stop_protection : R.string.start_protection);
-    }
-
-    private void selectTab(TextView selected, int label) {
-        TextView[] tabs = {
-                binding.tabHome, binding.tabSettings, binding.tabBrowser,
-                binding.tabExport, binding.tabHelp};
-        for (TextView tab : tabs) {
-            boolean active = tab == selected;
-            tab.setTextColor(getColor(active ? R.color.text_primary : R.color.text_muted));
-            tab.setBackgroundResource(active ? R.drawable.bg_tab_active : android.R.color.transparent);
-        }
-        binding.sectionTitle.setText(label);
+        binding.buttonProtection.setEnabled(!ScreenshotAccessibilityService.isRecognitionActive());
+        binding.buttonProtection.setText(running ? R.string.stop_protection
+                : ScreenshotAccessibilityService.isRecognitionActive()
+                ? R.string.app_mode_active : R.string.start_protection);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         if (binding != null) {
-            updateProtectionButton(ScreenCaptureService.isRunning());
-            StatsSnapshot stats = new StatsRepository(this).load();
-            binding.statsBlocks.setText(String.valueOf(stats.getTotalBlocks()));
-            binding.statsTime.setText(StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds()));
-            binding.statsSessions.setText(String.valueOf(stats.getSessions()));
+            uiTimer.removeCallbacks(uiTick);
+            uiTimer.post(uiTick);
             boolean commitmentActive = CommitmentManager.isActive(this);
             binding.commitmentCard.setVisibility(commitmentActive ? View.VISIBLE : View.GONE);
             if (commitmentActive) {
@@ -209,8 +197,47 @@ public final class MainActivity extends AppCompatActivity {
                             PenanceManager.formatMoney(penance.getMercyCents()),
                             PenanceManager.formatMoney(penance.getPaidCents()))
                     : getString(R.string.penance_home_inactive));
-            showProgressUnlocks(stats);
+            showProgressUnlocks(new StatsRepository(this).load());
         }
+    }
+
+    @Override protected void onPause() {
+        uiTimer.removeCallbacks(uiTick);
+        super.onPause();
+    }
+
+    private void renderRuntimeState() {
+        if (binding == null) return;
+        boolean manual = ScreenCaptureService.isRunning();
+        boolean automatic = ScreenshotAccessibilityService.isRecognitionActive();
+        boolean waiting = ScreenshotAccessibilityService.isRunning()
+                && new AppModeManager(this).isArmed() && !automatic;
+        updateProtectionButton(manual);
+
+        int status = (manual || automatic) ? R.string.status_active
+                : waiting ? R.string.status_app_mode_waiting : R.string.status_inactive;
+        binding.protectionStatus.setText(status);
+        binding.protectionStatus.setTextColor(getColor(
+                manual || automatic || waiting ? R.color.accent : R.color.text_muted));
+        binding.protectionStatusDot.setAlpha(manual || automatic ? 1f : waiting ? 0.55f : 0.25f);
+
+        DiagnosticsRepository.Snapshot runtime = DiagnosticsRepository.snapshot();
+        if (runtime.isRunning() && runtime.isReady()) {
+            binding.runtimeStatus.setText(getString(R.string.runtime_ready,
+                    runtime.getProvider(), runtime.getModel()));
+        } else if (runtime.isRunning() && !"None".equals(runtime.getLastFailure())) {
+            binding.runtimeStatus.setText(getString(
+                    R.string.runtime_failed, runtime.getLastFailure()));
+        } else if (runtime.isRunning()) {
+            binding.runtimeStatus.setText(R.string.runtime_initializing);
+        } else {
+            binding.runtimeStatus.setText(R.string.runtime_idle);
+        }
+
+        StatsSnapshot stats = new StatsRepository(this).load();
+        binding.statsBlocks.setText(String.valueOf(stats.getCurrentSessionBlocks()));
+        binding.statsTime.setText(StatsSnapshot.formatClock(stats.getCurrentSessionSeconds()));
+        binding.statsSessions.setText(String.valueOf(stats.getSessions()));
     }
 
     private void showProgressUnlocks(StatsSnapshot stats) {
