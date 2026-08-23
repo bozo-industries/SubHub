@@ -76,7 +76,7 @@ public final class CensorAppearance {
             int borderColor) {
         this(type, intensity, 0.20f, showBorder, false, BorderEffect.CLASSIC,
                 showText, borderColor, Collections.singletonList("BLOCKED"), false, 100,
-                "rectangle", "BetaSafe", "Access blocked.");
+                "rectangle", "SubHub", "Access blocked.");
     }
 
     public CensorAppearance(
@@ -107,7 +107,7 @@ public final class CensorAppearance {
         this.reverseMode = reverseMode;
         this.reverseStrength = clamp(reverseStrength, 1, 100);
         this.reverseCutoutShape = normalizeShape(reverseCutoutShape);
-        this.errorTitle = emptyFallback(errorTitle, "BetaSafe");
+        this.errorTitle = emptyFallback(errorTitle, "SubHub");
         this.errorMessage = emptyFallback(errorMessage, "Access blocked.");
     }
 

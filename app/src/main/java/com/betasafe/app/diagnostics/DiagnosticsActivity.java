@@ -102,7 +102,7 @@ public final class DiagnosticsActivity extends AppCompatActivity {
                 running(ScreenshotAccessibilityService.isRunning()), yesNo(batteryExempt)));
 
         binding.buildStatus.setText(String.format(Locale.ROOT,
-                "BetaSafe %s (%d)\nAndroid %d\n%s %s\nDiagnostics transport: in-app memory only",
+                "SubHub %s (%d)\nAndroid %d\n%s %s\nDiagnostics transport: in-app memory only",
                 BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, Build.VERSION.SDK_INT,
                 Build.MANUFACTURER, Build.MODEL));
     }

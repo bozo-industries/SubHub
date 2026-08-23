@@ -22,6 +22,7 @@ import androidx.core.widget.CompoundButtonCompat;
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityAppModeBinding;
 import com.betasafe.app.service.ScreenshotAccessibilityService;
+import com.betasafe.app.util.SubHubNavigation;
 
 import java.text.Collator;
 import java.util.ArrayList;
@@ -48,6 +49,7 @@ public final class AppModeActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
         manager = new AppModeManager(this);
         timers = new AppTimerManager(this);
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.LIMITS);
         selectedPackages.addAll(manager.getSelectedPackages());
         binding.armed.setChecked(manager.isArmed());
         binding.autoResume.setChecked(manager.isAutoResumeEnabled());
@@ -81,7 +83,10 @@ public final class AppModeActivity extends AppCompatActivity {
     private void save() {
         AppModePolicy.Mode mode = binding.modeSelected.isChecked()
                 ? AppModePolicy.Mode.SELECTED_APPS : AppModePolicy.Mode.ALWAYS;
-        if (mode == AppModePolicy.Mode.SELECTED_APPS && selectedPackages.isEmpty()) {
+        boolean watchedAppsRequired = mode == AppModePolicy.Mode.SELECTED_APPS
+                || binding.perAppLimitEnabled.isChecked()
+                || binding.totalLimitEnabled.isChecked();
+        if (watchedAppsRequired && selectedPackages.isEmpty()) {
             Toast.makeText(this, R.string.app_mode_select_one, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -105,16 +110,18 @@ public final class AppModeActivity extends AppCompatActivity {
             if (binding != null) binding.buttonSave.setText(R.string.app_mode_save);
         }, 1400L);
         renderServiceStatus();
-        if (binding.armed.isChecked() && !accessibilityEnabled()) {
+        boolean accessibilityRequired = binding.armed.isChecked()
+                || binding.perAppLimitEnabled.isChecked()
+                || binding.totalLimitEnabled.isChecked();
+        if (accessibilityRequired && !accessibilityEnabled()) {
             Toast.makeText(this, R.string.app_mode_enable_prompt, Toast.LENGTH_LONG).show();
             startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
         }
     }
 
     private void renderMode() {
-        boolean selected = binding.modeSelected.isChecked();
-        binding.appListCard.setVisibility(selected ? View.VISIBLE : View.GONE);
-        binding.timerCard.setVisibility(selected ? View.VISIBLE : View.GONE);
+        binding.appListCard.setVisibility(View.VISIBLE);
+        binding.timerCard.setVisibility(View.VISIBLE);
     }
 
     private void renderTimerControls() {

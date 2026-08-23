@@ -1,63 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:layout_marginBottom="18dp"
+    android:background="@drawable/bg_header_card"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="16dp">
+
+    <ImageView
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@drawable/bg_bottom_tab_active"
+        android:contentDescription="@string/app_name"
+        android:padding="9dp"
+        android:src="@drawable/ic_nav_censor"
+        app:tint="@color/accent" />
 
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_header_card"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingStart="20dp"
-        android:paddingTop="15dp"
-        android:paddingEnd="20dp"
-        android:paddingBottom="15dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:letterSpacing="0.12"
-            android:text="@string/header_title"
-            android:textColor="@color/text_primary"
-            android:textSize="22sp"
+        android:layout_marginStart="13dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:letterSpacing="0.1" android:text="@string/header_title"
+            android:textColor="@color/text_primary" android:textSize="21sp"
             android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:letterSpacing="0.08"
-            android:text="@string/header_subtitle"
-            android:textColor="@color/accent"
-            android:textSize="14sp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="1dp" android:text="@string/header_subtitle"
+            android:textColor="@color/text_secondary" android:textSize="11sp" />
     </LinearLayout>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_marginTop="12dp"
-        android:layout_marginBottom="16dp"
-        android:background="@color/accent_dim" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="20dp"
-        android:background="@drawable/bg_card"
-        android:orientation="horizontal"
-        android:padding="4dp">
-
-        <TextView android:id="@+id/tab_home" style="@style/Widget.BetaSafe.Tab"
-            android:drawableTop="@drawable/ic_tab_home" android:text="@string/tab_home" />
-        <TextView android:id="@+id/tab_settings" style="@style/Widget.BetaSafe.Tab"
-            android:drawableTop="@drawable/ic_tab_settings" android:text="@string/tab_settings" />
-        <TextView android:id="@+id/tab_browser" style="@style/Widget.BetaSafe.Tab"
-            android:drawableTop="@drawable/ic_tab_browser" android:text="@string/tab_browser" />
-        <TextView android:id="@+id/tab_help" style="@style/Widget.BetaSafe.Tab"
-            android:drawableTop="@drawable/ic_tab_help" android:text="@string/tab_help" />
-        <TextView android:id="@+id/tab_export" style="@style/Widget.BetaSafe.Tab"
-            android:drawableTop="@drawable/ic_tab_export" android:text="@string/tab_export" />
-    </LinearLayout>
+    <TextView android:layout_width="wrap_content" android:layout_height="32dp"
+        android:background="@drawable/bg_bottom_tab_active" android:gravity="center"
+        android:paddingHorizontal="11dp" android:text="v0.1"
+        android:textColor="@color/accent" android:textSize="10sp" android:textStyle="bold" />
 </LinearLayout>

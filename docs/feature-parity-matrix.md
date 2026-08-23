@@ -1,10 +1,10 @@
 # Beta Blocker 1.67 feature parity matrix
 
-This matrix separates behavior recovered from the user-owned APK from the maintained BetaSafe implementation. Decompiled output and licensed binary assets remain in `C:\Users\user\Code\BetaSafe-private`; tracked source is independently written and human-editable.
+This matrix separates behavior recovered from the user-owned APK from the maintained SubHub implementation. Decompiled output and licensed binary assets remain in `C:\Users\user\Code\BetaSafe-private`; tracked source is independently written and human-editable.
 
 ## Protection pipeline
 
-| Feature | APK evidence | BetaSafe status |
+| Feature | APK evidence | SubHub status |
 | --- | --- | --- |
 | 18-class NudeNet-compatible ONNX detector | `DetectionEngine`, two 320-series models | Working and API 35 device-validated |
 | Low/Medium/High/Ultra performance presets | `DetectionPresets`, `PresetInfo` | Working from recovered values; settings UI emulator-validated |
@@ -21,7 +21,7 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 
 ## Browser
 
-| Feature | APK evidence | BetaSafe status |
+| Feature | APK evidence | SubHub status |
 | --- | --- | --- |
 | Hardened WebView, mixed-content/file isolation, Safe Browsing | `MainActivity.setupWebView` | Working |
 | DOM pre-blur, selector filter, background stripping | `DomController` | Working with per-feature shield toggles; API 35 dialog and injection flow emulator-validated |
@@ -35,7 +35,7 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 
 ## Configuration and extensions
 
-| Feature | APK evidence | BetaSafe status |
+| Feature | APK evidence | SubHub status |
 | --- | --- | --- |
 | Named settings profiles | `ProfileManager` | Working with typed save/load/delete and a 50-profile bound; API 35 screen emulator-validated |
 | Versioned settings backup | Profile/configuration preferences | Working JSON export/import with a 256 KiB input bound; private images, models, browser data, and secrets excluded |
@@ -47,7 +47,7 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 
 ## Statistics and engagement
 
-| Feature | APK evidence | BetaSafe status |
+| Feature | APK evidence | SubHub status |
 | --- | --- | --- |
 | Lifetime/session blocks, time, sessions, peaks | `StatsRepository`, `StatsData` | Working with unique-track accounting, persisted active-session start/block state, and a live one-second Home timer |
 | Active dates, streak, history, browser/export/style/profile counters | `StatsRepository` | Working, including a bounded 30-session history and legacy numeric preference compatibility |
@@ -58,11 +58,11 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 | Help/onboarding/permission repair/app shortcuts | `MainActivity` and layout/resource IDs | Working with non-blocking first-run onboarding, ten collapsible source-authored help sections, current overlay/notification status, guided repair, accessibility settings entry, and dynamic Start Protection/Open Browser launcher shortcuts; API 35 UI and instrumented contracts validated |
 | Consent-first commitment pact | New maintained feature; intentionally not Device Admin | Working with 30-minute through 7-day bounded pacts, PBKDF2-HMAC-SHA256 keeper-code hashing with random salt, censor/browser-shield configuration gating, countdown, correct-code release, and an unconditional two-step safety release. It never blocks Android uninstall/data clearing, disables device controls, or delays stopping protection; 4 safety/security contracts and the full setup/active/release API 35 UI flow are validated |
 | Battery-aware Always-On/App Mode | New maintained feature | Working with all-app and selected-app recognition, a launcher-scoped styled picker, IME-safe foreground transitions, persisted armed/auto-resume state, idle detector suspension, non-exported boot handling, visible resume/disarm controls, and explicit fresh MediaProjection consent. Device Admin is absent because it provides neither capture authority nor a supported keepalive path |
-| Selected-app daily budgets | New maintained feature | Working with opt-in per-app and combined limits, foreground-only accounting independent of detector readiness, local-midnight reset, immediate Home enforcement, compact in-style controls, policy instrumentation, and a live one-minute API 35 enforcement run |
+| Watched-app daily budgets | New maintained feature | Working with opt-in per-app and combined limits independent of censor-recognition mode, foreground-only accounting independent of detector readiness, local-midnight reset, immediate Home enforcement, adaptive in-style controls, and policy instrumentation |
 
 ## Licensed visual assets
 
-The maintained app now includes original, generated BetaSafe artwork: a purple demoness guardian, a wide grungy gothic header, a horned-shield launcher icon, and a Popup Storm guardian-shield sample. These files are project-owned and tracked. `Import-PrivateModelAssets.ps1` separately imports the two detector models and eight licensed achievement badges from the purchased APK into ignored local paths. Runtime code tolerates missing badges so ordinary source builds remain reproducible; detector models remain required only when protection or image analysis is started.
+The maintained app now includes original, generated SubHub artwork: a purple demoness guardian, a wide grungy gothic header, a horned-shield launcher icon, and a Popup Storm guardian-shield sample. These files are project-owned and tracked. `Import-PrivateModelAssets.ps1` separately imports the two detector models and eight licensed achievement badges from the purchased APK into ignored local paths. Runtime code tolerates missing badges so ordinary source builds remain reproducible; detector models remain required only when protection or image analysis is started.
 
 ## Completion rule
 

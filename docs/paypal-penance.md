@@ -1,6 +1,6 @@
-# PayPal Penance integration
+# PayPal Money Rules integration
 
-BetaSafe's Penance Treasury is an opt-in ledger with explicit PayPal Checkout. Detection never charges a payer. A new detector track may add a bounded local strike, and the payer later chooses **Settle with PayPal**.
+SubHub's Money Rules feature is an opt-in ledger with explicit PayPal Checkout. Detection never charges a payer. A new detector track may add a bounded local entry, and the payer later chooses **Review payment in PayPal**.
 
 ## Safety and trust boundary
 
@@ -36,10 +36,20 @@ This follows PayPal's documented server-side Orders v2 flow and OAuth requiremen
    npm start
    ```
 
-8. In the debug app, set **Payment backend URL** to the backend origin. The emulator default `http://10.0.2.2:8787` is limited to local development and cannot receive PayPal's public webhooks; a tunneled or deployed HTTPS origin is required for a complete Sandbox run.
+8. Provision the public backend origin while building the APK; it is deployment configuration and is not shown as an editable field in the app:
+
+   ```powershell
+   $env:SUBHUB_PAYPAL_BACKEND_URL = 'https://payments.example.com'
+   .\gradlew.bat assembleDebug
+   Remove-Item Env:\SUBHUB_PAYPAL_BACKEND_URL
+   ```
+
+   The equivalent Gradle property is `-PpaypalBackendUrl=https://payments.example.com`. For emulator-only development, explicitly use `-PpaypalBackendUrl=http://10.0.2.2:8787`; debug builds accept only that emulator alias or loopback over HTTP. Any build without a configured backend keeps local Money Rules usable but disables checkout with an honest status message.
+
+PayPal client secrets, webhook IDs, and OAuth tokens belong only in the backend environment. SubHub intentionally has no screen for entering them: an APK cannot keep merchant secrets confidential, cannot receive public PayPal webhooks, and should not impersonate a server running on the phone.
 
 The server persists its order correlation file beneath `payment-server/data/`, which is ignored by the repository's general build/data policy. Production deployment should mount that path on encrypted persistent storage, run a single writer instance or replace it with a transactional database, terminate TLS at a trusted proxy, rate-limit public endpoints, and retain provider receipts according to the merchant's legal and tax requirements.
 
 ## Live rollout
 
-Before switching `PAYPAL_ENV=live`, verify the business account's approved use case and merchant country, use a different live REST app and webhook, set a conservative `MAX_PAYMENT_CENTS`, deploy behind HTTPS, run one complete low-value payment/refund exercise, and verify the PayPal dashboard receipt against BetaSafe's local settlement ID. Do not reuse Sandbox credentials in production.
+Before switching `PAYPAL_ENV=live`, verify the business account's approved use case and merchant country, use a different live REST app and webhook, set a conservative `MAX_PAYMENT_CENTS`, deploy behind HTTPS, run one complete low-value payment/refund exercise, and verify the PayPal dashboard receipt against SubHub's local settlement ID. Do not reuse Sandbox credentials in production.

@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.betasafe.app.BuildConfig;
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityPenanceBinding;
+import com.betasafe.app.util.SubHubNavigation;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -40,6 +41,7 @@ public final class PenanceActivity extends AppCompatActivity {
         binding = ActivityPenanceBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         manager = new PenanceManager(this);
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.MONEY);
         populateRules();
 
         binding.buttonBack.setOnClickListener(view -> finish());
@@ -81,9 +83,6 @@ public final class PenanceActivity extends AppCompatActivity {
         binding.dailyCap.setText(decimalEuros(manager.getDailyCapCents()));
         binding.weeklyCap.setText(decimalEuros(manager.getWeeklyCapCents()));
         binding.mercyMinutes.setText(String.valueOf(manager.getMercyMinutes()));
-        String backend = manager.getBackendUrl();
-        if (backend.isEmpty()) backend = BuildConfig.PAYPAL_BACKEND_URL;
-        binding.backendUrl.setText(backend);
     }
 
     private void saveRules() {
@@ -105,8 +104,7 @@ public final class PenanceActivity extends AppCompatActivity {
             toast(R.string.penance_rules_invalid);
             return;
         }
-        String backend = binding.backendUrl.getText().toString().trim();
-        manager.configure(enabled, strike, daily, weekly, mercy, backend);
+        manager.configure(enabled, strike, daily, weekly, mercy);
         binding.paymentConsent.setChecked(false);
         closeClient();
         toast(R.string.penance_rules_saved);
@@ -246,7 +244,10 @@ public final class PenanceActivity extends AppCompatActivity {
         binding.checkoutAmount.setText(PenanceManager.formatMoney(snapshot.getCheckoutCents()));
         binding.paidAmount.setText(PenanceManager.formatMoney(snapshot.getPaidCents()));
         boolean checkout = snapshot.getCheckoutCents() > 0;
-        binding.buttonSettle.setEnabled(snapshot.getDueCents() > 0 && !checkout);
+        boolean paymentAvailable = validBackend(manager.getBackendUrl());
+        binding.paymentAvailability.setText(paymentAvailable
+                ? R.string.penance_payment_ready : R.string.penance_payment_unavailable);
+        binding.buttonSettle.setEnabled(paymentAvailable && snapshot.getDueCents() > 0 && !checkout);
         binding.buttonResumeCheckout.setVisibility(
                 checkout && !manager.getActiveApprovalUrl().isEmpty() ? View.VISIBLE : View.GONE);
         binding.buttonCancelCheckout.setVisibility(checkout ? View.VISIBLE : View.GONE);

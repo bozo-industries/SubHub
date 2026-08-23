@@ -27,7 +27,6 @@ import com.betasafe.app.pack.PacksActivity;
 import com.betasafe.app.profiles.ProfilesActivity;
 import com.betasafe.app.popup.PopupStormActivity;
 import com.betasafe.app.stats.StatsRepository;
-import com.betasafe.app.util.ParityNavigation;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -53,7 +52,6 @@ public final class SettingsActivity extends AppCompatActivity {
         attachListeners();
         applyLockState();
         binding.buttonBack.setOnClickListener(view -> finish());
-        ParityNavigation.bind(this, binding.getRoot(), ParityNavigation.Screen.SETTINGS);
     }
 
     private void bindValues() {

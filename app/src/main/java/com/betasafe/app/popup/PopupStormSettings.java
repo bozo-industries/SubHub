@@ -39,6 +39,7 @@ public final class PopupStormSettings {
     public static final String K_MAX_SIZE = "popup_storm_max_size_px";
     public static final String K_MIN_SIZE = "popup_storm_min_size_px";
     public static final String K_POSITION_MODE = "popup_storm_position_mode";
+    public static final String K_PRESET = "popup_storm_active_preset";
     public static final String K_RANDOM_ROT = "popup_storm_random_rotation";
     public static final String K_ROT_MAX = "popup_storm_rotation_max_deg";
     public static final String K_SIZE_MODE = "popup_storm_size_mode";

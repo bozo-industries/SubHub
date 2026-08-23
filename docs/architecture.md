@@ -30,7 +30,7 @@ The clean source implements both capture branches as ordinary Java source under 
 
 `AppModeManager` persists whether automatic recognition is armed, whether every external app or only a selected package set is watched, and whether that armed preference should survive reboot. `ScreenshotAccessibilityService` consumes only window-state package transitions. In selected-app mode, leaving the active package cancels screenshot scheduling and closes inference-adjacent UI/state; the Accessibility binding stays available for the next package transition without running the detector. Input-method transitions are ignored so opening a keyboard does not falsely suspend recognition.
 
-`AppTimerManager` adds a separate, opt-in policy to selected-app mode. It stores per-app and combined daily foreground milliseconds under a local calendar-day key. The Accessibility service accounts elapsed time on accepted foreground transitions and a one-second boundary tick, independently of detector readiness. When either configured budget is exhausted, recognition is suspended and Android's supported `GLOBAL_ACTION_HOME` returns the selected app to Home. Unselected apps, all-app recognition mode, and disabled limits neither accrue nor enforce timer usage.
+`AppTimerManager` is a separate, opt-in policy for the watched package set. It stores per-app and combined daily foreground milliseconds under a local calendar-day key. The Accessibility service accounts elapsed time on accepted foreground transitions and a one-second boundary tick, independently of detector readiness and recognition mode. When either configured budget is exhausted, recognition is suspended if needed and Android's supported `GLOBAL_ACTION_HOME` returns the watched app to Home. Unwatched apps and disabled limits neither accrue nor enforce timer usage.
 
 `BootReceiver` is non-exported and performs no capture. At boot or package replacement it restores only the user's armed preference and, when a prior MediaProjection session was desired, posts a visible notification that returns to the app for fresh Android approval. Its Disarm action clears both automatic recognition and pending session intent.
 
@@ -70,11 +70,11 @@ The app also contains a diagnostics HTTP server on TCP port 8765. It constructs 
 
 The clean source reconstruction intentionally omits that diagnostics server. The purchased APK's own app code did not contain a billing, premium, entitlement, or remote-license gate in the audited DEX trees. The maintained source now adds an original, optional PayPal settlement feature: detector events write only to an on-device bounded ledger, while a separately deployed backend creates/captures PayPal orders and verifies webhooks. No merchant credential is compiled into Android.
 
-## Penance and payment boundary
+## Money Rules and payment boundary
 
-`PenanceManager` stores opt-in rules, capped strike entries, mercy state, settlement state, and payment history in private app preferences. Both capture services forward only the count of newly observed tracker IDs; they never initiate a network request. The UI can forgive a false positive during mercy or release every unpaid entry at any time.
+`PenanceManager` is the retained internal class name for the user-facing Money Rules feature. It stores opt-in rules, capped entries, correction-window state, settlement state, and payment history in private app preferences. Both capture services forward only the count of newly observed tracker IDs; they never initiate a network request. The UI can remove a false positive during its correction window or clear every unpaid entry at any time.
 
-`payment-server/` owns PayPal OAuth, Orders v2 calls, capture, persistent order correlation, and webhook verification. Android sends a random settlement ID, exact bounded amount, and currency. PayPal approval returns through the backend to the app's `betasafe://paypal` route, but the backend does not capture on that redirect. Android requests capture only while the same local checkout remains active and accepts completion only when order ID, settlement ID, amount, and currency all match. Release builds permit HTTPS backend URLs only.
+`payment-server/` owns PayPal OAuth, Orders v2 calls, capture, persistent order correlation, and webhook verification. Android sends a random settlement ID, exact bounded amount, and currency. PayPal approval returns through the backend to the app's `betasafe://paypal` route, but the backend does not capture on that redirect. Android requests capture only while the same local checkout remains active and accepts completion only when order ID, settlement ID, amount, and currency all match. The backend origin is injected into `BuildConfig` through a Gradle property or environment variable; it is not editable in the app, and release builds permit HTTPS origins only.
 
 ## JADX limitations
 
@@ -94,7 +94,7 @@ This is intentionally an app-local consent ritual rather than a device-security 
 
 ## Device Admin and restart boundary
 
-Device Admin is deliberately absent. It is an enterprise policy surface, not a keepalive mechanism, foreground-app signal, or capture grant. Adding uninstall friction would not make recognition more reliable and would weaken BetaSafe's unconditional safety release. Modern Android also requires a new MediaProjection consent token for every capture session and prevents target-35 apps from starting a MediaProjection foreground service from `BOOT_COMPLETED`.
+Device Admin is deliberately absent. It is an enterprise policy surface, not a keepalive mechanism, foreground-app signal, or capture grant. Adding uninstall friction would not make recognition more reliable and would weaken SubHub's unconditional safety release. Modern Android also requires a new MediaProjection consent token for every capture session and prevents target-35 apps from starting a MediaProjection foreground service from `BOOT_COMPLETED`.
 
 The maintained design therefore separates restartable intent from non-restartable capture authority: Accessibility app mode may resume because the user enabled that service in Android settings, while whole-screen MediaProjection resumes only after the user taps the visible notification and approves Android's system dialog again.
 

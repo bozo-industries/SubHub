@@ -3,6 +3,8 @@ package com.betasafe.app.penance;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.betasafe.app.BuildConfig;
+
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,7 +30,7 @@ public final class PenanceManager {
     private static final String KEY_WEEKLY_CAP_CENTS = "weekly_cap_cents";
     private static final String KEY_MERCY_MINUTES = "mercy_minutes";
     private static final String KEY_EVENTS = "events_v1";
-    private static final String KEY_BACKEND_URL = "paypal_backend_url";
+    private static final String LEGACY_KEY_BACKEND_URL = "paypal_backend_url";
     private static final String KEY_ORDER_ID = "active_order_id";
     private static final String KEY_APPROVAL_URL = "active_approval_url";
     private static final int MAX_EVENTS = 200;
@@ -61,12 +63,11 @@ public final class PenanceManager {
     }
 
     public String getBackendUrl() {
-        String value = preferences.getString(KEY_BACKEND_URL, "");
-        return value == null ? "" : value.trim();
+        return normalizeBackendUrl(BuildConfig.PAYPAL_BACKEND_URL);
     }
 
     public void configure(boolean enabled, int strikeCents, int dailyCapCents,
-            int weeklyCapCents, int mercyMinutes, String backendUrl) {
+            int weeklyCapCents, int mercyMinutes) {
         int boundedStrike = PenancePolicy.clampStrikeCents(strikeCents);
         int boundedDaily = PenancePolicy.clampDailyCapCents(dailyCapCents, boundedStrike);
         int boundedWeekly = PenancePolicy.clampWeeklyCapCents(weeklyCapCents, boundedDaily);
@@ -76,7 +77,7 @@ public final class PenanceManager {
                 .putInt(KEY_DAILY_CAP_CENTS, boundedDaily)
                 .putInt(KEY_WEEKLY_CAP_CENTS, boundedWeekly)
                 .putInt(KEY_MERCY_MINUTES, PenancePolicy.clampMercyMinutes(mercyMinutes))
-                .putString(KEY_BACKEND_URL, normalizeBackendUrl(backendUrl))
+                .remove(LEGACY_KEY_BACKEND_URL)
                 .apply();
     }
 

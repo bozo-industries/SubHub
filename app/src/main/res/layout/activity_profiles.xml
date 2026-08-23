@@ -8,34 +8,26 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:paddingStart="@dimen/page_margin"
+        android:paddingTop="24dp"
+        android:paddingEnd="@dimen/page_margin"
+        android:paddingBottom="24dp">
 
-        <TextView
-            android:id="@+id/button_back"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:gravity="center_vertical"
-            android:text="@string/back"
-            android:textColor="@color/accent"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:letterSpacing="0.12"
-            android:text="@string/profiles_title"
-            android:textColor="@color/text_primary"
-            android:textSize="23sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="@string/profiles_desc"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:background="@drawable/bg_header_card" android:orientation="vertical"
+            android:padding="16dp">
+            <TextView android:id="@+id/button_back" android:layout_width="wrap_content"
+                android:layout_height="40dp" android:gravity="center_vertical"
+                android:text="@string/back" android:textColor="@color/accent"
+                android:textSize="11sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:letterSpacing="0.1" android:text="@string/profiles_title"
+                android:textColor="@color/text_primary" android:textSize="18sp"
+                android:textStyle="bold" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" android:text="@string/profiles_desc"
+                android:textColor="@color/text_secondary" android:textSize="11sp" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -45,10 +37,16 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <TextView style="@style/Widget.SubHub.FieldLabel"
+                android:layout_marginTop="0dp" android:text="@string/profile_name_label" />
+            <TextView style="@style/Widget.SubHub.FieldHelp"
+                android:text="@string/profile_name_help" />
+
             <EditText
                 android:id="@+id/profile_name"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
+                android:layout_marginTop="5dp"
                 android:background="@drawable/bg_header_card"
                 android:hint="@string/profile_name_hint"
                 android:importantForAutofill="no"

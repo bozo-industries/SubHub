@@ -132,7 +132,7 @@ public final class AchievementsActivity extends AppCompatActivity {
             worker.execute(() -> saveModernBadge(achievement));
         } else {
             pendingLegacyBadge = achievement.getBadge();
-            createBadge.launch("BetaSafe-" + achievement.getId() + ".png");
+            createBadge.launch("SubHub-" + achievement.getId() + ".png");
         }
     }
 
@@ -142,9 +142,9 @@ public final class AchievementsActivity extends AppCompatActivity {
         try {
             ContentValues values = new ContentValues();
             values.put(MediaStore.Images.Media.DISPLAY_NAME,
-                    "BetaSafe-" + achievement.getId() + ".png");
+                    "SubHub-" + achievement.getId() + ".png");
             values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
-            values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/BetaSafe");
+            values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/SubHub");
             uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
             if (uri != null) try (OutputStream output = getContentResolver().openOutputStream(uri, "w")) {
                 success = output != null && copyBadge(achievement.getBadge(), output);

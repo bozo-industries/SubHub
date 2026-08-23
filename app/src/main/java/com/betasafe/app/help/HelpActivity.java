@@ -23,7 +23,6 @@ import androidx.core.content.ContextCompat;
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityHelpBinding;
 import com.betasafe.app.util.LocaleHelper;
-import com.betasafe.app.util.ParityNavigation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +42,6 @@ public final class HelpActivity extends AppCompatActivity {
         binding.getRoot().setFocusableInTouchMode(true);
         binding.getRoot().requestFocus();
         binding.buttonBack.setOnClickListener(view -> finish());
-        ParityNavigation.bind(this, binding.getRoot(), ParityNavigation.Screen.HELP);
         binding.buttonFixPermissions.setOnClickListener(view -> repairNextPermission());
         binding.buttonAccessibility.setOnClickListener(view ->
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));

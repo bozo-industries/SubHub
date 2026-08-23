@@ -43,7 +43,7 @@ public final class ScreenCaptureManager implements AutoCloseable {
         imageReader = ImageReader.newInstance(
                 captureWidth, captureHeight, PixelFormat.RGBA_8888, 2);
         virtualDisplay = projection.createVirtualDisplay(
-                "BetaSafeCapture",
+                "SubHubCapture",
                 captureWidth,
                 captureHeight,
                 densityDpi,

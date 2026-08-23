@@ -145,6 +145,8 @@ public final class PopupStormActivity extends AppCompatActivity {
 
     private void buildPresetButtons() {
         binding.presetContainer.removeAllViews();
+        String selectedPreset = preferences.getString(
+                PopupStormSettings.K_PRESET, IntensityPresets.MEDIUM.name());
         for (IntensityPresets preset : IntensityPresets.values()) {
             Button button = new Button(this);
             button.setText(preset.getDisplayName().toUpperCase(Locale.ROOT));
@@ -152,8 +154,13 @@ public final class PopupStormActivity extends AppCompatActivity {
             if (binding.presetContainer.getChildCount() > 0) params.setMarginStart(dp(4));
             button.setLayoutParams(params);
             button.setTextSize(9);
+            boolean selected = preset.name().equals(selectedPreset);
+            button.setBackgroundResource(selected
+                    ? R.drawable.bg_bottom_tab_active : R.drawable.bg_outline_button);
+            button.setTextColor(getColor(selected ? R.color.text_primary : R.color.accent));
             button.setOnClickListener(view -> {
                 preset.apply(this);
+                buildPresetButtons();
                 rebuildSettings();
                 PopupStormManager.get().reloadSettings(this);
                 Toast.makeText(this, preset.getDisplayName(), Toast.LENGTH_SHORT).show();
@@ -351,6 +358,8 @@ public final class PopupStormActivity extends AppCompatActivity {
     }
 
     private void settingsChanged() {
+        preferences.edit().remove(PopupStormSettings.K_PRESET).apply();
+        buildPresetButtons();
         PopupStormManager.get().reloadSettings(this);
         if (PopupStormManager.get().isRunning()) PopupStormManager.get().start(this);
         refreshStatus();
@@ -390,6 +399,8 @@ public final class PopupStormActivity extends AppCompatActivity {
                 Button remove = new Button(this);
                 remove.setText(R.string.popup_remove);
                 remove.setTextSize(9);
+                remove.setBackgroundResource(R.drawable.bg_outline_button);
+                remove.setTextColor(getColor(R.color.accent));
                 remove.setOnClickListener(view -> removeFolder(value));
                 row.addView(remove, new LinearLayout.LayoutParams(dp(104), dp(44)));
                 binding.foldersList.addView(row);
