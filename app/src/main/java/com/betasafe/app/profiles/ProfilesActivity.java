@@ -16,6 +16,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityProfilesBinding;
+import com.betasafe.app.security.ControllerEditMode;
+import com.betasafe.app.security.ControllerPinManager;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -30,6 +32,7 @@ public final class ProfilesActivity extends AppCompatActivity {
     private SettingsBackupManager backups;
     private ActivityResultLauncher<String> createBackup;
     private ActivityResultLauncher<String[]> openBackup;
+    private ControllerEditMode editMode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,6 +52,23 @@ public final class ProfilesActivity extends AppCompatActivity {
                 createBackup.launch("SubHub-settings.json"));
         binding.buttonImportSettings.setOnClickListener(view ->
                 openBackup.launch(new String[]{"application/json", "text/json", "text/plain"}));
+        editMode = ControllerEditMode.bind(
+                this, binding.buttonEditLock, editing -> applyEditState());
+        rebuild();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (editMode != null) editMode.refresh();
+    }
+
+    private void applyEditState() {
+        if (binding == null) return;
+        boolean editing = ControllerPinManager.isSessionUnlocked();
+        binding.profileName.setEnabled(editing);
+        binding.buttonSaveProfile.setEnabled(editing);
+        binding.buttonExportSettings.setEnabled(editing);
+        binding.buttonImportSettings.setEnabled(editing);
         rebuild();
     }
 
@@ -80,12 +100,14 @@ public final class ProfilesActivity extends AppCompatActivity {
             label.setLayoutParams(new LinearLayout.LayoutParams(0, dp(48), 1f));
             label.setGravity(Gravity.CENTER_VERTICAL);
             Button load = actionButton(R.string.profile_load);
+            load.setEnabled(ControllerPinManager.isSessionUnlocked());
             load.setOnClickListener(view -> {
                 if (profiles.load(name)) {
                     Toast.makeText(this, R.string.profile_loaded, Toast.LENGTH_SHORT).show();
                 }
             });
             Button delete = actionButton(R.string.delete);
+            delete.setEnabled(ControllerPinManager.isSessionUnlocked());
             delete.setOnClickListener(view -> new AlertDialog.Builder(this)
                     .setTitle(R.string.profile_delete_title)
                     .setMessage(name)
@@ -107,9 +129,10 @@ public final class ProfilesActivity extends AppCompatActivity {
     private Button actionButton(int text) {
         Button button = new Button(this);
         button.setText(text);
-        button.setTextSize(10);
+        button.setTextSize(11);
         button.setTextColor(getColor(R.color.accent));
-        button.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        button.setAllCaps(false);
+        button.setBackgroundResource(R.drawable.bg_outline_button);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
         button.setLayoutParams(new LinearLayout.LayoutParams(dp(76), dp(48)));

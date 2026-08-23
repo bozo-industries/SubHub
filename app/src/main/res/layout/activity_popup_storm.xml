@@ -14,16 +14,23 @@
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginHorizontal="@dimen/page_margin" android:layout_marginTop="32dp"
             android:background="@drawable/bg_header_card" android:orientation="vertical" android:padding="16dp">
-            <TextView android:id="@+id/button_back" android:layout_width="wrap_content"
-                android:layout_height="40dp" android:gravity="center_vertical" android:text="@string/back"
-                android:textColor="@color/accent" android:textSize="11sp" android:textStyle="bold" />
+            <FrameLayout android:layout_width="match_parent" android:layout_height="40dp">
+                <TextView android:id="@+id/button_back" android:layout_width="wrap_content"
+                    android:layout_height="match_parent" android:gravity="center_vertical"
+                    android:text="@string/back" android:textColor="@color/accent"
+                    android:textSize="12sp" android:textStyle="bold" />
+                <TextView android:id="@+id/button_edit_lock"
+                    style="@style/Widget.SubHub.ControllerEdit"
+                    android:layout_gravity="end|center_vertical"
+                    android:text="@string/controller_edit_locked" />
+            </FrameLayout>
             <TextView android:id="@+id/popup_header_title" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:letterSpacing="0.1"
                 android:text="@string/popup_title" android:textColor="@color/text_primary"
                 android:textSize="18sp" android:textStyle="bold" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="4dp" android:text="@string/popup_subtitle"
-                android:textColor="@color/text_secondary" android:textSize="11sp" />
+                android:textColor="@color/text_secondary" android:textSize="12sp" />
         </LinearLayout>
 
         <LinearLayout
@@ -58,18 +65,15 @@
 
                 <Button
                     android:id="@+id/button_preview"
+                    style="@style/Widget.SubHub.PrimaryButton"
                     android:layout_width="0dp"
-                    android:layout_height="52dp"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_primary_button"
-                    android:text="@string/popup_preview"
-                    android:textColor="@color/text_primary"
-                    android:textStyle="bold" />
+                    android:text="@string/popup_preview" />
 
                 <Button
                     android:id="@+id/button_stop"
+                    style="@style/Widget.SubHub.CompactOutlineButton"
                     android:layout_width="0dp"
-                    android:layout_height="52dp"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:text="@string/popup_stop_now" />
@@ -104,8 +108,9 @@
             <TextView android:id="@+id/library_count" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="7dp"
                 android:textColor="@color/text_secondary" android:textSize="11sp" />
-            <Button android:id="@+id/button_add_folder" android:layout_width="match_parent"
-                android:layout_height="52dp" android:layout_marginTop="10dp"
+            <Button android:id="@+id/button_add_folder"
+                style="@style/Widget.SubHub.CompactOutlineButton"
+                android:layout_marginTop="10dp"
                 android:text="@string/popup_add_folder" />
             <LinearLayout android:id="@+id/folders_list" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:orientation="vertical" />

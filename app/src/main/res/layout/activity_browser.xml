@@ -24,12 +24,16 @@
                 <TextView android:id="@+id/button_new_tab" android:layout_width="36dp"
                     android:layout_height="match_parent" android:gravity="center" android:text="@string/browser_new_tab"
                     android:textColor="@color/accent" android:textSize="22sp" android:textStyle="bold" />
+                <TextView android:id="@+id/button_edit_lock"
+                    style="@style/Widget.SubHub.ControllerEdit"
+                    android:layout_height="32dp" android:minWidth="70dp"
+                    android:text="@string/controller_edit_locked" />
             </LinearLayout>
 
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginStart="70dp" android:layout_marginTop="2dp"
                 android:text="@string/browser_address_label" android:textColor="@color/text_muted"
-                android:textSize="8sp" android:textStyle="bold" />
+                android:textSize="10sp" android:textStyle="bold" />
 
             <LinearLayout android:layout_width="match_parent" android:layout_height="48dp"
                 android:gravity="center_vertical" android:orientation="horizontal">
@@ -56,11 +60,11 @@
                 <TextView android:id="@+id/button_bookmarks" android:layout_width="wrap_content"
                     android:layout_height="match_parent" android:gravity="center_vertical"
                     android:paddingHorizontal="10dp" android:text="@string/browser_bookmarks"
-                    android:textColor="@color/text_muted" android:textSize="9sp" android:textStyle="bold" />
+                    android:textColor="@color/text_muted" android:textSize="11sp" android:textStyle="bold" />
                 <TextView android:id="@+id/button_shields" android:layout_width="wrap_content"
                     android:layout_height="match_parent" android:gravity="center_vertical"
                     android:paddingHorizontal="10dp" android:text="@string/browser_shields"
-                    android:textColor="@color/text_muted" android:textSize="9sp" android:textStyle="bold" />
+                    android:textColor="@color/text_muted" android:textSize="11sp" android:textStyle="bold" />
                 <TextView android:id="@+id/private_notice" android:layout_width="0dp"
                     android:layout_height="match_parent" android:layout_weight="1" android:gravity="end|center_vertical"
                     android:text="@string/browser_private_notice" android:textColor="@color/accent"

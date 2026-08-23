@@ -14,9 +14,12 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.Color;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
@@ -24,6 +27,7 @@ import androidx.test.runner.lifecycle.Stage;
 
 import com.betasafe.app.appmode.AppModeActivity;
 import com.betasafe.app.penance.PenanceActivity;
+import com.betasafe.app.stats.StatsRepository;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -35,6 +39,12 @@ import java.util.concurrent.atomic.AtomicReference;
 @RunWith(AndroidJUnit4.class)
 public final class SubHubNavigationTest {
     @Test public void primaryPillNavigatesAndUpdatesSelection() {
+        android.content.Context context = ApplicationProvider.getApplicationContext();
+        context
+                .getSharedPreferences("betablocker_achievements", 0)
+                .edit().clear().commit();
+        context.getSharedPreferences(StatsRepository.PREFS_NAME, 0)
+                .edit().clear().commit();
         ActivityScenario.launch(MainActivity.class);
         assertDestination(MainActivity.class, R.id.nav_censor, R.id.nav_limits);
 
@@ -60,14 +70,21 @@ public final class SubHubNavigationTest {
         View unselected = activity.findViewById(unselectedId);
         assertTrue(selected.getBackground() instanceof GradientDrawable);
         assertTrue(unselected.getBackground() instanceof ColorDrawable);
-        for (int id : new int[]{R.id.nav_censor, R.id.nav_limits, R.id.nav_money}) {
-            TextView tab = activity.findViewById(id);
+        int[] tabs = {R.id.nav_censor, R.id.nav_limits, R.id.nav_money};
+        int[] icons = {R.id.nav_censor_icon, R.id.nav_limits_icon, R.id.nav_money_icon};
+        int[] labels = {R.id.nav_censor_label, R.id.nav_limits_label, R.id.nav_money_label};
+        for (int index = 0; index < tabs.length; index++) {
+            LinearLayout tab = activity.findViewById(tabs[index]);
+            ImageView icon = activity.findViewById(icons[index]);
+            TextView label = activity.findViewById(labels[index]);
             assertEquals(View.VISIBLE, tab.getVisibility());
             assertTrue(tab.getAlpha() >= 0.8f);
-            assertTrue(Color.alpha(tab.getCurrentTextColor()) > 0);
             assertEquals(Gravity.CENTER, tab.getGravity() & Gravity.CENTER);
-            assertTrue(!tab.getIncludeFontPadding());
-            assertTrue(tab.getCompoundDrawablesRelative()[1] != null);
+            assertEquals(LinearLayout.VERTICAL, tab.getOrientation());
+            assertTrue(Color.alpha(label.getCurrentTextColor()) > 0);
+            assertTrue(!label.getIncludeFontPadding());
+            assertTrue(icon.getDrawable() != null);
+            assertTrue(icon.getBottom() <= label.getTop());
         }
     }
 

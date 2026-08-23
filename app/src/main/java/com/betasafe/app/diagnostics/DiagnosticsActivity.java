@@ -17,6 +17,7 @@ import com.betasafe.app.BuildConfig;
 import com.betasafe.app.databinding.ActivityDiagnosticsBinding;
 import com.betasafe.app.detection.DetectorConfig;
 import com.betasafe.app.pack.PackManager;
+import com.betasafe.app.security.ControllerEditMode;
 import com.betasafe.app.service.ScreenCaptureService;
 import com.betasafe.app.service.ScreenshotAccessibilityService;
 import com.betasafe.app.settings.SettingsRepository;
@@ -34,6 +35,7 @@ public final class DiagnosticsActivity extends AppCompatActivity {
     };
     private ActivityDiagnosticsBinding binding;
     private SettingsRepository settings;
+    private ControllerEditMode editMode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,11 +50,14 @@ public final class DiagnosticsActivity extends AppCompatActivity {
         binding.switchDiagnosticsOverlay.setOnCheckedChangeListener((button, checked) ->
                 settings.preferences().edit().putBoolean(
                         DiagnosticsRepository.PREF_OVERLAY, checked).apply());
+        editMode = ControllerEditMode.bind(this, binding.buttonEditLock, editing ->
+                binding.switchDiagnosticsOverlay.setEnabled(editing));
         render();
     }
 
     @Override protected void onResume() {
         super.onResume();
+        if (editMode != null) editMode.refresh();
         refreshHandler.removeCallbacks(refresh);
         refreshHandler.post(refresh);
     }

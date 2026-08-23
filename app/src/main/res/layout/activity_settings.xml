@@ -23,12 +23,10 @@
                     android:layout_height="match_parent" android:gravity="center_vertical"
                     android:text="@string/back" android:textColor="@color/accent"
                     android:textSize="11sp" android:textStyle="bold" />
-                <TextView android:id="@+id/button_edit_lock" android:layout_width="wrap_content"
-                    android:layout_height="32dp" android:layout_gravity="end|center_vertical"
-                    android:background="@drawable/bg_bottom_tab_active" android:clickable="true"
-                    android:focusable="true" android:gravity="center" android:paddingHorizontal="10dp"
-                    android:text="@string/controller_edit_locked" android:textColor="@color/text_primary"
-                    android:textSize="8sp" android:textStyle="bold" />
+                <TextView android:id="@+id/button_edit_lock"
+                    style="@style/Widget.SubHub.ControllerEdit"
+                    android:layout_gravity="end|center_vertical"
+                    android:text="@string/controller_edit_locked" />
             </FrameLayout>
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:letterSpacing="0.1" android:text="@string/settings_title"
@@ -36,7 +34,7 @@
                 android:textStyle="bold" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="4dp" android:text="@string/settings_subtitle"
-                android:textColor="@color/text_secondary" android:textSize="11sp" />
+                android:textColor="@color/text_secondary" android:textSize="12sp" />
         </LinearLayout>
 
         <LinearLayout

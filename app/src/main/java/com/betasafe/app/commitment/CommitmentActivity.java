@@ -12,6 +12,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityCommitmentBinding;
+import com.betasafe.app.security.ControllerEditMode;
+import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.settings.SettingsActivity;
 
 import java.util.Locale;
@@ -19,6 +21,7 @@ import java.util.Locale;
 /** Consent-first commitment ceremony with a permanent, explicit safety release. */
 public final class CommitmentActivity extends AppCompatActivity {
     private ActivityCommitmentBinding binding;
+    private ControllerEditMode editMode;
     private final Handler timer = new Handler(Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -37,11 +40,14 @@ public final class CommitmentActivity extends AppCompatActivity {
         binding.buttonSealPact.setOnClickListener(view -> sealPact());
         binding.buttonKeeperRelease.setOnClickListener(view -> keeperRelease());
         binding.buttonEmergencyRelease.setOnClickListener(view -> confirmEmergencyRelease());
+        editMode = ControllerEditMode.bind(
+                this, binding.buttonEditLock, editing -> applyEditState());
         renderState();
     }
 
     @Override protected void onResume() {
         super.onResume();
+        if (editMode != null) editMode.refresh();
         timer.removeCallbacks(tick);
         timer.post(tick);
     }
@@ -110,6 +116,21 @@ public final class CommitmentActivity extends AppCompatActivity {
         binding.activePanel.setVisibility(active ? View.VISIBLE : View.GONE);
         if (active) binding.countdown.setText(formatDuration(
                 CommitmentManager.remainingMillis(this)));
+        applyEditState();
+    }
+
+    private void applyEditState() {
+        if (binding == null) return;
+        boolean editing = ControllerPinManager.isSessionUnlocked();
+        binding.durationGroup.setEnabled(editing);
+        for (int index = 0; index < binding.durationGroup.getChildCount(); index++) {
+            binding.durationGroup.getChildAt(index).setEnabled(editing);
+        }
+        binding.keeperCode.setEnabled(editing);
+        binding.keeperCodeConfirm.setEnabled(editing);
+        binding.consentCheck.setEnabled(editing);
+        binding.buttonSealPact.setEnabled(editing);
+        // Keeper and emergency release are safety exits and intentionally stay available.
     }
 
     private long selectedDuration() {

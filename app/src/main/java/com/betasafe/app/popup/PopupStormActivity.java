@@ -27,6 +27,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityPopupStormBinding;
+import com.betasafe.app.security.ControllerEditMode;
+import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.service.ScreenCaptureService;
 import com.betasafe.app.service.ScreenshotAccessibilityService;
 import com.google.android.material.switchmaterial.SwitchMaterial;
@@ -42,6 +44,7 @@ public final class PopupStormActivity extends AppCompatActivity {
     private ActivityPopupStormBinding binding;
     private SharedPreferences preferences;
     private boolean bindingEnabled;
+    private ControllerEditMode editMode;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable statusUpdater = new Runnable() {
         @Override public void run() {
@@ -83,10 +86,13 @@ public final class PopupStormActivity extends AppCompatActivity {
         });
         buildPresetButtons();
         rebuildSettings();
+        editMode = ControllerEditMode.bind(
+                this, binding.buttonEditLock, editing -> applyEditState());
     }
 
     @Override protected void onResume() {
         super.onResume();
+        if (editMode != null) editMode.refresh();
         PopupStormManager.get().reloadSettings(this);
         ui.removeCallbacks(statusUpdater);
         ui.post(statusUpdater);
@@ -153,11 +159,13 @@ public final class PopupStormActivity extends AppCompatActivity {
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(48), 1);
             if (binding.presetContainer.getChildCount() > 0) params.setMarginStart(dp(4));
             button.setLayoutParams(params);
-            button.setTextSize(9);
+            button.setTextSize(11);
+            button.setAllCaps(false);
             boolean selected = preset.name().equals(selectedPreset);
             button.setBackgroundResource(selected
                     ? R.drawable.bg_bottom_tab_active : R.drawable.bg_outline_button);
             button.setTextColor(getColor(selected ? R.color.text_primary : R.color.accent));
+            button.setEnabled(ControllerPinManager.isSessionUnlocked());
             button.setOnClickListener(view -> {
                 preset.apply(this);
                 buildPresetButtons();
@@ -224,6 +232,29 @@ public final class PopupStormActivity extends AppCompatActivity {
                 PopupStormSettings.K_AVOID_PADDING, 0, 400, 80);
         rebuildFolders();
         refreshStatus();
+        applyEditState();
+    }
+
+    private void applyEditState() {
+        if (binding == null) return;
+        boolean editing = ControllerPinManager.isSessionUnlocked();
+        binding.switchEnabled.setEnabled(editing);
+        binding.buttonPreview.setEnabled(editing);
+        binding.buttonAddFolder.setEnabled(editing);
+        setEnabledRecursive(binding.presetContainer, editing);
+        setEnabledRecursive(binding.dynamicSettings, editing);
+        rebuildFolders();
+        // Stop remains available as an unconditional safety action.
+    }
+
+    private static void setEnabledRecursive(View view, boolean enabled) {
+        view.setEnabled(enabled);
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int index = 0; index < group.getChildCount(); index++) {
+                setEnabledRecursive(group.getChildAt(index), enabled);
+            }
+        }
     }
 
     private LinearLayout card(int title) {
@@ -246,6 +277,7 @@ public final class PopupStormActivity extends AppCompatActivity {
         toggle.setText(title);
         toggle.setTextColor(getColor(R.color.text_primary));
         toggle.setMinHeight(dp(50));
+        toggle.setEnabled(ControllerPinManager.isSessionUnlocked());
         toggle.setChecked(preferences.getBoolean(key, defaultValue));
         toggle.setOnCheckedChangeListener((button, checked) -> {
             preferences.edit().putBoolean(key, checked).apply();
@@ -263,6 +295,7 @@ public final class PopupStormActivity extends AppCompatActivity {
         SeekBar slider = new SeekBar(this);
         slider.setMax(maximum - minimum);
         slider.setProgress(stored - minimum);
+        slider.setEnabled(ControllerPinManager.isSessionUnlocked());
         slider.setOnSeekBarChangeListener(new SimpleSeekListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int actual = minimum + progress;
@@ -285,6 +318,7 @@ public final class PopupStormActivity extends AppCompatActivity {
         SeekBar slider = new SeekBar(this);
         slider.setMax(steps);
         slider.setProgress(Math.round((stored - minimum) / step));
+        slider.setEnabled(ControllerPinManager.isSessionUnlocked());
         slider.setOnSeekBarChangeListener(new SimpleSeekListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 float actual = minimum + progress * step;
@@ -310,7 +344,8 @@ public final class PopupStormActivity extends AppCompatActivity {
             option.setTag(values[index]);
             option.setText(labels[index]);
             option.setTextColor(getColor(R.color.text_primary));
-            option.setTextSize(10);
+            option.setTextSize(11);
+            option.setEnabled(ControllerPinManager.isSessionUnlocked());
             option.setChecked(values[index].equals(selected));
             group.addView(option, new RadioGroup.LayoutParams(0, dp(48), 1));
         }
@@ -333,6 +368,8 @@ public final class PopupStormActivity extends AppCompatActivity {
         input.setMaxLines(1);
         input.setText(preferences.getString(key, defaultValue));
         input.setTextColor(getColor(R.color.text_primary));
+        input.setTextSize(12);
+        input.setEnabled(ControllerPinManager.isSessionUnlocked());
         input.setImeOptions(EditorInfo.IME_ACTION_DONE);
         View.OnFocusChangeListener save = (view, focused) -> {
             if (!focused) saveText(input, key, defaultValue);
@@ -398,9 +435,11 @@ public final class PopupStormActivity extends AppCompatActivity {
                 row.addView(name, new LinearLayout.LayoutParams(0, dp(48), 1));
                 Button remove = new Button(this);
                 remove.setText(R.string.popup_remove);
-                remove.setTextSize(9);
+                remove.setTextSize(11);
+                remove.setAllCaps(false);
                 remove.setBackgroundResource(R.drawable.bg_outline_button);
                 remove.setTextColor(getColor(R.color.accent));
+                remove.setEnabled(ControllerPinManager.isSessionUnlocked());
                 remove.setOnClickListener(view -> removeFolder(value));
                 row.addView(remove, new LinearLayout.LayoutParams(dp(104), dp(44)));
                 binding.foldersList.addView(row);

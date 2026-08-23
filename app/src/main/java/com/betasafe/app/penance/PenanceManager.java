@@ -96,6 +96,11 @@ public final class PenanceManager {
                 preferences.getInt(KEY_DETECTION_BATCH, DEFAULT_DETECTION_BATCH));
     }
 
+    public int getDetectionRemainder() {
+        return Math.max(0, Math.min(getDetectionBatch() - 1,
+                preferences.getInt(KEY_DETECTION_REMAINDER, 0)));
+    }
+
     public String getBackendUrl() {
         return normalizeBackendUrl(BuildConfig.PAYPAL_BACKEND_URL);
     }
@@ -128,16 +133,18 @@ public final class PenanceManager {
         }
         int boundedDaily = PenancePolicy.clampDailyCapCents(dailyCapCents, largestRule);
         int boundedWeekly = PenancePolicy.clampWeeklyCapCents(weeklyCapCents, boundedDaily);
+        int boundedBatch = PenancePolicy.clampDetectionBatch(detectionBatch);
+        boolean resetDetectionProgress = !enabled || !isEnabled()
+                || boundedBatch != getDetectionBatch();
         SharedPreferences.Editor editor = preferences.edit()
                 .putBoolean(KEY_ENABLED, enabled)
                 .putInt(KEY_DAILY_CAP_CENTS, boundedDaily)
                 .putInt(KEY_WEEKLY_CAP_CENTS, boundedWeekly)
                 .putInt(KEY_MERCY_MINUTES, PenancePolicy.clampMercyMinutes(mercyMinutes))
                 .putInt(KEY_DWELL_SECONDS, PenancePolicy.clampDwellSeconds(dwellSeconds))
-                .putInt(KEY_DETECTION_BATCH,
-                        PenancePolicy.clampDetectionBatch(detectionBatch))
-                .putInt(KEY_DETECTION_REMAINDER, 0)
+                .putInt(KEY_DETECTION_BATCH, boundedBatch)
                 .remove(LEGACY_KEY_BACKEND_URL);
+        if (resetDetectionProgress) editor.putInt(KEY_DETECTION_REMAINDER, 0);
         for (PenanceInfraction infraction : PenanceInfraction.values()) {
             boolean ruleEnabled = rules.containsKey(infraction);
             int cents = ruleEnabled && rules.get(infraction) != null

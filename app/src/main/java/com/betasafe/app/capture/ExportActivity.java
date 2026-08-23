@@ -24,6 +24,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.betasafe.app.R;
 import com.betasafe.app.databinding.ActivityExportBinding;
 import com.betasafe.app.detection.DetectionEngine;
+import com.betasafe.app.security.ControllerEditMode;
+import com.betasafe.app.security.ControllerPinManager;
 import com.betasafe.app.settings.CensorAppearance;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
@@ -48,6 +50,8 @@ public final class ExportActivity extends AppCompatActivity {
     private ActivityExportBinding binding;
     private ActivityResultLauncher<String[]> picker;
     private boolean suppressDeleteListener;
+    private ControllerEditMode editMode;
+    private boolean busy;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,7 +66,14 @@ public final class ExportActivity extends AppCompatActivity {
                 view -> picker.launch(new String[]{"image/*"}));
         binding.buttonCancelExport.setOnClickListener(view -> cancelled.set(true));
         binding.switchDeleteOriginals.setOnCheckedChangeListener(this::onDeleteOriginalsChanged);
+        editMode = ControllerEditMode.bind(this, binding.buttonEditLock, editing ->
+                binding.switchDeleteOriginals.setEnabled(editing && !busy));
         refreshSummary();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (editMode != null) editMode.refresh();
     }
 
     private void refreshSummary() {
@@ -224,8 +235,10 @@ public final class ExportActivity extends AppCompatActivity {
     }
 
     private void setBusy(boolean busy, int total) {
+        this.busy = busy;
         binding.buttonPickImages.setEnabled(!busy);
-        binding.switchDeleteOriginals.setEnabled(!busy);
+        binding.switchDeleteOriginals.setEnabled(
+                ControllerPinManager.isSessionUnlocked() && !busy);
         binding.buttonCancelExport.setVisibility(busy ? View.VISIBLE : View.GONE);
         binding.exportProgressContainer.setVisibility(busy ? View.VISIBLE : View.GONE);
         if (busy) {

@@ -109,6 +109,22 @@ public final class PenanceContractTest {
         assertEquals(300, manager.snapshot(now + 2).getDueCents());
     }
 
+    @Test public void ordinaryRuleSaveKeepsBatchProgressButChangingBatchResetsIt() {
+        long now = 1_725_552_000_000L;
+        Map<PenanceInfraction, Integer> rules = new EnumMap<>(PenanceInfraction.class);
+        rules.put(PenanceInfraction.NEW_DETECTION, 100);
+        manager.configure(true, rules, 500, 2_000, 0, 10, 5);
+        assertEquals(0, manager.recordInfraction(PenanceInfraction.NEW_DETECTION, 2, now));
+        assertEquals(2, manager.getDetectionRemainder());
+
+        rules.put(PenanceInfraction.NEW_DETECTION, 125);
+        manager.configure(true, rules, 500, 2_000, 0, 10, 5);
+        assertEquals(2, manager.getDetectionRemainder());
+
+        manager.configure(true, rules, 500, 2_000, 0, 10, 3);
+        assertEquals(0, manager.getDetectionRemainder());
+    }
+
     @Test public void styledTreasuryAndMainEntryRemainAvailable() {
         try (ActivityScenario<PenanceActivity> scenario =
                      ActivityScenario.launch(PenanceActivity.class)) {

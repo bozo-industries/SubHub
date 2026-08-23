@@ -33,13 +33,11 @@
                     android:textColor="@color/text_primary" android:textSize="20sp" android:textStyle="bold" />
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="2dp" android:text="@string/app_mode_subtitle"
-                    android:textColor="@color/text_secondary" android:textSize="10sp" />
+                    android:textColor="@color/text_secondary" android:textSize="12sp" />
             </LinearLayout>
-            <TextView android:id="@+id/button_edit_lock" android:layout_width="wrap_content" android:layout_height="32dp"
-                android:background="@drawable/bg_bottom_tab_active" android:gravity="center"
-                android:clickable="true" android:focusable="true" android:paddingHorizontal="10dp"
-                android:text="@string/controller_edit_locked"
-                android:textColor="@color/text_primary" android:textSize="8sp" android:textStyle="bold" />
+            <TextView android:id="@+id/button_edit_lock"
+                style="@style/Widget.SubHub.ControllerEdit"
+                android:text="@string/controller_edit_locked" />
         </LinearLayout>
 
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="@dimen/page_margin" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="11dp">
