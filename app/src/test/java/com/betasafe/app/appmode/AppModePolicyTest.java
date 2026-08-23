@@ -38,6 +38,20 @@ public final class AppModePolicyTest {
                 "com.example.ime"));
     }
 
+    @Test public void notificationsAndOtherSystemChromeDoNotReplaceTheForegroundApp() {
+        assertFalse(AppModePolicy.shouldAcceptForegroundEvent(
+                "com.android.systemui", "android.widget.FrameLayout", "com.betasafe.app",
+                "com.example.ime"));
+        assertFalse(AppModePolicy.shouldAcceptForegroundEvent(
+                "android", "android.app.Dialog", "com.betasafe.app", "com.example.ime"));
+        assertFalse(AppModePolicy.shouldAcceptForegroundEvent(
+                "com.android.permissioncontroller", "com.android.permissioncontroller.PermissionActivity",
+                "com.betasafe.app", "com.example.ime"));
+        assertFalse(AppModePolicy.shouldAcceptForegroundEvent(
+                "com.google.android.permissioncontroller", "android.app.Activity",
+                "com.betasafe.app", "com.example.ime"));
+    }
+
     @Test public void ownOverlayEventsDoNotMasqueradeAsAppSwitches() {
         assertFalse(AppModePolicy.shouldAcceptForegroundEvent(
                 "com.betasafe.app", "android.widget.FrameLayout", "com.betasafe.app",
