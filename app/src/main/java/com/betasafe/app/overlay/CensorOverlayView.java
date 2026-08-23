@@ -77,6 +77,17 @@ final class CensorOverlayView extends View {
         Set<Integer> activeIds = new HashSet<>();
         for (TrackedObject track : tracks) activeIds.add(track.getId());
         customImages.retainAssignments(activeIds);
+        setVisibility(VISIBLE);
+        invalidate();
+    }
+
+    /** Hide all censor pixels without treating an empty track list as reverse-mode content. */
+    void clearContent() {
+        tracks.clear();
+        if (frame != null && !frame.isRecycled()) frame.recycle();
+        frame = null;
+        customImages.retainAssignments(new HashSet<>());
+        setVisibility(INVISIBLE);
         invalidate();
     }
 
@@ -215,8 +226,8 @@ final class CensorOverlayView extends View {
 
     private void drawSolid(Canvas canvas, RectF rect, int intensity) {
         fill.setShader(null);
-        fill.setColor(Color.rgb(13, 13, 20));
-        fill.setAlpha(180 + Math.round(Math.max(0, Math.min(100, intensity)) * 0.75f));
+        fill.setColor(Color.BLACK);
+        fill.setAlpha(255);
         canvas.drawRoundRect(rect, dp(8), dp(8), fill);
     }
 

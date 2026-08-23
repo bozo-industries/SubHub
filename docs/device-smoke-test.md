@@ -10,7 +10,7 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 
 ## Evidence
 
-- A clean `testDebugUnitTest`, `assembleDebug`, `lintDebug`, 42-test `connectedDebugAndroidTest`, `assembleRelease`, and `lintRelease` run completed successfully.
+- A clean `testDebugUnitTest`, `assembleDebug`, `lintDebug`, 43-test `connectedDebugAndroidTest`, `assembleRelease`, and `lintRelease` run completed successfully.
 - A streamed `adb install -r` completed successfully.
 - Main, Settings, and Browser screens launched through normal in-app navigation with no fatal exception.
 - The first-run disclosure, gothic/demoness shell, ten-section Help screen, permission status/repair controls, and complete 11-choice language dialog rendered correctly.
@@ -43,6 +43,8 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 - Manual MediaProjection loaded `320n_fp16.onnx` through NNAPI and processed its first 486×1080 frame in 131 ms.
 - Selected-app Accessibility mode activated on Calendar, loaded the detector through NNAPI, processed its first 1080×2400 frame in 45 ms, and suspended on the unselected Clock package.
 - App-timer contracts cover per-app, combined, unselected-app, disabled, and local-day-reset behavior. Timers use the watched package set independently of censor recognition mode. In the live service, Android Settings was selected with a one-minute per-app budget; at the boundary the service logged `PER_APP` enforcement and Android reported the Nexus Launcher as `topResumedActivity`. Reopening a spent app follows the same pre-recognition budget check.
+- The clean Accessibility declaration was corrected so Android can bind the signature-permission-protected service on target 35. A live all-app cycle prewarmed `320n_fp16.onnx` under NNAPI while capture slept, activated on Android Settings, produced its first processed 1080×2400 frame about 0.58 seconds after the foreground transition (138 ms inference), and suspended on return to SubHub. Window-manager inspection found no Accessibility overlay remaining after suspension.
+- Automatic capture now invalidates in-flight frames on every accepted package transition, uses immediate overlay/popup teardown, and explicitly hides cleared reverse-mode content. The Accessibility event reaction timeout is 100 ms; screenshot cadence uses a 350 ms floor to avoid Android's rate-limit failures. Default solid boxes render as alpha-255 black and no longer retain an unnecessary second full-screen bitmap.
 
 Notification and overlay grants were pre-authorized with ADB on this dedicated emulator so the test could focus on capture consent and runtime behavior. A normal installation still uses the explicit in-app permission flow.
 

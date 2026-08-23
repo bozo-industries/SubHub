@@ -130,6 +130,17 @@ public final class CensorAppearance {
     public String getErrorTitle() { return errorTitle; }
     public String getErrorMessage() { return errorMessage; }
 
+    /** Whether this effect needs a retained screenshot after inference has completed. */
+    public boolean requiresSourceFrame() {
+        Type effectiveType = type;
+        if (reverseMode && (type == Type.BOX || type == Type.BAR || type == Type.CUSTOM)) {
+            effectiveType = Type.PIXELATE;
+        }
+        return effectiveType == Type.PIXELATE
+                || effectiveType == Type.BLUR
+                || effectiveType == Type.GLITCH;
+    }
+
     public String phraseFor(int stableId) {
         if (phrases.isEmpty()) return "BLOCKED";
         return phrases.get(Math.floorMod(stableId, phrases.size()));

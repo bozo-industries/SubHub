@@ -24,6 +24,7 @@ import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.popup.PopupStormManager;
 import com.betasafe.app.penance.PenanceManager;
+import com.betasafe.app.settings.CensorAppearance;
 import com.betasafe.app.settings.SettingsRepository;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.AchievementManager;
@@ -47,6 +48,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final AtomicBoolean processing = new AtomicBoolean();
     private final AtomicBoolean firstFrameReported = new AtomicBoolean();
     private final AtomicBoolean initializing = new AtomicBoolean();
+    private final CaptureEpoch captureEpoch = new CaptureEpoch();
     private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
             (preferences, key) -> reloadSettings();
@@ -58,6 +60,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private ObjectTracker tracker;
     private OverlayController overlay;
     private volatile DetectorConfig detectorConfig;
+    private volatile boolean overlayNeedsSourceFrame;
     private volatile String foregroundPackage = "";
     private AppTimerManager timers;
     private long foregroundSinceMillis;
@@ -91,41 +94,45 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         running = true;
 
         worker = Executors.newSingleThreadScheduledExecutor();
+        worker.execute(this::initializePipeline);
         main.post(this::reevaluateRecognition);
         main.post(timerTick);
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
     private void initializePipeline() {
-        if (!recognitionActive || !initializing.compareAndSet(false, true)) return;
+        if (!running || !initializing.compareAndSet(false, true)) return;
         try {
             DetectorConfig config = settings.loadDetectorConfig();
             detectorConfig = config;
-            DiagnosticsRepository.begin(DIAGNOSTICS_MODE, config.getInferenceResolution());
             if (detector == null) {
                 detector = new DetectionEngine(this, config);
                 detector.initialize();
             } else {
                 detector.setConfig(config);
             }
-            DiagnosticsRepository.ready(DIAGNOSTICS_MODE, detector.getActiveProvider(),
-                    detector.getActiveModel(), config.getInferenceResolution());
             if (tracker == null) tracker = new ObjectTracker(config);
             else tracker.setConfig(config);
             tracker.clear();
-            if (!recognitionActive) return;
+            if (!recognitionActive) {
+                Log.i(TAG, "Detector prewarmed; capture remains asleep");
+                return;
+            }
+            DiagnosticsRepository.begin(DIAGNOSTICS_MODE, config.getInferenceResolution());
+            DiagnosticsRepository.ready(DIAGNOSTICS_MODE, detector.getActiveProvider(),
+                    detector.getActiveModel(), config.getInferenceResolution());
             ScheduledFuture<?> existing = captureSchedule;
             if (existing != null) existing.cancel(false);
             captureSchedule = worker.scheduleWithFixedDelay(
                     this::requestScreenshot,
                     0,
-                    Math.max(500, config.getDetectionIntervalMs()),
+                    Math.max(350, config.getDetectionIntervalMs()),
                     TimeUnit.MILLISECONDS);
         } catch (Exception error) {
             if (detector != null) detector.close();
             detector = null;
             tracker = null;
-            DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
+            if (recognitionActive) DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
             Log.e(TAG, "Could not initialize accessibility capture", error);
             main.post(this::deactivateRecognition);
         } finally {
@@ -136,10 +143,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     @RequiresApi(Build.VERSION_CODES.R)
     private void requestScreenshot() {
         if (!running || !recognitionActive || !processing.compareAndSet(false, true)) return;
+        long requestedEpoch = captureEpoch.token();
         takeScreenshot(Display.DEFAULT_DISPLAY, worker, new TakeScreenshotCallback() {
             @Override
             public void onSuccess(ScreenshotResult result) {
-                process(result);
+                process(result, requestedEpoch);
             }
 
             @Override
@@ -153,16 +161,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
-    private void process(ScreenshotResult result) {
+    private void process(ScreenshotResult result, long requestedEpoch) {
         Bitmap wrapped = null;
         Bitmap frame = null;
         HardwareBuffer buffer = result.getHardwareBuffer();
         try {
-            if (!recognitionActive) return;
+            if (!isCurrentCapture(requestedEpoch)) return;
             wrapped = Bitmap.wrapHardwareBuffer(buffer, result.getColorSpace());
             if (wrapped == null) return;
             frame = wrapped.copy(Bitmap.Config.ARGB_8888, false);
             List<Detection> detections = detector.detect(frame);
+            if (!isCurrentCapture(requestedEpoch)) return;
             List<TrackedObject> tracks = tracker.update(detections);
             DetectorConfig currentConfig = detectorConfig;
             int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
@@ -176,7 +185,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + detector.getLastInferenceMs() + " ms at "
                         + frame.getWidth() + "x" + frame.getHeight());
             }
-            Bitmap overlayFrame = frame.copy(Bitmap.Config.ARGB_8888, false);
+            Bitmap overlayFrame = overlayNeedsSourceFrame
+                    ? frame.copy(Bitmap.Config.ARGB_8888, false) : null;
             int width = frame.getWidth();
             int height = frame.getHeight();
             PopupStormManager.get().updateTrackedObjects(tracks, width, height);
@@ -184,11 +194,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
             String diagnosticText = diagnosticsOverlayText(diagnostics);
             main.post(() -> {
-                if (recognitionActive && overlay != null) {
+                if (isCurrentCapture(requestedEpoch) && overlay != null) {
                     overlay.setDiagnostics(diagnosticText);
                     overlay.update(tracks, width, height, overlayFrame);
                 }
-                else overlayFrame.recycle();
+                else if (overlayFrame != null) overlayFrame.recycle();
             });
         } catch (Exception error) {
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
@@ -201,11 +211,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
     }
 
+    private boolean isCurrentCapture(long requestedEpoch) {
+        return captureEpoch.accepts(requestedEpoch, running, recognitionActive);
+    }
+
     private void reloadSettings() {
         if (settings == null) return;
         main.post(() -> {
             if (overlay != null) {
-                overlay.setAppearance(settings.loadAppearance());
+                CensorAppearance appearance = settings.loadAppearance();
+                overlayNeedsSourceFrame = appearance.requiresSourceFrame();
+                overlay.setAppearance(appearance);
                 overlay.setDiagnostics(diagnosticsOverlayText());
             }
         });
@@ -229,8 +245,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         AppModeManager mode = new AppModeManager(this);
         if (!AppModePolicy.shouldAcceptForegroundEvent(packageName, className, getPackageName(),
                 mode.inputMethodPackage())) return;
+        if (packageName.equals(foregroundPackage)) return;
         long now = System.currentTimeMillis();
         accountForegroundUsage(now);
+        captureEpoch.invalidate();
         foregroundPackage = packageName;
         foregroundSinceMillis = now;
         if (recognitionActive && worker != null) {
@@ -238,11 +256,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 if (tracker != null) tracker.clear();
             });
         }
-        main.post(() -> {
-            if (overlay != null) overlay.update(Collections.emptyList(), 1, 1, null);
-            if (enforceForegroundLimit(System.currentTimeMillis())) return;
-            reevaluateRecognition();
-        });
+        if (overlay != null) overlay.clear();
+        PopupStormManager.get().updateDetections(Collections.emptyList());
+        if (enforceForegroundLimit(System.currentTimeMillis())) return;
+        reevaluateRecognition();
     }
 
     private void accountForegroundUsage(long nowMillis) {
@@ -290,12 +307,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void activateRecognition() {
         if (recognitionActive || !running || worker == null) return;
+        captureEpoch.invalidate();
         recognitionActive = true;
         Log.i(TAG, "Recognition activated for foreground package " + foregroundPackage);
         firstFrameReported.set(false);
         overlay = new OverlayController(
                 this, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY);
-        overlay.setAppearance(settings.loadAppearance());
+        CensorAppearance appearance = settings.loadAppearance();
+        overlayNeedsSourceFrame = appearance.requiresSourceFrame();
+        overlay.setAppearance(appearance);
         overlay.setDiagnostics(diagnosticsOverlayText());
         overlay.show();
         PopupStormManager.get().start(this);
@@ -308,6 +328,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void deactivateRecognition() {
         if (!recognitionActive && overlay == null) return;
         recognitionActive = false;
+        captureEpoch.invalidate();
         Log.i(TAG, "Recognition suspended for foreground package " + foregroundPackage);
         ScheduledFuture<?> schedule = captureSchedule;
         captureSchedule = null;

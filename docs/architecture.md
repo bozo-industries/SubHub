@@ -28,7 +28,7 @@ MainActivity
 
 The clean source implements both capture branches as ordinary Java source under `app/src/main/java/com/betasafe/app`. Android's own consent dialog authorizes every MediaProjection session, while Android's accessibility settings control the alternate screenshot service. Export rendering and reverse censoring are also maintained source. The app does not silently grant or retain platform capture authority.
 
-`AppModeManager` persists whether automatic recognition is armed, whether every external app or only a selected package set is watched, and whether that armed preference should survive reboot. `ScreenshotAccessibilityService` consumes only window-state package transitions. In selected-app mode, leaving the active package cancels screenshot scheduling and closes inference-adjacent UI/state; the Accessibility binding stays available for the next package transition without running the detector. Input-method transitions are ignored so opening a keyboard does not falsely suspend recognition.
+`AppModeManager` persists whether automatic recognition is armed, whether every external app or only a selected package set is watched, and whether that armed preference should survive reboot. `ScreenshotAccessibilityService` consumes only window-state package transitions. It prewarms the local model once while capture remains asleep, tags every asynchronous frame with a capture epoch, and rejects a result after the foreground app changes. Leaving a watched package cancels screenshot scheduling, immediately removes every censor/popup window, and releases retained frame pixels; the Accessibility binding stays available for the next package transition. Input-method transitions are ignored so opening a keyboard does not falsely suspend recognition.
 
 `AppTimerManager` is a separate, opt-in policy for the watched package set. It stores per-app and combined daily foreground milliseconds under a local calendar-day key. The Accessibility service accounts elapsed time on accepted foreground transitions and a one-second boundary tick, independently of detector readiness and recognition mode. When either configured budget is exhausted, recognition is suspended if needed and Android's supported `GLOBAL_ACTION_HOME` returns the watched app to Home. Unwatched apps and disabled limits neither accrue nor enforce timer usage.
 
@@ -60,7 +60,7 @@ The private roots shown in the table are relative to `C:\Users\user\Code\BetaSaf
 
 ## Capture and platform surface
 
-The manifest requests MediaProjection foreground-service, overlay, notification, Internet, and battery-optimization permissions. It also declares a non-exported accessibility service. The minimum SDK encoded in the APK is 26; the target/compile SDK is 36, although the storefront recommends Android 15 or newer for correct behavior.
+The purchased manifest requests MediaProjection foreground-service, overlay, notification, Internet, and battery-optimization permissions. In the clean source, the Accessibility service is exported so Android's system process can bind it, but remains guarded by the platform signature-only `BIND_ACCESSIBILITY_SERVICE` permission. The maintained minimum SDK is 26 and target/compile SDK is 35; the purchased artifact encoded target/compile SDK 36.
 
 ## Network behavior
 

@@ -18,7 +18,7 @@ public final class AppModePolicy {
             return false;
         }
         if (mode == Mode.ALWAYS) {
-            return foreground.isEmpty() || !isSystemSurface(foreground);
+            return !foreground.isEmpty() && !isSystemSurface(foreground);
         }
         return !foreground.isEmpty() && selectedPackages != null
                 && selectedPackages.contains(foreground);
@@ -29,9 +29,11 @@ public final class AppModePolicy {
         String candidate = clean(packageName);
         if (candidate.isEmpty() || candidate.equals(clean(inputMethodPackage))) return false;
         if (!candidate.equals(clean(ownPackage))) return true;
-        // Accessibility overlays are hosted by this package and can emit framework-class events.
-        // Accept only our real Activity classes so an overlay cannot masquerade as an app switch.
-        return clean(className).startsWith(clean(ownPackage) + ".");
+        // Accessibility overlays are hosted by this package too. Only Activity window events are
+        // genuine foreground transitions; package-owned overlay views must not stop recognition.
+        String candidateClass = clean(className);
+        return candidateClass.startsWith(clean(ownPackage) + ".")
+                && candidateClass.endsWith("Activity");
     }
 
     public static Set<String> sanitizePackages(Set<String> packages) {

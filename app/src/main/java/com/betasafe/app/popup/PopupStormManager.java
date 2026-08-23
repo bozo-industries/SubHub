@@ -175,7 +175,7 @@ public final class PopupStormManager {
         running = false;
         clearPopups();
         if (stopControl != null) {
-            try { windowManager.removeView(stopControl); } catch (Exception ignored) {}
+            try { windowManager.removeViewImmediate(stopControl); } catch (Exception ignored) {}
             stopControl = null;
         }
         detections = List.of();
@@ -336,7 +336,7 @@ public final class PopupStormManager {
     }
 
     private void remove(LivePopup live) {
-        try { windowManager.removeView(live.view); } catch (Exception ignored) {}
+        try { windowManager.removeViewImmediate(live.view); } catch (Exception ignored) {}
         live.popup.recycleDerived();
     }
 

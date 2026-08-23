@@ -38,6 +38,7 @@ import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.popup.PopupStormManager;
 import com.betasafe.app.penance.PenanceManager;
 import com.betasafe.app.settings.SettingsRepository;
+import com.betasafe.app.settings.CensorAppearance;
 import com.betasafe.app.stats.StatsRepository;
 import com.betasafe.app.stats.AchievementManager;
 
@@ -73,6 +74,7 @@ public final class ScreenCaptureService extends Service {
     private SettingsRepository settings;
     private StatsRepository stats;
     private volatile DetectorConfig detectorConfig;
+    private volatile boolean overlayNeedsSourceFrame;
 
     public static Intent startIntent(Context context, int resultCode, Intent resultData) {
         return new Intent(context, ScreenCaptureService.class)
@@ -134,7 +136,9 @@ public final class ScreenCaptureService extends Service {
         ProtectionSessionManager.markMediaProjectionStarted(this);
         stats.startSession();
         overlay = new OverlayController(this);
-        overlay.setAppearance(settings.loadAppearance());
+        CensorAppearance appearance = settings.loadAppearance();
+        overlayNeedsSourceFrame = appearance.requiresSourceFrame();
+        overlay.setAppearance(appearance);
         overlay.show();
         PopupStormManager.get().start(this);
         executor.execute(this::startPipeline);
@@ -174,7 +178,9 @@ public final class ScreenCaptureService extends Service {
     }
 
     private void reloadSettings() {
-        if (overlay != null) overlay.setAppearance(settings.loadAppearance());
+        CensorAppearance appearance = settings.loadAppearance();
+        overlayNeedsSourceFrame = appearance.requiresSourceFrame();
+        if (overlay != null) overlay.setAppearance(appearance);
         if (overlay != null) overlay.setDiagnostics(diagnosticsOverlayText());
         DetectorConfig config = settings.loadDetectorConfig();
         detectorConfig = config;
@@ -204,7 +210,8 @@ public final class ScreenCaptureService extends Service {
             DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
                     DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
             String diagnosticText = diagnosticsOverlayText(diagnostics);
-            Bitmap overlayFrame = frame.copy(Bitmap.Config.ARGB_8888, false);
+            Bitmap overlayFrame = overlayNeedsSourceFrame
+                    ? frame.copy(Bitmap.Config.ARGB_8888, false) : null;
             if (firstFrameReported.compareAndSet(false, true)) {
                 Log.i(TAG, "First frame processed with "
                         + detector.getActiveModel() + " on " + detector.getActiveProvider()
@@ -216,7 +223,7 @@ public final class ScreenCaptureService extends Service {
                     overlay.setDiagnostics(diagnosticText);
                     overlay.update(tracks, width, height, overlayFrame);
                 }
-                else overlayFrame.recycle();
+                else if (overlayFrame != null) overlayFrame.recycle();
             });
         } catch (Exception error) {
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
@@ -297,7 +304,9 @@ public final class ScreenCaptureService extends Service {
         if (executor != null) executor.shutdownNow();
         if (capture != null) capture.close();
         if (detector != null) detector.close();
-        if (overlay != null) overlay.close();
+        OverlayController activeOverlay = overlay;
+        overlay = null;
+        if (activeOverlay != null) activeOverlay.close();
         PopupStormManager.get().stop();
         if (projection != null) projection.stop();
         stopForeground(STOP_FOREGROUND_REMOVE);
