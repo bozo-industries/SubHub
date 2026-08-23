@@ -20,6 +20,24 @@
     <string name="global_backup">Backup &amp; profiles</string>
     <string name="global_diagnostics">Diagnostics</string>
     <string name="global_security">Security &amp; pact</string>
+    <string name="hardcore_title">CONSENSUAL HARDCORE MODE</string>
+    <string name="hardcore_body">Adds Android’s deactivate-before-uninstall step and restores automatic scanning intent after reboot. Android permissions and system escape routes stay available.</string>
+    <string name="hardcore_toggle">Enable Hardcore Mode</string>
+    <string name="hardcore_status_off">OFF · SubHub can be uninstalled normally</string>
+    <string name="hardcore_status_pending">WAITING · approve Device Admin on Android’s next screen</string>
+    <string name="hardcore_status_active">ACTIVE · Device Admin must be deactivated before uninstall</string>
+    <string name="hardcore_status_accessibility">ACTIVE · enable Accessibility once for automatic scanning</string>
+    <string name="hardcore_open_admin">OPEN DEVICE ADMIN SETTINGS</string>
+    <string name="hardcore_open_accessibility">ENABLE SCANNING ACCESS</string>
+    <string name="hardcore_consent_title">ENABLE HARDCORE MODE?</string>
+    <string name="hardcore_consent_body">Android will show its own Device Admin approval next. This adds uninstall friction and re-arms App Mode after reboot. It does not grant screen capture, prevent Force stop or data clearing, block Settings, or remove the immediate protection stop.</string>
+    <string name="hardcore_consent_enable">CONTINUE TO ANDROID</string>
+    <string name="hardcore_release_title">RELEASE HARDCORE MODE?</string>
+    <string name="hardcore_release_body">This immediately removes SubHub from Device Admin and restores ordinary uninstall behavior. Existing censor, timer, and Wallet settings remain unchanged.</string>
+    <string name="hardcore_release">RELEASE MODE</string>
+    <string name="hardcore_admin_label">SubHub Hardcore Mode</string>
+    <string name="hardcore_admin_description">Optional consensual uninstall friction. No wipe, password, camera, lock, or monitoring policies are requested.</string>
+    <string name="hardcore_admin_system_explanation">Hardcore Mode adds one deliberate deactivation step before uninstall and restores automatic scanning intent after reboot. You can revoke it at any time in Android Settings.</string>
     <string name="censor_tools_title">CENSOR TOOLS</string>
     <string name="censor_tool_settings">Censor settings</string>
     <string name="censor_tool_browser">Safe browser</string>
@@ -765,4 +783,7 @@
     <string name="sub_wallet_active">Your wallet remembers every chosen slip.</string>
     <string name="sub_wallet_inactive">No tribute rules are active.</string>
     <string name="sub_wallet_summary">%1$s tribute due · %2$s forgiven · %3$s sent</string>
+    <string name="sub_wallet_pay">REVIEW TRIBUTE</string>
+    <string name="sub_wallet_resume">RESUME TRIBUTE</string>
+    <string name="penance_sub_checkout_subtitle">Your tribute ledger · PayPal always asks you to approve</string>
 </resources>

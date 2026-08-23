@@ -108,11 +108,13 @@ The maintained header and Help surfaces use the project-owned gothic header and 
 
 `CommitmentManager` stores only pact timestamps, bounded duration, a random salt, and a PBKDF2-HMAC-SHA256 keeper-code hash in the app's private settings. `CommitmentActivity` provides the setup ceremony, live countdown, keeper release, and a permanently reachable two-step safety release. While active, entry to censor settings and browser-shield configuration routes to the pact screen. Protection stopping remains fully operational through the main UI and foreground-service notification.
 
-This is intentionally an app-local consent ritual rather than a device-security primitive. The manifest has no Device Admin receiver. Android uninstall, app-data clearing, system controls, and immediate protection stop remain available, and the UI states those boundaries before activation and while the pact is active.
+This is intentionally an app-local consent ritual rather than a device-security primitive. Commitment Pact never activates or controls Device Admin. App-data clearing, system controls, and immediate protection stop remain available, and the UI states those boundaries before activation and while the pact is active.
 
 ## Device Admin and restart boundary
 
-Device Admin is deliberately absent. It is an enterprise policy surface, not a keepalive mechanism, foreground-app signal, or capture grant. Adding uninstall friction would not make recognition more reliable and would weaken SubHub's unconditional safety release. Modern Android also requires a new MediaProjection consent token for every capture session and prevents target-35 apps from starting a MediaProjection foreground service from `BOOT_COMPLETED`.
+`HardcoreModeReceiver` is an optional, Dom-only legacy Device Admin surface used solely for Android's supported deactivate-before-uninstall friction. Its metadata contains an empty `uses-policies` set: SubHub requests no wipe, password, camera, force-lock, or login-monitoring capability. Activation runs through Android's own approval UI, Android Settings can revoke it at any time, and revocation clears the local Hardcore preference. Force stop, app-data clearing, system controls, and the immediate protection stop remain available.
+
+Device Admin is not treated as a keepalive mechanism, foreground-app signal, or capture grant. When active, `HardcoreModeManager` restores only the existing Accessibility App Mode armed/auto-resume intent at boot. Modern Android still requires a new MediaProjection consent token for every capture session and prevents target-35 apps from starting a MediaProjection foreground service from `BOOT_COMPLETED`.
 
 The maintained design therefore separates restartable intent from non-restartable capture authority: Accessibility app mode may resume because the user enabled that service in Android settings, while whole-screen MediaProjection resumes only after the user taps the visible notification and approves Android's system dialog again.
 

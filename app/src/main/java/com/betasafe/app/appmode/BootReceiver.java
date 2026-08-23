@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+import com.betasafe.app.security.HardcoreModeManager;
+
 /** Restores persisted intent after boot without silently starting MediaProjection. */
 public final class BootReceiver extends BroadcastReceiver {
     public static final String ACTION_DISARM = "com.betasafe.app.action.DISARM_APP_MODE";
@@ -20,7 +22,10 @@ public final class BootReceiver extends BroadcastReceiver {
             ResumeNotificationManager.cancel(context);
             return;
         }
-        if (Intent.ACTION_BOOT_COMPLETED.equals(action)) mode.applyBootPolicy();
+        if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
+            mode.applyBootPolicy();
+            new HardcoreModeManager(context).applyBootPolicy();
+        }
         ResumeNotificationManager.show(context);
     }
 }

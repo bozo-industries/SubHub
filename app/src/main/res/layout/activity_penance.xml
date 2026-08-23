@@ -7,7 +7,8 @@
         android:clipToPadding="false" android:fillViewport="true">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical" android:paddingBottom="116dp">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            <LinearLayout android:id="@+id/penance_header"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginHorizontal="@dimen/page_margin" android:layout_marginTop="10dp"
                 android:background="@drawable/bg_header_card" android:gravity="center_vertical"
                 android:orientation="horizontal" android:padding="14dp">
@@ -26,7 +27,8 @@
                         android:letterSpacing="0.1" android:text="@string/penance_title"
                         android:textColor="@color/text_primary" android:textSize="20sp"
                         android:textStyle="bold" />
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    <TextView android:id="@+id/penance_subtitle"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:layout_marginTop="2dp" android:text="@string/penance_subtitle"
                         android:textColor="@color/text_secondary" android:textSize="12sp" />
                 </LinearLayout>
@@ -35,7 +37,8 @@
                     android:text="@string/controller_edit_locked" />
             </LinearLayout>
 
-            <LinearLayout style="@style/Widget.SubHub.CompactCard">
+            <LinearLayout android:id="@+id/balance_card"
+                style="@style/Widget.SubHub.CompactCard">
                 <TextView style="@style/Widget.BetaSafe.SectionHeader"
                     android:text="@string/penance_balance_label" />
                 <GridLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -59,7 +62,8 @@
                 </GridLayout>
             </LinearLayout>
 
-            <LinearLayout style="@style/Widget.SubHub.CompactCard">
+            <LinearLayout android:id="@+id/rule_config_card"
+                style="@style/Widget.SubHub.CompactCard">
                 <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/penance_rules_title" />
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="5dp" android:text="@string/penance_rules_body"
@@ -122,7 +126,8 @@
                 </GridLayout>
             </LinearLayout>
 
-            <LinearLayout style="@style/Widget.SubHub.CompactCard">
+            <LinearLayout android:id="@+id/safety_config_card"
+                style="@style/Widget.SubHub.CompactCard">
                 <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/penance_safety_limits_title" />
                 <GridLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:columnCount="2" android:layout_marginTop="2dp">
@@ -155,7 +160,8 @@
                     android:layout_marginTop="7dp" android:text="@string/penance_save_rules" />
             </LinearLayout>
 
-            <LinearLayout style="@style/Widget.SubHub.CompactCard">
+            <LinearLayout android:id="@+id/checkout_card"
+                style="@style/Widget.SubHub.CompactCard">
                 <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/penance_checkout_title" />
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="5dp" android:text="@string/penance_checkout_body"
@@ -177,7 +183,8 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <LinearLayout style="@style/Widget.SubHub.CompactCard">
+            <LinearLayout android:id="@+id/corrections_card"
+                style="@style/Widget.SubHub.CompactCard">
                 <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/penance_mercy_title" />
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="6dp" android:orientation="horizontal">
