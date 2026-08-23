@@ -77,6 +77,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityGlobalSettingsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        arrangeSettingsSections();
         modules = new FeatureModuleManager(this);
         hardcore = new HardcoreModeManager(this);
         appMode = new AppModeManager(this);
@@ -146,6 +147,33 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         applyEditState();
     }
 
+    private void arrangeSettingsSections() {
+        LinearLayout container = binding.settingsSections;
+        View[] order = {
+                binding.featureAreasCard,
+                binding.androidAccessCard,
+                binding.recognitionCard,
+                binding.appListCard,
+                binding.hardcoreCard,
+                binding.paypalCard,
+                binding.appSettingsCard
+        };
+        for (View card : order) container.removeView(card);
+        for (int index = 0; index < order.length; index++) {
+            View card = order[index];
+            LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) card.getLayoutParams();
+            params.topMargin = index == 0 ? 0 : dp(8);
+            params.bottomMargin = 0;
+            card.setLayoutParams(params);
+            container.addView(card);
+        }
+        binding.hardcoreCard.setPadding(dp(12), dp(12), dp(12), dp(12));
+        LinearLayout.LayoutParams header =
+                (LinearLayout.LayoutParams) binding.settingsHeader.getLayoutParams();
+        header.bottomMargin = dp(8);
+        binding.settingsHeader.setLayoutParams(header);
+    }
+
     @Override protected void onResume() {
         super.onResume();
         applyEditState();
@@ -199,20 +227,16 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         if (!editingUnlocked) return;
         AppModePolicy.Mode mode = binding.modeSelected.isChecked()
                 ? AppModePolicy.Mode.SELECTED_APPS : AppModePolicy.Mode.ALWAYS;
-        if (binding.armed.isChecked() && mode == AppModePolicy.Mode.SELECTED_APPS
-                && censorPackages.isEmpty()) {
+        if (mode == AppModePolicy.Mode.SELECTED_APPS && censorPackages.isEmpty()) {
             Toast.makeText(this, R.string.app_mode_select_one, Toast.LENGTH_SHORT).show();
             return;
         }
-        boolean armed = hardcore.isEnabled() || binding.armed.isChecked();
+        // This card configures where recognition runs. Only Home starts or stops protection.
+        boolean armed = appMode.isArmed();
         appMode.save(armed, mode, censorPackages);
         if (armed) ResumeNotificationManager.show(this);
         else ResumeNotificationManager.cancel(this);
         Toast.makeText(this, R.string.app_mode_saved, Toast.LENGTH_SHORT).show();
-        if (armed && !appMode.isAccessibilityEnabled()) {
-            Toast.makeText(this, R.string.app_mode_enable_prompt, Toast.LENGTH_LONG).show();
-            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-        }
         refreshAccessState();
     }
 

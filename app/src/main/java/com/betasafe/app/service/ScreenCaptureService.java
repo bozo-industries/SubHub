@@ -37,6 +37,7 @@ import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.popup.PopupStormManager;
 import com.betasafe.app.penance.DwellInfractionTracker;
+import com.betasafe.app.penance.PenanceChargeNotifier;
 import com.betasafe.app.penance.PenanceInfraction;
 import com.betasafe.app.penance.PenanceManager;
 import com.betasafe.app.settings.SettingsRepository;
@@ -211,14 +212,19 @@ public final class ScreenCaptureService extends Service {
                     ? null : currentConfig.getEnabledCategories());
             long now = System.currentTimeMillis();
             if (recordedBlocks > 0) {
-                penance.recordInfraction(PenanceInfraction.NEW_DETECTION, recordedBlocks, now);
+                int charged = penance.recordInfraction(
+                        PenanceInfraction.NEW_DETECTION, recordedBlocks, now);
+                PenanceChargeNotifier.show(this, penance,
+                        PenanceInfraction.NEW_DETECTION, charged, now);
                 new AchievementManager(this).checkAchievements(stats.load());
             }
             int dwellInfractions = dwellTracker.update(
                     tracks, now, penance.getDwellSeconds() * 1_000L);
             if (dwellInfractions > 0) {
-                penance.recordInfraction(
+                int charged = penance.recordInfraction(
                         PenanceInfraction.CENSORED_DWELL, dwellInfractions, now);
+                PenanceChargeNotifier.show(this, penance,
+                        PenanceInfraction.CENSORED_DWELL, charged, now);
             }
             int width = capture.getCaptureWidth();
             int height = capture.getCaptureHeight();

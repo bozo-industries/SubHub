@@ -77,8 +77,10 @@ public final class PenanceActivity extends AppCompatActivity {
         binding.buttonClearUnpaid.setOnClickListener(view -> confirmClearUnpaid());
         binding.buttonTestStrike.setVisibility(BuildConfig.DEBUG ? View.VISIBLE : View.GONE);
         binding.buttonTestStrike.setOnClickListener(view -> {
-            manager.recordInfraction(
-                    PenanceInfraction.NEW_DETECTION, 1, System.currentTimeMillis());
+            long now = System.currentTimeMillis();
+            int charged = manager.recordInfraction(PenanceInfraction.NEW_DETECTION, 1, now);
+            PenanceChargeNotifier.show(this, manager,
+                    PenanceInfraction.NEW_DETECTION, charged, now);
             render();
         });
         renderRuleMathPreview();
@@ -125,6 +127,7 @@ public final class PenanceActivity extends AppCompatActivity {
                 binding.paymentConsent, binding.buttonSaveRules,
                 binding.buttonForgiveLatest, binding.buttonClearUnpaid, binding.buttonTestStrike};
         for (View view : editable) view.setEnabled(editing);
+        syncRuleInputStates();
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.MONEY);
         render();
     }
@@ -137,7 +140,8 @@ public final class PenanceActivity extends AppCompatActivity {
     private void populateRules() {
         binding.ledgerEnabled.setChecked(manager.isEnabled());
         populateRule(PenanceInfraction.NEW_DETECTION,
-                binding.ruleDetectionEnabled, binding.ruleDetectionAmount);
+                binding.ruleDetectionEnabled, binding.ruleDetectionAmount,
+                binding.detectionBatch);
         populateRule(PenanceInfraction.CENSORED_DWELL,
                 binding.ruleDwellEnabled, binding.ruleDwellAmount);
         populateRule(PenanceInfraction.CENSORED_TAP,
@@ -153,16 +157,34 @@ public final class PenanceActivity extends AppCompatActivity {
     }
 
     private void populateRule(
-            PenanceInfraction infraction, CheckBox toggle, EditText amount) {
+            PenanceInfraction infraction, CheckBox toggle, EditText amount, View... dependents) {
         toggle.setChecked(manager.isInfractionEnabled(infraction));
         amount.setText(decimalEuros(manager.getInfractionCents(infraction)));
         toggle.setOnCheckedChangeListener((button, checked) -> {
-            amount.setEnabled(checked && ControllerPinManager.isSessionUnlocked());
-            amount.setAlpha(checked ? 1f : 0.45f);
+            syncRuleInputState(toggle, amount, dependents);
             renderRuleMathPreview();
         });
-        amount.setEnabled(toggle.isChecked() && ControllerPinManager.isSessionUnlocked());
-        amount.setAlpha(toggle.isChecked() ? 1f : 0.45f);
+        syncRuleInputState(toggle, amount, dependents);
+    }
+
+    private void syncRuleInputStates() {
+        syncRuleInputState(binding.ruleDetectionEnabled, binding.ruleDetectionAmount,
+                binding.detectionBatch);
+        syncRuleInputState(binding.ruleDwellEnabled, binding.ruleDwellAmount);
+        syncRuleInputState(binding.ruleTapEnabled, binding.ruleTapAmount);
+        syncRuleInputState(binding.ruleAppOpenEnabled, binding.ruleAppOpenAmount);
+    }
+
+    private void syncRuleInputState(CheckBox toggle, EditText amount, View... dependents) {
+        boolean ruleEnabled = toggle.isChecked();
+        boolean editable = ruleEnabled && ControllerPinManager.isSessionUnlocked();
+        amount.setEnabled(editable);
+        amount.setAlpha(ruleEnabled ? 1f : 0.45f);
+        if (dependents == null) return;
+        for (View dependent : dependents) {
+            dependent.setEnabled(editable);
+            dependent.setAlpha(ruleEnabled ? 1f : 0.45f);
+        }
     }
 
     private void attachRuleMathListeners() {

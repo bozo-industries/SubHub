@@ -11,6 +11,8 @@ public final class HardcoreSettingsGuardTest {
     @Test public void guardRequiresHardcoreSubModeAndAndroidSettings() {
         assertTrue(HardcoreSettingsGuard.shouldGuard(
                 true, false, "com.android.settings"));
+        assertTrue(HardcoreSettingsGuard.shouldGuard(
+                true, false, "com.google.android.permissioncontroller"));
         assertFalse(HardcoreSettingsGuard.shouldGuard(
                 false, false, "com.android.settings"));
         assertFalse(HardcoreSettingsGuard.shouldGuard(

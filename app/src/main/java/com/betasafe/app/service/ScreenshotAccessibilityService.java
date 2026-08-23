@@ -24,12 +24,14 @@ import com.betasafe.app.detection.ObjectTracker;
 import com.betasafe.app.detection.TrackedObject;
 import com.betasafe.app.detection.text.AccessibilityTextSmutDetector;
 import com.betasafe.app.detection.text.DetectionFusion;
+import com.betasafe.app.detection.text.TextDetectionCoordinateMapper;
 import com.betasafe.app.detection.text.TextSmutConfig;
 import com.betasafe.app.diagnostics.DiagnosticsRepository;
 import com.betasafe.app.overlay.OverlayController;
 import com.betasafe.app.popup.PopupStormManager;
 import com.betasafe.app.penance.CensorTapTracker;
 import com.betasafe.app.penance.DwellInfractionTracker;
+import com.betasafe.app.penance.PenanceChargeNotifier;
 import com.betasafe.app.penance.PenanceInfraction;
 import com.betasafe.app.penance.PenanceManager;
 import com.betasafe.app.settings.CensorAppearance;
@@ -225,8 +227,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 AccessibilityNodeInfo root = getRootInActiveWindow();
                 if (root != null) {
                     try {
+                        Rect screen = screenBounds();
                         accessibilityDetections = accessibilityText.detect(
-                                root, currentTextConfig, frame.getWidth(), frame.getHeight());
+                                root, currentTextConfig, screen.width(), screen.height());
+                        accessibilityDetections = TextDetectionCoordinateMapper.screenToCapture(
+                                accessibilityDetections,
+                                screen.width(), screen.height(),
+                                frame.getWidth(), frame.getHeight());
                     } finally {
                         root.recycle();
                     }
@@ -241,7 +248,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     ? null : currentConfig.getEnabledCategories());
             long now = System.currentTimeMillis();
             if (recordedBlocks > 0) {
-                penance.recordInfraction(PenanceInfraction.NEW_DETECTION, recordedBlocks, now);
+                int charged = penance.recordInfraction(
+                        PenanceInfraction.NEW_DETECTION, recordedBlocks, now);
+                PenanceChargeNotifier.show(this, penance,
+                        PenanceInfraction.NEW_DETECTION, charged, now);
                 new AchievementManager(this).checkAchievements(stats.load());
             }
             if (firstFrameReported.compareAndSet(false, true)) {
@@ -254,10 +264,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             Bitmap overlayFrame = overlayNeedsSourceFrame ? frame : null;
             if (overlayFrame != null) frame = null;
             int dwellInfractions = dwellTracker.update(
-                    tracks, now, penance.getDwellSeconds() * 1_000L);
+                    tracks, now, penance.getDwellSeconds() * 1_000L, false);
             if (dwellInfractions > 0) {
-                penance.recordInfraction(
+                int charged = penance.recordInfraction(
                         PenanceInfraction.CENSORED_DWELL, dwellInfractions, now);
+                PenanceChargeNotifier.show(this, penance,
+                        PenanceInfraction.CENSORED_DWELL, charged, now);
             }
             tapTracker.update(tracks, width, height, now);
             PopupStormManager.get().updateTrackedObjects(tracks, width, height);
@@ -289,6 +301,16 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static int clampScrollMotion(long value, int frameExtent) {
         long limit = Math.max(1, frameExtent) * 2L;
         return (int) Math.max(-limit, Math.min(limit, value));
+    }
+
+    private Rect screenBounds() {
+        WindowManager manager = getSystemService(WindowManager.class);
+        if (manager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Rect bounds = manager.getMaximumWindowMetrics().getBounds();
+            if (!bounds.isEmpty()) return new Rect(0, 0, bounds.width(), bounds.height());
+        }
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        return new Rect(0, 0, Math.max(1, metrics.widthPixels), Math.max(1, metrics.heightPixels));
     }
 
     private void finishScreenshotRequest() {
@@ -326,13 +348,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (event == null) return;
         String packageName = event.getPackageName() == null
                 ? "" : event.getPackageName().toString();
-        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-                || event.getEventType() == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+        boolean settingsEvent = HardcoreSettingsGuard.isSettingsPackage(packageName);
+        boolean windowTransition = event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                || event.getEventType() == AccessibilityEvent.TYPE_WINDOWS_CHANGED;
+        if (settingsEvent && (windowTransition
                 || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-                || event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED) {
-            main.post(this::refreshHardcoreSettingsGuard);
+                || event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED)) {
             main.removeCallbacks(settledHardcoreGuardRefresh);
-            main.postDelayed(settledHardcoreGuardRefresh, 180L);
+            main.postDelayed(settledHardcoreGuardRefresh, 120L);
+        } else if (windowTransition && hardcoreSettingsGuard != null) {
+            main.removeCallbacks(settledHardcoreGuardRefresh);
+            hardcoreSettingsGuard.clear();
         }
         if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
             if (recognitionActive && packageName.equals(foregroundPackage)) {
@@ -366,7 +392,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         foregroundPackage = packageName;
         foregroundSinceMillis = now;
         if (mode.getSelectedPackages().contains(packageName)) {
-            penance.recordInfraction(PenanceInfraction.WATCHED_APP_OPEN, 1, now);
+            int charged = penance.recordInfraction(
+                    PenanceInfraction.WATCHED_APP_OPEN, 1, now);
+            PenanceChargeNotifier.show(this, penance,
+                    PenanceInfraction.WATCHED_APP_OPEN, charged, now);
         }
         dwellTracker.clear();
         tapTracker.clear();
@@ -398,7 +427,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (tapTracker.matchesClick(bounds.left, bounds.top, bounds.right, bounds.bottom,
                 metrics.widthPixels, metrics.heightPixels, now)) {
             lastMatchedTapMillis = now;
-            penance.recordInfraction(PenanceInfraction.CENSORED_TAP, 1, now);
+            int charged = penance.recordInfraction(PenanceInfraction.CENSORED_TAP, 1, now);
+            PenanceChargeNotifier.show(this, penance,
+                    PenanceInfraction.CENSORED_TAP, charged, now);
         }
     }
 
@@ -449,6 +480,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void refreshHardcoreSettingsGuard() {
         if (hardcoreSettingsGuard == null) return;
+        if (!HardcoreSettingsGuard.isSettingsPackage(foregroundPackage)) {
+            hardcoreSettingsGuard.clear();
+            return;
+        }
         AccessibilityNodeInfo root = getRootInActiveWindow();
         try {
             String activePackage = root != null && root.getPackageName() != null
@@ -474,7 +509,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         overlay.setDiagnostics(diagnosticsOverlayText());
         overlay.show();
         PopupStormManager.get().start(this);
-        stats.startSession();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             worker.execute(this::initializePipeline);
         }
@@ -489,7 +523,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         captureSchedule = null;
         if (schedule != null) schedule.cancel(false);
         DiagnosticsRepository.stop(DIAGNOSTICS_MODE);
-        if (stats != null) stats.endSession();
         if (overlay != null) overlay.close();
         overlay = null;
         PopupStormManager.get().stop();

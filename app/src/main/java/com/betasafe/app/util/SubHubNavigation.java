@@ -15,11 +15,12 @@ import com.betasafe.app.appmode.AppModeActivity;
 import com.betasafe.app.penance.PenanceActivity;
 import com.betasafe.app.settings.FeatureModuleManager;
 import com.betasafe.app.settings.GlobalSettingsActivity;
+import com.betasafe.app.settings.SettingsActivity;
 import com.betasafe.app.security.ControllerPinManager;
 
 /** Feature-aware product navigation with Settings always available. */
 public final class SubHubNavigation {
-    public enum Screen { CENSOR, LIMITS, MONEY, SETTINGS }
+    public enum Screen { HOME, CENSOR, LIMITS, MONEY, SETTINGS }
 
     private SubHubNavigation() {}
 
@@ -29,12 +30,16 @@ public final class SubHubNavigation {
         setVisible(navigation, domMode);
         if (!domMode) return;
         FeatureModuleManager modules = new FeatureModuleManager(activity);
+        setVisible(root.findViewById(R.id.nav_home), true);
         setVisible(root.findViewById(R.id.nav_censor), modules.isCensorEnabled());
         setVisible(root.findViewById(R.id.nav_limits), modules.isLimitsEnabled());
         setVisible(root.findViewById(R.id.nav_money), modules.isWalletEnabled());
+        bindTab(activity, root.findViewById(R.id.nav_home),
+                root.findViewById(R.id.nav_home_icon), root.findViewById(R.id.nav_home_label),
+                active, Screen.HOME, MainActivity.class);
         bindTab(activity, root.findViewById(R.id.nav_censor),
                 root.findViewById(R.id.nav_censor_icon), root.findViewById(R.id.nav_censor_label),
-                active, Screen.CENSOR, MainActivity.class);
+                active, Screen.CENSOR, SettingsActivity.class);
         bindTab(activity, root.findViewById(R.id.nav_limits),
                 root.findViewById(R.id.nav_limits_icon), root.findViewById(R.id.nav_limits_label),
                 active, Screen.LIMITS, AppModeActivity.class);
@@ -48,14 +53,12 @@ public final class SubHubNavigation {
 
     public static boolean redirectIfDisabled(Activity activity, Screen current) {
         FeatureModuleManager modules = new FeatureModuleManager(activity);
-        boolean enabled = current == Screen.SETTINGS
+        boolean enabled = current == Screen.HOME || current == Screen.SETTINGS
                 || current == Screen.CENSOR && modules.isCensorEnabled()
                 || current == Screen.LIMITS && modules.isLimitsEnabled()
                 || current == Screen.MONEY && modules.isWalletEnabled();
         if (enabled) return false;
-        Class<? extends Activity> target = modules.isCensorEnabled() ? MainActivity.class
-                : modules.isLimitsEnabled() ? AppModeActivity.class
-                : modules.isWalletEnabled() ? PenanceActivity.class : GlobalSettingsActivity.class;
+        Class<? extends Activity> target = MainActivity.class;
         activity.startActivity(new Intent(activity, target)
                 .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
         activity.finish();
