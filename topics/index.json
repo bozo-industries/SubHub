@@ -17,6 +17,23 @@
 				}
 			],
 			"lastUpdatedAt": "2026-08-24T11:29:19.528Z"
+		},
+		{
+			"stableSlug": "ci-gradle-wrapper",
+			"title": "CI Gradle Wrapper Setup",
+			"summary": "The `gradlew` wrapper script must be executable for CI jobs to invoke Gradle successfully.",
+			"relatedBranches": [
+				"master"
+			],
+			"sourceRefs": [
+				{
+					"type": "summary",
+					"id": "8b13e1fe62150fb28e46de7f41f1529211050a1b",
+					"timestamp": "2026-08-24T11:34:54.000Z",
+					"branch": "master"
+				}
+			],
+			"lastUpdatedAt": "2026-08-24T11:34:57.557Z"
 		}
 	]
 }
