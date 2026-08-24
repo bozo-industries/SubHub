@@ -10,7 +10,7 @@ public enum DetectionPreset {
             180f, 2, 512, 8),
     HIGH("High", "Better quality", 0.25f, 0, 12, 0.50f, 480, 35, 0.70f, 0.50f,
             230f, 3, 768, 12),
-    ULTRA("Ultra", "Maximum", 0.18f, 0, 6, 0.75f, 640, 50, 0.65f, 0.45f,
+    ULTRA("Ultra", "Maximum", 0.18f, 0, 6, 0.75f, 512, 50, 0.65f, 0.45f,
             300f, 4, 1024, 16);
 
     private final String displayName;

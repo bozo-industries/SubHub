@@ -83,9 +83,26 @@ final class ScrollFrameMotionEstimator implements AutoCloseable {
         int bestY = 0;
         int horizontalLimit = Math.min(MAX_DX, Math.max(1, width / 12));
         int verticalLimit = Math.min(MAX_DY, Math.max(2, height / 3));
-        for (int dy = -verticalLimit; dy <= verticalLimit; dy++) {
+        // Coarse-to-fine search retains the exact final displacement while scoring roughly half
+        // as many candidates on Ultra's 25 Hz motion path.
+        for (int dy = -verticalLimit; dy <= verticalLimit; dy += 2) {
             for (int dx = -horizontalLimit; dx <= horizontalLimit; dx++) {
                 if (dx == 0 && dy == 0) continue;
+                Score candidate = score(previous, current, width, height, dx, dy);
+                if (candidate.features < MIN_FEATURES || candidate.coveredBands < 3) continue;
+                if (candidate.average < best.average) {
+                    best = candidate;
+                    bestX = dx;
+                    bestY = dy;
+                }
+            }
+        }
+        int coarseY = bestY;
+        int refineTop = Math.max(-verticalLimit, coarseY - 1);
+        int refineBottom = Math.min(verticalLimit, coarseY + 1);
+        for (int dy = refineTop; dy <= refineBottom; dy++) {
+            for (int dx = -horizontalLimit; dx <= horizontalLimit; dx++) {
+                if (dx == bestX && dy == bestY) continue;
                 Score candidate = score(previous, current, width, height, dx, dy);
                 if (candidate.features < MIN_FEATURES || candidate.coveredBands < 3) continue;
                 if (candidate.average < best.average) {

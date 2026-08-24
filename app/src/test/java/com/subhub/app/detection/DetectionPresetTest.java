@@ -17,7 +17,7 @@ public final class DetectionPresetTest {
         assertEquals(0.35f, low.getCaptureScale(), 0.0001f);
         assertEquals(320, low.getInferenceResolution());
         assertEquals(0.18f, ultra.getConfidenceThreshold(), 0.0001f);
-        assertEquals(640, ultra.getInferenceResolution());
+        assertEquals(512, ultra.getInferenceResolution());
         assertEquals(0.75f, ultra.getCaptureScale(), 0.0001f);
         assertEquals(1, low.getInferenceThreads());
         assertEquals(4, ultra.getInferenceThreads());
