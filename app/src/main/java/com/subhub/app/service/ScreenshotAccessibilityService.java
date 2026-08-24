@@ -13,6 +13,7 @@ import android.view.Display;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
@@ -244,16 +245,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         long requestedEpoch = captureEpoch.token();
         long requestedScrollX = cumulativeScrollX.get();
         long requestedScrollY = cumulativeScrollY.get();
-        AccessibilityNodeInfo activeRoot = getRootInActiveWindow();
-        int activeWindowId = -1;
-        String livePackage = "";
-        if (activeRoot != null) {
-            activeWindowId = activeRoot.getWindowId();
-            if (activeRoot.getPackageName() != null) {
-                livePackage = activeRoot.getPackageName().toString();
-            }
-            activeRoot.recycle();
-        }
+        ForegroundWindowResolver.Candidate liveWindow = resolveLiveApplicationWindow();
+        int activeWindowId = liveWindow == null ? -1 : liveWindow.windowId;
+        String livePackage = liveWindow == null ? "" : liveWindow.packageName;
         AppModeManager mode = new AppModeManager(this);
         if (AppModePolicy.shouldAcceptLiveForegroundPackage(
                 livePackage, mode.inputMethodPackage())
@@ -898,16 +892,48 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private boolean syncForegroundFromActiveRoot(long nowMillis) {
+        ForegroundWindowResolver.Candidate liveWindow = resolveLiveApplicationWindow();
+        String livePackage = liveWindow == null ? "" : liveWindow.packageName;
+        if (livePackage.isEmpty() || livePackage.equals(foregroundPackage)) return false;
+        acceptForegroundPackage(livePackage, nowMillis);
+        return true;
+    }
+
+    private ForegroundWindowResolver.Candidate resolveLiveApplicationWindow() {
+        List<ForegroundWindowResolver.Candidate> candidates = new ArrayList<>();
+        List<AccessibilityWindowInfo> windows = getWindows();
+        if (windows != null) {
+            for (AccessibilityWindowInfo window : windows) {
+                if (window == null || window.getType() != AccessibilityWindowInfo.TYPE_APPLICATION) {
+                    continue;
+                }
+                AccessibilityNodeInfo root = window.getRoot();
+                try {
+                    String packageName = root != null && root.getPackageName() != null
+                            ? root.getPackageName().toString() : "";
+                    candidates.add(new ForegroundWindowResolver.Candidate(
+                            packageName, window.getId(), window.isActive(), window.isFocused(),
+                            window.getLayer()));
+                } finally {
+                    if (root != null) root.recycle();
+                }
+            }
+        }
+        AppModeManager mode = new AppModeManager(this);
+        ForegroundWindowResolver.Candidate selected = ForegroundWindowResolver.select(
+                candidates, mode.inputMethodPackage());
+        if (selected != null) return selected;
+
+        // Some OEMs briefly omit the interactive-window list during transitions. Keep the old
+        // active-root fallback for that narrow gap; the next event/tick will retry the full list.
         AccessibilityNodeInfo root = getRootInActiveWindow();
         try {
-            String livePackage = root != null && root.getPackageName() != null
+            String packageName = root != null && root.getPackageName() != null
                     ? root.getPackageName().toString() : "";
-            AppModeManager mode = new AppModeManager(this);
             if (!AppModePolicy.shouldAcceptLiveForegroundPackage(
-                    livePackage, mode.inputMethodPackage())
-                    || livePackage.equals(foregroundPackage)) return false;
-            acceptForegroundPackage(livePackage, nowMillis);
-            return true;
+                    packageName, mode.inputMethodPackage())) return null;
+            return new ForegroundWindowResolver.Candidate(
+                    packageName, root.getWindowId(), true, true, 0);
         } finally {
             if (root != null) root.recycle();
         }
