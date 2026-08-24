@@ -1,0 +1,22 @@
+{
+	"schemaVersion": 1,
+	"topics": [
+		{
+			"stableSlug": "jolli-integration",
+			"title": "Jolli Integration",
+			"summary": "Jolli integration exists in the project; local integration state is gitignored and not committed.",
+			"relatedBranches": [
+				"master"
+			],
+			"sourceRefs": [
+				{
+					"type": "summary",
+					"id": "5166399247fc532d82919c80dbce6ec19bcc4be1",
+					"timestamp": "2026-08-24T11:29:15.000Z",
+					"branch": "master"
+				}
+			],
+			"lastUpdatedAt": "2026-08-24T11:29:19.528Z"
+		}
+	]
+}
