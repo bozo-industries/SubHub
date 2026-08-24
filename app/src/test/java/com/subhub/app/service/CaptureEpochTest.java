@@ -51,4 +51,12 @@ public final class CaptureEpochTest {
         assertEquals(0L, ScreenshotAccessibilityService.settledCaptureDelayMs(
                 1_000L, 800L, 600L));
     }
+
+    @Test public void onlyUltraKeepsInferenceAliveDuringMotion() {
+        DetectorConfig high = DetectorConfig.builder().inferenceThreads(3).build();
+        DetectorConfig ultra = DetectorConfig.builder().inferenceThreads(4).build();
+
+        assertFalse(ScreenshotAccessibilityService.usesContinuousMotionInference(high));
+        assertTrue(ScreenshotAccessibilityService.usesContinuousMotionInference(ultra));
+    }
 }

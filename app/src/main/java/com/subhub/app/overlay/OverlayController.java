@@ -67,6 +67,23 @@ public final class OverlayController implements AutoCloseable {
         view.setTracks(tracks, captureWidth, captureHeight, frame, motionX, motionY);
     }
 
+    /**
+     * Publishes live-coordinate tracks with independent motion for events received after the
+     * inference snapshot and for the older source frame used by image-based effects.
+     */
+    public void update(
+            List<TrackedObject> tracks,
+            int captureWidth,
+            int captureHeight,
+            Bitmap frame,
+            int motionX,
+            int motionY,
+            int sourceMotionX,
+            int sourceMotionY) {
+        view.setTracks(tracks, captureWidth, captureHeight, frame,
+                motionX, motionY, sourceMotionX, sourceMotionY);
+    }
+
     /** Moves the current lightweight overlay immediately while the next inference is pending. */
     public void offsetContent(int deltaX, int deltaY) {
         view.offsetContent(deltaX, deltaY);

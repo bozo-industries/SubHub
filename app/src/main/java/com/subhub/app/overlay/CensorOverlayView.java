@@ -65,6 +65,8 @@ final class CensorOverlayView extends View {
     private String diagnostics = "";
     private float contentOffsetX;
     private float contentOffsetY;
+    private float sourceFrameOffsetX;
+    private float sourceFrameOffsetY;
 
     CensorOverlayView(Context context) {
         super(context);
@@ -110,11 +112,30 @@ final class CensorOverlayView extends View {
             Bitmap latestFrame,
             int motionX,
             int motionY) {
+        setTracks(value, sourceWidth, sourceHeight, latestFrame,
+                motionX, motionY, 0, 0);
+    }
+
+    /**
+     * Publishes tracks already projected to the live viewport while retaining a source frame
+     * captured at an earlier scroll position for blur, pixelate, and glitch effects.
+     */
+    void setTracks(
+            List<TrackedObject> value,
+            int sourceWidth,
+            int sourceHeight,
+            Bitmap latestFrame,
+            int motionX,
+            int motionY,
+            int sourceMotionX,
+            int sourceMotionY) {
         tracks = new ArrayList<>(value);
         captureWidth = Math.max(1, sourceWidth);
         captureHeight = Math.max(1, sourceHeight);
         contentOffsetX = motionX;
         contentOffsetY = motionY;
+        sourceFrameOffsetX = sourceMotionX;
+        sourceFrameOffsetY = sourceMotionY;
         if (frame != null && frame != latestFrame && !frame.isRecycled()) frame.recycle();
         frame = latestFrame;
         Set<Integer> activeIds = new HashSet<>();
@@ -136,6 +157,8 @@ final class CensorOverlayView extends View {
         tracks.clear();
         contentOffsetX = 0;
         contentOffsetY = 0;
+        sourceFrameOffsetX = 0;
+        sourceFrameOffsetY = 0;
         if (frame != null && !frame.isRecycled()) frame.recycle();
         frame = null;
         customImages.retainAssignments(new HashSet<>());
@@ -678,10 +701,10 @@ final class CensorOverlayView extends View {
         if (frame == null || frame.isRecycled() || getWidth() <= 0 || getHeight() <= 0) return false;
         // The retained frame predates any compensated scroll. Sample the original source pixels
         // while drawing them at the translated destination so blur/pixelate/glitch remain stable.
-        float sourceLeft = destination.left - contentOffsetX;
-        float sourceTop = destination.top - contentOffsetY;
-        float sourceRight = destination.right - contentOffsetX;
-        float sourceBottom = destination.bottom - contentOffsetY;
+        float sourceLeft = destination.left - contentOffsetX - sourceFrameOffsetX;
+        float sourceTop = destination.top - contentOffsetY - sourceFrameOffsetY;
+        float sourceRight = destination.right - contentOffsetX - sourceFrameOffsetX;
+        float sourceBottom = destination.bottom - contentOffsetY - sourceFrameOffsetY;
         int left = Math.max(0, Math.min(frame.getWidth() - 1,
                 Math.round(sourceLeft / getWidth() * frame.getWidth())));
         int top = Math.max(0, Math.min(frame.getHeight() - 1,
