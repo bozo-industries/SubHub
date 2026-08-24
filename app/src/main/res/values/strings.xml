@@ -22,7 +22,7 @@
     <string name="global_diagnostics">Diagnostics</string>
     <string name="global_security">Pact &amp; control</string>
     <string name="hardcore_title">HARDCORE MODE</string>
-    <string name="hardcore_body">Adds friction to quitting, blocks protected App Info actions in Sub mode, and re-arms after reboot.</string>
+    <string name="hardcore_body">Adds friction to quitting and blocks protected App Info actions in Sub mode. It never starts service by itself.</string>
     <string name="hardcore_toggle">Use Hardcore Mode</string>
     <string name="hardcore_status_off">OFF · ordinary Android controls remain available</string>
     <string name="hardcore_status_pending">ONE MORE STEP · approve Device Admin on Android’s next screen</string>
@@ -38,8 +38,8 @@
     <string name="hardcore_release_body">This removes Device Admin and restores ordinary App Info controls. Your censor, limits, and Wallet setup stay unchanged.</string>
     <string name="hardcore_release">UNSEAL</string>
     <string name="hardcore_admin_label">SubHub Hardcore Mode</string>
-    <string name="hardcore_admin_description">Adds quitting friction and restores armed protection after reboot.</string>
-    <string name="hardcore_admin_system_explanation">Hardcore Mode adds a deliberate release step before uninstall and restores armed protection after reboot.</string>
+    <string name="hardcore_admin_description">Adds quitting friction while preserving your chosen service state.</string>
+    <string name="hardcore_admin_system_explanation">Hardcore Mode adds a deliberate release step before uninstall. It does not start service by itself.</string>
     <string name="hardcore_settings_blocked">Unlock Dom mode, then turn off Hardcore Mode.</string>
     <string name="hardcore_guard_window_title">SubHub Hardcore guard</string>
     <string name="censor_tools_title">CENSOR TOOLS</string>

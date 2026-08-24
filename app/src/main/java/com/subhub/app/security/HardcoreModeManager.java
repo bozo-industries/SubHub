@@ -73,7 +73,7 @@ public final class HardcoreModeManager {
         boolean active = isAdminActive();
         preferences.edit().putBoolean(KEY_REQUESTED, active).commit();
         if (active) {
-            reinforceAutomaticMode();
+            refreshExistingAutomaticMode();
             HardcoreAutoPayManager.schedule(context);
         }
         return active;
@@ -93,7 +93,7 @@ public final class HardcoreModeManager {
 
     public void onAdminEnabled() {
         preferences.edit().putBoolean(KEY_REQUESTED, true).commit();
-        reinforceAutomaticMode();
+        refreshExistingAutomaticMode();
         HardcoreAutoPayManager.schedule(context);
     }
 
@@ -105,18 +105,24 @@ public final class HardcoreModeManager {
         preferences.edit().putBoolean(KEY_REQUESTED, false).commit();
     }
 
-    /** Restores only the user's scanning intent; Android permissions remain independently revocable. */
+    /**
+     * Refreshes Hardcore's restart bookkeeping without changing the user's protection intent.
+     * Device Admin is a capability grant, not an implicit request to start protection.
+     */
     public void applyBootPolicy() {
         if (isEnabled()) {
-            reinforceAutomaticMode();
+            refreshExistingAutomaticMode();
             HardcoreAutoPayManager.schedule(context);
         }
     }
 
-    private void reinforceAutomaticMode() {
+    private void refreshExistingAutomaticMode() {
         if (new PaidPauseManager(context).isActive()) return;
         AppModeManager mode = new AppModeManager(context);
-        mode.save(true, mode.getMode(), mode.getSelectedPackages());
+        // Enabling/reconnecting Device Admin must never turn a previously idle app mode on.
+        // An already armed mode is left untouched so enabling Hardcore while protection is
+        // running does not interrupt that protection or its persisted session.
+        if (!mode.isArmed()) return;
         ResumeNotificationManager.show(context);
     }
 }
