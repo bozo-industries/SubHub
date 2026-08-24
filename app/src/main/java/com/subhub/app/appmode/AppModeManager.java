@@ -43,6 +43,10 @@ public final class AppModeManager {
     }
 
     public AppModePolicy.Mode getMode() {
+        // Per-app Censor checkboxes are the most specific intent. Older builds saved them
+        // independently from this mode and could leave a stale "always" value behind, causing
+        // recognition in every app despite an explicit X-only (or similar) assignment.
+        if (!getSelectedPackages().isEmpty()) return AppModePolicy.Mode.SELECTED_APPS;
         return MODE_SELECTED.equals(preferences.getString(KEY_MODE, MODE_ALWAYS))
                 ? AppModePolicy.Mode.SELECTED_APPS : AppModePolicy.Mode.ALWAYS;
     }
@@ -61,12 +65,14 @@ public final class AppModeManager {
     }
 
     public void saveAppSelections(Set<String> censorPackages, Set<String> timerPackages) {
-        preferences.edit()
+        Set<String> cleanCensorPackages = AppModePolicy.sanitizePackages(censorPackages);
+        SharedPreferences.Editor editor = preferences.edit()
                 .putStringSet(KEY_SELECTED_PACKAGES,
-                        new LinkedHashSet<>(AppModePolicy.sanitizePackages(censorPackages)))
+                        new LinkedHashSet<>(cleanCensorPackages))
                 .putStringSet(KEY_TIMER_PACKAGES,
-                        new LinkedHashSet<>(AppModePolicy.sanitizePackages(timerPackages)))
-                .commit();
+                        new LinkedHashSet<>(AppModePolicy.sanitizePackages(timerPackages)));
+        if (!cleanCensorPackages.isEmpty()) editor.putString(KEY_MODE, MODE_SELECTED);
+        editor.commit();
     }
 
     public void save(boolean armed, AppModePolicy.Mode mode, Set<String> selectedPackages) {

@@ -247,6 +247,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private void saveAppAssignments() {
         if (!editingUnlocked) return;
         appMode.saveAppSelections(censorPackages, timerPackages);
+        if (!censorPackages.isEmpty()) binding.modeGroup.check(R.id.mode_selected);
         Toast.makeText(this, R.string.app_assignments_saved, Toast.LENGTH_SHORT).show();
         renderSelectedCount();
     }

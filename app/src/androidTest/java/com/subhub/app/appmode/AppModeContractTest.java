@@ -79,9 +79,23 @@ public final class AppModeContractTest {
 
     @Test public void censorAndTimerAssignmentsAreIndependent() {
         AppModeManager manager = new AppModeManager(context);
+        manager.save(false, AppModePolicy.Mode.ALWAYS, Set.of());
         manager.saveAppSelections(Set.of("com.example.censor"), Set.of("com.example.timer"));
         assertEquals(Set.of("com.example.censor"), manager.getSelectedPackages());
         assertEquals(Set.of("com.example.timer"), manager.getTimerPackages());
+        assertEquals(AppModePolicy.Mode.SELECTED_APPS, manager.getMode());
+    }
+
+    @Test public void existingExplicitAssignmentsOverrideAStaleAlwaysMode() {
+        preferences.edit()
+                .putString(AppModeManager.KEY_MODE, "always")
+                .putStringSet(AppModeManager.KEY_SELECTED_PACKAGES,
+                        Set.of("com.twitter.android"))
+                .commit();
+
+        AppModeManager manager = new AppModeManager(context);
+        assertEquals(AppModePolicy.Mode.SELECTED_APPS, manager.getMode());
+        assertTrue(manager.getSelectedPackages().contains("com.twitter.android"));
     }
 
     @Test public void normalBootPreservesTheLastArmedState() {
