@@ -2,10 +2,12 @@ package com.subhub.app.security;
 
 import android.accessibilityservice.AccessibilityService;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.ColorDrawable;
+import android.hardware.HardwareBuffer;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.util.Log;
@@ -15,7 +17,6 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityNodeInfo;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.subhub.app.R;
@@ -23,8 +24,9 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Touch-blocking accessibility badges over SubHub's destructive Android Settings actions. */
+/** Touch-blocking concealment over SubHub's destructive Android Settings actions. */
 public final class HardcoreSettingsGuard {
     private static final String TAG = "HardcoreSettingsGuard";
     static final String SETTINGS_PACKAGE = "com.android.settings";
@@ -36,6 +38,8 @@ public final class HardcoreSettingsGuard {
     private final WindowManager windows;
     private final List<View> badges = new ArrayList<>();
     private final List<Rect> guardedBounds = new ArrayList<>();
+    private final List<Rect> sampledBounds = new ArrayList<>();
+    private final AtomicBoolean backgroundSampleRunning = new AtomicBoolean();
 
     public HardcoreSettingsGuard(AccessibilityService service) {
         this.service = service;
@@ -77,6 +81,7 @@ public final class HardcoreSettingsGuard {
         List<Rect> controls = new ArrayList<>();
         collectControls(root, controls, new int[]{0});
         updateBadges(controls);
+        requestBackgroundSample(root.getWindowId());
     }
 
     public void clear() {
@@ -85,6 +90,7 @@ public final class HardcoreSettingsGuard {
         }
         badges.clear();
         guardedBounds.clear();
+        sampledBounds.clear();
     }
 
     private static boolean sameBounds(List<Rect> left, List<Rect> right) {
@@ -103,6 +109,7 @@ public final class HardcoreSettingsGuard {
             if (bounds != null) clipped.add(bounds);
         }
         if (sameBounds(clipped, guardedBounds)) return;
+        sampledBounds.clear();
         if (clipped.size() == badges.size()) {
             try {
                 for (int index = 0; index < clipped.size(); index++) {
@@ -236,19 +243,9 @@ public final class HardcoreSettingsGuard {
         Rect bounds = clipBounds(rawBounds);
         if (bounds == null) return false;
 
-        TextView badge = new TextView(overlayContext);
-        badge.setText(R.string.hardcore_settings_badge);
-        badge.setTextColor(Color.WHITE);
-        badge.setTextSize(11f);
-        badge.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        badge.setGravity(Gravity.CENTER);
-        badge.setPadding(dp(8), dp(3), dp(8), dp(3));
-        GradientDrawable background = new GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{0xFF24112F, 0xFF4A145F});
-        background.setCornerRadius(dp(12));
-        background.setStroke(dp(2), 0xFF9A35D0);
-        badge.setBackground(background);
+        View badge = new View(overlayContext);
+        // Neutral fallback is visible only until the Settings-window sample arrives.
+        badge.setBackground(new ColorDrawable(0xFF211E24));
         badge.setOnTouchListener((view, event) -> {
             if (event.getActionMasked() == MotionEvent.ACTION_UP) {
                 Toast.makeText(service, R.string.hardcore_settings_blocked,
@@ -265,6 +262,84 @@ public final class HardcoreSettingsGuard {
             Log.w(TAG, "Could not attach Hardcore Settings guard", error);
             return false;
         }
+    }
+
+    private void requestBackgroundSample(int windowId) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                || badges.isEmpty() || sameBounds(guardedBounds, sampledBounds)
+                || !backgroundSampleRunning.compareAndSet(false, true)) return;
+        service.takeScreenshotOfWindow(windowId, service.getMainExecutor(),
+                new AccessibilityService.TakeScreenshotCallback() {
+                    @Override public void onSuccess(AccessibilityService.ScreenshotResult result) {
+                        Bitmap wrapped = null;
+                        Bitmap readable = null;
+                        HardwareBuffer buffer = result.getHardwareBuffer();
+                        try {
+                            wrapped = Bitmap.wrapHardwareBuffer(buffer, result.getColorSpace());
+                            if (wrapped != null) readable = wrapped.copy(Bitmap.Config.ARGB_8888, false);
+                            if (readable != null) applySampledBackgrounds(readable);
+                        } finally {
+                            if (readable != null) readable.recycle();
+                            if (wrapped != null) wrapped.recycle();
+                            buffer.close();
+                            backgroundSampleRunning.set(false);
+                        }
+                    }
+
+                    @Override public void onFailure(int errorCode) {
+                        backgroundSampleRunning.set(false);
+                        Log.d(TAG, "Settings background sample unavailable: " + errorCode);
+                    }
+                });
+    }
+
+    private void applySampledBackgrounds(Bitmap screenshot) {
+        int size = Math.min(badges.size(), guardedBounds.size());
+        for (int index = 0; index < size; index++) {
+            int color = sampleSurroundingColor(screenshot, guardedBounds.get(index));
+            badges.get(index).setBackground(new ColorDrawable(color));
+        }
+        sampledBounds.clear();
+        for (Rect bounds : guardedBounds) sampledBounds.add(new Rect(bounds));
+    }
+
+    private int sampleSurroundingColor(Bitmap screenshot, Rect screenBounds) {
+        android.util.DisplayMetrics display = service.getResources().getDisplayMetrics();
+        float scaleX = screenshot.getWidth() / (float) Math.max(1, display.widthPixels);
+        float scaleY = screenshot.getHeight() / (float) Math.max(1, display.heightPixels);
+        int left = Math.max(0, Math.round(screenBounds.left * scaleX));
+        int right = Math.min(screenshot.getWidth() - 1, Math.round(screenBounds.right * scaleX));
+        int top = Math.max(0, Math.round(screenBounds.top * scaleY));
+        int bottom = Math.min(screenshot.getHeight() - 1, Math.round(screenBounds.bottom * scaleY));
+        int marginX = Math.max(2, Math.round(dp(6) * scaleX));
+        int marginY = Math.max(2, Math.round(dp(6) * scaleY));
+        long red = 0L;
+        long green = 0L;
+        long blue = 0L;
+        int samples = 0;
+        int step = Math.max(1, Math.round(dp(8) * Math.max(scaleX, scaleY)));
+        for (int x = left; x <= right; x += step) {
+            int[] ys = {Math.max(0, top - marginY), Math.min(screenshot.getHeight() - 1, bottom + marginY)};
+            for (int y : ys) {
+                int color = screenshot.getPixel(x, y);
+                red += Color.red(color);
+                green += Color.green(color);
+                blue += Color.blue(color);
+                samples++;
+            }
+        }
+        for (int y = top; y <= bottom; y += step) {
+            int[] xs = {Math.max(0, left - marginX), Math.min(screenshot.getWidth() - 1, right + marginX)};
+            for (int x : xs) {
+                int color = screenshot.getPixel(x, y);
+                red += Color.red(color);
+                green += Color.green(color);
+                blue += Color.blue(color);
+                samples++;
+            }
+        }
+        return samples == 0 ? 0xFF211E24 : Color.rgb(
+                (int) (red / samples), (int) (green / samples), (int) (blue / samples));
     }
 
     private Rect clipBounds(Rect rawBounds) {

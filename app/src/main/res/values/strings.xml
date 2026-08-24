@@ -40,7 +40,6 @@
     <string name="hardcore_admin_label">SubHub Hardcore Mode</string>
     <string name="hardcore_admin_description">Adds an extra step before uninstall and re-arms scanning after reboot.</string>
     <string name="hardcore_admin_system_explanation">Hardcore Mode adds one deliberate deactivation step before uninstall and restores scanning after reboot.</string>
-    <string name="hardcore_settings_badge">HARDCORE LOCK</string>
     <string name="hardcore_settings_blocked">Switch to Dom mode and disable Hardcore Mode first.</string>
     <string name="censor_tools_title">CENSOR TOOLS</string>
     <string name="censor_tool_settings">Censor settings</string>

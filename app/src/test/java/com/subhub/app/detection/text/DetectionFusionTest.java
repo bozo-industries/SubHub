@@ -63,6 +63,19 @@ public final class DetectionFusionTest {
         assertEquals(new BBox(80, 300, 500, 150), merged.get(0).getBox());
     }
 
+    @Test public void preciseOcrLineReplacesNearbyAccessibilityEstimate() {
+        Detection accessibility = new Detection("TEXT_SMUT_ACCESSIBILITY_EXPLICIT",
+                "text_smut", 0.9f, new BBox(60, 240, 500, 42), true, false);
+        Detection ocr = new Detection("TEXT_SMUT_OCR_EXPLICIT",
+                "text_smut", 0.9f, new BBox(76, 190, 470, 42), true, false);
+
+        List<Detection> merged = DetectionFusion.merge(Collections.emptyList(),
+                Collections.singletonList(accessibility), Collections.singletonList(ocr));
+
+        assertEquals(1, merged.size());
+        assertEquals(ocr.getBox(), merged.get(0).getBox());
+    }
+
     private static Detection text(BBox box) {
         return new Detection("TEXT_SMUT_EXPLICIT", "text_smut", 0.9f, box, true, false);
     }

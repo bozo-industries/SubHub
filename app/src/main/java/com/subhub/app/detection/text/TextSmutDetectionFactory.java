@@ -26,12 +26,29 @@ final class TextSmutDetectionFactory {
             boolean semanticEnabled) {
         if (source == null || source.isEmpty() || width <= 0 || height <= 0) return null;
         SmutTextClassifier.Match match = classifier.classify(text, config, semanticEnabled);
+        return create(text, source, match, width, height, "TEXT_SMUT_");
+    }
+
+    SmutTextClassifier.Match classify(
+            String text, TextSmutConfig config, boolean semanticEnabled) {
+        return classifier.classify(text, config, semanticEnabled);
+    }
+
+    Detection create(
+            String text,
+            Rect source,
+            SmutTextClassifier.Match match,
+            int width,
+            int height,
+            String sourcePrefix) {
+        if (source == null || source.isEmpty() || width <= 0 || height <= 0
+                || match == null) return null;
         if (!match.isMatched()) return null;
         BBox projected = TextRegionProjector.project(text, match,
                 source.left, source.top, source.right, source.bottom, width, height);
         if (projected == null) return null;
         return new Detection(
-                "TEXT_SMUT_" + match.getCategory().toUpperCase(java.util.Locale.ROOT),
+                sourcePrefix + match.getCategory().toUpperCase(java.util.Locale.ROOT),
                 "text_smut",
                 match.getConfidence(),
                 projected,

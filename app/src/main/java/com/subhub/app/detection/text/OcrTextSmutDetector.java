@@ -98,8 +98,9 @@ public final class OcrTextSmutDetector implements AutoCloseable {
             TextSmutConfig config,
             int width,
             int height) {
-        return bounds == null ? null
-                : factory.create(text, bounds, config, width, height, true);
+        if (bounds == null) return null;
+        SmutTextClassifier.Match match = factory.classify(text, config, true);
+        return factory.create(text, bounds, match, width, height, "TEXT_SMUT_OCR_");
     }
 
     @Override public void close() {

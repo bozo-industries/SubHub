@@ -74,10 +74,20 @@ public final class DetectionFusion {
         return detection != null && "text_smut".equals(detection.getCategory());
     }
 
+    private static boolean isOcr(Detection detection) {
+        return detection != null && detection.getClassName() != null
+                && detection.getClassName().startsWith("TEXT_SMUT_OCR_");
+    }
+
     private static BBox fusedBox(Detection first, Detection second) {
         boolean textPair = "text_smut".equals(first.getCategory())
                 && "text_smut".equals(second.getCategory());
         if (textPair) {
+            // Accessibility nodes in social/Compose feeds may describe a whole post while OCR
+            // supplies the actual rendered line. Preserve the precise OCR rectangle.
+            if (isOcr(first) != isOcr(second)) {
+                return isOcr(first) ? first.getBox() : second.getBox();
+            }
             long intersection = intersection(first.getBox(), second.getBox());
             long firstArea = first.getBox().getArea();
             long secondArea = second.getBox().getArea();
