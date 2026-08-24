@@ -54,6 +54,39 @@ public final class AccessibilityTextSmutDetectorTest {
         }
     }
 
+    @Test public void ultraRejectsPostSizedAccessibilityEstimateInFavorOfOcr() {
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        try {
+            node.setVisibleToUser(true);
+            node.setContentDescription("send nudes from this post container");
+            node.setBoundsInScreen(new Rect(40, 220, 1040, 1_500));
+
+            List<Detection> detections = new AccessibilityTextSmutDetector().detect(
+                    node, balanced(), 1080, 2400, true, true);
+
+            assertTrue(detections.isEmpty());
+        } finally {
+            node.recycle();
+        }
+    }
+
+    @Test public void longDescriptionOnTinyActionControlIsIgnored() {
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        try {
+            node.setVisibleToUser(true);
+            node.setContentDescription(
+                    "send nudes and touch yourself like a needy pet from this repeated post action");
+            node.setBoundsInScreen(new Rect(900, 1_200, 960, 1_260));
+
+            List<Detection> detections = new AccessibilityTextSmutDetector().detect(
+                    node, balanced(), 1080, 2400, true, false);
+
+            assertTrue(detections.isEmpty());
+        } finally {
+            node.recycle();
+        }
+    }
+
     private static TextSmutConfig balanced() {
         return new TextSmutConfig(true, TextSmutConfig.SENSITIVITY_BALANCED,
                 TextSmutConfig.DEFAULT_CATEGORIES);

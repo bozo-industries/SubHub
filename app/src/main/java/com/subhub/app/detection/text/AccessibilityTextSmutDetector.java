@@ -29,7 +29,7 @@ public final class AccessibilityTextSmutDetector {
             TextSmutConfig config,
             int width,
             int height) {
-        return detect(root, config, width, height, false);
+        return detect(root, config, width, height, false, false);
     }
 
     public List<Detection> detect(
@@ -38,6 +38,16 @@ public final class AccessibilityTextSmutDetector {
             int width,
             int height,
             boolean semanticEnabled) {
+        return detect(root, config, width, height, semanticEnabled, false);
+    }
+
+    public List<Detection> detect(
+            AccessibilityNodeInfo root,
+            TextSmutConfig config,
+            int width,
+            int height,
+            boolean semanticEnabled,
+            boolean exactGeometryPreferred) {
         if (root == null || config == null || !config.isEnabled()) return Collections.emptyList();
         List<Detection> result = new ArrayList<>();
         ArrayDeque<AccessibilityNodeInfo> pending = new ArrayDeque<>();
@@ -57,6 +67,10 @@ public final class AccessibilityTextSmutDetector {
                                 text, config, semanticEnabled);
                         Rect characterBounds = AccessibilityTextGeometry.resolve(
                                 node, text, match, width, height);
+                        if (characterBounds == null
+                                && (!isPlausibleTextRegion(text, bounds, width)
+                                || (exactGeometryPreferred
+                                && !isTightEstimatedRegion(bounds, width)))) continue;
                         Detection detection = characterBounds == null
                                 ? factory.create(text, bounds, match, width, height,
                                         "TEXT_SMUT_ACCESSIBILITY_")
@@ -86,6 +100,23 @@ public final class AccessibilityTextSmutDetector {
         // Aggregate root/window descriptions duplicate descendant text and create screen-sized
         // censors. Post-sized containers remain eligible; the projector reduces them to lines.
         return node.getChildCount() == 0 || area * 100L < screen * 58L;
+    }
+
+    /** Rejects long container descriptions attached to tiny icons and action controls. */
+    private static boolean isPlausibleTextRegion(String text, Rect bounds, int screenWidth) {
+        int normalizedLength = SmutTextClassifier.normalize(text).length();
+        int lineHeight = Math.max(24, Math.round(screenWidth * 0.035f));
+        int estimatedLines = Math.max(1,
+                (bounds.height() + lineHeight - 1) / lineHeight);
+        int charactersPerLine = Math.max(4,
+                Math.round(bounds.width() / Math.max(8f, lineHeight * 0.48f)));
+        long estimatedCapacity = (long) estimatedLines * charactersPerLine * 2L;
+        return normalizedLength <= estimatedCapacity;
+    }
+
+    /** Ultra OCR owns post/image-sized containers; Accessibility keeps only tight text nodes. */
+    private static boolean isTightEstimatedRegion(Rect bounds, int screenWidth) {
+        return bounds.height() <= Math.max(120, Math.round(screenWidth * 0.24f));
     }
 
     private static String textOf(AccessibilityNodeInfo node) {

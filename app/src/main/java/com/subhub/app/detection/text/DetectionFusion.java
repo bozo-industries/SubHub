@@ -109,12 +109,9 @@ public final class DetectionFusion {
         long smaller = Math.min(first.getBox().getArea(), second.getBox().getArea());
         float containment = smaller == 0 ? 0f : (float) intersection / smaller;
         if (containment >= (textPair ? 0.25f : 0.70f)) return true;
-        if (!textPair) return false;
-        BBox a = first.getBox();
-        BBox b = second.getBox();
-        int verticalGap = Math.max(0, Math.max(a.getY(), b.getY()) - Math.min(a.getBottom(), b.getBottom()));
-        int horizontalOverlap = Math.min(a.getRight(), b.getRight()) - Math.max(a.getX(), b.getX());
-        return verticalGap <= 24 && horizontalOverlap > Math.min(a.getWidth(), b.getWidth()) / 3;
+        // Separate rendered lines must remain separate bars. Only overlapping source estimates
+        // are duplicates; proximity alone used to create oversized blocks spanning whitespace.
+        return false;
     }
 
     private static long intersection(BBox first, BBox second) {
