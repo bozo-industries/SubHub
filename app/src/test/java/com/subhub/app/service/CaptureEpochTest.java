@@ -37,9 +37,18 @@ public final class CaptureEpochTest {
         assertEquals(300L, ScreenshotAccessibilityService.captureDelayMs(medium));
         assertEquals(240L, ScreenshotAccessibilityService.captureDelayMs(high));
         assertEquals(180L, ScreenshotAccessibilityService.captureDelayMs(ultra));
-        assertEquals(150L, ScreenshotAccessibilityService.capturePollDelayMs(low));
-        assertEquals(90L, ScreenshotAccessibilityService.capturePollDelayMs(medium));
-        assertEquals(60L, ScreenshotAccessibilityService.capturePollDelayMs(high));
-        assertEquals(40L, ScreenshotAccessibilityService.capturePollDelayMs(ultra));
+        assertEquals(350L, ScreenshotAccessibilityService.capturePollDelayMs(low));
+        assertEquals(350L, ScreenshotAccessibilityService.capturePollDelayMs(medium));
+        assertEquals(350L, ScreenshotAccessibilityService.capturePollDelayMs(high));
+        assertEquals(350L, ScreenshotAccessibilityService.capturePollDelayMs(ultra));
+    }
+
+    @Test public void settledCaptureHonorsMotionAndPlatformGates() {
+        assertEquals(130L, ScreenshotAccessibilityService.settledCaptureDelayMs(
+                1_000L, 1_000L, 500L));
+        assertEquals(250L, ScreenshotAccessibilityService.settledCaptureDelayMs(
+                1_000L, 700L, 900L));
+        assertEquals(0L, ScreenshotAccessibilityService.settledCaptureDelayMs(
+                1_000L, 800L, 600L));
     }
 }

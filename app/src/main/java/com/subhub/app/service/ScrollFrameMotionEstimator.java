@@ -2,6 +2,8 @@ package com.subhub.app.service;
 
 import android.graphics.Bitmap;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * Estimates whole-feed motion from a tiny luminance thumbnail.
  *
@@ -19,6 +21,8 @@ final class ScrollFrameMotionEstimator implements AutoCloseable {
     private final int[] pixels = new int[SAMPLE_WIDTH * SAMPLE_HEIGHT];
     private int[] previous = new int[SAMPLE_WIDTH * SAMPLE_HEIGHT];
     private int[] current = new int[SAMPLE_WIDTH * SAMPLE_HEIGHT];
+    private final AtomicLong resetGeneration = new AtomicLong();
+    private long appliedResetGeneration;
     private boolean ready;
 
     synchronized Motion update(Bitmap frame) {
@@ -46,6 +50,11 @@ final class ScrollFrameMotionEstimator implements AutoCloseable {
             current[index] = (((color >>> 16) & 0xff) * 3
                     + ((color >>> 8) & 0xff) * 6 + (color & 0xff)) / 10;
         }
+        long requestedReset = resetGeneration.get();
+        if (requestedReset != appliedResetGeneration) {
+            ready = false;
+            appliedResetGeneration = requestedReset;
+        }
         if (!ready) {
             swapFrames();
             ready = true;
@@ -59,8 +68,10 @@ final class ScrollFrameMotionEstimator implements AutoCloseable {
                 Math.round(sampleMotion.dy * frame.getHeight() / (float) SAMPLE_HEIGHT));
     }
 
-    synchronized void reset() {
-        ready = false;
+    void reset() {
+        // Accessibility scroll callbacks run on the main thread. Never make them wait for an
+        // in-progress hardware-bitmap sample merely to invalidate the next comparison.
+        resetGeneration.incrementAndGet();
     }
 
     private void swapFrames() {
