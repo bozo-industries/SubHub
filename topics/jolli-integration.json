@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"stableSlug": "jolli-integration",
+	"title": "Jolli Integration",
+	"content": "## Overview\n\nThe project includes an integration with Jolli. Details of the integration's functionality are not yet documented here.\n\n## Local State Handling\n\nLocal Jolli integration state is excluded from version control via `.gitignore` (or equivalent ignore configuration). This means:\n\n- Any files generated or maintained locally as part of the Jolli integration (e.g., credentials, caches, sync state) are not tracked by git.\n- Developers should not expect this state to be shared or persisted across clones/checkouts.\n- Each environment/machine maintains its own local Jolli integration state independently.\n\n## Rationale\n\nIgnoring local integration state keeps machine-specific or sensitive/transient Jolli data out of the repository, preventing accidental commits of local-only artifacts.",
+	"relatedBranches": [
+		"master"
+	],
+	"sourceRefs": [
+		{
+			"type": "summary",
+			"id": "5166399247fc532d82919c80dbce6ec19bcc4be1",
+			"timestamp": "2026-08-24T11:29:15.000Z",
+			"branch": "master"
+		}
+	],
+	"lastUpdatedAt": "2026-08-24T11:29:19.528Z"
+}
