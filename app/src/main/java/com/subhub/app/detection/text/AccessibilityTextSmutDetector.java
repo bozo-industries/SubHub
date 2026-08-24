@@ -53,8 +53,13 @@ public final class AccessibilityTextSmutDetector {
                     Rect bounds = new Rect();
                     node.getBoundsInScreen(bounds);
                     if (isUsefulTextRegion(node, bounds, width, height)) {
-                        Detection detection = factory.create(
-                                text, bounds, config, width, height, semanticEnabled);
+                        SmutTextClassifier.Match match = factory.classify(
+                                text, config, semanticEnabled);
+                        Rect characterBounds = AccessibilityTextGeometry.resolve(
+                                node, text, match, width, height);
+                        Detection detection = factory.create(text,
+                                characterBounds == null ? bounds : characterBounds,
+                                match, width, height, "TEXT_SMUT_ACCESSIBILITY_");
                         if (detection != null) result.add(detection);
                     }
                 }

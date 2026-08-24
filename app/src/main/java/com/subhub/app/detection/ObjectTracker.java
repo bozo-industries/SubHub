@@ -63,7 +63,11 @@ public final class ObjectTracker {
                     + measuredX * velocitySmoothing;
             float dy = track.getVelocityY() * (1f - velocitySmoothing)
                     + measuredY * velocitySmoothing;
-            BBox rendered = smooth(track.getBox(), detection.getBox(), config.getTrackingSmoothing());
+            // Text geometry is already screen-aligned. Smoothing makes a corrected OCR bar trail
+            // behind its text and remain visibly displaced for several frames.
+            BBox rendered = "text_smut".equals(detection.getCategory())
+                    ? detection.getBox()
+                    : smooth(track.getBox(), detection.getBox(), config.getTrackingSmoothing());
             track.update(detection, rendered, dx, dy, nowNanos);
             detection.setTrackId(track.getId());
             matchedDetections[candidate.detectionIndex] = true;

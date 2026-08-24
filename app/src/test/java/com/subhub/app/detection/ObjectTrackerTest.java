@@ -87,7 +87,28 @@ public final class ObjectTrackerTest {
         assertEquals(id, afterScroll.getTrackId());
     }
 
+    @Test
+    public void correctedTextGeometrySnapsWithoutVisualSmoothingLag() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .trackingSmoothing(0.1f).build());
+        Detection estimate = textDetection(new BBox(60, 240, 500, 42));
+        int id = tracker.update(Collections.singletonList(estimate), 1_000_000_000L)
+                .get(0).getId();
+        Detection precise = textDetection(new BBox(76, 190, 470, 42));
+
+        List<TrackedObject> result = tracker.update(
+                Collections.singletonList(precise), 1_100_000_000L);
+
+        assertEquals(id, result.get(0).getId());
+        assertEquals(precise.getBox(), result.get(0).getBox());
+    }
+
     private static Detection detection(BBox box) {
         return new Detection("FEMALE_BREAST_EXPOSED", "breasts", 0.9f, box, true, true);
+    }
+
+    private static Detection textDetection(BBox box) {
+        return new Detection("TEXT_SMUT_OCR_EXPLICIT", "text_smut",
+                0.9f, box, true, false);
     }
 }
