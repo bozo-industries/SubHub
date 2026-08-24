@@ -66,7 +66,7 @@ This matrix separates behavior recovered from the user-owned APK from the mainta
 
 ## Licensed visual assets
 
-The maintained app now includes original, generated SubHub artwork: a purple demoness guardian, a wide grungy gothic header, a horned-shield launcher icon, a Popup Storm guardian-shield sample, and twelve illustrated achievement medallions. These files are project-owned and tracked. `Import-PrivateModelAssets.ps1` still retains the private badge-extraction path as archival tooling, but the runtime achievement catalog no longer reads or redistributes those files. The two detector models remain separately imported and are required only when protection or image analysis is started.
+The maintained app now includes original, generated SubHub artwork: a purple demoness guardian, a wide grungy gothic header, a horned-shield launcher icon, a Popup Storm guardian-shield sample, and 56 distinct illustrated achievement medallions. These files are project-owned and tracked. Related milestone tiers use coordinated visual families rather than repeating one category image. `Import-PrivateModelAssets.ps1` still retains the private badge-extraction path as archival tooling, but the runtime achievement catalog no longer reads or redistributes those files. The two detector models remain separately imported and are required only when protection or image analysis is started.
 
 ## Completion rule
 

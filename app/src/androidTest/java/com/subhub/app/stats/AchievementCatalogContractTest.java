@@ -14,6 +14,8 @@ import com.subhub.app.R;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.InputStream;
+import java.security.MessageDigest;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -27,6 +29,8 @@ public final class AchievementCatalogContractTest {
 
         assertEquals(56, manager.getTotalCount());
         Set<String> ids = new HashSet<>();
+        Set<Integer> badgeResources = new HashSet<>();
+        Set<String> badgeDigests = new HashSet<>();
         for (AchievementManager.Achievement achievement : manager.all()) {
             assertTrueNonEmpty(achievement.getId());
             assertTrueNonEmpty(achievement.getCategory());
@@ -34,17 +38,27 @@ public final class AchievementCatalogContractTest {
             if (!ids.add(achievement.getId())) {
                 throw new AssertionError("Duplicate achievement " + achievement.getId());
             }
+            if (!badgeResources.add(achievement.getBadgeArtRes())) {
+                throw new AssertionError("Reused badge artwork for " + achievement.getId());
+            }
+            assertEquals("achievement_badge_" + achievement.getId(),
+                    context.getResources().getResourceEntryName(achievement.getBadgeArtRes()));
+            if (!badgeDigests.add(sha256(context, achievement.getBadgeArtRes()))) {
+                throw new AssertionError("Duplicate badge pixels for " + achievement.getId());
+            }
         }
 
-        assertEquals(R.drawable.achievement_badge_app_mode,
+        assertEquals(56, badgeResources.size());
+        assertEquals(56, badgeDigests.size());
+        assertEquals(R.drawable.achievement_badge_app_mode_guardian,
                 find(manager, "app_mode_guardian").getBadgeArtRes());
-        assertEquals(R.drawable.achievement_badge_limits,
+        assertEquals(R.drawable.achievement_badge_limits_setter,
                 find(manager, "limits_setter").getBadgeArtRes());
-        assertEquals(R.drawable.achievement_badge_pact,
+        assertEquals(R.drawable.achievement_badge_pact_sealed,
                 find(manager, "pact_sealed").getBadgeArtRes());
-        assertEquals(R.drawable.achievement_badge_hardcore,
+        assertEquals(R.drawable.achievement_badge_hardcore_guardian,
                 find(manager, "hardcore_guardian").getBadgeArtRes());
-        assertEquals(R.drawable.achievement_badge_wallet,
+        assertEquals(R.drawable.achievement_badge_paypal_vault,
                 find(manager, "paypal_vault").getBadgeArtRes());
         assertFalse(find(manager, "app_mode_guardian").getCategory().isEmpty());
         assertFalse(find(manager, "paid_pause").getCategory().isEmpty());
@@ -60,6 +74,24 @@ public final class AchievementCatalogContractTest {
     private static void assertTrueNonEmpty(String value) {
         if (value == null || value.trim().isEmpty()) {
             throw new AssertionError("Expected non-empty achievement metadata");
+        }
+    }
+
+    private static String sha256(Context context, int resourceId) {
+        try (InputStream input = context.getResources().openRawResource(resourceId)) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                digest.update(buffer, 0, count);
+            }
+            StringBuilder result = new StringBuilder();
+            for (byte value : digest.digest()) {
+                result.append(String.format("%02x", value & 0xff));
+            }
+            return result.toString();
+        } catch (Exception error) {
+            throw new AssertionError("Could not hash achievement badge resource", error);
         }
     }
 }

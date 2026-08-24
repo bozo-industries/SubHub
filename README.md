@@ -9,7 +9,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Android-8.0%2B-c74cd8?style=flat-square&logo=android&logoColor=white" alt="Android 8.0+" />
-  <img src="https://img.shields.io/badge/release-v0.1.0-7e3db7?style=flat-square" alt="v0.1.0" />
+  <img src="https://img.shields.io/badge/release-v0.2.0-7e3db7?style=flat-square" alt="v0.2.0" />
   <img src="https://img.shields.io/badge/detection-on--device-ff2f9f?style=flat-square" alt="On-device detection" />
   <img src="https://img.shields.io/badge/source-human--editable-2b1038?style=flat-square" alt="Human-editable source" />
 </p>
@@ -20,6 +20,7 @@
   <a href="#censor">Censor</a> ·
   <a href="#limits">Limits</a> ·
   <a href="#wallet">Wallet</a> ·
+  <a href="#milestones">Milestones</a> ·
   <a href="#privacy--boundaries">Privacy</a> ·
   <a href="#build--release">Build</a>
 </p>
@@ -138,6 +139,24 @@ Every event is gated behind active service. Nothing is added merely because SubH
 </p>
 
 PayPal merchant credentials belong to the installation and are entered only in Dom mode. Secrets are encrypted with Android Keystore. Saved-wallet and automatic Hardcore checkout are separate opt-ins and remain subject to PayPal account eligibility.
+
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
+
+## Milestones
+
+SubHub keeps 56 illustrated achievements across censoring, protected time, streaks, customisation, limits, pacts, Hardcore Mode, and the Wallet. Every badge has its own original medallion; related tiers keep one recognisable motif and become richer as the milestone rises.
+
+<p align="center">
+  <img src="docs/screenshots/ui-map/page-map/01-censor-home.png" alt="Compact achievement preview on SubHub Home" width="300" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/ui-map/page-map/10-achievements.png" alt="SubHub illustrated achievement collection" width="300" />
+</p>
+
+<details>
+<summary><strong>See the complete badge collection</strong></summary>
+<br />
+<img src="docs/brand/achievement-badge-catalog.png" alt="All 56 original SubHub achievement medallions" width="100%" />
+</details>
 
 <p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
 
