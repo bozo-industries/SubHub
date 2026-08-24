@@ -27,7 +27,8 @@
                 <TextView android:id="@+id/button_back" android:layout_width="wrap_content"
                     android:layout_height="match_parent" android:gravity="center_vertical"
                     android:text="@string/back" android:textColor="@color/accent"
-                    android:textSize="11sp" android:textStyle="bold" />
+                    android:textSize="11sp" android:textStyle="bold"
+                    android:visibility="gone" />
                 <TextView android:id="@+id/button_edit_lock"
                     style="@style/Widget.SubHub.ControllerEdit"
                     android:layout_gravity="end|center_vertical"
@@ -409,14 +410,16 @@
                 android:layout_marginTop="16dp"
                 android:text="@string/confidence"
                 android:textColor="@color/text_secondary"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/confidence_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/accent"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -471,7 +474,8 @@
                 android:max="80"
                 android:min="10"
                 android:progressTint="@color/accent"
-                android:thumbTint="@color/accent" />
+                android:thumbTint="@color/accent"
+                android:visibility="gone" />
 
             <TextView
                 android:layout_width="wrap_content"
