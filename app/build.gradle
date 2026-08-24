@@ -2,6 +2,25 @@ plugins {
     id 'com.android.application'
 }
 
+def releaseVersion = new Properties()
+rootProject.file('version.properties').withInputStream { releaseVersion.load(it) }
+
+def signingStorePath = System.getenv('SUBHUB_SIGNING_STORE_FILE')
+def signingStorePassword = System.getenv('SUBHUB_SIGNING_STORE_PASSWORD')
+def signingKeyAlias = System.getenv('SUBHUB_SIGNING_KEY_ALIAS')
+def signingKeyPassword = System.getenv('SUBHUB_SIGNING_KEY_PASSWORD')
+def releaseSigningValues = [
+        signingStorePath,
+        signingStorePassword,
+        signingKeyAlias,
+        signingKeyPassword
+]
+def hasAnyReleaseSigning = releaseSigningValues.any { it != null && !it.trim().isEmpty() }
+def hasReleaseSigning = releaseSigningValues.every { it != null && !it.trim().isEmpty() }
+if (hasAnyReleaseSigning && !hasReleaseSigning) {
+    throw new GradleException('Release signing is incomplete; provide all SUBHUB_SIGNING_* variables')
+}
+
 android {
     namespace 'com.subhub.app'
     compileSdk 35
@@ -10,8 +29,8 @@ android {
         applicationId 'com.subhub.app'
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName '0.1.0-reconstruction'
+        versionCode releaseVersion.getProperty('VERSION_CODE').toInteger()
+        versionName releaseVersion.getProperty('VERSION_NAME')
 
         testInstrumentationRunner 'com.subhub.app.SubHubTestRunner'
     }
@@ -26,15 +45,33 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    // Native ONNX/OCR libraries dominate APK size. Emit installable per-ABI artifacts instead of
-    // one universal APK containing four copies; ARM64 is the phone build, x86_64 stays available
-    // for local emulator verification.
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(signingStorePath)
+                storePassword signingStorePassword
+                keyAlias signingKeyAlias
+                keyPassword signingKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    // Keep compact per-ABI artifacts for direct installs and also emit a universal APK for
+    // releases. The universal artifact supports every ABI shipped by our native dependencies.
     splits {
         abi {
             enable true
             reset()
-            include 'arm64-v8a', 'x86_64'
-            universalApk false
+            include 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            universalApk true
         }
     }
 
