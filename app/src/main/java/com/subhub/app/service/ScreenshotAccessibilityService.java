@@ -500,6 +500,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             pendingTrackerOffsetX.addAndGet(dx);
             pendingTrackerOffsetY.addAndGet(dy);
         }
+        android.util.DisplayMetrics tapMetrics = getResources().getDisplayMetrics();
+        tapTracker.offsetContent(dx, dy, tapMetrics.widthPixels, tapMetrics.heightPixels,
+                System.currentTimeMillis());
         if (!usesContinuousMotionInference(detectorConfig)) discardPendingInference();
         dwellTracker.onScroll();
         textRefreshRequested.set(true);
@@ -788,21 +791,46 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!recognitionActive || !packageName.equals(foregroundPackage) || penance == null) return;
         long now = System.currentTimeMillis();
         if (now - lastMatchedTapMillis < 500L) return;
-        AccessibilityNodeInfo source = event.getSource();
-        if (source == null) return;
-        Rect bounds = new Rect();
-        try {
-            source.getBoundsInScreen(bounds);
-        } finally {
-            source.recycle();
-        }
         android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
-        if (tapTracker.matchesClick(bounds.left, bounds.top, bounds.right, bounds.bottom,
-                metrics.widthPixels, metrics.heightPixels, now)) {
+        boolean matched = matchesTapSource(event.getSource(), metrics, now);
+        for (int index = 0; !matched && index < event.getRecordCount(); index++) {
+            matched = matchesTapSource(event.getRecord(index).getSource(), metrics, now);
+        }
+        if (matched) {
             lastMatchedTapMillis = now;
             int charged = penance.recordInfraction(PenanceInfraction.CENSORED_TAP, 1, now);
             PenanceChargeNotifier.show(this, penance,
                     PenanceInfraction.CENSORED_TAP, charged, now);
+        }
+    }
+
+    private boolean matchesTapSource(
+            AccessibilityNodeInfo source,
+            android.util.DisplayMetrics metrics,
+            long nowMillis) {
+        if (source == null) return false;
+        AccessibilityNodeInfo node = source;
+        Rect bounds = new Rect();
+        try {
+            // A few custom views put the event source on an empty virtual child. Only in that
+            // invalid-bounds case, try its immediate parents; valid unrelated child targets are
+            // never broadened to a whole post, which keeps Like/Reply taps from false charging.
+            for (int depth = 0; node != null && depth < 3; depth++) {
+                bounds.setEmpty();
+                node.getBoundsInScreen(bounds);
+                if (!bounds.isEmpty()) {
+                    return tapTracker.matchesClick(
+                            bounds.left, bounds.top, bounds.right, bounds.bottom,
+                            metrics.widthPixels, metrics.heightPixels, nowMillis);
+                }
+                AccessibilityNodeInfo parent = node.getParent();
+                if (node != source) node.recycle();
+                node = parent;
+            }
+            return false;
+        } finally {
+            if (node != null && node != source) node.recycle();
+            source.recycle();
         }
     }
 

@@ -49,6 +49,39 @@ public final class InfractionTrackerTest {
                 1_000, 2_000, 3_001L));
     }
 
+    @Test public void tapTargetFollowsTheVisibleCensorDuringScroll() {
+        CensorTapTracker tracker = new CensorTapTracker();
+        tracker.update(List.of(track(1, new BBox(100, 800, 200, 200))),
+                1_000, 2_000, 1_000L);
+
+        tracker.offsetContent(0, -300, 1_000, 2_000, 1_200L);
+
+        assertFalse(tracker.matchesClick(100, 800, 300, 1_000,
+                1_000, 2_000, 1_300L));
+        assertTrue(tracker.matchesClick(100, 500, 300, 700,
+                1_000, 2_000, 1_300L));
+    }
+
+    @Test public void overlappingNestedClickTargetMatchesWithoutContainingCensorCenter() {
+        CensorTapTracker tracker = new CensorTapTracker();
+        tracker.update(List.of(track(1, new BBox(100, 200, 200, 200))),
+                1_000, 2_000, 1_000L);
+
+        assertTrue(tracker.matchesClick(280, 240, 360, 360,
+                1_000, 2_000, 1_200L));
+    }
+
+    @Test public void predictedButStillVisibleTrackRemainsTappable() {
+        CensorTapTracker tracker = new CensorTapTracker();
+        TrackedObject predicted = track(1, new BBox(100, 200, 100, 100));
+        predicted.miss(new BBox(110, 210, 100, 100));
+
+        tracker.update(List.of(predicted), 1_000, 2_000, 1_000L);
+
+        assertTrue(tracker.matchesClick(100, 200, 240, 340,
+                1_000, 2_000, 1_200L));
+    }
+
     private static TrackedObject track(int id, BBox box) {
         return new TrackedObject(id, detection(box), 0L);
     }

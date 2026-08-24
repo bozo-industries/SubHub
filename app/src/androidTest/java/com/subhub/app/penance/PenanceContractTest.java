@@ -171,6 +171,19 @@ public final class PenanceContractTest {
                 event.getInfraction() == PenanceInfraction.WATCHED_APP_OPEN));
     }
 
+    @Test public void enabledCensorTapCreatesItsOwnLedgerEntry() {
+        long now = 1_725_552_000_000L;
+        Map<PenanceInfraction, Integer> rules = new EnumMap<>(PenanceInfraction.class);
+        rules.put(PenanceInfraction.CENSORED_TAP, 250);
+        manager.configure(true, rules, 1_000, 5_000, 0, 10, 1);
+
+        assertEquals(250, manager.recordInfraction(
+                PenanceInfraction.CENSORED_TAP, 1, now));
+        assertTrue(manager.snapshot(now).getEvents().stream().anyMatch(event ->
+                event.getInfraction() == PenanceInfraction.CENSORED_TAP
+                        && event.getAmountCents() == 250));
+    }
+
     @Test public void newDetectionRuleBillsOnlyAtConfiguredBatchBoundary() {
         long now = 1_725_552_000_000L;
         Map<PenanceInfraction, Integer> rules = new EnumMap<>(PenanceInfraction.class);
