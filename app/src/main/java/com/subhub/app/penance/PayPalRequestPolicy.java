@@ -28,6 +28,11 @@ public final class PayPalRequestPolicy {
         return setupTokenId + "-vault-confirm";
     }
 
+    public static boolean hasRequestBody(String method, String body) {
+        if (body == null || body.isEmpty()) return false;
+        return !"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method);
+    }
+
     public static boolean isTransientStatus(int status) {
         return status == 408 || status == 429 || status >= 500;
     }

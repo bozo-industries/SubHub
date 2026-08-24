@@ -690,7 +690,7 @@
     <string name="paypal_sandbox_cleared">PayPal disconnected.</string>
     <string name="paypal_sandbox_invalid">Enter both the client ID and client secret.</string>
     <string name="paypal_sandbox_store_failed">The credentials could not be saved securely.</string>
-    <string name="paypal_vault_help">Authorize a payer wallet once for future tribute. Linking creates no charge.</string>
+    <string name="paypal_vault_help">Authorize a payer wallet once for future tribute. Linking creates no charge. When PayPal says it is done, close the tab and return here.</string>
     <string name="paypal_vault_status_off">SAVED WALLET OFF</string>
     <string name="paypal_vault_status_requested">PAYER WALLET NOT LINKED</string>
     <string name="paypal_vault_status_pending">PAYPAL APPROVAL PENDING</string>
@@ -700,13 +700,14 @@
     <string name="paypal_wallet_link">LINK PAYER WALLET</string>
     <string name="paypal_wallet_relink">RELINK PAYER WALLET</string>
     <string name="paypal_wallet_resume">RESUME WALLET APPROVAL</string>
-    <string name="paypal_wallet_linking">OPENING PAYPAL…</string>
+    <string name="paypal_wallet_linking">CHECKING PAYPAL…</string>
     <string name="paypal_wallet_connect_first">Connect the merchant API first.</string>
     <string name="paypal_wallet_open_failed">PayPal approval could not be opened.</string>
     <string name="paypal_vault_link_missing">That wallet approval is missing or expired. Start it again.</string>
     <string name="paypal_vault_link_cancelled">Wallet linking was cancelled.</string>
     <string name="paypal_vault_link_failed">PayPal could not save the wallet: %1$s</string>
     <string name="paypal_vault_link_success">Payer wallet linked. Future authorized tribute can use it.</string>
+    <string name="paypal_vault_still_pending">PayPal is still waiting for approval. Finish it there, then return to SubHub.</string>
     <string name="paypal_vault_not_enabled">PayPal has not enabled Wallet vaulting for this merchant. Ask PayPal to enable billing agreements and reference transactions for this Live REST app.</string>
     <string name="paypal_auto_pay_enable">Auto-send tribute in Hardcore Mode</string>
     <string name="paypal_auto_pay_help">When Hardcore Mode and a pact are active, eligible tribute is sent after its grace window, within both caps.</string>

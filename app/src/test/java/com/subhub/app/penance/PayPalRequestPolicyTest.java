@@ -28,4 +28,11 @@ public final class PayPalRequestPolicyTest {
         assertFalse(PayPalRequestPolicy.isTransientStatus(401));
         assertFalse(PayPalRequestPolicy.isTransientStatus(422));
     }
+
+    @Test public void readOnlyRequestsNeverOpenAnOutputStream() {
+        assertFalse(PayPalRequestPolicy.hasRequestBody("GET", "{}"));
+        assertFalse(PayPalRequestPolicy.hasRequestBody("HEAD", "{}"));
+        assertFalse(PayPalRequestPolicy.hasRequestBody("POST", ""));
+        assertTrue(PayPalRequestPolicy.hasRequestBody("POST", "{}"));
+    }
 }

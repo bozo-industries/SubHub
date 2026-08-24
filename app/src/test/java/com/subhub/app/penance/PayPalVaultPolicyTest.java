@@ -48,4 +48,11 @@ public final class PayPalVaultPolicyTest {
         assertEquals("PayPal ••••5678",
                 PayPalVaultPolicy.maskedPayer("", "payer-12345678"));
     }
+
+    @Test public void onlyApprovedSetupTokensCanBeExchanged() {
+        assertTrue(PayPalVaultPolicy.isSetupApproved("APPROVED"));
+        assertTrue(PayPalVaultPolicy.isSetupApproved(" vaulted "));
+        assertFalse(PayPalVaultPolicy.isSetupApproved("PAYER_ACTION_REQUIRED"));
+        assertFalse(PayPalVaultPolicy.isSetupApproved("CREATED"));
+    }
 }
