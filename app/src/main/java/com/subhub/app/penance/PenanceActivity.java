@@ -352,8 +352,10 @@ public final class PenanceActivity extends AppCompatActivity {
         checkoutBusy = true;
         render();
         PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
+        boolean requestVault = paypalCredentials.vaultState().status()
+                != PayPalCredentialStore.VaultStatus.UNAVAILABLE;
         paypalClient.createOrder(credentials, settlement.getId(),
-                settlement.getAmountCents(), result -> {
+                settlement.getAmountCents(), requestVault, result -> {
                     checkoutBusy = false;
                     if (binding == null) return;
                     if (!result.isSuccess()) {
@@ -367,6 +369,9 @@ public final class PenanceActivity extends AppCompatActivity {
                         return;
                     }
                     PayPalOrdersClient.Order order = result.value();
+                    if (!order.vaultRequested()) {
+                        paypalCredentials.markVaultUnavailable(credentials);
+                    }
                     activeClientMetadataId = order.clientMetadataId();
                     manager.bindOrder(settlement.getId(), order.id(), order.approvalUrl(),
                             credentials.boundaryId());
@@ -442,9 +447,12 @@ public final class PenanceActivity extends AppCompatActivity {
                         return;
                     }
                     PayPalOrdersClient.Capture capture = result.value();
-                    paypalCredentials.recordVaultResult(credentials,
-                            capture.vaultStatus(), capture.vaultId(), capture.customerId(),
-                            capture.payerEmail(), capture.payerAccountId());
+                    if (paypalCredentials.vaultState().status()
+                            != PayPalCredentialStore.VaultStatus.UNAVAILABLE) {
+                        paypalCredentials.recordVaultResult(credentials,
+                                capture.vaultStatus(), capture.vaultId(), capture.customerId(),
+                                capture.payerEmail(), capture.payerAccountId());
+                    }
                     if (!manager.completeSettlement(settlementId, snapshot.getCheckoutCents())) {
                         toast(R.string.penance_payment_mismatch);
                     } else toast(R.string.penance_payment_complete);

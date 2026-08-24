@@ -46,6 +46,12 @@ public final class PayPalOrdersClient {
 
     public void createOrder(PayPalCredentialStore.Credentials credentials,
             String settlementId, int amountCents, Callback<Order> callback) {
+        createOrder(credentials, settlementId, amountCents, true, callback);
+    }
+
+    public void createOrder(PayPalCredentialStore.Credentials credentials,
+            String settlementId, int amountCents, boolean requestVault,
+            Callback<Order> callback) {
         network.execute(() -> {
             try {
                 String clientMetadataId = riskData.collect(
@@ -61,25 +67,28 @@ public final class PayPalOrdersClient {
                         .put("reference_id", settlementId)
                         .put("custom_id", settlementId)
                         .put("amount", amount);
-                JSONObject body = new JSONObject()
-                        .put("intent", "CAPTURE")
-                        .put("purchase_units", new JSONArray().put(unit))
-                        .put("application_context", new JSONObject()
-                                .put("user_action", "PAY_NOW")
-                                .put("shipping_preference", "NO_SHIPPING")
-                                .put("return_url", callbackUrl(RETURN_URL, clientMetadataId))
-                                .put("cancel_url", callbackUrl(CANCEL_URL, clientMetadataId)));
-                body.put("payment_source", new JSONObject().put("paypal",
-                        new JSONObject().put("attributes", new JSONObject().put("vault",
-                                new JSONObject()
-                                        .put("store_in_vault", "ON_SUCCESS")
-                                        .put("usage_type", "MERCHANT")
-                                        .put("usage_pattern", "UNSCHEDULED_POSTPAID")
-                                        .put("customer_type", "CONSUMER")))));
-                JSONObject response = request(credentials.environment(), "POST",
-                        "/v2/checkout/orders", token,
-                        body.toString(), PayPalRequestPolicy.createRequestId(settlementId),
-                        clientMetadataId);
+                boolean vaultRequested = requestVault;
+                JSONObject response;
+                try {
+                    response = request(credentials.environment(), "POST",
+                            "/v2/checkout/orders", token,
+                            createOrderBody(unit, clientMetadataId, vaultRequested).toString(),
+                            vaultRequested
+                                    ? PayPalRequestPolicy.createRequestId(settlementId)
+                                    : PayPalRequestPolicy.standardCreateRequestId(settlementId),
+                            clientMetadataId);
+                } catch (PayPalApiException apiError) {
+                    if (!vaultRequested || !PayPalVaultPolicy.shouldRetryWithoutVault(
+                            apiError.status, apiError.context)) {
+                        throw apiError;
+                    }
+                    response = request(credentials.environment(), "POST",
+                            "/v2/checkout/orders", token,
+                            createOrderBody(unit, clientMetadataId, false).toString(),
+                            PayPalRequestPolicy.standardCreateRequestId(settlementId),
+                            clientMetadataId);
+                    vaultRequested = false;
+                }
                 String orderId = response.optString("id", "");
                 String approvalUrl = link(response.optJSONArray("links"), "approve");
                 if (approvalUrl.isEmpty()) {
@@ -89,11 +98,33 @@ public final class PayPalOrdersClient {
                     throw new IllegalStateException("PayPal order response was incomplete");
                 }
                 deliver(callback, Result.success(
-                        new Order(orderId, approvalUrl, clientMetadataId)));
+                        new Order(orderId, approvalUrl, clientMetadataId, vaultRequested)));
             } catch (Exception error) {
                 deliver(callback, Result.failure(safeMessage(error), classify(error)));
             }
         });
+    }
+
+    private static JSONObject createOrderBody(JSONObject unit, String clientMetadataId,
+            boolean requestVault) throws Exception {
+        JSONObject experience = new JSONObject()
+                .put("user_action", "PAY_NOW")
+                .put("shipping_preference", "NO_SHIPPING")
+                .put("return_url", callbackUrl(RETURN_URL, clientMetadataId))
+                .put("cancel_url", callbackUrl(CANCEL_URL, clientMetadataId));
+        JSONObject paypal = new JSONObject().put("experience_context", experience);
+        if (requestVault) {
+            paypal.put("attributes", new JSONObject().put("vault",
+                    new JSONObject()
+                            .put("store_in_vault", "ON_SUCCESS")
+                            .put("usage_type", "MERCHANT")
+                            .put("usage_pattern", "UNSCHEDULED_POSTPAID")
+                            .put("customer_type", "CONSUMER")));
+        }
+        return new JSONObject()
+                .put("intent", "CAPTURE")
+                .put("purchase_units", new JSONArray().put(unit))
+                .put("payment_source", new JSONObject().put("paypal", paypal));
     }
 
     public void captureOrder(PayPalCredentialStore.Credentials credentials,
@@ -320,18 +351,44 @@ public final class PayPalOrdersClient {
         if (status < 200 || status >= 300) {
             String detail = "PayPal returned HTTP " + status;
             String issue = "";
+            StringBuilder context = new StringBuilder();
             try {
                 JSONObject error = new JSONObject(body);
-                String description = error.optString("message", "");
-                if (!description.isEmpty()) detail += ": " + description;
+                appendContext(context, error.optString("name", ""));
+                appendContext(context, error.optString("message", ""));
                 JSONArray details = error.optJSONArray("details");
-                JSONObject first = details == null ? null : details.optJSONObject(0);
-                issue = first == null ? "" : first.optString("issue", "");
+                String description = "";
+                if (details != null) {
+                    for (int index = 0; index < details.length(); index++) {
+                        JSONObject item = details.optJSONObject(index);
+                        if (item == null) continue;
+                        String itemIssue = item.optString("issue", "");
+                        String itemDescription = item.optString("description", "");
+                        if (issue.isEmpty()) issue = itemIssue;
+                        if (description.isEmpty()) description = itemDescription;
+                        appendContext(context, itemIssue);
+                        appendContext(context, item.optString("field", ""));
+                        appendContext(context, itemDescription);
+                    }
+                }
+                if (issue.isEmpty()) issue = error.optString("name", "");
+                if (!issue.isEmpty()) detail += ": " + issue;
+                if (!description.isEmpty()) detail += " — " + description;
+                else {
+                    String message = error.optString("message", "");
+                    if (!message.isEmpty()) detail += ": " + message;
+                }
             } catch (Exception ignored) {}
             if (debugId != null && !debugId.isEmpty()) detail += " · debug " + debugId;
-            throw new PayPalApiException(status, issue, detail);
+            throw new PayPalApiException(status, issue, context.toString(), detail);
         }
         return body.isEmpty() ? new JSONObject() : new JSONObject(body);
+    }
+
+    private static void appendContext(StringBuilder target, String value) {
+        if (value == null || value.trim().isEmpty()) return;
+        if (target.length() > 0) target.append(' ');
+        target.append(value.trim());
     }
 
     private static boolean retryable(Exception error) {
@@ -401,7 +458,8 @@ public final class PayPalOrdersClient {
         }
         if (error instanceof PayPalApiException) {
             PayPalApiException api = (PayPalApiException) error;
-            if (PayPalVaultPolicy.isUnavailableIssue(api.issue)) {
+            if (PayPalVaultPolicy.isUnavailableIssue(api.issue)
+                    || PayPalVaultPolicy.shouldRetryWithoutVault(api.status, api.context)) {
                 return ErrorKind.VAULT_UNAVAILABLE;
             }
             if (reauthorizationIssue(api.issue)) {
@@ -429,10 +487,13 @@ public final class PayPalOrdersClient {
     private static final class PayPalApiException extends IOException {
         private final int status;
         private final String issue;
-        private PayPalApiException(int status, String issue, String message) {
+        private final String context;
+        private PayPalApiException(
+                int status, String issue, String context, String message) {
             super(message);
             this.status = status;
             this.issue = issue == null ? "" : issue;
+            this.context = context == null ? "" : context;
         }
     }
 
@@ -476,14 +537,18 @@ public final class PayPalOrdersClient {
         private final String id;
         private final String approvalUrl;
         private final String clientMetadataId;
-        private Order(String id, String approvalUrl, String clientMetadataId) {
+        private final boolean vaultRequested;
+        private Order(String id, String approvalUrl, String clientMetadataId,
+                boolean vaultRequested) {
             this.id = id;
             this.approvalUrl = approvalUrl;
             this.clientMetadataId = clientMetadataId;
+            this.vaultRequested = vaultRequested;
         }
         public String id() { return id; }
         public String approvalUrl() { return approvalUrl; }
         public String clientMetadataId() { return clientMetadataId; }
+        public boolean vaultRequested() { return vaultRequested; }
     }
 
     public static final class Capture {

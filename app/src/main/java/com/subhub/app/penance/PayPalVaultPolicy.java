@@ -32,6 +32,20 @@ final class PayPalVaultPolicy {
         return vaultRelated && unavailable;
     }
 
+    /** A failed create-order call is safe to repeat without vault instructions. */
+    static boolean shouldRetryWithoutVault(int status, String errorContext) {
+        if (status != 400 && status != 403 && status != 422) return false;
+        String normalized = errorContext == null
+                ? "" : errorContext.toUpperCase(Locale.ROOT);
+        return normalized.contains("/PAYMENT_SOURCE/PAYPAL/ATTRIBUTES/VAULT")
+                || normalized.contains("PAYPAL.ATTRIBUTES.VAULT")
+                || normalized.contains("VAULT_")
+                || normalized.contains("VAULTING")
+                || normalized.contains("BILLING_AGREEMENT")
+                || normalized.contains("PAYMENT_TOKEN")
+                || normalized.contains("SAVE_PAYMENT_METHOD");
+    }
+
     static String maskedPayer(String email, String accountId) {
         String cleanEmail = email == null ? "" : email.trim();
         int at = cleanEmail.indexOf('@');

@@ -29,6 +29,17 @@ public final class PayPalVaultPolicyTest {
         assertFalse(PayPalVaultPolicy.isUnavailableIssue("PERMISSION_DENIED"));
     }
 
+    @Test public void vaultPayloadErrorsRetryAsStandardCheckout() {
+        assertTrue(PayPalVaultPolicy.shouldRetryWithoutVault(422,
+                "INVALID_PARAMETER_VALUE /payment_source/paypal/attributes/vault/usage_pattern"));
+        assertTrue(PayPalVaultPolicy.shouldRetryWithoutVault(403,
+                "PERMISSION_DENIED save_payment_method"));
+        assertFalse(PayPalVaultPolicy.shouldRetryWithoutVault(422,
+                "CURRENCY_NOT_SUPPORTED EUR"));
+        assertFalse(PayPalVaultPolicy.shouldRetryWithoutVault(401,
+                "VAULT_NOT_ENABLED"));
+    }
+
     @Test public void payerIdentityIsMaskedBeforeDisplay() {
         assertEquals("a•••@e•••.com",
                 PayPalVaultPolicy.maskedPayer("alice@example.com", ""));

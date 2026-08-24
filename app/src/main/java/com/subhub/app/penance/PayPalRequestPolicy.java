@@ -8,6 +8,10 @@ public final class PayPalRequestPolicy {
         return settlementId + "-create";
     }
 
+    public static String standardCreateRequestId(String settlementId) {
+        return settlementId + "-create-standard";
+    }
+
     public static String captureRequestId(String settlementId) {
         return settlementId + "-capture";
     }
