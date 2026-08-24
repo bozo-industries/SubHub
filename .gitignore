@@ -39,6 +39,7 @@ payment-server/data/
 
 # IDE / OS
 .idea/
+.claude/settings.local.json
 *.iml
 .DS_Store
 Thumbs.db
