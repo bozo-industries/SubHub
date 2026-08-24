@@ -707,7 +707,7 @@
     <string name="paypal_vault_link_cancelled">Wallet linking was cancelled.</string>
     <string name="paypal_vault_link_failed">PayPal could not save the wallet: %1$s</string>
     <string name="paypal_vault_link_success">Payer wallet linked. Future authorized tribute can use it.</string>
-    <string name="paypal_vault_not_enabled">PayPal Wallet vaulting is not enabled yet. Turn on PayPal and Venmo under the Live app’s Payment methods and confirm business eligibility, then try again.</string>
+    <string name="paypal_vault_not_enabled">PayPal has not enabled Wallet vaulting for this merchant. Ask PayPal to enable billing agreements and reference transactions for this Live REST app.</string>
     <string name="paypal_auto_pay_enable">Auto-send tribute in Hardcore Mode</string>
     <string name="paypal_auto_pay_help">When Hardcore Mode and a pact are active, eligible tribute is sent after its grace window, within both caps.</string>
     <string name="paypal_auto_pay_allow_title">AUTO-SEND HARDCORE TRIBUTE?</string>
