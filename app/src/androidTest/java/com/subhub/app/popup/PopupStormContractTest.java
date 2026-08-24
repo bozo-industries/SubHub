@@ -74,7 +74,7 @@ public final class PopupStormContractTest {
 
     @Test public void generatedSampleAndDenialFiltersDecode() throws Exception {
         Bitmap sample = BitmapFactory.decodeStream(
-                context.getAssets().open("popup_storm/guardian_shield.png"));
+                context.getAssets().open("popup_storm/guardian_shield.webp"));
         assertNotNull(sample);
         Bitmap pixelated = DenialFilter.pixelate(sample, 75);
         Bitmap blurred = DenialFilter.blur(sample, 75);

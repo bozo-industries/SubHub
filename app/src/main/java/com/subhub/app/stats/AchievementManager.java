@@ -174,20 +174,20 @@ public final class AchievementManager {
 
     private static List<Achievement> achievements() {
         List<Achievement> values = Arrays.asList(
-                a("first_block", R.string.achievement_first_block, R.string.achievement_desc_first_block, "★", "blocks", "badge_newcomer.png", false),
+                a("first_block", R.string.achievement_first_block, R.string.achievement_desc_first_block, "★", "blocks", "badge_newcomer.webp", false),
                 a("blocks_10", R.string.achievement_getting_started, R.string.achievement_desc_blocks_10, "10", "blocks", null, false),
                 a("blocks_100", R.string.achievement_centurion, R.string.achievement_desc_blocks_100, "100", "blocks", null, false),
                 a("blocks_1000", R.string.achievement_block_master, R.string.achievement_desc_blocks_1000, "♛", "blocks", null, false),
                 a("blocks_10000", R.string.achievement_ultimate_blocker, R.string.achievement_desc_blocks_10000, "♚", "blocks", null, false),
-                a("time_1hr", R.string.achievement_first_hour, R.string.achievement_desc_time_1hr, "◷", "time", "badge_bronze.png", false),
-                a("time_10hr", R.string.achievement_dedicated, R.string.achievement_desc_time_10hr, "◷", "time", "badge_silver.png", false),
-                a("time_50hr", R.string.achievement_committed, R.string.achievement_desc_time_50hr, "◷", "time", "badge_gold.png", false),
-                a("time_200hr", R.string.achievement_platinum_protection, R.string.achievement_desc_time_200hr, "◆", "time", "badge_diamond.png", false),
+                a("time_1hr", R.string.achievement_first_hour, R.string.achievement_desc_time_1hr, "◷", "time", "badge_bronze.webp", false),
+                a("time_10hr", R.string.achievement_dedicated, R.string.achievement_desc_time_10hr, "◷", "time", "badge_silver.webp", false),
+                a("time_50hr", R.string.achievement_committed, R.string.achievement_desc_time_50hr, "◷", "time", "badge_gold.webp", false),
+                a("time_200hr", R.string.achievement_platinum_protection, R.string.achievement_desc_time_200hr, "◆", "time", "badge_diamond.webp", false),
                 a("first_session", R.string.achievement_first_session, R.string.achievement_desc_first_session, "▶", "sessions", null, false),
                 a("sessions_10", R.string.achievement_regular, R.string.achievement_desc_sessions_10, "↻", "sessions", null, false),
-                a("sessions_100", R.string.achievement_veteran, R.string.achievement_desc_sessions_100, "✪", "sessions", "badge_veteran.png", false),
+                a("sessions_100", R.string.achievement_veteran, R.string.achievement_desc_sessions_100, "✪", "sessions", "badge_veteran.webp", false),
                 a("marathon", R.string.achievement_marathon, R.string.achievement_desc_marathon, "⌁", "sessions", null, false),
-                a("streak_7", R.string.achievement_week_warrior, R.string.achievement_desc_streak_7, "♨", "streaks", "badge_dedicated.png", false),
+                a("streak_7", R.string.achievement_week_warrior, R.string.achievement_desc_streak_7, "♨", "streaks", "badge_dedicated.webp", false),
                 a("streak_30", R.string.achievement_month_master, R.string.achievement_desc_streak_30, "♨", "streaks", null, false),
                 a("midnight_blocker", R.string.achievement_midnight_blocker, R.string.achievement_desc_midnight, "☾", "hidden", null, true),
                 a("early_bird", R.string.achievement_early_bird, R.string.achievement_desc_early_bird, "☀", "hidden", null, true),
@@ -215,7 +215,7 @@ public final class AchievementManager {
                 a("ntr_100", R.string.achievement_get_cucked_2, R.string.achievement_desc_get_cucked_2, "♈", "hidden", null, true),
                 a("ntr_200", R.string.achievement_get_cucked_3, R.string.achievement_desc_get_cucked_3, "♈", "hidden", null, true),
                 a("ntr_500", R.string.achievement_get_cucked_4, R.string.achievement_desc_get_cucked_4, "♈", "hidden", null, true),
-                a("legend", R.string.achievement_legend, R.string.achievement_desc_legend, "★", "special", "badge_legend.png", false));
+                a("legend", R.string.achievement_legend, R.string.achievement_desc_legend, "★", "special", "badge_legend.webp", false));
         return Collections.unmodifiableList(values);
     }
 

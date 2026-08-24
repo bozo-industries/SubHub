@@ -18,7 +18,7 @@ final class PopupLibrary {
 
     void rescan(String packDirectory, List<String> folders) {
         LinkedHashSet<String> found = new LinkedHashSet<>();
-        found.add("asset://popup_storm/guardian_shield.png");
+        found.add("asset://popup_storm/guardian_shield.webp");
         if (packDirectory != null && !packDirectory.isBlank()) {
             found.addAll(cache.listFolderImages(packDirectory, PopupStormSettings.MAX_FOLDER_IMAGES));
         }
