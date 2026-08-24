@@ -69,18 +69,16 @@ public final class OcrTextSmutDetector implements AutoCloseable {
             int sourceHeight) {
         List<Detection> ocrDetections = new ArrayList<>();
         for (Text.TextBlock block : result.getTextBlocks()) {
-            boolean lineMatched = false;
+            List<OcrTextLayout.Line> lines = new ArrayList<>();
             for (Text.Line line : block.getLines()) {
-                Detection detection = create(line.getText(), line.getBoundingBox(),
-                        config, ocrWidth, ocrHeight);
-                if (detection != null) {
-                    ocrDetections.add(detection);
-                    lineMatched = true;
+                if (line.getBoundingBox() != null) {
+                    lines.add(new OcrTextLayout.Line(line.getText(), line.getBoundingBox()));
                 }
             }
-            // A semantic phrase can span line wrapping. Only add the block fallback when no
-            // precise line already matched, keeping OCR boxes tightly aligned to visible text.
-            if (!lineMatched) {
+            if (!lines.isEmpty()) {
+                ocrDetections.addAll(OcrTextLayout.classify(
+                        lines, config, factory, ocrWidth, ocrHeight));
+            } else {
                 Detection blockDetection = create(block.getText(), block.getBoundingBox(),
                         config, ocrWidth, ocrHeight);
                 if (blockDetection != null) ocrDetections.add(blockDetection);

@@ -73,7 +73,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final long SETTLED_SCROLL_REFRESH_MS = 140L;
     private static final long MOTION_SETTLE_MS = 130L;
     private static final long ACCESSIBILITY_SCREENSHOT_INTERVAL_MS = 350L;
-    private static final long OCR_INTERVAL_MS = 700L;
+    private static final long OCR_INTERVAL_MS = 350L;
     private static final int OCR_MAX_DIMENSION = 1_600;
 
     private final AtomicBoolean processing = new AtomicBoolean();
@@ -641,7 +641,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 Rect screen = screenBounds();
                 List<Detection> screenDetections = accessibilityText.detect(
                         root, config, screen.width(), screen.height(),
-                        usesSemanticTextModel(detectorConfig));
+                        usesSemanticTextModel(detectorConfig),
+                        usesScreenshotOcr(detectorConfig));
                 List<Detection> mapped = TextDetectionCoordinateMapper.screenToCapture(
                         screenDetections, screen.width(), screen.height(),
                         captureWidth, captureHeight);

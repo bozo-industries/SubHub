@@ -23,13 +23,14 @@ public final class DetectionFusionTest {
         assertEquals(new BBox(100, 200, 300, 80), merged.get(0).getBox());
     }
 
-    @Test public void adjacentExplicitLinesBecomeOneStablePostRegion() {
+    @Test public void adjacentExplicitLinesRemainSeparateRenderedBars() {
         Detection first = text(new BBox(80, 300, 500, 48));
         Detection second = text(new BBox(90, 354, 480, 48));
         List<Detection> merged = DetectionFusion.merge(
                 Collections.emptyList(), Arrays.asList(first, second));
-        assertEquals(1, merged.size());
-        assertEquals(new BBox(80, 300, 500, 102), merged.get(0).getBox());
+        assertEquals(2, merged.size());
+        assertEquals(first.getBox(), merged.get(0).getBox());
+        assertEquals(second.getBox(), merged.get(1).getBox());
     }
 
     @Test public void distantPostsRemainSeparate() {
@@ -65,7 +66,7 @@ public final class DetectionFusionTest {
 
     @Test public void preciseOcrLineReplacesNearbyAccessibilityEstimate() {
         Detection accessibility = new Detection("TEXT_SMUT_ACCESSIBILITY_EXPLICIT",
-                "text_smut", 0.9f, new BBox(60, 240, 500, 42), true, false);
+                "text_smut", 0.9f, new BBox(60, 220, 500, 50), true, false);
         Detection ocr = new Detection("TEXT_SMUT_OCR_EXPLICIT",
                 "text_smut", 0.9f, new BBox(76, 190, 470, 42), true, false);
 
