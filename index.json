@@ -16,6 +16,22 @@
 				"insertions": 1,
 				"deletions": 0
 			}
+		},
+		{
+			"commitHash": "8b13e1fe62150fb28e46de7f41f1529211050a1b",
+			"parentCommitHash": null,
+			"treeHash": "cbd1a5a69cb6cdea80676946cd0e852576ae7103",
+			"commitType": "commit",
+			"commitMessage": "[ci] make the Gradle wrapper executable",
+			"commitDate": "2026-08-24T11:34:54.000Z",
+			"branch": "master",
+			"generatedAt": "2026-08-24T11:34:57.176Z",
+			"topicCount": 0,
+			"diffStats": {
+				"filesChanged": 1,
+				"insertions": 0,
+				"deletions": 0
+			}
 		}
 	]
 }
