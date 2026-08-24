@@ -2,7 +2,6 @@ package com.subhub.app.service;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
-import android.accessibilityservice.TouchInteractionController;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.hardware.HardwareBuffer;
@@ -11,8 +10,6 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.Display;
-import android.view.MotionEvent;
-import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -136,13 +133,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private PenanceManager penance;
     private final DwellInfractionTracker dwellTracker = new DwellInfractionTracker();
     private final CensorTapTracker tapTracker = new CensorTapTracker();
-    private TouchInteractionController touchInteractionController;
-    private TouchInteractionController.Callback touchInteractionCallback;
-    private boolean trackingCensorTouch;
-    private float censorTouchDownX;
-    private float censorTouchDownY;
-    private int censorTouchPointerId = -1;
-    private int touchSlopPixels;
     private long lastMatchedTapMillis;
     private long foregroundSinceMillis;
     private String lastBlockedPackage = "";
@@ -189,11 +179,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         motionEstimator = new ScrollFrameMotionEstimator();
         settings.preferences().registerOnSharedPreferenceChangeListener(listener);
         running = true;
-        touchSlopPixels = ViewConfiguration.get(this).getScaledTouchSlop();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerTouchInteractionObserver();
-        }
-
         configureAccessibilityCadence(settings.loadDetectorConfig());
 
         worker = Executors.newSingleThreadScheduledExecutor();
@@ -969,7 +954,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     PenanceInfraction.WATCHED_APP_OPEN, charged, now);
         }
         dwellTracker.clear();
-        trackingCensorTouch = false;
         tapTracker.clear();
         resetScrollCompensation();
         if (recognitionActive && worker != null) {
@@ -1009,96 +993,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         int charged = penance.recordInfraction(PenanceInfraction.CENSORED_TAP, 1, nowMillis);
         PenanceChargeNotifier.show(this, penance,
                 PenanceInfraction.CENSORED_TAP, charged, nowMillis);
-    }
-
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private void registerTouchInteractionObserver() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
-                || touchInteractionCallback != null) return;
-        touchInteractionController = getTouchInteractionController(Display.DEFAULT_DISPLAY);
-        touchInteractionCallback = new TouchInteractionController.Callback() {
-            @Override public void onMotionEvent(MotionEvent event) {
-                handleTouchInteraction(event);
-            }
-
-            @Override public void onStateChanged(int state) {
-                if (state == TouchInteractionController.STATE_CLEAR) resetCensorTouch();
-            }
-        };
-        touchInteractionController.registerCallback(main::post, touchInteractionCallback);
-    }
-
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private void handleTouchInteraction(MotionEvent event) {
-        if (event == null || touchInteractionController == null) return;
-        try {
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    censorTouchDownX = event.getX();
-                    censorTouchDownY = event.getY();
-                    censorTouchPointerId = event.getPointerId(0);
-                    android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
-                    trackingCensorTouch = recognitionActive && penance != null
-                            && tapTracker.matchesPoint(
-                            censorTouchDownX, censorTouchDownY,
-                            metrics.widthPixels, metrics.heightPixels,
-                            System.currentTimeMillis());
-                    if (!trackingCensorTouch) touchInteractionController.requestDelegating();
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    if (!trackingCensorTouch) break;
-                    int pointerIndex = event.findPointerIndex(censorTouchPointerId);
-                    if (pointerIndex < 0 || movedPastTapSlop(
-                            event.getX(pointerIndex), event.getY(pointerIndex))) {
-                        resetCensorTouch();
-                        touchInteractionController.requestDelegating();
-                    }
-                    break;
-                case MotionEvent.ACTION_UP:
-                    if (trackingCensorTouch) {
-                        int upIndex = event.findPointerIndex(censorTouchPointerId);
-                        boolean tap = upIndex >= 0 && !movedPastTapSlop(
-                                event.getX(upIndex), event.getY(upIndex));
-                        resetCensorTouch();
-                        if (tap) chargeCensoredTap(System.currentTimeMillis());
-                        touchInteractionController.requestDelegating();
-                    }
-                    break;
-                case MotionEvent.ACTION_POINTER_DOWN:
-                case MotionEvent.ACTION_CANCEL:
-                    if (trackingCensorTouch) {
-                        resetCensorTouch();
-                        touchInteractionController.requestDelegating();
-                    }
-                    break;
-                default:
-                    break;
-            }
-        } catch (IllegalStateException error) {
-            resetCensorTouch();
-            Log.w(TAG, "Could not delegate touch interaction", error);
-        }
-    }
-
-    private boolean movedPastTapSlop(float x, float y) {
-        float dx = x - censorTouchDownX;
-        float dy = y - censorTouchDownY;
-        return dx * dx + dy * dy > (long) touchSlopPixels * touchSlopPixels;
-    }
-
-    private void resetCensorTouch() {
-        trackingCensorTouch = false;
-        censorTouchPointerId = -1;
-    }
-
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private void unregisterTouchInteractionObserver() {
-        if (touchInteractionController != null && touchInteractionCallback != null) {
-            touchInteractionController.unregisterCallback(touchInteractionCallback);
-        }
-        touchInteractionCallback = null;
-        touchInteractionController = null;
-        resetCensorTouch();
     }
 
     private boolean matchesTapSource(
@@ -1243,7 +1137,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         overlay = null;
         PopupStormManager.get().stop();
         dwellTracker.clear();
-        resetCensorTouch();
         tapTracker.clear();
         resetTextSnapshots();
         resetScrollCompensation();
@@ -1407,9 +1300,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         main.removeCallbacks(settledHardcoreGuardRefresh);
         hardcoreGuardRefreshQueued.set(false);
         main.removeCallbacks(settledTextRefresh);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            unregisterTouchInteractionObserver();
-        }
         dwellTracker.clear();
         tapTracker.clear();
         recognitionActive = false;

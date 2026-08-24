@@ -313,14 +313,12 @@ public final class PenanceManager {
         synchronized (LOCK) {
             List<PenanceEvent> events = loadEvents();
             String existingId = "";
-            int existingAmount = 0;
             for (PenanceEvent event : events) {
                 if (event.getStatus() == PenanceEvent.Status.CHECKOUT) {
                     existingId = event.getSettlementId();
-                    existingAmount += event.getAmountCents();
                 }
             }
-            if (!existingId.isEmpty()) return new Settlement(existingId, existingAmount);
+            if (!existingId.isEmpty()) return settlement(events, existingId);
 
             String settlementId = UUID.randomUUID().toString();
             int amount = 0;
@@ -335,7 +333,7 @@ public final class PenanceManager {
             if (amount <= 0) return null;
             saveEvents(events);
             clearOrderState();
-            return new Settlement(settlementId, amount);
+            return settlement(events, settlementId);
         }
     }
 
@@ -345,8 +343,7 @@ public final class PenanceManager {
             List<PenanceEvent> events = loadEvents();
             for (PenanceEvent event : events) {
                 if (event.getStatus() == PenanceEvent.Status.CHECKOUT) {
-                    return new Settlement(event.getSettlementId(), checkoutAmount(
-                            events, event.getSettlementId()));
+                    return settlement(events, event.getSettlementId());
                 }
             }
             int target = -1;
@@ -365,7 +362,7 @@ public final class PenanceManager {
                     PenanceEvent.Status.CHECKOUT, settlementId));
             saveEvents(events);
             clearOrderState();
-            return new Settlement(settlementId, pause.getAmountCents());
+            return settlement(events, settlementId);
         }
     }
 
@@ -575,15 +572,17 @@ public final class PenanceManager {
         return false;
     }
 
-    private static int checkoutAmount(List<PenanceEvent> events, String settlementId) {
+    private static Settlement settlement(List<PenanceEvent> events, String settlementId) {
+        List<PenanceEvent> included = new ArrayList<>();
         int amount = 0;
         for (PenanceEvent event : events) {
             if (event.getStatus() == PenanceEvent.Status.CHECKOUT
                     && settlementId.equals(event.getSettlementId())) {
+                included.add(event);
                 amount += event.getAmountCents();
             }
         }
-        return amount;
+        return new Settlement(settlementId, amount, included);
     }
 
     private void clearOrderState() {
@@ -600,13 +599,16 @@ public final class PenanceManager {
     public static final class Settlement {
         private final String id;
         private final int amountCents;
+        private final List<PenanceEvent> events;
 
-        private Settlement(String id, int amountCents) {
+        private Settlement(String id, int amountCents, List<PenanceEvent> events) {
             this.id = id;
             this.amountCents = amountCents;
+            this.events = Collections.unmodifiableList(new ArrayList<>(events));
         }
 
         public String getId() { return id; }
         public int getAmountCents() { return amountCents; }
+        public List<PenanceEvent> getEvents() { return events; }
     }
 }

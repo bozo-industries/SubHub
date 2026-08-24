@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">SUBHUB</string><string name="header_subtitle">本地守护者</string>
-    <string name="tab_home">主页</string><string name="tab_settings">设置</string><string name="tab_browser">浏览器</string><string name="tab_export">导出</string><string name="tab_help">帮助</string>
+    <string name="header_subtitle">本地守护者</string>
     <string name="start_protection">启动保护</string><string name="stop_protection">停止保护</string><string name="settings_title">审查设置</string><string name="back">返回</string>
     <string name="help_title">帮助与安全</string><string name="help_subtitle">设置、隐私、修复和功能指南。</string>
     <string name="help_permission_check">权限检查</string><string name="help_fix_permissions">修复下一个权限</string><string name="help_accessibility_settings">无障碍捕获设置</string><string name="help_choose_language">选择应用语言</string>

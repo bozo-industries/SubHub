@@ -20,6 +20,14 @@ public final class PayPalRequestPolicy {
         return settlementId + "-auto";
     }
 
+    public static String vaultSetupRequestId(String nonce) {
+        return nonce + "-vault-setup";
+    }
+
+    public static String vaultConfirmRequestId(String setupTokenId) {
+        return setupTokenId + "-vault-confirm";
+    }
+
     public static boolean isTransientStatus(int status) {
         return status == 408 || status == 429 || status >= 500;
     }

@@ -24,6 +24,8 @@ public final class PayPalVaultPolicyTest {
     @Test public void onlyVaultCapabilityIssuesMarkUnavailable() {
         assertTrue(PayPalVaultPolicy.isUnavailableIssue("NOT_ENABLED_FOR_VAULTING"));
         assertTrue(PayPalVaultPolicy.isUnavailableIssue(
+                "NOT_ENABLED_TO_VAULT_PAYMENT_SOURCE"));
+        assertTrue(PayPalVaultPolicy.isUnavailableIssue(
                 "BILLING_AGREEMENT_NOT_ELIGIBLE"));
         assertFalse(PayPalVaultPolicy.isUnavailableIssue("INSTRUMENT_DECLINED"));
         assertFalse(PayPalVaultPolicy.isUnavailableIssue("PERMISSION_DENIED"));

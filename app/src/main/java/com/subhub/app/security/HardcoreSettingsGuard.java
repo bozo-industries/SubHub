@@ -359,7 +359,7 @@ public final class HardcoreSettingsGuard {
         params.gravity = Gravity.TOP | Gravity.START;
         params.x = bounds.left;
         params.y = bounds.top;
-        params.setTitle("SubHub Hardcore guard");
+        params.setTitle(service.getString(R.string.hardcore_guard_window_title));
         return params;
     }
 

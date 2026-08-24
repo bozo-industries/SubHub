@@ -29,6 +29,11 @@ public final class PayPalCredentialStore {
     private static final String KEY_PAYER_EMAIL = "payer_email";
     private static final String KEY_PAYER_ACCOUNT_ID = "payer_account_id";
     private static final String KEY_VAULT_BOUNDARY = "vault_boundary";
+    private static final String KEY_SETUP_TOKEN_ID = "vault_setup_token_id";
+    private static final String KEY_SETUP_CUSTOMER_ID = "vault_setup_customer_id";
+    private static final String KEY_SETUP_METADATA_ID = "vault_setup_metadata_id";
+    private static final String KEY_SETUP_APPROVAL_URL = "vault_setup_approval_url";
+    private static final String KEY_SETUP_BOUNDARY = "vault_setup_boundary";
     private static final String KEY_ALIAS = "subhub_paypal_sandbox_v1";
     private static final String ANDROID_KEY_STORE = "AndroidKeyStore";
     private final Context context;
@@ -149,22 +154,75 @@ public final class PayPalCredentialStore {
         if (!cleanAccount.isEmpty()) {
             editor.putString(KEY_PAYER_ACCOUNT_ID, encrypt(cleanAccount));
         }
+        clearPendingVault(editor);
         editor.commit();
+    }
+
+    public boolean recordPendingVaultSetup(Credentials credentials, String setupTokenId,
+            String customerId, String clientMetadataId, String approvalUrl) {
+        if (credentials == null || !credentials.isComplete()) return false;
+        String cleanToken = setupTokenId == null ? "" : setupTokenId.trim();
+        if (cleanToken.isEmpty()) return false;
+        SharedPreferences.Editor editor = preferences().edit()
+                .putString(KEY_VAULT_STATUS, VaultStatus.PENDING.name())
+                .putString(KEY_VAULT_BOUNDARY, encrypt(credentials.boundaryId()))
+                .putString(KEY_SETUP_TOKEN_ID, encrypt(cleanToken))
+                .putString(KEY_SETUP_CUSTOMER_ID,
+                        encrypt(customerId == null ? "" : customerId.trim()))
+                .putString(KEY_SETUP_METADATA_ID,
+                        encrypt(clientMetadataId == null ? "" : clientMetadataId.trim()))
+                .putString(KEY_SETUP_APPROVAL_URL,
+                        encrypt(approvalUrl == null ? "" : approvalUrl.trim()))
+                .putString(KEY_SETUP_BOUNDARY, encrypt(credentials.boundaryId()));
+        return editor.commit();
+    }
+
+    public PendingVaultSetup pendingVaultSetup() {
+        Credentials credentials = load();
+        String boundary = decrypt(preferences().getString(KEY_SETUP_BOUNDARY, ""));
+        if (!credentials.isComplete() || !credentials.boundaryId().equals(boundary)) {
+            clearPendingVault(preferences().edit()).commit();
+            return PendingVaultSetup.empty();
+        }
+        return new PendingVaultSetup(
+                decrypt(preferences().getString(KEY_SETUP_TOKEN_ID, "")),
+                decrypt(preferences().getString(KEY_SETUP_CUSTOMER_ID, "")),
+                decrypt(preferences().getString(KEY_SETUP_METADATA_ID, "")),
+                decrypt(preferences().getString(KEY_SETUP_APPROVAL_URL, "")), boundary);
+    }
+
+    public void clearPendingVaultSetup() {
+        clearPendingVault(preferences().edit()).commit();
+        if (!vaultState().isReady()) {
+            preferences().edit().putString(
+                    KEY_VAULT_STATUS, VaultStatus.REQUESTED.name()).commit();
+        }
     }
 
     public void markVaultUnavailable(Credentials credentials) {
         if (credentials == null || !credentials.isComplete()) return;
-        preferences().edit()
+        SharedPreferences.Editor editor = preferences().edit()
                 .putString(KEY_VAULT_STATUS, VaultStatus.UNAVAILABLE.name())
                 .putString(KEY_VAULT_BOUNDARY, encrypt(credentials.boundaryId()))
                 .remove(KEY_VAULT_ID).remove(KEY_CUSTOMER_ID)
-                .remove(KEY_PAYER_EMAIL).remove(KEY_PAYER_ACCOUNT_ID).commit();
+                .remove(KEY_PAYER_EMAIL).remove(KEY_PAYER_ACCOUNT_ID);
+        clearPendingVault(editor).commit();
     }
 
     private static SharedPreferences.Editor clearVault(SharedPreferences.Editor editor) {
         return editor.remove(LEGACY_KEY_VAULT_REQUESTED).remove(KEY_VAULT_STATUS)
                 .remove(KEY_VAULT_ID).remove(KEY_CUSTOMER_ID).remove(KEY_PAYER_EMAIL)
-                .remove(KEY_PAYER_ACCOUNT_ID).remove(KEY_VAULT_BOUNDARY);
+                .remove(KEY_PAYER_ACCOUNT_ID).remove(KEY_VAULT_BOUNDARY)
+                .remove(KEY_SETUP_TOKEN_ID).remove(KEY_SETUP_CUSTOMER_ID)
+                .remove(KEY_SETUP_METADATA_ID).remove(KEY_SETUP_APPROVAL_URL)
+                .remove(KEY_SETUP_BOUNDARY);
+    }
+
+    private static SharedPreferences.Editor clearPendingVault(
+            SharedPreferences.Editor editor) {
+        return editor.remove(KEY_SETUP_TOKEN_ID).remove(KEY_SETUP_CUSTOMER_ID)
+                .remove(KEY_SETUP_METADATA_ID).remove(KEY_SETUP_APPROVAL_URL)
+                .remove(KEY_SETUP_BOUNDARY);
     }
 
     private SharedPreferences preferences() {
@@ -249,6 +307,34 @@ public final class PayPalCredentialStore {
         public String customerId() { return customerId; }
         public String maskedPayer() { return maskedPayer; }
         public boolean isReady() { return status == VaultStatus.READY; }
+    }
+
+    public static final class PendingVaultSetup {
+        private final String setupTokenId;
+        private final String customerId;
+        private final String clientMetadataId;
+        private final String approvalUrl;
+        private final String boundaryId;
+
+        private PendingVaultSetup(String setupTokenId, String customerId,
+                String clientMetadataId, String approvalUrl, String boundaryId) {
+            this.setupTokenId = setupTokenId == null ? "" : setupTokenId;
+            this.customerId = customerId == null ? "" : customerId;
+            this.clientMetadataId = clientMetadataId == null ? "" : clientMetadataId;
+            this.approvalUrl = approvalUrl == null ? "" : approvalUrl;
+            this.boundaryId = boundaryId == null ? "" : boundaryId;
+        }
+
+        static PendingVaultSetup empty() {
+            return new PendingVaultSetup("", "", "", "", "");
+        }
+
+        public String setupTokenId() { return setupTokenId; }
+        public String customerId() { return customerId; }
+        public String clientMetadataId() { return clientMetadataId; }
+        public String approvalUrl() { return approvalUrl; }
+        public String boundaryId() { return boundaryId; }
+        public boolean isPresent() { return !setupTokenId.isEmpty(); }
     }
 
     public static final class Credentials {

@@ -412,6 +412,12 @@
                     android:textColor="@color/accent"
                     android:textSize="11sp"
                     android:textStyle="bold" />
+                <Button
+                    android:id="@+id/button_link_paypal_wallet"
+                    style="@style/Widget.SubHub.CompactOutlineButton"
+                    android:layout_width="match_parent"
+                    android:layout_marginTop="7dp"
+                    android:text="@string/paypal_wallet_link" />
                 <CheckBox
                     android:id="@+id/paypal_auto_pay_enabled"
                     android:layout_width="match_parent"

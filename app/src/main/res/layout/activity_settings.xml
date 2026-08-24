@@ -524,6 +524,14 @@
                     android:id="@+id/switch_covered" style="@style/Widget.SubHub.SettingsToggle"
                     android:text="@string/category_covered" />
             </GridLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/category_covered_help"
+                android:textColor="@color/text_muted"
+                android:textSize="10sp" />
         </LinearLayout>
 
         <LinearLayout
