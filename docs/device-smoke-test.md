@@ -77,6 +77,12 @@ The clean source reconstruction builds, installs, launches, persists settings, o
 
 Notification and overlay grants were pre-authorized with ADB on this dedicated emulator so the test could focus on capture consent and runtime behavior. A normal installation still uses the explicit in-app permission flow.
 
+## Test placement note
+
+Tests that execute Android framework geometry methods such as `RectF.union()` belong under
+`app/src/androidTest`; the host-side Android stubs used by `testDebugUnitTest` deliberately throw
+for those implementations. Keep pure arithmetic and model contracts in `app/src/test`.
+
 ## Remaining coverage
 
 - Repeat on at least one physical Android 15/16 device, including rotation and display-size changes.
