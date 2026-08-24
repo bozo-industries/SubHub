@@ -16,6 +16,8 @@ import android.content.pm.ResolveInfo;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.subhub.app.appmode.AppModeManager;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,14 +28,18 @@ import org.junit.runner.RunWith;
 public final class HardcoreModeContractTest {
     private Context context;
     private HardcoreModeManager manager;
+    private AppModeManager appMode;
 
     @Before public void setUp() {
         context = ApplicationProvider.getApplicationContext();
         manager = new HardcoreModeManager(context);
+        appMode = new AppModeManager(context);
+        appMode.setArmed(false);
         manager.cancelPendingActivation();
     }
 
     @After public void tearDown() {
+        appMode.setArmed(false);
         manager.cancelPendingActivation();
     }
 
@@ -68,5 +74,21 @@ public final class HardcoreModeContractTest {
         assertNotNull(intent.getStringExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION));
         manager.cancelPendingActivation();
         assertFalse(manager.isRequested());
+    }
+
+    @Test public void enablingAdminDoesNotArmPreviouslyDisarmedProtection() {
+        appMode.setArmed(false);
+
+        manager.onAdminEnabled();
+
+        assertFalse(appMode.isArmed());
+    }
+
+    @Test public void enablingAdminPreservesAlreadyArmedProtection() {
+        appMode.setArmed(true);
+
+        manager.onAdminEnabled();
+
+        assertTrue(appMode.isArmed());
     }
 }

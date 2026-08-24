@@ -227,10 +227,6 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.paypalEnvironmentSandbox.setEnabled(editingUnlocked);
         binding.paypalEnvironmentLive.setEnabled(editingUnlocked);
         binding.paypalAutoPayEnabled.setEnabled(editingUnlocked);
-        if (hardcore != null && hardcore.isEnabled()) {
-            binding.armed.setChecked(true);
-            binding.armed.setEnabled(false);
-        }
         for (int index = 0; index < binding.appList.getChildCount(); index++) {
             setEnabledRecursive(binding.appList.getChildAt(index), editingUnlocked);
         }
