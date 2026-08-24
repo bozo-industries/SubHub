@@ -1,114 +1,208 @@
-# SubHub
-
-**A private Android control space for consensual D/s: live censoring, app limits, and an optional tribute wallet.**
-
-SubHub keeps the everyday experience simple. The Dom configures the rules, locks the controls, and hands the device back. The Sub sees one clean Home page with the active boundaries, current session, pact timer, and any tribute due.
-
-> **18+ project.** The real-device examples below show social-media filtering in an adult-content context. The images demonstrate the censor overlay; detected content remains covered.
+<p align="center">
+  <img src="docs/brand/subhub-hero.jpg" alt="SubHub — Censor, Limit, Tribute" width="100%" />
+</p>
 
 <p align="center">
-  <img src="docs/screenshots/live-image-and-text-filter.jpg" alt="SubHub covering an image and nearby text on a real Android device" width="280" />
+  <strong>Private control. Beautifully enforced.</strong><br />
+  A consensual Android control space for live censoring, app limits, and an optional tribute wallet.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Android-8.0%2B-c74cd8?style=flat-square&logo=android&logoColor=white" alt="Android 8.0+" />
+  <img src="https://img.shields.io/badge/release-v0.1.0-7e3db7?style=flat-square" alt="v0.1.0" />
+  <img src="https://img.shields.io/badge/detection-on--device-ff2f9f?style=flat-square" alt="On-device detection" />
+  <img src="https://img.shields.io/badge/source-human--editable-2b1038?style=flat-square" alt="Human-editable source" />
+</p>
+
+<p align="center">
+  <a href="#the-handoff">The handoff</a> ·
+  <a href="#the-control-suite">Control suite</a> ·
+  <a href="#censor">Censor</a> ·
+  <a href="#limits">Limits</a> ·
+  <a href="#wallet">Wallet</a> ·
+  <a href="#privacy--boundaries">Privacy</a> ·
+  <a href="#build--release">Build</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/bozo-industries/SubHub/releases/latest"><strong>Download the latest signed release</strong></a>
+  &nbsp;·&nbsp;
+  <a href="docs/ui-map.md"><strong>Explore every screen</strong></a>
+</p>
+
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
+
+## The handoff
+
+**Make the rules. Lock the page. Hand it over.**
+
+<table>
+  <tr>
+    <td width="44%" align="center">
+      <img src="docs/screenshots/ui-map/page-map/01-home.png" alt="SubHub Home with pact choices and the Enter Service control" width="320" />
+    </td>
+    <td width="56%">
+      <ol>
+        <li><strong>Shape the scene in Dom mode.</strong><br />Choose only the modules the relationship uses, assign apps, set limits, and bound every tribute rule.</li>
+        <li><strong>Choose the pact.</strong><br />Pick 1 hour, 24 hours, 7 days, 30 days, or Permanent before entering service.</li>
+        <li><strong>Lock the controls.</strong><br />Sub mode hides configuration and leaves one clean Home surface.</li>
+        <li><strong>Review together.</strong><br />Session time, blocks, limits, and the tribute ledger stay visible without exposing settings.</li>
+      </ol>
+    </td>
+  </tr>
+</table>
+
+Opening SubHub does **not** create a session. A session begins when service starts, persists while service is active, and ends only when service is released.
+
+> **18+ project.** Real-device examples show filtering in an adult-content context. Detected content remains covered in the screenshots.
+
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
+
+## The control suite
+
+| | **Censor** | **Limits** | **Wallet** |
+|---|---|---|---|
+| **The rule** | Eyes down. Selected temptations stay covered. | Time goes where the agreement puts it. | Every enabled slip lands in the ledger. |
+| **The control** | Visual categories, explicit text, style, color, border, and capture path. | Per-app allowances, a shared allowance, or both. | Event prices, batching, grace, caps, correction window, and checkout. |
+| **The handoff** | Live overlays follow assigned apps and tracked regions. | A spent app is returned to Android Home. | Sub mode may settle the balance but cannot rewrite the rules. |
+
+<p align="center">
+  <img src="docs/screenshots/ui-map/page-map/05-censor-settings.png" alt="SubHub censor settings" width="245" />
+  &nbsp;
+  <img src="docs/screenshots/ui-map/page-map/02-limits.png" alt="SubHub app limits" width="245" />
+  &nbsp;
+  <img src="docs/screenshots/ui-map/page-map/03-wallet.png" alt="SubHub tribute wallet" width="245" />
+</p>
+
+Each area is independent. Disable Censor, Limits, or Wallet and it disappears from the navigation and stops participating in service.
+
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
+
+## Censor
+
+### Live, local, and app-aware
+
+<p align="center">
+  <img src="docs/screenshots/live-image-and-text-filter.jpg" alt="SubHub covering an image and nearby text on a real Android device" width="320" />
   &nbsp;&nbsp;
-  <img src="docs/screenshots/live-text-filter.jpg" alt="SubHub covering multiple text regions on a real Android device" width="280" />
+  <img src="docs/screenshots/live-text-filter.jpg" alt="SubHub covering several explicit text regions on a real Android device" width="320" />
 </p>
 
-## Interface
+- **App Mode is the default.** Android Accessibility supplies foreground-app awareness and visible-text geometry without asking for a new screen-capture approval every session.
+- **Screen Capture remains optional.** MediaProjection expands visual analysis when the couple wants that path.
+- **Assigned means assigned.** Censoring sleeps outside the chosen app scope.
+- **Tracked means stable.** Regions follow ordinary motion and scrolling; repeated frames do not become new blocks or fresh tribute events.
+- **Image and text work concurrently.** High and Ultra keep the local pipelines warm and prioritize fast overlay updates.
 
-SubHub uses a dark plum control-room surface, quieter violet structure, and hot-pink emphasis only where attention or selection matters. Dom mode exposes the full system; Sub mode collapses the same configuration into a focused hand-off screen.
+### A look for every rule
+
+Blackout, Censor Bar, Blur, Pixelate, Custom Image, TV Static, Glitch, Privacy Tape, and Error Popup share one tracked-overlay pipeline. Style cards preview the result before service begins; effect-specific colors and classic, gradient, glow, or rainbow borders complete the look.
+
+| Preset | Best for |
+|---|---|
+| **Low** | Battery-first sessions and slower hardware. |
+| **Medium** | Balanced everyday use. |
+| **High** | More frequent analysis and better small-region coverage. |
+| **Ultra** | Maximum local compute, concurrent image/text work, and the fastest refresh path on flagship devices. |
+
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
+
+## Limits
+
+Assign **Censor**, **Limit**, or both to each app. Limited apps can receive their own daily allowance, draw from one shared allowance, or use both boundaries together. Usage resets at local midnight; reaching the active allowance sends the app back to Android Home.
 
 <p align="center">
-  <img src="docs/screenshots/ui-map/page-map/01-censor-home.png" alt="SubHub Home in Dom mode" width="250" />
-  &nbsp;
-  <img src="docs/screenshots/ui-map/page-map/05-censor-settings.png" alt="SubHub visual censor-style previews" width="250" />
-  &nbsp;
-  <img src="docs/screenshots/ui-map/page-map/04-global-settings.png" alt="SubHub global settings" width="250" />
+  <img src="docs/screenshots/ui-map/page-map/02-limits.png" alt="Shared and per-app daily allowances" width="300" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/ui-map/page-map/02b-limits-app-picker.png" alt="Collapsible app assignment list" width="300" />
 </p>
 
-The repository keeps a full, device-rendered [UI page map](docs/ui-map.md) as a design and regression reference. It covers every primary page plus scrolled states for long forms and app assignment.
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
 
-## What it does
+## Wallet
 
-| Area | Purpose |
-|---|---|
-| **Home** | Enter or leave service, choose an optional 1-hour to 30-day pact, and see only the active rules and session state. |
-| **Censor** | Cover selected visual categories and explicit text with blackouts, bars, blur, pixelation, custom images, and other local effects. |
-| **Limits** | Give assigned apps an individual daily allowance, a shared allowance, or both. A spent app returns to Android Home. |
-| **Wallet** | Keep a bounded local tribute ledger and settle it through an explicitly configured PayPal flow. |
-| **Settings** | Assign apps, choose the capture path, enable only the modules a couple wants, and control the Dom/Sub boundary. |
+The local tribute ledger can count only the slips a couple deliberately enables:
 
-### Dom mode and Sub mode
+- a **new temptation** after every configured number of stable censors;
+- **lingering** on one still screen for the full configured time;
+- tapping a visible censor;
+- opening an assigned app;
+- or a rate-limited Hardcore tamper signal.
 
-- **Dom mode** reveals every setting, assignment, safety limit, and payment control.
-- **Sub mode** hides configuration and leaves one focused Home surface. Starting service remains available without unlocking settings.
-- The Dom PIN protects configuration. A pact can keep service active for a chosen duration.
-- Optional Hardcore Mode adds Android-supported device-admin friction and reboot re-arming. It is a speed bump, not an unbreakable security boundary.
+Every event is gated behind active service. Nothing is added merely because SubHub is open. The Dom controls price, batching, grace, daily and weekly caps, and the correction window; Sub mode can review and settle the balance without editing those terms.
 
-### A session in four steps
+<p align="center">
+  <img src="docs/screenshots/ui-map/page-map/03b-wallet-rules-and-safety.png" alt="Tribute rules and safety caps" width="300" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/ui-map/page-map/03c-wallet-checkout-and-history.png" alt="PayPal checkout and tribute history" width="300" />
+</p>
 
-1. **Shape the rules in Dom mode.** Enable only the modules the relationship uses, assign apps, choose censor behavior, set allowances, and bound any tribute rules.
-2. **Lock the controls.** Sub mode removes configuration from view and turns Home into the hand-off surface.
-3. **Enter service.** Start an ordinary session or select a pact first. Session time and blocks persist until service actually ends; merely reopening SubHub does not create a new session.
-4. **Review together.** Statistics, allowance usage, and the local tribute ledger remain available without mixing configuration into the Sub experience.
+PayPal merchant credentials belong to the installation and are entered only in Dom mode. Secrets are encrypted with Android Keystore. Saved-wallet and automatic Hardcore checkout are separate opt-ins and remain subject to PayPal account eligibility.
 
-### App-aware protection
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
 
-SubHub can run against every external app or only assigned apps. Each assigned app may independently receive censoring, a time limit, or both. App Mode uses Android Accessibility for foreground awareness and visible-text geometry; Screen Capture uses Android's MediaProjection approval path. Detection, tracking, and rendering are suspended outside the selected scope.
+## Dom mode / Sub mode
 
-### Censor engine
+<table>
+  <tr>
+    <td width="50%">
+      <h3>Dom mode</h3>
+      <ul>
+        <li>All settings, app assignments, caps, and payment controls.</li>
+        <li>PIN-protected configuration boundary.</li>
+        <li>Clean module toggles: use any combination of Censor, Limits, and Wallet.</li>
+        <li>Optional Hardcore Mode and Device Admin setup.</li>
+      </ul>
+    </td>
+    <td width="50%">
+      <h3>Sub mode</h3>
+      <ul>
+        <li>One focused Home page with active rules only.</li>
+        <li>Pact choice, service control, live session state, and statistics.</li>
+        <li>Allowance status and enabled Wallet checkout.</li>
+        <li>No configuration fields, save buttons, or administrative noise.</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
-Blackout, Censor Bar, Blur, Pixelate, Custom Image, TV Static, Glitch, Privacy Tape, and Error Popup share one tracked-overlay pipeline. Stable regions survive ordinary frame changes and scrolling; repeated frames do not become fresh blocks or fresh tribute events. Border choices include classic, gradient, glow, and rainbow treatments, with effect-specific color controls.
+<p align="center">
+  <img src="docs/screenshots/ui-map/page-map/01-home.png" alt="SubHub handoff Home" width="300" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/ui-map/page-map/04-global-settings.png" alt="SubHub Dom settings" width="300" />
+</p>
 
-Four presets trade battery for coverage without exposing raw confidence tuning:
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
 
-| Preset | Intended use |
-|---|---|
-| **Low** | Battery-first sessions and slower devices. |
-| **Medium** | Balanced everyday behavior. |
-| **High** | More frequent analysis and better small-region coverage. |
-| **Ultra** | Maximum local compute, concurrent visual/text work, and the fastest refresh path on flagship hardware. |
+## Privacy & boundaries
 
-### Tribute protocol
-
-The Wallet can count enabled events such as a new temptation, lingering on one still screen, tapping a visible censor, opening an assigned app, or testing a Hardcore lock. Every event is gated behind active service. Price, batching, cooldowns, daily and weekly caps, and the Dom's correction window are configurable.
-
-PayPal credentials belong to the installation and are entered only in Dom mode. Merchant secrets are encrypted with Android Keystore. Saved-wallet and automatic Hardcore checkout remain separate opt-ins and still depend on PayPal account eligibility.
-
-## Privacy at a glance
+### What stays private
 
 - Visual inference and text classification run on the device.
-- Captured frames are processed in memory; SubHub does not provide a remote content-analysis service.
-- Censoring, Limits, and Wallet are independent modules and can be hidden entirely.
-- Sub mode can always settle an enabled Wallet, but it cannot edit its rules.
+- Captured frames are processed in memory; SubHub provides no remote content-analysis service.
+- Merchant secrets are encrypted locally and never belong in the APK or repository.
+- Censor, Limits, and Wallet can each be removed from the experience entirely.
+
+### What Android still controls
+
+- Android may require explicit approval for Accessibility, screen capture, overlays, notifications, or Device Admin.
+- Hardcore Mode adds platform-supported friction; it is not an unbreakable device-security boundary.
 - Device Admin declares no wipe, camera, password, lock-screen, or monitoring policy.
-- Android may still require system approval for capture, Accessibility, overlays, notifications, or Device Admin.
+- The device owner, safe mode, ADB, or uninstall after Device Admin removal can still defeat the app.
+- Tamper events are explicit and rate-limited, and never create a tribute while service is off.
 
-## Safety and control boundaries
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
 
-SubHub is designed for informed adult use, but playful framing never replaces an exit path:
+## Build & release
 
-- The Dom PIN governs configuration; it is not presented as device-grade authentication.
-- Pacts lock the ordinary stop action until their timer ends. Dom mode remains the configuration boundary.
-- Hardcore Mode uses only platform-supported friction. Android, the device owner, safe mode, ADB, or uninstall after Device Admin removal can still defeat it.
-- Tamper tribute accepts only explicit, rate-limited signals such as a wrong Dom PIN, a blocked uninstall/data-clear action, a sealed stop attempt, or out-of-band Device Admin removal. No charge is created when service is off.
-- Tribute totals are capped locally. PayPal settlement and any saved-wallet automation require their own setup and eligibility.
+### Requirements
 
-## Build the editable source
-
-Requirements:
-
-- Android Studio or a JDK 17 command line
+- Android Studio or JDK 17
 - Android SDK 35
-- Android 8.0+ device or emulator; a modern Android release is recommended for the full app-aware workflow
+- Android 8.0+ device or emulator
 
 ```powershell
 .\gradlew.bat testDebugUnitTest assembleDebug
-```
-
-The debug build uses package `com.subhub.app` and produces ABI-specific APKs:
-
-```text
-app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
-app/build/outputs/apk/debug/app-x86_64-debug.apk
 ```
 
 For a focused device pass:
@@ -117,23 +211,31 @@ For a focused device pass:
 .\gradlew.bat connectedDebugAndroidTest
 ```
 
-See [Architecture](docs/architecture.md), [Device smoke test](docs/device-smoke-test.md), [visual audit](docs/visual-parity.md), and [PayPal integration](docs/paypal-penance.md) for deeper implementation notes.
+The editable Android source lives under `app/src/main/java/com/subhub/app/`; the package is `com.subhub.app`. Correctly versioned tags trigger the release workflow, which builds, signs, verifies, and publishes the universal and ABI-specific APKs with checksums.
 
-## Project layout
+<details>
+<summary><strong>Project map and deeper documentation</strong></summary>
 
 ```text
 app/src/main/java/com/subhub/app/   Human-editable Android source
-app/src/main/res/                   Purple SubHub interface and resources
+app/src/main/res/                   SubHub interface and resources
 app/src/androidTest/                Device and UI contracts
 app/src/test/                       Local logic contracts
-docs/                               Architecture, safety, and reconstruction notes
-scripts/                            Repeatable private-workspace and build helpers
+docs/                               Architecture, safety, QA, and integration notes
+scripts/                            Repeatable workspace and build helpers
 ```
 
-## Licensed reconstruction boundary
+- [Architecture](docs/architecture.md)
+- [Complete device-rendered UI map](docs/ui-map.md)
+- [Device smoke test](docs/device-smoke-test.md)
+- [Visual audit](docs/visual-parity.md)
+- [PayPal integration](docs/paypal-penance.md)
 
-SubHub is a clean, human-editable reconstruction informed by a lawfully purchased copy of Beta Blocker Mobile. The maintained app has its own `com.subhub.app` identity and a distinct interface, navigation model, Dom/Sub boundary, Limits module, and Wallet workflow. The public [Beta Blocker Mobile product page](https://isla2d.itch.io/beta-blocker-mobile) remains useful product inspiration for local filtering and customizable censor styles.
+</details>
 
-The purchased APK, decompiled vendor code, vendor artwork, signing material, account credentials, and private captures must not be committed or redistributed. Keep reverse-engineering evidence in the adjacent private workspace and confirm that any distribution remains within the purchased license and applicable law. See the [reconstruction roadmap](docs/reconstruction-roadmap.md) and [static evidence notes](docs/static-evidence.md).
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
 
-The README presentation follows the concise screenshot, privacy, compatibility, and build patterns used by mature Android projects such as [Bitwarden Android](https://github.com/bitwarden/android) and [Mushotoku](https://github.com/tomfrischmuth/mushotoku), adapted to SubHub's own visual language.
+<p align="center">
+  <strong>SubHub</strong><br />
+  Set the terms. Enter service. Keep the handoff clean.
+</p>
