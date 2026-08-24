@@ -272,12 +272,18 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             lastInferenceUptime = nowUptime;
             long inferenceMotionGeneration = motionGeneration.get();
             if (!isCurrentCapture(requestedEpoch)) return;
-            // A full software copy is only needed by ONNX, never by the continuous-scroll path.
-            frame = wrapped.copy(Bitmap.Config.ARGB_8888, false);
-            if (frame == null) return;
+            DetectorConfig currentConfig = detectorConfig;
+            int inferenceResolution = currentConfig == null
+                    ? 320 : currentConfig.getInferenceResolution();
+            InferenceBitmapPreparer.Prepared prepared = InferenceBitmapPreparer.prepare(
+                    wrapped, inferenceResolution, overlayNeedsSourceFrame);
+            if (prepared == null) return;
+            frame = prepared.bitmap;
             settledInferenceNeeded.compareAndSet(true, false);
             enqueueInference(new InferenceFrame(frame, requestedEpoch, requestedScrollX,
-                    requestedScrollY, inferenceMotionGeneration));
+                    requestedScrollY, inferenceMotionGeneration,
+                    prepared.sourceWidth, prepared.sourceHeight,
+                    prepared.retainedSourceFrame));
             frame = null;
         } catch (Exception error) {
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
@@ -335,19 +341,21 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long requestedScrollX = candidate.scrollX;
             long requestedScrollY = candidate.scrollY;
             long inferenceMotionGeneration = candidate.motionGeneration;
-            List<Detection> visualDetections = detector.detect(frame);
+            int width = candidate.sourceWidth;
+            int height = candidate.sourceHeight;
+            List<Detection> visualDetections = detector.detect(frame, width, height);
             TextSmutConfig currentTextConfig = textSmutConfig;
             List<Detection> accessibilityDetections = Collections.emptyList();
             if (currentTextConfig != null && currentTextConfig.isEnabled()) {
                 accessibilityDetections = cachedTextForFrame(
-                        frame.getWidth(), frame.getHeight(), requestedScrollX, requestedScrollY);
+                        width, height, requestedScrollX, requestedScrollY);
                 requestTextRefresh();
             }
             List<Detection> detections = DetectionFusion.merge(
                     visualDetections, accessibilityDetections);
             if (!isCurrentCapture(requestedEpoch)
                     || inferenceMotionGeneration != motionGeneration.get()) return;
-            applyPendingTrackerMotion(frame.getWidth(), frame.getHeight());
+            applyPendingTrackerMotion(width, height);
             List<TrackedObject> tracks = tracker.update(detections);
             DetectorConfig currentConfig = detectorConfig;
             int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
@@ -363,11 +371,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (firstFrameReported.compareAndSet(false, true)) {
                 Log.i(TAG, "First accessibility frame processed in "
                         + detector.getLastInferenceMs() + " ms at "
-                        + frame.getWidth() + "x" + frame.getHeight());
+                        + width + "x" + height);
             }
-            int width = frame.getWidth();
-            int height = frame.getHeight();
-            Bitmap overlayFrame = overlayNeedsSourceFrame ? candidate.detachFrame() : null;
+            Bitmap overlayFrame = candidate.retainedSourceFrame
+                    ? candidate.detachFrame() : null;
             int dwellInfractions = dwellTracker.update(
                     tracks, now, penance.getDwellSeconds() * 1_000L, false);
             if (dwellInfractions > 0) {
@@ -806,18 +813,27 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private final long scrollX;
         private final long scrollY;
         private final long motionGeneration;
+        private final int sourceWidth;
+        private final int sourceHeight;
+        private final boolean retainedSourceFrame;
 
         private InferenceFrame(
                 Bitmap frame,
                 long epoch,
                 long scrollX,
                 long scrollY,
-                long motionGeneration) {
+                long motionGeneration,
+                int sourceWidth,
+                int sourceHeight,
+                boolean retainedSourceFrame) {
             this.frame = frame;
             this.epoch = epoch;
             this.scrollX = scrollX;
             this.scrollY = scrollY;
             this.motionGeneration = motionGeneration;
+            this.sourceWidth = sourceWidth;
+            this.sourceHeight = sourceHeight;
+            this.retainedSourceFrame = retainedSourceFrame;
         }
 
         private Bitmap detachFrame() {

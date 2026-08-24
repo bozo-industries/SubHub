@@ -1,15 +1,19 @@
 package com.subhub.app.detection;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.RectF;
+import android.os.SystemClock;
 import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,6 +30,7 @@ import ai.onnxruntime.OrtSession;
 /** Owns the ONNX Runtime session and converts Android bitmaps to model input. */
 public final class DetectionEngine implements AutoCloseable {
     private static final String TAG = "DetectionEngine";
+    private static final String PROVIDER_PREFS = "detector_provider_cache";
     private static final float INV_255 = 1f / 255f;
 
     private final Context context;
@@ -40,6 +45,9 @@ public final class DetectionEngine implements AutoCloseable {
     private Canvas letterboxCanvas;
     private int[] pixels;
     private float[] input;
+    private FloatBuffer directInput;
+    private OnnxTensor inputTensor;
+    private Map<String, OnnxTensor> inferenceInputs;
     private long lastInferenceMs;
 
     public DetectionEngine(Context context, DetectorConfig config) {
@@ -64,24 +72,29 @@ public final class DetectionEngine implements AutoCloseable {
                 lastFailure = error;
                 continue;
             }
-            for (String provider : new String[]{"NNAPI", "XNNPACK", "CPU"}) {
-                OrtSession candidate = null;
-                try (OrtSession.SessionOptions options = optionsFor(provider)) {
-                    candidate = environment.createSession(bytes, options);
-                    warmUp(candidate);
-                    inputName = candidate.getInputNames().iterator().next();
-                    session = candidate;
-                    candidate = null;
-                    activeProvider = provider;
-                    activeModel = model;
-                    Log.i(TAG, "Loaded " + model + " using " + provider);
-                    return;
-                } catch (Exception error) {
-                    lastFailure = error;
-                    Log.w(TAG, provider + " rejected " + model + ": " + error.getMessage());
-                } finally {
-                    closeQuietly(candidate);
-                }
+            String cacheKey = providerCacheKey(model);
+            SharedPreferences providerPrefs = context.getSharedPreferences(
+                    PROVIDER_PREFS, Context.MODE_PRIVATE);
+            String cachedProvider = providerPrefs.getString(cacheKey, null);
+            ProviderCandidate fastest = cachedProvider == null ? null
+                    : selectFastestProvider(bytes, model, new String[]{cachedProvider});
+            if (fastest == null && cachedProvider != null) {
+                providerPrefs.edit().remove(cacheKey).apply();
+            }
+            if (fastest == null) {
+                fastest = selectFastestProvider(
+                        bytes, model, new String[]{"NNAPI", "XNNPACK", "CPU"});
+            }
+            if (fastest != null) {
+                session = fastest.session;
+                inputName = fastest.session.getInputNames().iterator().next();
+                activeProvider = fastest.provider;
+                activeModel = model;
+                Log.i(TAG, "Loaded " + model + " using fastest provider "
+                        + fastest.provider + " (" + fastest.benchmarkNanos / 1_000_000f
+                        + " ms" + (cachedProvider == null ? "" : ", cached") + ")");
+                providerPrefs.edit().putString(cacheKey, fastest.provider).apply();
+                return;
             }
         }
         if (lastFailure instanceof IOException) throw (IOException) lastFailure;
@@ -90,17 +103,26 @@ public final class DetectionEngine implements AutoCloseable {
     }
 
     public synchronized List<Detection> detect(Bitmap frame) throws OrtException {
+        if (frame == null) return Collections.emptyList();
+        return detect(frame, frame.getWidth(), frame.getHeight());
+    }
+
+    /** Detects from a pre-scaled bitmap while mapping results to the original source frame. */
+    public synchronized List<Detection> detect(
+            Bitmap frame, int sourceWidth, int sourceHeight) throws OrtException {
         if (session == null || frame == null || frame.getWidth() <= 0 || frame.getHeight() <= 0) {
             return Collections.emptyList();
         }
+        sourceWidth = Math.max(1, sourceWidth);
+        sourceHeight = Math.max(1, sourceHeight);
         long started = System.currentTimeMillis();
         int size = config.getInferenceResolution();
-        float scale = (float) size / Math.max(frame.getWidth(), frame.getHeight());
+        float scale = (float) size / Math.max(sourceWidth, sourceHeight);
         letterbox.eraseColor(Color.BLACK);
         letterboxCanvas.drawBitmap(
                 frame,
                 null,
-                new RectF(0f, 0f, frame.getWidth() * scale, frame.getHeight() * scale),
+                new RectF(0f, 0f, sourceWidth * scale, sourceHeight * scale),
                 null);
         letterbox.getPixels(pixels, 0, size, 0, 0, size, size);
 
@@ -112,25 +134,23 @@ public final class DetectionEngine implements AutoCloseable {
             input[plane * 2 + index] = (pixel & 0xff) * INV_255;
         }
 
-        FloatBuffer buffer = FloatBuffer.wrap(input);
-        try (OnnxTensor tensor = OnnxTensor.createTensor(
-                environment, buffer, new long[]{1, 3, size, size})) {
-            Map<String, OnnxTensor> inputs = new LinkedHashMap<>();
-            inputs.put(inputName, tensor);
-            try (OrtSession.Result result = session.run(inputs)) {
-                OnnxValue value = result.get(0);
-                Object raw = value.getValue();
-                if (!(raw instanceof float[][][])) {
-                    Log.e(TAG, "Unexpected model output type: " + raw.getClass());
-                    return Collections.emptyList();
-                }
-                float[][][] batch = (float[][][]) raw;
-                if (batch.length == 0) return Collections.emptyList();
-                List<Detection> detections = postProcessor.decode(
-                        batch[0], frame.getWidth(), frame.getHeight(), size, config);
-                lastInferenceMs = System.currentTimeMillis() - started;
-                return detections;
+        ensureInputTensor(size);
+        directInput.position(0);
+        directInput.put(input);
+        directInput.position(0);
+        try (OrtSession.Result result = session.run(inferenceInputs)) {
+            OnnxValue value = result.get(0);
+            Object raw = value.getValue();
+            if (!(raw instanceof float[][][])) {
+                Log.e(TAG, "Unexpected model output type: " + raw.getClass());
+                return Collections.emptyList();
             }
+            float[][][] batch = (float[][][]) raw;
+            if (batch.length == 0) return Collections.emptyList();
+            List<Detection> detections = postProcessor.decode(
+                    batch[0], sourceWidth, sourceHeight, size, config);
+            lastInferenceMs = System.currentTimeMillis() - started;
+            return detections;
         }
     }
 
@@ -163,18 +183,63 @@ public final class DetectionEngine implements AutoCloseable {
         return options;
     }
 
-    private void warmUp(OrtSession candidate) throws OrtException {
+    private long benchmark(OrtSession candidate) throws OrtException {
         int size = config.getInferenceResolution();
+        FloatBuffer benchmarkInput = ByteBuffer.allocateDirect(
+                size * size * 3 * Float.BYTES)
+                .order(ByteOrder.nativeOrder()).asFloatBuffer();
         try (OnnxTensor tensor = OnnxTensor.createTensor(
                 environment,
-                FloatBuffer.allocate(size * size * 3),
+                benchmarkInput,
                 new long[]{1, 3, size, size})) {
             Map<String, OnnxTensor> inputs = new LinkedHashMap<>();
             inputs.put(candidate.getInputNames().iterator().next(), tensor);
-            try (OrtSession.Result ignored = candidate.run(inputs)) {
-                // A completed warm-up proves that the provider accepts this model on this device.
+            long bestNanos = Long.MAX_VALUE;
+            for (int pass = 0; pass < 3; pass++) {
+                long started = SystemClock.elapsedRealtimeNanos();
+                try (OrtSession.Result ignored = candidate.run(inputs)) {
+                    // The first pass warms kernels; the next two select on observed device speed.
+                }
+                long elapsed = SystemClock.elapsedRealtimeNanos() - started;
+                if (pass > 0) bestNanos = Math.min(bestNanos, elapsed);
+            }
+            return bestNanos;
+        }
+    }
+
+    private ProviderCandidate selectFastestProvider(
+            byte[] modelBytes, String model, String[] providers) {
+        OrtSession fastestSession = null;
+        String fastestProvider = null;
+        long fastestNanos = Long.MAX_VALUE;
+        for (String provider : providers) {
+            OrtSession candidate = null;
+            try (OrtSession.SessionOptions options = optionsFor(provider)) {
+                candidate = environment.createSession(modelBytes, options);
+                long benchmarkNanos = benchmark(candidate);
+                Log.i(TAG, provider + " benchmark for " + model + ": "
+                        + benchmarkNanos / 1_000_000f + " ms");
+                if (benchmarkNanos < fastestNanos) {
+                    closeQuietly(fastestSession);
+                    fastestSession = candidate;
+                    candidate = null;
+                    fastestProvider = provider;
+                    fastestNanos = benchmarkNanos;
+                }
+            } catch (Exception error) {
+                Log.w(TAG, provider + " rejected " + model + ": " + error.getMessage());
+            } finally {
+                closeQuietly(candidate);
             }
         }
+        return fastestSession == null ? null
+                : new ProviderCandidate(fastestSession, fastestProvider, fastestNanos);
+    }
+
+    private String providerCacheKey(String model) {
+        String identity = android.os.Build.FINGERPRINT + '|' + model + '|'
+                + config.getInferenceResolution() + '|' + config.getInferenceThreads();
+        return "provider_" + Integer.toHexString(identity.hashCode());
     }
 
     private byte[] readAsset(String name) throws IOException {
@@ -188,14 +253,35 @@ public final class DetectionEngine implements AutoCloseable {
     }
 
     private void allocateBuffers(int size) {
+        closeInputTensor();
         pixels = new int[size * size];
         input = new float[size * size * 3];
+        directInput = ByteBuffer.allocateDirect(input.length * Float.BYTES)
+                .order(ByteOrder.nativeOrder()).asFloatBuffer();
         if (letterbox != null) letterbox.recycle();
         letterbox = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         letterboxCanvas = new Canvas(letterbox);
     }
 
+    /** Keeps the native-backed tensor alive across frames instead of reallocating JNI storage. */
+    private void ensureInputTensor(int size) throws OrtException {
+        if (inputTensor != null && inferenceInputs != null) return;
+        inputTensor = OnnxTensor.createTensor(
+                environment, directInput, new long[]{1, 3, size, size});
+        inferenceInputs = new LinkedHashMap<>(1);
+        inferenceInputs.put(inputName, inputTensor);
+    }
+
+    private void closeInputTensor() {
+        inferenceInputs = null;
+        if (inputTensor != null) {
+            inputTensor.close();
+        }
+        inputTensor = null;
+    }
+
     private void closeSession() {
+        closeInputTensor();
         closeQuietly(session);
         session = null;
     }
@@ -209,9 +295,22 @@ public final class DetectionEngine implements AutoCloseable {
         }
     }
 
+    private static final class ProviderCandidate {
+        final OrtSession session;
+        final String provider;
+        final long benchmarkNanos;
+
+        ProviderCandidate(OrtSession session, String provider, long benchmarkNanos) {
+            this.session = session;
+            this.provider = provider;
+            this.benchmarkNanos = benchmarkNanos;
+        }
+    }
+
     @Override
     public synchronized void close() {
         closeSession();
+        directInput = null;
         if (letterbox != null) letterbox.recycle();
         letterbox = null;
         letterboxCanvas = null;
