@@ -1,0 +1,18 @@
+{
+	"schemaVersion": 1,
+	"stableSlug": "ci-gradle-wrapper",
+	"title": "CI Gradle Wrapper Setup",
+	"content": "## Overview\n\nCI jobs invoke the Gradle Wrapper (`gradlew`) to build and test the project. For this to work, the `gradlew` script checked into the repository must have the executable bit set.\n\n## Current State\n\n- The Gradle wrapper script (`gradlew`) is marked executable in the repository so CI can run it directly (e.g. `./gradlew ...`) without needing an extra `chmod` step in the CI pipeline.\n- This was fixed via commit 8b13e1fe, which made the wrapper executable.\n\n## Rationale\n\nIf `gradlew` loses its executable permission (e.g. due to a checkout on a filesystem/tooling that doesn't preserve permissions, or a fresh commit that adds the file without the exec bit), CI jobs invoking it directly will fail with a permission error. Keeping the executable bit set on `gradlew` in version control avoids this class of failure.",
+	"relatedBranches": [
+		"master"
+	],
+	"sourceRefs": [
+		{
+			"type": "summary",
+			"id": "8b13e1fe62150fb28e46de7f41f1529211050a1b",
+			"timestamp": "2026-08-24T11:34:54.000Z",
+			"branch": "master"
+		}
+	],
+	"lastUpdatedAt": "2026-08-24T11:34:57.557Z"
+}
