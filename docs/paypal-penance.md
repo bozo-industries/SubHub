@@ -26,16 +26,18 @@ Sanitized failures include PayPal's debug ID when provided.
 
 ## Saved wallet and eligibility
 
-Dom mode can request a saved PayPal wallet. The next explicitly approved order includes
-`store_in_vault=ON_SUCCESS`, `usage_type=MERCHANT`, and `customer_type=CONSUMER`. This order is also
-the runtime capability probe: recognized vault/account capability errors mark the feature
-unavailable rather than silently creating a non-vaulted order.
+Dom mode can request a saved PayPal wallet without creating a charge. SubHub creates a Payment
+Method Tokens v3 setup token, stores its pending identifiers under the active credential boundary,
+and opens PayPal's payer-present approval page. PayPal may finish on its own HTTPS fallback page
+instead of returning to Android's custom URI. Therefore the custom URI is only a fast path: whenever
+Settings resumes, SubHub reads the setup token's server-side state and exchanges an approved setup
+token for a permanent payment token. The Resume button checks the token first and reopens PayPal
+only while payer action is still required.
 
-A `VAULTED` result becomes ready only when the response includes both `vault.id` and `customer.id`.
-An `APPROVED` result without IDs remains pending because PayPal can finish vault creation
-asynchronously. The app does not invent readiness in that state; a production service normally
-learns the final token from `VAULT.PAYMENT-TOKEN.CREATED`. Vault and customer IDs are encrypted and
-bound to the selected environment and Client ID.
+The permanent payment-token and customer IDs become ready only when PayPal returns both values.
+Pending and permanent identifiers are encrypted and bound to the selected environment and Client
+ID. Recognized vault/account capability errors mark the feature unavailable rather than inventing
+readiness.
 
 Live vault eligibility is reviewed and enabled in PayPal's account/developer settings; it is not a
 generic preflight API result. Switching to Live therefore requires Live credentials and a fresh

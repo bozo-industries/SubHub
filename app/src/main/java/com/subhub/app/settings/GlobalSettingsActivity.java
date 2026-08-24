@@ -72,6 +72,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private boolean updatingAutoPay;
     private boolean paypalConnecting;
     private boolean paypalVaultBusy;
+    private boolean paypalApprovalLaunched;
     private boolean editingUnlocked;
     private final Set<String> censorPackages = new LinkedHashSet<>();
     private final Set<String> timerPackages = new LinkedHashSet<>();
@@ -185,9 +186,12 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
 
     @Override protected void onResume() {
         super.onResume();
+        boolean returnedFromPayPal = paypalApprovalLaunched;
+        paypalApprovalLaunched = false;
         applyEditState();
         refreshHardcoreState();
         refreshAccessState();
+        reconcilePendingPayPalWallet(false, returnedFromPayPal);
     }
 
     private void toggleEditSession() {
@@ -377,11 +381,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         }
         PayPalCredentialStore.PendingVaultSetup pending =
                 paypalCredentials.pendingVaultSetup();
-        if (pending.isPresent() && validPayPalLink(pending.approvalUrl())) {
-            if (!openPayPalApproval(pending.approvalUrl())) {
-                Toast.makeText(this, R.string.paypal_wallet_open_failed,
-                        Toast.LENGTH_LONG).show();
-            }
+        if (pending.isPresent()) {
+            reconcilePendingPayPalWallet(true, true);
             return;
         }
         PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
@@ -427,10 +428,89 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW,
                     android.net.Uri.parse(approvalUrl)));
+            paypalApprovalLaunched = true;
             return true;
         } catch (RuntimeException ignored) {
             return false;
         }
+    }
+
+    private void reconcilePendingPayPalWallet(boolean reopenIfWaiting,
+            boolean showErrors) {
+        if (binding == null || paypalCredentials == null || paypalClient == null
+                || paypalVaultBusy) return;
+        PayPalCredentialStore.PendingVaultSetup pending =
+                paypalCredentials.pendingVaultSetup();
+        if (!pending.isPresent()) return;
+        PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
+        if (!credentials.isComplete()
+                || !credentials.boundaryId().equals(pending.boundaryId())) return;
+        paypalVaultBusy = true;
+        refreshPayPalSandboxState();
+        paypalClient.getVaultSetupToken(credentials, pending.setupTokenId(),
+                pending.clientMetadataId(), result -> {
+                    if (binding == null) return;
+                    if (!result.isSuccess()) {
+                        paypalVaultBusy = false;
+                        if (result.errorKind()
+                                == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
+                            paypalCredentials.markVaultUnavailable(credentials);
+                        }
+                        refreshPayPalSandboxState();
+                        if (showErrors) Toast.makeText(this, getString(
+                                R.string.paypal_vault_link_failed, result.error()),
+                                Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if (!result.value().isConfirmable()) {
+                        paypalVaultBusy = false;
+                        refreshPayPalSandboxState();
+                        if (reopenIfWaiting) {
+                            if (!openPayPalApproval(pending.approvalUrl())) {
+                                Toast.makeText(this, R.string.paypal_wallet_open_failed,
+                                        Toast.LENGTH_LONG).show();
+                            }
+                        } else if (showErrors) {
+                            Toast.makeText(this, R.string.paypal_vault_still_pending,
+                                    Toast.LENGTH_LONG).show();
+                        }
+                        return;
+                    }
+                    confirmPendingPayPalWallet(credentials, pending, showErrors);
+                });
+    }
+
+    private void confirmPendingPayPalWallet(
+            PayPalCredentialStore.Credentials credentials,
+            PayPalCredentialStore.PendingVaultSetup pending,
+            boolean showErrors) {
+        paypalClient.confirmVaultSetupToken(credentials, pending.setupTokenId(),
+                pending.clientMetadataId(), result -> {
+                    paypalVaultBusy = false;
+                    if (binding == null) return;
+                    if (!result.isSuccess()) {
+                        if (result.errorKind()
+                                == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
+                            paypalCredentials.markVaultUnavailable(credentials);
+                        }
+                        refreshPayPalSandboxState();
+                        if (showErrors) Toast.makeText(this, getString(
+                                R.string.paypal_vault_link_failed, result.error()),
+                                Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    PayPalOrdersClient.PaymentToken token = result.value();
+                    paypalCredentials.recordVaultResult(credentials, "VAULTED", token.id(),
+                            token.customerId(), token.payerEmail(), token.payerAccountId());
+                    refreshPayPalSandboxState();
+                    if (paypalCredentials.vaultState().isReady()) {
+                        Toast.makeText(this, R.string.paypal_vault_link_success,
+                                Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(this, R.string.paypal_sandbox_store_failed,
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
     }
 
     private PayPalEnvironment selectedPayPalEnvironment() {

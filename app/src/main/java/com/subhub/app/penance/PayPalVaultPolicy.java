@@ -46,6 +46,12 @@ final class PayPalVaultPolicy {
                 || normalized.contains("SAVE_PAYMENT_METHOD");
     }
 
+    static boolean isSetupApproved(String rawStatus) {
+        String status = rawStatus == null ? ""
+                : rawStatus.trim().toUpperCase(Locale.ROOT);
+        return "APPROVED".equals(status) || "VAULTED".equals(status);
+    }
+
     static String maskedPayer(String email, String accountId) {
         String cleanEmail = email == null ? "" : email.trim();
         int at = cleanEmail.indexOf('@');

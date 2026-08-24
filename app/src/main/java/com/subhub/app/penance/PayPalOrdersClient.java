@@ -216,6 +216,34 @@ public final class PayPalOrdersClient {
         });
     }
 
+    /** Reads the server-side setup-token state after PayPal's approval page closes. */
+    public void getVaultSetupToken(PayPalCredentialStore.Credentials credentials,
+            String setupTokenId, String clientMetadataId,
+            Callback<VaultSetupStatus> callback) {
+        network.execute(() -> {
+            try {
+                String cleanSetupToken = setupTokenId == null ? "" : setupTokenId.trim();
+                if (cleanSetupToken.isEmpty()) {
+                    throw new IllegalStateException("PayPal wallet authorization is missing");
+                }
+                String token = accessToken(credentials);
+                JSONObject response = request(credentials.environment(), "GET",
+                        "/v3/vault/setup-tokens/"
+                                + android.net.Uri.encode(cleanSetupToken),
+                        token, "", "", clientMetadataId);
+                String status = response.optString("status", "");
+                JSONObject customer = response.optJSONObject("customer");
+                String customerId = customer == null
+                        ? "" : customer.optString("id", "");
+                boolean confirmable = PayPalVaultPolicy.isSetupApproved(status);
+                deliver(callback, Result.success(
+                        new VaultSetupStatus(status, customerId, confirmable)));
+            } catch (Exception error) {
+                deliver(callback, Result.failure(safeMessage(error), classifyVault(error)));
+            }
+        });
+    }
+
     private static JSONObject createOrderBody(JSONObject unit, String clientMetadataId,
             boolean requestVault) throws Exception {
         JSONObject experience = new JSONObject()
@@ -458,6 +486,8 @@ public final class PayPalOrdersClient {
             String path, String token, String body,
             String requestId, String clientMetadataId) throws Exception {
         HttpURLConnection connection = connection(environment, path, method);
+        boolean writesBody = PayPalRequestPolicy.hasRequestBody(method, body);
+        connection.setDoOutput(writesBody);
         connection.setRequestProperty("Authorization", "Bearer " + token);
         connection.setRequestProperty("Content-Type", "application/json");
         connection.setRequestProperty("Prefer", "return=representation");
@@ -467,7 +497,7 @@ public final class PayPalOrdersClient {
         if (clientMetadataId != null && !clientMetadataId.isEmpty()) {
             connection.setRequestProperty("PayPal-Client-Metadata-Id", clientMetadataId);
         }
-        write(connection, body);
+        if (writesBody) write(connection, body);
         return response(connection);
     }
 
@@ -773,6 +803,22 @@ public final class PayPalOrdersClient {
         public String customerId() { return customerId; }
         public String payerEmail() { return payerEmail; }
         public String payerAccountId() { return payerAccountId; }
+    }
+
+    public static final class VaultSetupStatus {
+        private final String status;
+        private final String customerId;
+        private final boolean confirmable;
+
+        private VaultSetupStatus(String status, String customerId, boolean confirmable) {
+            this.status = status == null ? "" : status;
+            this.customerId = customerId == null ? "" : customerId;
+            this.confirmable = confirmable;
+        }
+
+        public String status() { return status; }
+        public String customerId() { return customerId; }
+        public boolean isConfirmable() { return confirmable; }
     }
 
     public static final class Capture {
