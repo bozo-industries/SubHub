@@ -47,12 +47,37 @@ final class TextSmutDetectionFactory {
         BBox projected = TextRegionProjector.project(text, match,
                 source.left, source.top, source.right, source.bottom, width, height);
         if (projected == null) return null;
+        return create(projected, match, sourcePrefix);
+    }
+
+    /** Uses provider-supplied rendered line geometry without estimating the line a second time. */
+    Detection createExact(
+            Rect source,
+            SmutTextClassifier.Match match,
+            int width,
+            int height,
+            String sourcePrefix) {
+        if (source == null || source.isEmpty() || width <= 0 || height <= 0
+                || match == null || !match.isMatched()) return null;
+        int left = clamp(source.left, 0, width - 1);
+        int top = clamp(source.top, 0, height - 1);
+        int right = clamp(source.right, left + 1, width);
+        int bottom = clamp(source.bottom, top + 1, height);
+        return create(new BBox(left, top, right - left, bottom - top), match, sourcePrefix);
+    }
+
+    private static Detection create(
+            BBox box, SmutTextClassifier.Match match, String sourcePrefix) {
         return new Detection(
                 sourcePrefix + match.getCategory().toUpperCase(java.util.Locale.ROOT),
                 "text_smut",
                 match.getConfidence(),
-                projected,
+                box,
                 true,
                 false);
+    }
+
+    private static int clamp(int value, int minimum, int maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
     }
 }

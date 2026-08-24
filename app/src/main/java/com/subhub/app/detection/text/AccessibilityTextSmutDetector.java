@@ -57,9 +57,11 @@ public final class AccessibilityTextSmutDetector {
                                 text, config, semanticEnabled);
                         Rect characterBounds = AccessibilityTextGeometry.resolve(
                                 node, text, match, width, height);
-                        Detection detection = factory.create(text,
-                                characterBounds == null ? bounds : characterBounds,
-                                match, width, height, "TEXT_SMUT_ACCESSIBILITY_");
+                        Detection detection = characterBounds == null
+                                ? factory.create(text, bounds, match, width, height,
+                                        "TEXT_SMUT_ACCESSIBILITY_")
+                                : factory.createExact(characterBounds, match, width, height,
+                                        "TEXT_SMUT_ACCESSIBILITY_");
                         if (detection != null) result.add(detection);
                     }
                 }
