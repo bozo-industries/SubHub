@@ -28,13 +28,13 @@ public final class AppShortcuts {
         ShortcutInfo start = new ShortcutInfo.Builder(context, "start_protection")
                 .setShortLabel(context.getString(R.string.shortcut_start_protection))
                 .setLongLabel(context.getString(R.string.shortcut_start_protection_long))
-                .setIcon(Icon.createWithResource(context, R.drawable.ic_launcher_foreground))
+                .setIcon(Icon.createWithResource(context, R.drawable.ic_launcher_monochrome))
                 .setIntent(protection)
                 .build();
         ShortcutInfo openBrowser = new ShortcutInfo.Builder(context, "open_browser")
                 .setShortLabel(context.getString(R.string.shortcut_open_browser))
                 .setLongLabel(context.getString(R.string.shortcut_open_browser_long))
-                .setIcon(Icon.createWithResource(context, R.drawable.ic_launcher_foreground))
+                .setIcon(Icon.createWithResource(context, R.drawable.ic_launcher_monochrome))
                 .setIntent(browser)
                 .build();
         manager.setDynamicShortcuts(Arrays.asList(start, openBrowser));
