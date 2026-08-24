@@ -119,7 +119,7 @@ public final class PenanceActivity extends AppCompatActivity {
         boolean editing = ControllerPinManager.isDomModeActive();
         ControllerEditMode.renderButton(this, binding.buttonEditLock);
         binding.buttonEditLock.setVisibility(editing ? View.VISIBLE : View.GONE);
-        binding.buttonBack.setVisibility(editing ? View.GONE : View.VISIBLE);
+        binding.buttonBack.setVisibility(View.GONE);
         binding.penanceSubtitle.setText(editing
                 ? R.string.penance_subtitle : R.string.penance_sub_checkout_subtitle);
         binding.ruleConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);

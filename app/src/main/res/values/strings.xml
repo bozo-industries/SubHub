@@ -824,8 +824,8 @@
     <string name="controller_pin_unlock_body">Enter the controller PIN to reveal every module, rule, and setting. Sub mode hides them again.</string>
     <string name="controller_pin_unlock">ENTER DOM MODE</string>
     <string name="controller_pin_wrong">That PIN is not correct.</string>
-    <string name="controller_edit_locked">UNLOCK DOM</string>
-    <string name="controller_edit_unlocked">ENTER SUB</string>
+    <string name="controller_edit_locked">UNLOCK</string>
+    <string name="controller_edit_unlocked">LOCK</string>
     <string name="controller_edit_locked_description">Enter PIN-protected Dom mode</string>
     <string name="controller_edit_unlocked_description">Hide settings and return to Sub mode</string>
     <string name="controller_edit_lock_hint">This belongs to Dom mode. Enter the controller PIN to change it.</string>
