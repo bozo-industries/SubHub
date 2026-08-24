@@ -11,6 +11,8 @@ public final class PayPalRequestPolicyTest {
         String settlement = "0f503239-84c9-45ee-94d4-900bed63ba7f";
         assertEquals(settlement + "-create",
                 PayPalRequestPolicy.createRequestId(settlement));
+        assertEquals(settlement + "-create-standard",
+                PayPalRequestPolicy.standardCreateRequestId(settlement));
         assertEquals(settlement + "-capture",
                 PayPalRequestPolicy.captureRequestId(settlement));
         assertEquals(settlement + "-auto",
