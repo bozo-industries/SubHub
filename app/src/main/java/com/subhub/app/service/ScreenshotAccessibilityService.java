@@ -29,6 +29,8 @@ import com.subhub.app.detection.ObjectTracker;
 import com.subhub.app.detection.TrackedObject;
 import com.subhub.app.detection.text.AccessibilityTextSmutDetector;
 import com.subhub.app.detection.text.DetectionFusion;
+import com.subhub.app.detection.text.OcrTextSmutDetector;
+import com.subhub.app.detection.text.SmutTextClassifier;
 import com.subhub.app.detection.text.TextDetectionCoordinateMapper;
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.diagnostics.DiagnosticsRepository;
@@ -70,6 +72,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final long SETTLED_SCROLL_REFRESH_MS = 140L;
     private static final long MOTION_SETTLE_MS = 130L;
     private static final long ACCESSIBILITY_SCREENSHOT_INTERVAL_MS = 350L;
+    private static final long OCR_INTERVAL_MS = 700L;
+    private static final int OCR_MAX_DIMENSION = 1_600;
 
     private final AtomicBoolean processing = new AtomicBoolean();
     private final AtomicBoolean inferenceDraining = new AtomicBoolean();
@@ -86,6 +90,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final AtomicBoolean hardcoreGuardRefreshQueued = new AtomicBoolean();
     private final AtomicBoolean textRefreshRequested = new AtomicBoolean(true);
     private final AtomicBoolean textRefreshRunning = new AtomicBoolean();
+    private final AtomicBoolean ocrRunning = new AtomicBoolean();
+    private final AtomicReference<Bitmap> activeOcrBitmap = new AtomicReference<>();
     private final CaptureEpoch captureEpoch = new CaptureEpoch();
     private final AccessibilityScrollMotionResolver scrollMotionResolver =
             new AccessibilityScrollMotionResolver();
@@ -101,8 +107,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private StatsRepository stats;
     private DetectionEngine detector;
     private ObjectTracker tracker;
-    private final AccessibilityTextSmutDetector accessibilityText =
-            new AccessibilityTextSmutDetector();
+    private SmutTextClassifier smutTextClassifier;
+    private AccessibilityTextSmutDetector accessibilityText;
+    private OcrTextSmutDetector screenshotText;
     private OverlayController overlay;
     private volatile DetectorConfig detectorConfig;
     private volatile TextSmutConfig textSmutConfig;
@@ -111,9 +118,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile long cachedTextScrollY;
     private volatile int cachedTextWidth = 1;
     private volatile int cachedTextHeight = 1;
+    private volatile List<Detection> cachedOcrDetections = Collections.emptyList();
+    private volatile long cachedOcrScrollX;
+    private volatile long cachedOcrScrollY;
+    private volatile int cachedOcrWidth = 1;
+    private volatile int cachedOcrHeight = 1;
     private volatile int latestCaptureWidth = 1;
     private volatile int latestCaptureHeight = 1;
     private volatile long lastTextRefreshMillis;
+    private volatile long lastOcrRequestUptime;
     private volatile long lastMotionUptime;
     private volatile long lastInferenceUptime;
     private volatile long lastScreenshotRequestUptime;
@@ -163,6 +176,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         stats = new StatsRepository(this);
         timers = new AppTimerManager(this);
         penance = new PenanceManager(this);
+        smutTextClassifier = new SmutTextClassifier(this);
+        accessibilityText = new AccessibilityTextSmutDetector(smutTextClassifier);
+        screenshotText = new OcrTextSmutDetector(smutTextClassifier);
         hardcoreSettingsGuard = new HardcoreSettingsGuard(this);
         motionEstimator = new ScrollFrameMotionEstimator();
         settings.preferences().registerOnSharedPreferenceChangeListener(listener);
@@ -185,6 +201,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             DetectorConfig config = settings.loadDetectorConfig();
             detectorConfig = config;
             textSmutConfig = settings.loadTextSmutConfig();
+            warmTextModels(config);
             if (detector == null) {
                 detector = new DetectionEngine(this, config);
                 detector.initialize();
@@ -292,6 +309,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     requestedScrollY = cumulativeScrollY.get();
                 }
             }
+            maybeRequestOcr(wrapped, requestedEpoch, requestedScrollX, requestedScrollY,
+                    currentConfig);
             if (!continuousMotionInference
                     && sampledGeneration != motionGeneration.get()) return;
             long nowUptime = SystemClock.uptimeMillis();
@@ -465,6 +484,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return config != null && config.getInferenceThreads() >= 4;
     }
 
+    static boolean usesSemanticTextModel(DetectorConfig config) {
+        return config != null && config.getInferenceThreads() >= 3;
+    }
+
+    static boolean usesScreenshotOcr(DetectorConfig config) {
+        return config != null && config.getInferenceThreads() >= 4;
+    }
+
     static long capturePollDelayMs(DetectorConfig config) {
         // Android rejects tighter Accessibility screenshots with
         // ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT. Scroll events own the real-time path.
@@ -618,7 +645,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 if (root == null || !isCurrentCapture(epoch)) return;
                 Rect screen = screenBounds();
                 List<Detection> screenDetections = accessibilityText.detect(
-                        root, config, screen.width(), screen.height());
+                        root, config, screen.width(), screen.height(),
+                        usesSemanticTextModel(detectorConfig));
                 List<Detection> mapped = TextDetectionCoordinateMapper.screenToCapture(
                         screenDetections, screen.width(), screen.height(),
                         captureWidth, captureHeight);
@@ -639,15 +667,35 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private List<Detection> cachedTextForFrame(
             int width, int height, long requestedScrollX, long requestedScrollY) {
-        List<Detection> source = cachedTextDetections;
-        if (source.isEmpty()) return source;
-        float scaleX = width / (float) Math.max(1, cachedTextWidth);
-        float scaleY = height / (float) Math.max(1, cachedTextHeight);
+        List<Detection> accessibility = shiftTextSource(
+                cachedTextDetections, cachedTextWidth, cachedTextHeight,
+                cachedTextScrollX, cachedTextScrollY,
+                width, height, requestedScrollX, requestedScrollY);
+        List<Detection> ocr = shiftTextSource(
+                cachedOcrDetections, cachedOcrWidth, cachedOcrHeight,
+                cachedOcrScrollX, cachedOcrScrollY,
+                width, height, requestedScrollX, requestedScrollY);
+        return DetectionFusion.merge(Collections.emptyList(), accessibility, ocr);
+    }
+
+    private List<Detection> shiftTextSource(
+            List<Detection> source,
+            int sourceWidth,
+            int sourceHeight,
+            long sourceScrollX,
+            long sourceScrollY,
+            int width,
+            int height,
+            long requestedScrollX,
+            long requestedScrollY) {
+        if (source == null || source.isEmpty()) return Collections.emptyList();
+        float scaleX = width / (float) Math.max(1, sourceWidth);
+        float scaleY = height / (float) Math.max(1, sourceHeight);
         Rect screen = screenBounds();
         float scrollScaleX = width / (float) Math.max(1, screen.width());
         float scrollScaleY = height / (float) Math.max(1, screen.height());
-        int offsetX = Math.round(-(requestedScrollX - cachedTextScrollX) * scrollScaleX);
-        int offsetY = Math.round(-(requestedScrollY - cachedTextScrollY) * scrollScaleY);
+        int offsetX = Math.round(-(requestedScrollX - sourceScrollX) * scrollScaleX);
+        int offsetY = Math.round(-(requestedScrollY - sourceScrollY) * scrollScaleY);
         List<Detection> shifted = new ArrayList<>(source.size());
         for (Detection detection : source) {
             BBox box = detection.getBox();
@@ -668,6 +716,66 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return shifted;
     }
 
+    private void maybeRequestOcr(
+            Bitmap source,
+            long epoch,
+            long scrollX,
+            long scrollY,
+            DetectorConfig config) {
+        TextSmutConfig currentTextConfig = textSmutConfig;
+        long now = SystemClock.uptimeMillis();
+        if (!usesScreenshotOcr(config) || currentTextConfig == null
+                || !currentTextConfig.isEnabled() || screenshotText == null
+                || textWorker == null || textWorker.isShutdown()
+                || now - lastOcrRequestUptime < OCR_INTERVAL_MS
+                || !ocrRunning.compareAndSet(false, true)) return;
+        InferenceBitmapPreparer.Prepared prepared = InferenceBitmapPreparer.prepare(
+                source, OCR_MAX_DIMENSION, false);
+        if (prepared == null) {
+            ocrRunning.set(false);
+            return;
+        }
+        lastOcrRequestUptime = now;
+        Bitmap ocrBitmap = prepared.bitmap;
+        activeOcrBitmap.set(ocrBitmap);
+        try {
+            screenshotText.detect(ocrBitmap, currentTextConfig,
+                    prepared.sourceWidth, prepared.sourceHeight, textWorker,
+                    new OcrTextSmutDetector.Callback() {
+                        @Override public void onComplete(List<Detection> detections) {
+                            try {
+                                if (!isCurrentCapture(epoch)
+                                        || !usesScreenshotOcr(detectorConfig)
+                                        || currentTextConfig != textSmutConfig) return;
+                                cachedOcrDetections = detections;
+                                cachedOcrWidth = prepared.sourceWidth;
+                                cachedOcrHeight = prepared.sourceHeight;
+                                cachedOcrScrollX = scrollX;
+                                cachedOcrScrollY = scrollY;
+                            } finally {
+                                releaseOcrBitmap(ocrBitmap);
+                                ocrRunning.set(false);
+                            }
+                        }
+
+                        @Override public void onFailure(Exception error) {
+                            releaseOcrBitmap(ocrBitmap);
+                            ocrRunning.set(false);
+                            Log.w(TAG, "Ultra screenshot OCR failed", error);
+                        }
+                    });
+        } catch (RuntimeException error) {
+            releaseOcrBitmap(ocrBitmap);
+            ocrRunning.set(false);
+            Log.w(TAG, "Could not start Ultra screenshot OCR", error);
+        }
+    }
+
+    private void releaseOcrBitmap(Bitmap bitmap) {
+        if (bitmap != null && activeOcrBitmap.compareAndSet(bitmap, null)
+                && !bitmap.isRecycled()) bitmap.recycle();
+    }
+
     private boolean isCurrentCapture(long requestedEpoch) {
         return captureEpoch.accepts(requestedEpoch, running, recognitionActive);
     }
@@ -686,11 +794,24 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         detectorConfig = config;
         configureAccessibilityCadence(config);
         textSmutConfig = settings.loadTextSmutConfig();
+        warmTextModels(config);
+        if (!usesScreenshotOcr(config)) cachedOcrDetections = Collections.emptyList();
         textRefreshRequested.set(true);
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
         PopupStormManager.get().reloadSettings(this);
         main.post(this::reevaluateRecognition);
+    }
+
+    private void warmTextModels(DetectorConfig config) {
+        ScheduledExecutorService executor = textWorker;
+        if (executor == null || executor.isShutdown()) return;
+        if (usesSemanticTextModel(config) && smutTextClassifier != null) {
+            executor.execute(smutTextClassifier::warmSemanticModel);
+        }
+        if (usesScreenshotOcr(config) && screenshotText != null) {
+            screenshotText.warmUp(executor);
+        }
     }
 
     @Override
@@ -961,6 +1082,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             pendingTrackerOffsetY.set(0L);
         }
         cachedTextDetections = Collections.emptyList();
+        cachedOcrDetections = Collections.emptyList();
         cachedTextScrollX = 0L;
         cachedTextScrollY = 0L;
         settledInferenceNeeded.set(false);
@@ -1072,6 +1194,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (worker != null) worker.shutdownNow();
         discardPendingInference();
         if (inferenceWorker != null) inferenceWorker.shutdownNow();
+        if (screenshotText != null) screenshotText.close();
+        screenshotText = null;
+        releaseOcrBitmap(activeOcrBitmap.get());
+        ocrRunning.set(false);
         if (textWorker != null) textWorker.shutdownNow();
         if (detector != null) detector.close();
         if (motionEstimator != null) motionEstimator.close();

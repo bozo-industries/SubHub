@@ -59,4 +59,17 @@ public final class CaptureEpochTest {
         assertFalse(ScreenshotAccessibilityService.usesContinuousMotionInference(high));
         assertTrue(ScreenshotAccessibilityService.usesContinuousMotionInference(ultra));
     }
+
+    @Test public void semanticTextAndOcrAreGatedByPresetCost() {
+        DetectorConfig medium = DetectorConfig.builder().inferenceThreads(2).build();
+        DetectorConfig high = DetectorConfig.builder().inferenceThreads(3).build();
+        DetectorConfig ultra = DetectorConfig.builder().inferenceThreads(4).build();
+
+        assertFalse(ScreenshotAccessibilityService.usesSemanticTextModel(medium));
+        assertTrue(ScreenshotAccessibilityService.usesSemanticTextModel(high));
+        assertTrue(ScreenshotAccessibilityService.usesSemanticTextModel(ultra));
+        assertFalse(ScreenshotAccessibilityService.usesScreenshotOcr(medium));
+        assertFalse(ScreenshotAccessibilityService.usesScreenshotOcr(high));
+        assertTrue(ScreenshotAccessibilityService.usesScreenshotOcr(ultra));
+    }
 }

@@ -14,14 +14,30 @@ import java.util.List;
 public final class AccessibilityTextSmutDetector {
     private static final int MAX_NODES = 900;
     private static final int MAX_TEXT_LENGTH = 2_000;
-    private final TextSmutDetectionFactory factory =
-            new TextSmutDetectionFactory(new SmutTextClassifier());
+    private final TextSmutDetectionFactory factory;
+
+    public AccessibilityTextSmutDetector() {
+        this(new SmutTextClassifier());
+    }
+
+    public AccessibilityTextSmutDetector(SmutTextClassifier classifier) {
+        factory = new TextSmutDetectionFactory(classifier);
+    }
 
     public List<Detection> detect(
             AccessibilityNodeInfo root,
             TextSmutConfig config,
             int width,
             int height) {
+        return detect(root, config, width, height, false);
+    }
+
+    public List<Detection> detect(
+            AccessibilityNodeInfo root,
+            TextSmutConfig config,
+            int width,
+            int height,
+            boolean semanticEnabled) {
         if (root == null || config == null || !config.isEnabled()) return Collections.emptyList();
         List<Detection> result = new ArrayList<>();
         ArrayDeque<AccessibilityNodeInfo> pending = new ArrayDeque<>();
@@ -37,7 +53,8 @@ public final class AccessibilityTextSmutDetector {
                     Rect bounds = new Rect();
                     node.getBoundsInScreen(bounds);
                     if (isUsefulTextRegion(node, bounds, width, height)) {
-                        Detection detection = factory.create(text, bounds, config, width, height);
+                        Detection detection = factory.create(
+                                text, bounds, config, width, height, semanticEnabled);
                         if (detection != null) result.add(detection);
                     }
                 }
