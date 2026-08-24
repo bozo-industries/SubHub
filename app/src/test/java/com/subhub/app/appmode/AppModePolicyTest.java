@@ -64,6 +64,17 @@ public final class AppModePolicyTest {
                 "com.subhub.app", "com.example.ime"));
     }
 
+    @Test public void liveAccessibilityRootConfirmsRealAppSwitchesButNotSystemChrome() {
+        assertTrue(AppModePolicy.shouldAcceptLiveForegroundPackage(
+                "com.openai.chatgpt", "com.example.ime"));
+        assertTrue(AppModePolicy.shouldAcceptLiveForegroundPackage(
+                "com.subhub.app", "com.example.ime"));
+        assertFalse(AppModePolicy.shouldAcceptLiveForegroundPackage(
+                "com.android.systemui", "com.example.ime"));
+        assertFalse(AppModePolicy.shouldAcceptLiveForegroundPackage(
+                "com.example.ime", "com.example.ime"));
+    }
+
     @Test public void malformedPackageNamesAreNotPersisted() {
         Set<String> clean = AppModePolicy.sanitizePackages(Set.of(
                 "com.example.ok", "not a package", "", "../escape"));

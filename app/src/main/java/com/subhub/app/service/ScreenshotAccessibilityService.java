@@ -147,7 +147,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         @Override public void run() {
             if (!running) return;
             long now = System.currentTimeMillis();
-            accountForegroundUsage(now);
+            boolean foregroundChanged = syncForegroundFromActiveRoot(now);
+            if (!foregroundChanged) accountForegroundUsage(now);
             enforceForegroundLimit(now);
             reevaluateRecognition();
             refreshHardcoreSettingsGuard();
@@ -243,6 +244,26 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         long requestedEpoch = captureEpoch.token();
         long requestedScrollX = cumulativeScrollX.get();
         long requestedScrollY = cumulativeScrollY.get();
+        AccessibilityNodeInfo activeRoot = getRootInActiveWindow();
+        int activeWindowId = -1;
+        String livePackage = "";
+        if (activeRoot != null) {
+            activeWindowId = activeRoot.getWindowId();
+            if (activeRoot.getPackageName() != null) {
+                livePackage = activeRoot.getPackageName().toString();
+            }
+            activeRoot.recycle();
+        }
+        AppModeManager mode = new AppModeManager(this);
+        if (AppModePolicy.shouldAcceptLiveForegroundPackage(
+                livePackage, mode.inputMethodPackage())
+                && !livePackage.equals(foregroundPackage)) {
+            String confirmedPackage = livePackage;
+            main.post(() -> acceptForegroundPackage(
+                    confirmedPackage, System.currentTimeMillis()));
+            finishScreenshotRequest();
+            return;
+        }
         TakeScreenshotCallback callback = new TakeScreenshotCallback() {
             @Override
             public void onSuccess(ScreenshotResult result) {
@@ -262,14 +283,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         // Android 14+ can capture the foreground app window directly. Unlike a display capture,
         // this excludes SubHub's own accessibility overlay, so a censor stays continuously visible
         // without becoming part of the next detector input.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root != null) {
-                int windowId = root.getWindowId();
-                root.recycle();
-                takeScreenshotOfWindow(windowId, worker, callback);
-                return;
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                && activeWindowId >= 0) {
+            takeScreenshotOfWindow(activeWindowId, worker, callback);
+            return;
         }
         takeScreenshot(Display.DEFAULT_DISPLAY, worker, callback);
     }
@@ -861,6 +878,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             main.postDelayed(settledTextRefresh, 100L);
             return;
         }
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                && !packageName.equals(foregroundPackage)
+                && syncForegroundFromActiveRoot(System.currentTimeMillis())) {
+            return;
+        }
         if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             recordCensoredTap(event, packageName);
             return;
@@ -872,11 +894,34 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!AppModePolicy.shouldAcceptForegroundEvent(packageName, className, getPackageName(),
                 mode.inputMethodPackage())) return;
         if (packageName.equals(foregroundPackage)) return;
-        long now = System.currentTimeMillis();
+        acceptForegroundPackage(packageName, System.currentTimeMillis());
+    }
+
+    private boolean syncForegroundFromActiveRoot(long nowMillis) {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        try {
+            String livePackage = root != null && root.getPackageName() != null
+                    ? root.getPackageName().toString() : "";
+            AppModeManager mode = new AppModeManager(this);
+            if (!AppModePolicy.shouldAcceptLiveForegroundPackage(
+                    livePackage, mode.inputMethodPackage())
+                    || livePackage.equals(foregroundPackage)) return false;
+            acceptForegroundPackage(livePackage, nowMillis);
+            return true;
+        } finally {
+            if (root != null) root.recycle();
+        }
+    }
+
+    private void acceptForegroundPackage(String packageName, long now) {
+        if (packageName == null || packageName.isEmpty()
+                || packageName.equals(foregroundPackage)) return;
         accountForegroundUsage(now);
         captureEpoch.invalidate();
         foregroundPackage = packageName;
         foregroundSinceMillis = now;
+        resetTextSnapshots();
+        AppModeManager mode = new AppModeManager(this);
         if (mode.getSelectedPackages().contains(packageName)) {
             int charged = penance.recordInfraction(
                     PenanceInfraction.WATCHED_APP_OPEN, 1, now);
@@ -895,6 +940,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         PopupStormManager.get().updateDetections(Collections.emptyList());
         if (enforceForegroundLimit(System.currentTimeMillis())) return;
         reevaluateRecognition();
+    }
+
+    private void resetTextSnapshots() {
+        cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
+        cachedOcrText = TextDetectionSnapshot.EMPTY;
+        textRefreshRequested.set(true);
     }
 
     private void recordCensoredTap(AccessibilityEvent event, String packageName) {
@@ -1057,6 +1108,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         PopupStormManager.get().stop();
         dwellTracker.clear();
         tapTracker.clear();
+        resetTextSnapshots();
         resetScrollCompensation();
     }
 
