@@ -12,6 +12,7 @@ import java.util.Set;
 /** Counts one dwell infraction per stationary screen episode after an uninterrupted threshold. */
 public final class DwellInfractionTracker {
     private final Map<Integer, State> states = new HashMap<>();
+    private long episodeStartedMillis = -1L;
     private boolean episodeCharged;
 
     public synchronized int update(
@@ -35,32 +36,29 @@ public final class DwellInfractionTracker {
             visible.add(track.getId());
             State state = states.get(track.getId());
             if (state == null) {
-                states.put(track.getId(), new State(nowMillis, track.getBox()));
+                states.put(track.getId(), new State(track.getBox()));
                 continue;
             }
             if (movedMeaningfully(state.box, track.getBox())) {
                 moved = true;
-                states.put(track.getId(), new State(nowMillis, track.getBox()));
+                states.put(track.getId(), new State(track.getBox()));
                 continue;
             }
             state.box = track.getBox();
         }
         states.keySet().removeIf(id -> !visible.contains(id));
         if (resetOnTrackedMovement && moved) {
+            episodeStartedMillis = visible.isEmpty() ? -1L : nowMillis;
             episodeCharged = false;
-            for (Integer id : visible) {
-                State state = states.get(id);
-                if (state != null) states.put(id, new State(nowMillis, state.box));
-            }
             return 0;
         }
-        if (episodeCharged) return 0;
-        for (Integer id : visible) {
-            State state = states.get(id);
-            if (state != null && nowMillis - state.visibleSinceMillis >= threshold) {
-                episodeCharged = true;
-                return 1;
-            }
+        // A stationary-screen episode belongs to the viewport, not to one detector identity.
+        // Video frames can legitimately replace every track while the user remains still.
+        if (!visible.isEmpty() && episodeStartedMillis < 0L) episodeStartedMillis = nowMillis;
+        if (!visible.isEmpty() && !episodeCharged
+                && nowMillis - episodeStartedMillis >= threshold) {
+            episodeCharged = true;
+            return 1;
         }
         return 0;
     }
@@ -68,11 +66,13 @@ public final class DwellInfractionTracker {
     /** A scroll starts a fresh uninterrupted dwell window for every visible item. */
     public synchronized void onScroll() {
         states.clear();
+        episodeStartedMillis = -1L;
         episodeCharged = false;
     }
 
     public synchronized void clear() {
         states.clear();
+        episodeStartedMillis = -1L;
         episodeCharged = false;
     }
 
@@ -84,11 +84,9 @@ public final class DwellInfractionTracker {
     }
 
     private static final class State {
-        final long visibleSinceMillis;
         BBox box;
 
-        State(long visibleSinceMillis, BBox box) {
-            this.visibleSinceMillis = visibleSinceMillis;
+        State(BBox box) {
             this.box = box;
         }
     }
