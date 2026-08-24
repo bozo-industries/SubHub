@@ -54,6 +54,7 @@ import java.util.Collections;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -101,6 +102,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private ScheduledExecutorService worker;
     private ScheduledExecutorService inferenceWorker;
     private ScheduledExecutorService textWorker;
+    private ExecutorService ocrWorker;
     private volatile ScheduledFuture<?> captureSchedule;
     private volatile ScheduledFuture<?> priorityCaptureSchedule;
     private SettingsRepository settings;
@@ -113,16 +115,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private OverlayController overlay;
     private volatile DetectorConfig detectorConfig;
     private volatile TextSmutConfig textSmutConfig;
-    private volatile List<Detection> cachedTextDetections = Collections.emptyList();
-    private volatile long cachedTextScrollX;
-    private volatile long cachedTextScrollY;
-    private volatile int cachedTextWidth = 1;
-    private volatile int cachedTextHeight = 1;
-    private volatile List<Detection> cachedOcrDetections = Collections.emptyList();
-    private volatile long cachedOcrScrollX;
-    private volatile long cachedOcrScrollY;
-    private volatile int cachedOcrWidth = 1;
-    private volatile int cachedOcrHeight = 1;
+    private volatile TextDetectionSnapshot cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
+    private volatile TextDetectionSnapshot cachedOcrText = TextDetectionSnapshot.EMPTY;
     private volatile int latestCaptureWidth = 1;
     private volatile int latestCaptureHeight = 1;
     private volatile long lastTextRefreshMillis;
@@ -189,6 +183,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         worker = Executors.newSingleThreadScheduledExecutor();
         inferenceWorker = Executors.newSingleThreadScheduledExecutor();
         textWorker = Executors.newSingleThreadScheduledExecutor();
+        ocrWorker = Executors.newSingleThreadExecutor();
         worker.execute(this::initializePipeline);
         main.post(this::reevaluateRecognition);
         main.post(timerTick);
@@ -651,11 +646,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         screenDetections, screen.width(), screen.height(),
                         captureWidth, captureHeight);
                 if (!isCurrentCapture(epoch)) return;
-                cachedTextDetections = mapped;
-                cachedTextWidth = captureWidth;
-                cachedTextHeight = captureHeight;
-                cachedTextScrollX = scrollX;
-                cachedTextScrollY = scrollY;
+                cachedAccessibilityText = new TextDetectionSnapshot(
+                        mapped, captureWidth, captureHeight, scrollX, scrollY);
                 lastTextRefreshMillis = System.currentTimeMillis();
             } finally {
                 if (root != null) root.recycle();
@@ -668,34 +660,29 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private List<Detection> cachedTextForFrame(
             int width, int height, long requestedScrollX, long requestedScrollY) {
         List<Detection> accessibility = shiftTextSource(
-                cachedTextDetections, cachedTextWidth, cachedTextHeight,
-                cachedTextScrollX, cachedTextScrollY,
+                cachedAccessibilityText,
                 width, height, requestedScrollX, requestedScrollY);
         List<Detection> ocr = shiftTextSource(
-                cachedOcrDetections, cachedOcrWidth, cachedOcrHeight,
-                cachedOcrScrollX, cachedOcrScrollY,
+                cachedOcrText,
                 width, height, requestedScrollX, requestedScrollY);
         return DetectionFusion.merge(Collections.emptyList(), accessibility, ocr);
     }
 
     private List<Detection> shiftTextSource(
-            List<Detection> source,
-            int sourceWidth,
-            int sourceHeight,
-            long sourceScrollX,
-            long sourceScrollY,
+            TextDetectionSnapshot snapshot,
             int width,
             int height,
             long requestedScrollX,
             long requestedScrollY) {
+        List<Detection> source = snapshot.detections;
         if (source == null || source.isEmpty()) return Collections.emptyList();
-        float scaleX = width / (float) Math.max(1, sourceWidth);
-        float scaleY = height / (float) Math.max(1, sourceHeight);
+        float scaleX = width / (float) Math.max(1, snapshot.width);
+        float scaleY = height / (float) Math.max(1, snapshot.height);
         Rect screen = screenBounds();
         float scrollScaleX = width / (float) Math.max(1, screen.width());
         float scrollScaleY = height / (float) Math.max(1, screen.height());
-        int offsetX = Math.round(-(requestedScrollX - sourceScrollX) * scrollScaleX);
-        int offsetY = Math.round(-(requestedScrollY - sourceScrollY) * scrollScaleY);
+        int offsetX = Math.round(-(requestedScrollX - snapshot.scrollX) * scrollScaleX);
+        int offsetY = Math.round(-(requestedScrollY - snapshot.scrollY) * scrollScaleY);
         List<Detection> shifted = new ArrayList<>(source.size());
         for (Detection detection : source) {
             BBox box = detection.getBox();
@@ -723,10 +710,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long scrollY,
             DetectorConfig config) {
         TextSmutConfig currentTextConfig = textSmutConfig;
+        ExecutorService callbackExecutor = ocrWorker;
         long now = SystemClock.uptimeMillis();
         if (!usesScreenshotOcr(config) || currentTextConfig == null
                 || !currentTextConfig.isEnabled() || screenshotText == null
-                || textWorker == null || textWorker.isShutdown()
+                || callbackExecutor == null || callbackExecutor.isShutdown()
                 || now - lastOcrRequestUptime < OCR_INTERVAL_MS
                 || !ocrRunning.compareAndSet(false, true)) return;
         InferenceBitmapPreparer.Prepared prepared = InferenceBitmapPreparer.prepare(
@@ -740,18 +728,16 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         activeOcrBitmap.set(ocrBitmap);
         try {
             screenshotText.detect(ocrBitmap, currentTextConfig,
-                    prepared.sourceWidth, prepared.sourceHeight, textWorker,
+                    prepared.sourceWidth, prepared.sourceHeight, callbackExecutor,
                     new OcrTextSmutDetector.Callback() {
                         @Override public void onComplete(List<Detection> detections) {
                             try {
                                 if (!isCurrentCapture(epoch)
                                         || !usesScreenshotOcr(detectorConfig)
                                         || currentTextConfig != textSmutConfig) return;
-                                cachedOcrDetections = detections;
-                                cachedOcrWidth = prepared.sourceWidth;
-                                cachedOcrHeight = prepared.sourceHeight;
-                                cachedOcrScrollX = scrollX;
-                                cachedOcrScrollY = scrollY;
+                                cachedOcrText = new TextDetectionSnapshot(
+                                        detections, prepared.sourceWidth, prepared.sourceHeight,
+                                        scrollX, scrollY);
                             } finally {
                                 releaseOcrBitmap(ocrBitmap);
                                 ocrRunning.set(false);
@@ -795,7 +781,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         configureAccessibilityCadence(config);
         textSmutConfig = settings.loadTextSmutConfig();
         warmTextModels(config);
-        if (!usesScreenshotOcr(config)) cachedOcrDetections = Collections.emptyList();
+        if (!usesScreenshotOcr(config)) cachedOcrText = TextDetectionSnapshot.EMPTY;
         textRefreshRequested.set(true);
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
@@ -804,13 +790,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void warmTextModels(DetectorConfig config) {
-        ScheduledExecutorService executor = textWorker;
-        if (executor == null || executor.isShutdown()) return;
-        if (usesSemanticTextModel(config) && smutTextClassifier != null) {
-            executor.execute(smutTextClassifier::warmSemanticModel);
+        ScheduledExecutorService accessibilityExecutor = textWorker;
+        if (accessibilityExecutor != null && !accessibilityExecutor.isShutdown()
+                && usesSemanticTextModel(config) && smutTextClassifier != null) {
+            accessibilityExecutor.execute(smutTextClassifier::warmSemanticModel);
         }
-        if (usesScreenshotOcr(config) && screenshotText != null) {
-            screenshotText.warmUp(executor);
+        ExecutorService currentOcrWorker = ocrWorker;
+        if (currentOcrWorker != null && !currentOcrWorker.isShutdown()
+                && usesScreenshotOcr(config) && screenshotText != null) {
+            screenshotText.warmUp(currentOcrWorker);
         }
     }
 
@@ -1081,10 +1069,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             pendingTrackerOffsetX.set(0L);
             pendingTrackerOffsetY.set(0L);
         }
-        cachedTextDetections = Collections.emptyList();
-        cachedOcrDetections = Collections.emptyList();
-        cachedTextScrollX = 0L;
-        cachedTextScrollY = 0L;
+        cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
+        cachedOcrText = TextDetectionSnapshot.EMPTY;
         settledInferenceNeeded.set(false);
         discardPendingInference();
         motionGeneration.incrementAndGet();
@@ -1176,6 +1162,29 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
     }
 
+    private static final class TextDetectionSnapshot {
+        private static final TextDetectionSnapshot EMPTY = new TextDetectionSnapshot(
+                Collections.emptyList(), 1, 1, 0L, 0L);
+        private final List<Detection> detections;
+        private final int width;
+        private final int height;
+        private final long scrollX;
+        private final long scrollY;
+
+        private TextDetectionSnapshot(
+                List<Detection> detections,
+                int width,
+                int height,
+                long scrollX,
+                long scrollY) {
+            this.detections = detections == null ? Collections.emptyList() : detections;
+            this.width = Math.max(1, width);
+            this.height = Math.max(1, height);
+            this.scrollX = scrollX;
+            this.scrollY = scrollY;
+        }
+    }
+
     private static final class ScrollAlignment extends ScrollPosition {
         ScrollAlignment(long scrollX, long scrollY) {
             super(scrollX, scrollY);
@@ -1198,6 +1207,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         screenshotText = null;
         releaseOcrBitmap(activeOcrBitmap.get());
         ocrRunning.set(false);
+        if (ocrWorker != null) ocrWorker.shutdownNow();
         if (textWorker != null) textWorker.shutdownNow();
         if (detector != null) detector.close();
         if (motionEstimator != null) motionEstimator.close();
