@@ -31,6 +31,19 @@ public final class PayPalOrdersClient {
         riskData = new PayPalRiskDataCollector(context);
     }
 
+    /** Verifies merchant credentials against PayPal without creating an order or payer session. */
+    public void validateCredentials(PayPalCredentialStore.Credentials credentials,
+            Callback<Boolean> callback) {
+        network.execute(() -> {
+            try {
+                accessToken(credentials);
+                deliver(callback, Result.success(Boolean.TRUE));
+            } catch (Exception error) {
+                deliver(callback, Result.failure(safeMessage(error), classify(error)));
+            }
+        });
+    }
+
     public void createOrder(PayPalCredentialStore.Credentials credentials,
             String settlementId, int amountCents, Callback<Order> callback) {
         network.execute(() -> {

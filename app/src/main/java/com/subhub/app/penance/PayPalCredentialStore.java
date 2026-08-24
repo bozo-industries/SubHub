@@ -21,6 +21,7 @@ public final class PayPalCredentialStore {
     private static final String KEY_ENVIRONMENT = "environment";
     private static final String KEY_CLIENT_ID = "client_id";
     private static final String KEY_SECRET = "client_secret";
+    private static final String KEY_VERIFIED_BOUNDARY = "verified_boundary";
     private static final String LEGACY_KEY_VAULT_REQUESTED = "vault_requested";
     private static final String KEY_VAULT_STATUS = "vault_status";
     private static final String KEY_VAULT_ID = "vault_id";
@@ -62,6 +63,22 @@ public final class PayPalCredentialStore {
         return load().isComplete();
     }
 
+    /** True only after PayPal has accepted this exact environment/client boundary. */
+    public boolean hasVerifiedCredentials() {
+        Credentials credentials = load();
+        if (!credentials.isComplete()) return false;
+        String verified = decrypt(preferences().getString(KEY_VERIFIED_BOUNDARY, ""));
+        return credentials.boundaryId().equals(verified);
+    }
+
+    public boolean markCredentialsVerified() {
+        Credentials credentials = load();
+        if (!credentials.isComplete()) return false;
+        String verified = encrypt(credentials.boundaryId());
+        return !verified.isEmpty() && preferences().edit()
+                .putString(KEY_VERIFIED_BOUNDARY, verified).commit();
+    }
+
     public boolean save(PayPalEnvironment environment, String clientId, String secret) {
         PayPalEnvironment selected = environment == null
                 ? PayPalEnvironment.SANDBOX : environment;
@@ -77,7 +94,8 @@ public final class PayPalCredentialStore {
         SharedPreferences.Editor editor = preferences().edit()
                 .putString(KEY_ENVIRONMENT, selected.name())
                 .putString(KEY_CLIENT_ID, encryptedId)
-                .putString(KEY_SECRET, encryptedSecret);
+                .putString(KEY_SECRET, encryptedSecret)
+                .remove(KEY_VERIFIED_BOUNDARY);
         if (boundaryChanged) clearVault(editor);
         return editor.commit();
     }
@@ -242,6 +260,13 @@ public final class PayPalCredentialStore {
             this.environment = environment;
             this.clientId = clientId == null ? "" : clientId;
             this.secret = secret == null ? "" : secret;
+        }
+
+        public static Credentials create(
+                PayPalEnvironment environment, String clientId, String secret) {
+            return new Credentials(environment == null ? PayPalEnvironment.SANDBOX : environment,
+                    clientId == null ? "" : clientId.trim(),
+                    secret == null ? "" : secret.trim());
         }
 
         public PayPalEnvironment environment() { return environment; }

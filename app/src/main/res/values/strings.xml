@@ -733,8 +733,11 @@
     <string name="paypal_client_secret_help">Enter once; leave blank later to keep it.</string>
     <string name="paypal_client_secret_hint">Paste PayPal client secret</string>
     <string name="paypal_sandbox_save">CONNECT</string>
+    <string name="paypal_connecting">CONNECTING…</string>
     <string name="paypal_sandbox_clear">DISCONNECT</string>
-    <string name="paypal_sandbox_saved">PayPal connected.</string>
+    <string name="paypal_sandbox_saved">PayPal API connected. Complete one Wallet checkout to link the payer.</string>
+    <string name="paypal_environment_status_connecting">CHECKING PAYPAL CREDENTIALS…</string>
+    <string name="paypal_connection_failed">PayPal could not connect: %1$s</string>
     <string name="paypal_sandbox_cleared">PayPal disconnected.</string>
     <string name="paypal_sandbox_invalid">Enter both the client ID and client secret.</string>
     <string name="paypal_sandbox_store_failed">The credentials could not be saved securely.</string>

@@ -73,6 +73,9 @@ public final class PenanceContractTest {
         PayPalCredentialStore.Credentials loaded = store.load();
         assertEquals("sandbox-client-id", loaded.clientId());
         assertEquals("sandbox-client-secret", loaded.secret());
+        assertFalse(store.hasVerifiedCredentials());
+        assertTrue(store.markCredentialsVerified());
+        assertTrue(store.hasVerifiedCredentials());
         assertEquals(PayPalCredentialStore.VaultStatus.REQUESTED,
                 store.vaultState().status());
         for (Object raw : context.getSharedPreferences(
@@ -85,6 +88,7 @@ public final class PenanceContractTest {
         store.selectEnvironment(PayPalEnvironment.LIVE);
         assertEquals(PayPalEnvironment.LIVE, store.selectedEnvironment());
         assertFalse(store.hasCredentials());
+        assertFalse(store.hasVerifiedCredentials());
         assertEquals(PayPalCredentialStore.VaultStatus.DISCONNECTED,
                 store.vaultState().status());
         store.clear();
