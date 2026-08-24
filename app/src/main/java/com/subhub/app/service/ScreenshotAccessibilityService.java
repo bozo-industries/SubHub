@@ -1,10 +1,12 @@
 package com.subhub.app.service;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.hardware.HardwareBuffer;
 import android.os.Build;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.Display;
@@ -15,6 +17,7 @@ import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
 
+import com.subhub.app.BuildConfig;
 import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.appmode.AppModePolicy;
 import com.subhub.app.appmode.AppTimerManager;
@@ -66,6 +69,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final long MIN_TEXT_REFRESH_MS = 300L;
     private static final long SETTLED_SCROLL_REFRESH_MS = 140L;
     private static final long MOTION_SETTLE_MS = 130L;
+    private static final long ACCESSIBILITY_SCREENSHOT_INTERVAL_MS = 350L;
 
     private final AtomicBoolean processing = new AtomicBoolean();
     private final AtomicBoolean inferenceDraining = new AtomicBoolean();
@@ -82,6 +86,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final AtomicBoolean textRefreshRequested = new AtomicBoolean(true);
     private final AtomicBoolean textRefreshRunning = new AtomicBoolean();
     private final CaptureEpoch captureEpoch = new CaptureEpoch();
+    private final AccessibilityScrollMotionResolver scrollMotionResolver =
+            new AccessibilityScrollMotionResolver();
     private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
             (preferences, key) -> reloadSettings();
@@ -89,6 +95,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private ScheduledExecutorService inferenceWorker;
     private ScheduledExecutorService textWorker;
     private volatile ScheduledFuture<?> captureSchedule;
+    private volatile ScheduledFuture<?> priorityCaptureSchedule;
     private SettingsRepository settings;
     private StatsRepository stats;
     private DetectionEngine detector;
@@ -108,6 +115,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile long lastTextRefreshMillis;
     private volatile long lastMotionUptime;
     private volatile long lastInferenceUptime;
+    private volatile long lastScreenshotRequestUptime;
+    private volatile long lastScrollDiagnosticUptime;
     private volatile boolean overlayNeedsSourceFrame;
     private volatile String foregroundPackage = "";
     private volatile String guardForegroundPackage = "";
@@ -157,6 +166,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         motionEstimator = new ScrollFrameMotionEstimator();
         settings.preferences().registerOnSharedPreferenceChangeListener(listener);
         running = true;
+
+        configureAccessibilityCadence(settings.loadDetectorConfig());
 
         worker = Executors.newSingleThreadScheduledExecutor();
         inferenceWorker = Executors.newSingleThreadScheduledExecutor();
@@ -210,7 +221,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     @RequiresApi(Build.VERSION_CODES.R)
     private void requestScreenshot() {
-        if (!running || !recognitionActive || !processing.compareAndSet(false, true)) return;
+        if (!running || !recognitionActive) return;
+        long requestUptime = SystemClock.uptimeMillis();
+        if (requestUptime - lastScreenshotRequestUptime
+                < ACCESSIBILITY_SCREENSHOT_INTERVAL_MS) return;
+        if (!processing.compareAndSet(false, true)) return;
+        lastScreenshotRequestUptime = requestUptime;
         long requestedEpoch = captureEpoch.token();
         long requestedScrollX = cumulativeScrollX.get();
         long requestedScrollY = cumulativeScrollY.get();
@@ -222,9 +238,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
             @Override
             public void onFailure(int errorCode) {
-                DiagnosticsRepository.failCode(
-                        DIAGNOSTICS_MODE, "Screenshot error", errorCode);
-                Log.w(TAG, "Accessibility screenshot failed with code " + errorCode);
+                if (errorCode != ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) {
+                    DiagnosticsRepository.failCode(
+                            DIAGNOSTICS_MODE, "Screenshot error", errorCode);
+                    Log.w(TAG, "Accessibility screenshot failed with code " + errorCode);
+                }
                 finishScreenshotRequest();
             }
         };
@@ -258,12 +276,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (wrapped == null) return;
             latestCaptureWidth = wrapped.getWidth();
             latestCaptureHeight = wrapped.getHeight();
+            long sampledGeneration = motionGeneration.get();
             ScrollFrameMotionEstimator.Motion motion = motionEstimator == null
                     ? ScrollFrameMotionEstimator.Motion.NONE : motionEstimator.update(wrapped);
             if (motion.moved()) {
-                applyFrameMotion(motion.dx, motion.dy);
+                applyFrameMotion(motion.dx, motion.dy, sampledGeneration);
                 return;
             }
+            if (sampledGeneration != motionGeneration.get()) return;
             long nowUptime = SystemClock.uptimeMillis();
             if (nowUptime - lastMotionUptime < MOTION_SETTLE_MS) return;
             boolean priorityFrame = settledInferenceNeeded.get();
@@ -409,17 +429,29 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     static long capturePollDelayMs(DetectorConfig config) {
-        int threads = config == null ? 2 : config.getInferenceThreads();
-        if (threads <= 1) return 150L;
-        if (threads == 2) return 90L;
-        if (threads == 3) return 60L;
-        return 40L;
+        // Android rejects tighter Accessibility screenshots with
+        // ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT. Scroll events own the real-time path.
+        return ACCESSIBILITY_SCREENSHOT_INTERVAL_MS;
     }
 
-    private void applyFrameMotion(int dx, int dy) {
+    private void applyFrameMotion(int dx, int dy, long expectedGeneration) {
+        if (dx == 0 && dy == 0) return;
+        if (!motionGeneration.compareAndSet(expectedGeneration, expectedGeneration + 1L)) return;
+        applyScrollMotion(dx, dy, false);
+    }
+
+    private void applyEventMotion(int dx, int dy) {
+        if (dx == 0 && dy == 0) return;
+        motionGeneration.incrementAndGet();
+        // Establish the next screenshot as a fresh visual baseline. Otherwise the estimator sees
+        // the same movement Android just reported and translates every censor a second time.
+        if (motionEstimator != null) motionEstimator.reset();
+        applyScrollMotion(dx, dy, true);
+    }
+
+    private void applyScrollMotion(int dx, int dy, boolean alreadyOnMainThread) {
         if (dx == 0 && dy == 0) return;
         lastMotionUptime = SystemClock.uptimeMillis();
-        motionGeneration.incrementAndGet();
         settledInferenceNeeded.set(true);
         discardPendingInference();
         // cumulativeScroll stores content-scroll direction; dx/dy are screen movement.
@@ -431,9 +463,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         textRefreshRequested.set(true);
         main.removeCallbacks(settledTextRefresh);
         main.postDelayed(settledTextRefresh, SETTLED_SCROLL_REFRESH_MS);
-        main.post(() -> {
+        queueSettledCapture();
+        Runnable moveOverlay = () -> {
             if (recognitionActive && overlay != null) overlay.offsetContent(dx, dy);
-        });
+        };
+        if (alreadyOnMainThread || Looper.myLooper() == main.getLooper()) moveOverlay.run();
+        else main.post(moveOverlay);
     }
 
     private void applyPendingTrackerMotion(int width, int height) {
@@ -447,6 +482,39 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void discardPendingInference() {
         InferenceFrame pending = pendingInference.getAndSet(null);
         if (pending != null) pending.recycle();
+    }
+
+    /** Coalesces movement into the earliest screenshot Android's platform gate will accept. */
+    private void queueSettledCapture() {
+        ScheduledExecutorService captureWorker = worker;
+        if (!running || !recognitionActive || captureWorker == null
+                || captureWorker.isShutdown()) return;
+        ScheduledFuture<?> existing = priorityCaptureSchedule;
+        if (existing != null) existing.cancel(false);
+        priorityCaptureSchedule = captureWorker.schedule(
+                this::requestSettledCapture, MOTION_SETTLE_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private void requestSettledCapture() {
+        if (!running || !recognitionActive || worker == null || worker.isShutdown()) return;
+        long now = SystemClock.uptimeMillis();
+        long wait = settledCaptureDelayMs(
+                now, lastMotionUptime, lastScreenshotRequestUptime);
+        if (wait > 0L) {
+            priorityCaptureSchedule = worker.schedule(
+                    this::requestSettledCapture, wait, TimeUnit.MILLISECONDS);
+            return;
+        }
+        priorityCaptureSchedule = null;
+        requestScreenshot();
+    }
+
+    static long settledCaptureDelayMs(
+            long nowUptime, long lastMotionUptime, long lastRequestUptime) {
+        long motionWait = MOTION_SETTLE_MS - (nowUptime - lastMotionUptime);
+        long platformWait = ACCESSIBILITY_SCREENSHOT_INTERVAL_MS
+                - (nowUptime - lastRequestUptime);
+        return Math.max(0L, Math.max(motionWait, platformWait));
     }
 
     private Rect screenBounds() {
@@ -554,6 +622,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         });
         DetectorConfig config = settings.loadDetectorConfig();
         detectorConfig = config;
+        configureAccessibilityCadence(config);
         textSmutConfig = settings.loadTextSmutConfig();
         textRefreshRequested.set(true);
         if (detector != null) detector.setConfig(config);
@@ -583,16 +652,33 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
             if (recognitionActive && packageName.equals(foregroundPackage)) {
-                dwellTracker.onScroll();
-                // Some apps only emit this event after touch-up. Use it to reject an in-flight
-                // detector frame; thumbnail motion estimation supplies the actual displacement.
-                lastMotionUptime = SystemClock.uptimeMillis();
-                motionGeneration.incrementAndGet();
-                settledInferenceNeeded.set(true);
-                discardPendingInference();
-                textRefreshRequested.set(true);
-                main.removeCallbacks(settledTextRefresh);
-                main.postDelayed(settledTextRefresh, SETTLED_SCROLL_REFRESH_MS);
+                int viewportWidth = latestCaptureWidth;
+                int viewportHeight = latestCaptureHeight;
+                if (viewportWidth <= 1 || viewportHeight <= 1) {
+                    android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+                    viewportWidth = Math.max(1, metrics.widthPixels);
+                    viewportHeight = Math.max(1, metrics.heightPixels);
+                }
+                AccessibilityScrollMotionResolver.Motion motion = scrollMotionResolver.resolve(
+                        event, viewportWidth, viewportHeight);
+                long scrollNow = SystemClock.uptimeMillis();
+                if (BuildConfig.DEBUG && scrollNow - lastScrollDiagnosticUptime >= 250L) {
+                    lastScrollDiagnosticUptime = scrollNow;
+                    Log.d(TAG, "Scroll event screen motion " + motion.dx + ',' + motion.dy);
+                }
+                if (motion.moved()) {
+                    applyEventMotion(motion.dx, motion.dy);
+                } else {
+                    dwellTracker.onScroll();
+                    // Keep screenshot motion as a fallback for custom views which omit deltas.
+                    lastMotionUptime = SystemClock.uptimeMillis();
+                    motionGeneration.incrementAndGet();
+                    settledInferenceNeeded.set(true);
+                    discardPendingInference();
+                    textRefreshRequested.set(true);
+                    main.removeCallbacks(settledTextRefresh);
+                    main.postDelayed(settledTextRefresh, SETTLED_SCROLL_REFRESH_MS);
+                }
             }
             return;
         }
@@ -764,6 +850,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         ScheduledFuture<?> schedule = captureSchedule;
         captureSchedule = null;
         if (schedule != null) schedule.cancel(false);
+        ScheduledFuture<?> prioritySchedule = priorityCaptureSchedule;
+        priorityCaptureSchedule = null;
+        if (prioritySchedule != null) prioritySchedule.cancel(false);
         discardPendingInference();
         DiagnosticsRepository.stop(DIAGNOSTICS_MODE);
         if (overlay != null) overlay.close();
@@ -775,6 +864,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void resetScrollCompensation() {
+        ScheduledFuture<?> prioritySchedule = priorityCaptureSchedule;
+        priorityCaptureSchedule = null;
+        if (prioritySchedule != null) prioritySchedule.cancel(false);
         cumulativeScrollX.set(0L);
         cumulativeScrollY.set(0L);
         cachedTextDetections = Collections.emptyList();
@@ -787,9 +879,21 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         motionGeneration.incrementAndGet();
         lastMotionUptime = 0L;
         lastInferenceUptime = 0L;
+        lastScreenshotRequestUptime = 0L;
         if (motionEstimator != null) motionEstimator.reset();
+        scrollMotionResolver.reset();
         textRefreshRequested.set(true);
         main.removeCallbacks(settledTextRefresh);
+    }
+
+    private void configureAccessibilityCadence(DetectorConfig config) {
+        AccessibilityServiceInfo info = getServiceInfo();
+        if (info == null) return;
+        boolean ultra = config != null && config.getInferenceThreads() >= 4;
+        info.notificationTimeout = ultra ? 0L : 16L;
+        if (ultra) info.flags |= AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
+        else info.flags &= ~AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
+        setServiceInfo(info);
     }
 
     @Override
