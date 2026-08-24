@@ -35,6 +35,7 @@ import com.subhub.app.penance.PenanceManager;
 import com.subhub.app.penance.HardcoreAutoPayManager;
 import com.subhub.app.penance.PayPalCredentialStore;
 import com.subhub.app.penance.PayPalEnvironment;
+import com.subhub.app.penance.PayPalOrdersClient;
 import com.subhub.app.profiles.ProfilesActivity;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.ControllerPinGate;
@@ -63,11 +64,13 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private HardcoreModeManager hardcore;
     private AppModeManager appMode;
     private PayPalCredentialStore paypalCredentials;
+    private PayPalOrdersClient paypalClient;
     private HardcoreAutoPayManager autoPay;
     private ActivityResultLauncher<Intent> hardcoreActivation;
     private boolean updatingHardcore;
     private boolean updatingPaypalEnvironment;
     private boolean updatingAutoPay;
+    private boolean paypalConnecting;
     private boolean editingUnlocked;
     private final Set<String> censorPackages = new LinkedHashSet<>();
     private final Set<String> timerPackages = new LinkedHashSet<>();
@@ -82,6 +85,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         hardcore = new HardcoreModeManager(this);
         appMode = new AppModeManager(this);
         paypalCredentials = new PayPalCredentialStore(this);
+        paypalClient = new PayPalOrdersClient(this);
         autoPay = new HardcoreAutoPayManager(this);
         censorPackages.addAll(appMode.getSelectedPackages());
         timerPackages.addAll(appMode.getTimerPackages());
@@ -210,7 +214,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.buttonSavePaypal.setEnabled(editingUnlocked);
         binding.paypalClientId.setEnabled(editingUnlocked);
         binding.paypalClientSecret.setEnabled(editingUnlocked);
-        binding.buttonSavePaypalSandbox.setEnabled(editingUnlocked);
+        binding.buttonSavePaypalSandbox.setEnabled(editingUnlocked && !paypalConnecting);
         binding.buttonClearPaypalSandbox.setEnabled(editingUnlocked);
         binding.paypalEnvironmentSandbox.setEnabled(editingUnlocked);
         binding.paypalEnvironmentLive.setEnabled(editingUnlocked);
@@ -265,7 +269,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     }
 
     private void savePayPalSandbox() {
-        if (!editingUnlocked) return;
+        if (!editingUnlocked || paypalConnecting) return;
         String clientId = binding.paypalClientId.getText() == null
                 ? "" : binding.paypalClientId.getText().toString().trim();
         String secret = binding.paypalClientSecret.getText() == null
@@ -278,17 +282,39 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.paypal_sandbox_invalid, Toast.LENGTH_SHORT).show();
             return;
         }
+        final String verifiedSecret = secret;
+        PayPalCredentialStore.Credentials candidate =
+                PayPalCredentialStore.Credentials.create(selected, clientId, verifiedSecret);
         String oldBoundary = existing.boundaryId();
-        if (!paypalCredentials.save(selected, clientId, secret)) {
-            Toast.makeText(this, R.string.paypal_sandbox_store_failed, Toast.LENGTH_LONG).show();
-            return;
-        }
-        binding.paypalClientSecret.setText("");
-        if (!oldBoundary.equals(paypalCredentials.load().boundaryId())) {
-            cancelActivePayPalCheckout();
-        }
-        Toast.makeText(this, R.string.paypal_sandbox_saved, Toast.LENGTH_SHORT).show();
-        refreshPayPalSandboxState();
+        paypalConnecting = true;
+        binding.buttonSavePaypalSandbox.setEnabled(false);
+        binding.buttonSavePaypalSandbox.setText(R.string.paypal_connecting);
+        binding.paypalSandboxStatus.setText(R.string.paypal_environment_status_connecting);
+        paypalClient.validateCredentials(candidate, result -> {
+            if (binding == null) return;
+            paypalConnecting = false;
+            binding.buttonSavePaypalSandbox.setText(R.string.paypal_sandbox_save);
+            binding.buttonSavePaypalSandbox.setEnabled(editingUnlocked);
+            if (!result.isSuccess()) {
+                Toast.makeText(this, getString(R.string.paypal_connection_failed,
+                        result.error()), Toast.LENGTH_LONG).show();
+                refreshPayPalSandboxState();
+                return;
+            }
+            if (!paypalCredentials.save(selected, clientId, verifiedSecret)
+                    || !paypalCredentials.markCredentialsVerified()) {
+                Toast.makeText(this, R.string.paypal_sandbox_store_failed,
+                        Toast.LENGTH_LONG).show();
+                refreshPayPalSandboxState();
+                return;
+            }
+            binding.paypalClientSecret.setText("");
+            if (!oldBoundary.equals(paypalCredentials.load().boundaryId())) {
+                cancelActivePayPalCheckout();
+            }
+            Toast.makeText(this, R.string.paypal_sandbox_saved, Toast.LENGTH_LONG).show();
+            refreshPayPalSandboxState();
+        });
     }
 
     private void clearPayPalSandbox() {
@@ -305,7 +331,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         if (binding == null || paypalCredentials == null) return;
         PayPalEnvironment environment = paypalCredentials.selectedEnvironment();
         binding.paypalSandboxStatus.setText(getString(
-                paypalCredentials.hasCredentials()
+                paypalCredentials.hasVerifiedCredentials()
                         ? R.string.paypal_environment_status_ready
                         : R.string.paypal_environment_status_off,
                 environment == PayPalEnvironment.LIVE ? "LIVE" : "SANDBOX"));
@@ -637,6 +663,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
 
     @Override protected void onDestroy() {
         appLoader.shutdownNow();
+        if (paypalClient != null) paypalClient.close();
         binding = null;
         super.onDestroy();
     }

@@ -81,6 +81,32 @@ public final class InfractionTrackerTest {
                 1_000, 2_000, 1_300L));
     }
 
+    @Test public void directTouchMatchesOnlyInsideARecentVisibleCensor() {
+        CensorTapTracker tracker = new CensorTapTracker();
+        tracker.update(List.of(track(1, new BBox(100, 200, 200, 160))),
+                1_000, 2_000, 1_000L);
+
+        assertTrue(tracker.matchesPoint(150f, 250f,
+                1_000, 2_000, 1_200L));
+        assertFalse(tracker.matchesPoint(90f, 250f,
+                1_000, 2_000, 1_200L));
+        assertFalse(tracker.matchesPoint(150f, 250f,
+                1_000, 2_000, 3_001L));
+    }
+
+    @Test public void directTouchTargetMovesWithTheCensorDuringScroll() {
+        CensorTapTracker tracker = new CensorTapTracker();
+        tracker.update(List.of(track(1, new BBox(100, 800, 200, 200))),
+                1_000, 2_000, 1_000L);
+
+        tracker.offsetContent(0, -300, 1_000, 2_000, 1_100L);
+
+        assertFalse(tracker.matchesPoint(150f, 850f,
+                1_000, 2_000, 1_200L));
+        assertTrue(tracker.matchesPoint(150f, 550f,
+                1_000, 2_000, 1_200L));
+    }
+
     @Test public void overlappingNestedClickTargetMatchesWithoutContainingCensorCenter() {
         CensorTapTracker tracker = new CensorTapTracker();
         tracker.update(List.of(track(1, new BBox(100, 200, 200, 200))),

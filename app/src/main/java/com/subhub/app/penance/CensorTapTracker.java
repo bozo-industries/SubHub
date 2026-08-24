@@ -90,6 +90,24 @@ public final class CensorTapTracker {
         return false;
     }
 
+    /** Matches an actual screen touch against the censor regions currently visible to the user. */
+    public synchronized boolean matchesPoint(
+            float screenX, float screenY,
+            int screenWidth, int screenHeight, long nowMillis) {
+        int safeScreenWidth = Math.max(1, screenWidth);
+        int safeScreenHeight = Math.max(1, screenHeight);
+        if (boxes.isEmpty() || nowMillis - frameAtMillis > MAX_FRAME_AGE_MILLIS
+                || screenX < 0f || screenY < 0f
+                || screenX > safeScreenWidth || screenY > safeScreenHeight) return false;
+        float frameX = screenX * frameWidth / safeScreenWidth;
+        float frameY = screenY * frameHeight / safeScreenHeight;
+        for (BBox box : boxes) {
+            if (frameX >= box.getX() && frameX <= box.getRight()
+                    && frameY >= box.getY() && frameY <= box.getBottom()) return true;
+        }
+        return false;
+    }
+
     public synchronized void clear() {
         boxes = List.of();
         frameAtMillis = 0L;
