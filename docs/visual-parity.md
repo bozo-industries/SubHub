@@ -1,6 +1,6 @@
 # Visual parity audit
 
-The licensed Beta Blocker 1.67 APK and maintained SubHub build were exercised side by side on the same API 35 emulator. Licensed screenshots, APKTool output, and JADX references remain outside Git in `C:\Users\user\Code\BetaSafe-private`.
+The licensed Beta Blocker 1.67 APK and maintained SubHub build were exercised side by side on the same API 35 emulator. Licensed screenshots, APKTool output, and JADX references remain outside Git in `C:\Users\user\Code\SubHub-private`.
 
 ## Matched shell
 

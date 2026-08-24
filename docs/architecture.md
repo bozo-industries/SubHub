@@ -29,7 +29,7 @@ MainActivity
 
 `DetectionEngine` accepts screen bitmaps, runs an 18-class detector, applies confidence filtering/NMS, and produces bounding boxes. In Accessibility App Mode, a bounded native-node classifier can also identify visible explicit text without OCR. It normalizes common obfuscation, scores explicit/D/s/solicitation signals by sensitivity, ignores aggregate container descriptions when precise descendant text exists, and projects matched spans onto line-height regions instead of blindly censoring a whole post card. `DetectionFusion` keeps a precise child text line when a coarse parent overlaps it, while still joining genuinely adjacent matched lines before the tracker; the same stable post is therefore censored and counted once rather than once per screenshot. Rendering is split between system overlays and image/export rendering. Capture is deliberately single-flight; the performance preset bounds ONNX intra-op concurrency to one through four threads instead of allowing overlapping screenshot/inference jobs to queue stale frames.
 
-The clean source implements both capture branches as ordinary Java source under `app/src/main/java/com/betasafe/app`. Android's own consent dialog authorizes every MediaProjection session, while Android's accessibility settings control the alternate screenshot service. Export rendering and reverse censoring are also maintained source. The app does not silently grant or retain platform capture authority.
+The clean source implements both capture branches as ordinary Java source under `app/src/main/java/com/subhub/app`. Android's own consent dialog authorizes every MediaProjection session, while Android's accessibility settings control the alternate screenshot service. Export rendering and reverse censoring are also maintained source. The app does not silently grant or retain platform capture authority.
 
 `AppModeManager` persists whether automatic recognition is armed and whether every external app or only a selected package set is watched. The exact armed/disarmed state survives reboot. `ScreenshotAccessibilityService` consumes only window-state package transitions. It prewarms the local model once while capture remains asleep, tags every asynchronous frame with a capture epoch, and rejects a result after the foreground app changes. Leaving a watched package cancels screenshot scheduling, immediately removes every censor/popup window, and releases retained frame pixels; the Accessibility binding stays available for the next package transition. Input methods and transient Android-owned windows—including notifications, the shade, volume UI, and permission sheets—are ignored so they cannot replace the foreground app and strand recognition in a suspended state.
 
@@ -54,7 +54,7 @@ Source-dependent effects transfer the already-owned capture bitmap to the overla
 | Settings packs | `jadx/.../pack/PackManager.java` | `apktool/smali/.../pack/PackManager.smali` |
 | Local statistics | `jadx/.../stats/StatsRepository.java` | `apktool/smali/.../stats/StatsRepository.smali` |
 
-The private roots shown in the table are relative to `C:\Users\user\Code\BetaSafe-private`.
+The private roots shown in the table are relative to `C:\Users\user\Code\SubHub-private`.
 
 ## Bundled inference assets
 

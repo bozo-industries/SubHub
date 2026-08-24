@@ -7,7 +7,7 @@
 *.dex
 
 # Decompiled/private working trees
-BetaSafe-private/
+SubHub-private/
 private/
 work/
 decoded/

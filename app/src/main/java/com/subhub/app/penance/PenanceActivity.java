@@ -1,0 +1,635 @@
+package com.subhub.app.penance;
+
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.View;
+import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.subhub.app.BuildConfig;
+import com.subhub.app.R;
+import com.subhub.app.databinding.ActivityPenanceBinding;
+import com.subhub.app.security.ControllerPinGate;
+import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.security.ControllerEditMode;
+import com.subhub.app.util.SubHubNavigation;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.net.URI;
+import java.text.DateFormat;
+import java.util.Date;
+import java.util.EnumMap;
+import java.util.Locale;
+import java.util.Map;
+
+/** Styled local ledger and explicit PayPal settlement surface. */
+public final class PenanceActivity extends AppCompatActivity {
+    public static final String EXTRA_BEGIN_PAID_PAUSE =
+            "com.subhub.app.extra.BEGIN_PAID_PAUSE";
+    private ActivityPenanceBinding binding;
+    private PenanceManager manager;
+    private PayPalCredentialStore paypalCredentials;
+    private PayPalOrdersClient paypalClient;
+    private String activeClientMetadataId = "";
+    private boolean checkoutBusy;
+    private final TextWatcher ruleMathWatcher = new TextWatcher() {
+        @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
+        @Override public void onTextChanged(CharSequence value, int start, int before, int count) {}
+        @Override public void afterTextChanged(Editable value) { renderRuleMathPreview(); }
+    };
+    private final Handler timer = new Handler(Looper.getMainLooper());
+    private final Runnable tick = new Runnable() {
+        @Override public void run() {
+            render();
+            timer.postDelayed(this, 1000L);
+        }
+    };
+
+    @Override protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        binding = ActivityPenanceBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
+        if (!Intent.ACTION_VIEW.equals(getIntent().getAction())
+                && SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.MONEY)) return;
+        manager = new PenanceManager(this);
+        paypalCredentials = new PayPalCredentialStore(this);
+        paypalClient = new PayPalOrdersClient(this);
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.MONEY);
+        populateRules();
+        attachRuleMathListeners();
+
+        binding.buttonBack.setOnClickListener(view -> finish());
+        binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
+        binding.buttonSaveRules.setOnClickListener(view -> saveRules());
+        binding.buttonSettle.setOnClickListener(view -> beginCheckout());
+        binding.buttonResumeCheckout.setOnClickListener(view -> openApprovalUrl());
+        binding.buttonConfirmPayment.setOnClickListener(view -> confirmPayment());
+        binding.buttonCancelCheckout.setOnClickListener(view -> cancelCheckout());
+        binding.buttonForgiveLatest.setOnClickListener(view -> forgiveLatest());
+        binding.buttonClearUnpaid.setOnClickListener(view -> confirmClearUnpaid());
+        binding.buttonTestStrike.setVisibility(BuildConfig.DEBUG ? View.VISIBLE : View.GONE);
+        binding.buttonTestStrike.setOnClickListener(view -> {
+            long now = System.currentTimeMillis();
+            int charged = manager.recordInfraction(PenanceInfraction.NEW_DETECTION, 1, now);
+            PenanceChargeNotifier.show(this, manager,
+                    PenanceInfraction.NEW_DETECTION, charged, now);
+            render();
+        });
+        renderRuleMathPreview();
+        render();
+        applyEditState();
+        handlePayPalReturn(getIntent());
+        if (getIntent().getBooleanExtra(EXTRA_BEGIN_PAID_PAUSE, false)) {
+            getIntent().removeExtra(EXTRA_BEGIN_PAID_PAUSE);
+            binding.getRoot().post(() -> beginCheckout(true));
+        }
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handlePayPalReturn(intent);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        applyEditState();
+        timer.removeCallbacks(tick);
+        timer.post(tick);
+    }
+
+    private void toggleEditSession() {
+        if (ControllerPinManager.isSessionUnlocked()) {
+            ControllerEditMode.enterSubMode(this);
+        } else ControllerPinGate.require(this, this::applyEditState, false);
+    }
+
+    private void applyEditState() {
+        if (binding == null) return;
+        boolean editing = ControllerPinManager.isDomModeActive();
+        ControllerEditMode.renderButton(this, binding.buttonEditLock);
+        binding.buttonEditLock.setVisibility(editing ? View.VISIBLE : View.GONE);
+        binding.buttonBack.setVisibility(editing ? View.GONE : View.VISIBLE);
+        binding.penanceSubtitle.setText(editing
+                ? R.string.penance_subtitle : R.string.penance_sub_checkout_subtitle);
+        binding.ruleConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
+        binding.safetyConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
+        binding.paidPauseConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
+        binding.correctionsCard.setVisibility(editing ? View.VISIBLE : View.GONE);
+        View[] editable = {binding.ledgerEnabled, binding.ruleDetectionEnabled,
+                binding.ruleDetectionAmount, binding.detectionBatch, binding.ruleDwellEnabled,
+                binding.ruleDwellAmount, binding.ruleTapEnabled, binding.ruleTapAmount,
+                binding.ruleAppOpenEnabled, binding.ruleAppOpenAmount, binding.dailyCap,
+                binding.weeklyCap, binding.mercyMinutes, binding.dwellSeconds,
+                binding.paidPauseEnabled, binding.paidPauseAmount,
+                binding.paidPauseMinutes,
+                binding.paymentConsent, binding.buttonSaveRules,
+                binding.buttonForgiveLatest, binding.buttonClearUnpaid, binding.buttonTestStrike};
+        for (View view : editable) view.setEnabled(editing);
+        syncRuleInputStates();
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.MONEY);
+        render();
+    }
+
+    @Override protected void onPause() {
+        timer.removeCallbacks(tick);
+        super.onPause();
+    }
+
+    private void populateRules() {
+        binding.ledgerEnabled.setChecked(manager.isEnabled());
+        populateRule(PenanceInfraction.NEW_DETECTION,
+                binding.ruleDetectionEnabled, binding.ruleDetectionAmount,
+                binding.detectionBatch);
+        populateRule(PenanceInfraction.CENSORED_DWELL,
+                binding.ruleDwellEnabled, binding.ruleDwellAmount);
+        populateRule(PenanceInfraction.CENSORED_TAP,
+                binding.ruleTapEnabled, binding.ruleTapAmount);
+        populateRule(PenanceInfraction.WATCHED_APP_OPEN,
+                binding.ruleAppOpenEnabled, binding.ruleAppOpenAmount);
+        binding.dailyCap.setText(decimalEuros(manager.getDailyCapCents()));
+        binding.weeklyCap.setText(decimalEuros(manager.getWeeklyCapCents()));
+        binding.mercyMinutes.setText(String.valueOf(manager.getMercyMinutes()));
+        binding.dwellSeconds.setText(String.valueOf(manager.getDwellSeconds()));
+        binding.detectionBatch.setText(String.valueOf(manager.getDetectionBatch()));
+        binding.paymentConsent.setChecked(manager.isEnabled());
+        PaidPauseManager paidPause = new PaidPauseManager(this);
+        binding.paidPauseEnabled.setChecked(paidPause.isEnabled());
+        binding.paidPauseAmount.setText(decimalEuros(paidPause.getPriceCents()));
+        binding.paidPauseMinutes.setText(String.valueOf(paidPause.getDurationMinutes()));
+        binding.paidPauseEnabled.setOnCheckedChangeListener((button, checked) ->
+                syncPaidPauseInputs());
+        syncPaidPauseInputs();
+    }
+
+    private void populateRule(
+            PenanceInfraction infraction, CheckBox toggle, EditText amount, View... dependents) {
+        toggle.setChecked(manager.isInfractionEnabled(infraction));
+        amount.setText(decimalEuros(manager.getInfractionCents(infraction)));
+        toggle.setOnCheckedChangeListener((button, checked) -> {
+            syncRuleInputState(toggle, amount, dependents);
+            renderRuleMathPreview();
+        });
+        syncRuleInputState(toggle, amount, dependents);
+    }
+
+    private void syncRuleInputStates() {
+        syncRuleInputState(binding.ruleDetectionEnabled, binding.ruleDetectionAmount,
+                binding.detectionBatch);
+        syncRuleInputState(binding.ruleDwellEnabled, binding.ruleDwellAmount);
+        syncRuleInputState(binding.ruleTapEnabled, binding.ruleTapAmount);
+        syncRuleInputState(binding.ruleAppOpenEnabled, binding.ruleAppOpenAmount);
+        syncPaidPauseInputs();
+    }
+
+    private void syncPaidPauseInputs() {
+        if (binding == null) return;
+        boolean enabled = binding.paidPauseEnabled.isChecked();
+        boolean editable = enabled && ControllerPinManager.isSessionUnlocked();
+        binding.paidPauseAmount.setEnabled(editable);
+        binding.paidPauseMinutes.setEnabled(editable);
+        binding.paidPauseAmount.setAlpha(enabled ? 1f : 0.45f);
+        binding.paidPauseMinutes.setAlpha(enabled ? 1f : 0.45f);
+    }
+
+    private void syncRuleInputState(CheckBox toggle, EditText amount, View... dependents) {
+        boolean ruleEnabled = toggle.isChecked();
+        boolean editable = ruleEnabled && ControllerPinManager.isSessionUnlocked();
+        amount.setEnabled(editable);
+        amount.setAlpha(ruleEnabled ? 1f : 0.45f);
+        if (dependents == null) return;
+        for (View dependent : dependents) {
+            dependent.setEnabled(editable);
+            dependent.setAlpha(ruleEnabled ? 1f : 0.45f);
+        }
+    }
+
+    private void attachRuleMathListeners() {
+        binding.ruleDetectionAmount.addTextChangedListener(ruleMathWatcher);
+        binding.detectionBatch.addTextChangedListener(ruleMathWatcher);
+        binding.dailyCap.addTextChangedListener(ruleMathWatcher);
+        binding.weeklyCap.addTextChangedListener(ruleMathWatcher);
+        binding.ledgerEnabled.setOnCheckedChangeListener((button, checked) ->
+                renderRuleMathPreview());
+    }
+
+    private void renderRuleMathPreview() {
+        if (binding == null) return;
+        long now = System.currentTimeMillis();
+        if (manager.isEnabled() && manager.isInfractionEnabled(PenanceInfraction.NEW_DETECTION)) {
+            if (manager.getDailyRemainingCents(now) == 0) {
+                binding.ruleMathPreview.setText(R.string.penance_daily_cap_reached);
+                return;
+            }
+            if (manager.getWeeklyRemainingCents(now) == 0) {
+                binding.ruleMathPreview.setText(R.string.penance_weekly_cap_reached);
+                return;
+            }
+        }
+        Integer cents = parseEuros(binding.ruleDetectionAmount.getText().toString());
+        Integer batch = parseInteger(binding.detectionBatch.getText().toString());
+        Integer daily = parseEuros(binding.dailyCap.getText().toString());
+        Integer weekly = parseEuros(binding.weeklyCap.getText().toString());
+        if (cents == null || batch == null || daily == null || weekly == null
+                || cents < PenancePolicy.MIN_STRIKE_CENTS
+                || cents > PenancePolicy.MAX_STRIKE_CENTS
+                || batch < PenancePolicy.MIN_DETECTION_BATCH
+                || batch > PenancePolicy.MAX_DETECTION_BATCH
+                || daily < cents || weekly < daily) {
+            binding.ruleMathPreview.setText(R.string.penance_rule_math_invalid);
+            return;
+        }
+        int exampleRegions = batch * 5;
+        int progress = batch == manager.getDetectionBatch()
+                ? manager.getDetectionRemainder() : 0;
+        binding.ruleMathPreview.setText(getString(R.string.penance_rule_math_preview,
+                batch, exampleRegions, PenanceManager.formatMoney(cents),
+                PenanceManager.formatMoney(cents * 5), PenanceManager.formatMoney(daily),
+                PenanceManager.formatMoney(weekly), progress));
+    }
+
+    private void saveRules() {
+        boolean enabled = binding.ledgerEnabled.isChecked();
+        if (enabled && !binding.paymentConsent.isChecked()) {
+            toast(R.string.penance_consent_required);
+            return;
+        }
+        Map<PenanceInfraction, Integer> rules = new EnumMap<>(PenanceInfraction.class);
+        if (!readRule(rules, PenanceInfraction.NEW_DETECTION,
+                binding.ruleDetectionEnabled, binding.ruleDetectionAmount)
+                || !readRule(rules, PenanceInfraction.CENSORED_DWELL,
+                binding.ruleDwellEnabled, binding.ruleDwellAmount)
+                || !readRule(rules, PenanceInfraction.CENSORED_TAP,
+                binding.ruleTapEnabled, binding.ruleTapAmount)
+                || !readRule(rules, PenanceInfraction.WATCHED_APP_OPEN,
+                binding.ruleAppOpenEnabled, binding.ruleAppOpenAmount)) {
+            toast(R.string.penance_rules_invalid);
+            return;
+        }
+        Integer daily = parseEuros(binding.dailyCap.getText().toString());
+        Integer weekly = parseEuros(binding.weeklyCap.getText().toString());
+        Integer mercy = parseInteger(binding.mercyMinutes.getText().toString());
+        Integer dwell = parseInteger(binding.dwellSeconds.getText().toString());
+        Integer detectionBatch = parseInteger(binding.detectionBatch.getText().toString());
+        Integer pausePrice = parseEuros(binding.paidPauseAmount.getText().toString());
+        Integer pauseMinutes = parseInteger(binding.paidPauseMinutes.getText().toString());
+        int largestCost = 0;
+        for (int cost : rules.values()) largestCost = Math.max(largestCost, cost);
+        if (daily == null || weekly == null || mercy == null || dwell == null
+                || detectionBatch == null
+                || pausePrice == null || pauseMinutes == null
+                || (enabled && rules.isEmpty()) || daily < largestCost || weekly < daily
+                || daily > PenancePolicy.MAX_DAILY_CENTS
+                || weekly > PenancePolicy.MAX_WEEKLY_CENTS
+                || mercy < 0 || mercy > PenancePolicy.MAX_MERCY_MINUTES
+                || dwell < PenancePolicy.MIN_DWELL_SECONDS
+                || dwell > PenancePolicy.MAX_DWELL_SECONDS
+                || detectionBatch < PenancePolicy.MIN_DETECTION_BATCH
+                || detectionBatch > PenancePolicy.MAX_DETECTION_BATCH
+                || pausePrice < PaidPauseManager.MIN_PRICE_CENTS
+                || pausePrice > PaidPauseManager.MAX_PRICE_CENTS
+                || pauseMinutes < PaidPauseManager.MIN_DURATION_MINUTES
+                || pauseMinutes > PaidPauseManager.MAX_DURATION_MINUTES) {
+            toast(R.string.penance_rules_invalid);
+            return;
+        }
+        manager.configure(enabled, rules, daily, weekly, mercy, dwell, detectionBatch);
+        new PaidPauseManager(this).configure(binding.paidPauseEnabled.isChecked(),
+                pausePrice, pauseMinutes);
+        HardcoreAutoPayManager.schedule(this);
+        toast(R.string.penance_rules_saved);
+        render();
+    }
+
+    private boolean readRule(Map<PenanceInfraction, Integer> rules,
+            PenanceInfraction infraction, CheckBox toggle, EditText input) {
+        if (!toggle.isChecked()) return true;
+        Integer amount = parseEuros(input.getText().toString());
+        if (amount == null || amount < PenancePolicy.MIN_STRIKE_CENTS
+                || amount > PenancePolicy.MAX_STRIKE_CENTS) return false;
+        rules.put(infraction, amount);
+        return true;
+    }
+
+    private void beginCheckout() {
+        beginCheckout(false);
+    }
+
+    private void beginCheckout(boolean paidPauseOnly) {
+        boolean paypalReady = paypalCredentials.hasCredentials();
+        boolean linkReady = validExternalUrl(manager.getPayPalLink());
+        if (!paypalReady && !linkReady) {
+            toast(R.string.penance_backend_required);
+            return;
+        }
+        PenanceManager.Settlement settlement = paidPauseOnly
+                ? manager.beginPaidPauseSettlement(System.currentTimeMillis())
+                : manager.beginSettlement(System.currentTimeMillis());
+        if (settlement == null) {
+            toast(R.string.penance_no_due);
+            return;
+        }
+        if (paypalReady) createPayPalOrder(settlement);
+        else {
+            String approvalUrl = paymentUrl(manager.getPayPalLink(), settlement.getAmountCents());
+            manager.bindOrder(settlement.getId(), settlement.getId(), approvalUrl);
+            render();
+            openApprovalUrl();
+        }
+    }
+
+    private void createPayPalOrder(PenanceManager.Settlement settlement) {
+        checkoutBusy = true;
+        render();
+        PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
+        paypalClient.createOrder(credentials, settlement.getId(),
+                settlement.getAmountCents(), result -> {
+                    checkoutBusy = false;
+                    if (binding == null) return;
+                    if (!result.isSuccess()) {
+                        if (result.errorKind()
+                                == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
+                            paypalCredentials.markVaultUnavailable(credentials);
+                        }
+                        manager.cancelSettlement(settlement.getId());
+                        toast(getString(R.string.penance_checkout_failed, result.error()));
+                        render();
+                        return;
+                    }
+                    PayPalOrdersClient.Order order = result.value();
+                    activeClientMetadataId = order.clientMetadataId();
+                    manager.bindOrder(settlement.getId(), order.id(), order.approvalUrl(),
+                            credentials.boundaryId());
+                    render();
+                    openApprovalUrl();
+                });
+    }
+
+    private void openApprovalUrl() {
+        String approvalUrl = manager.getActiveApprovalUrl();
+        if (!validExternalUrl(approvalUrl)) {
+            toast(R.string.penance_payment_pending);
+            return;
+        }
+        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(approvalUrl)));
+    }
+
+    private void confirmPayment() {
+        if (manager.getActiveCheckoutMode() == PenanceManager.CheckoutMode.HARDCORE_AUTO) {
+            toast(R.string.paypal_auto_payment_processing);
+            return;
+        }
+        String settlementId = manager.getActiveSettlementId();
+        String orderId = manager.getActiveOrderId();
+        PenanceSnapshot snapshot = manager.snapshot(System.currentTimeMillis());
+        if (settlementId.isEmpty() || snapshot.getCheckoutCents() <= 0) {
+            toast(R.string.penance_payment_mismatch);
+            return;
+        }
+        if (paypalCredentials.hasCredentials() && !orderId.isEmpty()
+                && !orderId.equals(settlementId)) {
+            capturePayPalPayment();
+            return;
+        }
+        if (!manager.completeSettlement(settlementId, snapshot.getCheckoutCents())) {
+            toast(R.string.penance_payment_mismatch);
+            return;
+        }
+        toast(R.string.penance_payment_complete);
+        render();
+    }
+
+    private void capturePayPalPayment() {
+        if (checkoutBusy) return;
+        String settlementId = manager.getActiveSettlementId();
+        String orderId = manager.getActiveOrderId();
+        PenanceSnapshot snapshot = manager.snapshot(System.currentTimeMillis());
+        if (settlementId.isEmpty() || orderId.isEmpty() || snapshot.getCheckoutCents() <= 0
+                || !paypalCredentials.hasCredentials()) {
+            toast(R.string.penance_payment_mismatch);
+            return;
+        }
+        PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
+        if (!credentials.boundaryId().equals(manager.getActivePayPalBoundary())) {
+            toast(R.string.penance_payment_boundary_changed);
+            manager.cancelSettlement(settlementId);
+            render();
+            return;
+        }
+        checkoutBusy = true;
+        render();
+        paypalClient.captureOrder(credentials, orderId, settlementId,
+                snapshot.getCheckoutCents(), activeClientMetadataId, result -> {
+                    checkoutBusy = false;
+                    if (binding == null) return;
+                    if (!result.isSuccess()) {
+                        if (result.errorKind()
+                                == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
+                            paypalCredentials.markVaultUnavailable(credentials);
+                        }
+                        toast(getString(R.string.penance_checkout_failed, result.error()));
+                        render();
+                        return;
+                    }
+                    PayPalOrdersClient.Capture capture = result.value();
+                    paypalCredentials.recordVaultResult(credentials,
+                            capture.vaultStatus(), capture.vaultId(), capture.customerId(),
+                            capture.payerEmail(), capture.payerAccountId());
+                    if (!manager.completeSettlement(settlementId, snapshot.getCheckoutCents())) {
+                        toast(R.string.penance_payment_mismatch);
+                    } else toast(R.string.penance_payment_complete);
+                    render();
+                });
+    }
+
+    private void handlePayPalReturn(Intent intent) {
+        if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
+        Uri data = intent.getData();
+        if (data == null || !"subhub".equalsIgnoreCase(data.getScheme())
+                || !"paypal".equalsIgnoreCase(data.getHost())) return;
+        String metadata = data.getQueryParameter("cmid");
+        if (metadata != null && metadata.length() <= 36) activeClientMetadataId = metadata;
+        if ("/cancel".equalsIgnoreCase(data.getPath())) cancelCheckout();
+        else if ("/return".equalsIgnoreCase(data.getPath())) capturePayPalPayment();
+    }
+
+    private void cancelCheckout() {
+        String settlementId = manager.getActiveSettlementId();
+        manager.cancelSettlement(settlementId);
+        toast(R.string.penance_cancelled);
+        render();
+    }
+
+    private void forgiveLatest() {
+        if (manager.forgiveLatestInMercy(System.currentTimeMillis())) {
+            toast(R.string.penance_forgiven);
+        } else {
+            toast(R.string.penance_none_in_mercy);
+        }
+        render();
+    }
+
+    private void confirmClearUnpaid() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.penance_clear_title)
+                .setMessage(R.string.penance_clear_body)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.penance_clear_now, (dialog, which) -> {
+                    manager.forgiveAllUnpaid();
+                    toast(R.string.penance_cleared);
+                    render();
+                }).show();
+    }
+
+    private void render() {
+        if (binding == null) return;
+        long now = System.currentTimeMillis();
+        PenanceSnapshot snapshot = manager.snapshot(now);
+        binding.dueAmount.setText(PenanceManager.formatMoney(snapshot.getDueCents()));
+        binding.mercyAmount.setText(PenanceManager.formatMoney(snapshot.getMercyCents()));
+        binding.checkoutAmount.setText(PenanceManager.formatMoney(snapshot.getCheckoutCents()));
+        binding.paidAmount.setText(PenanceManager.formatMoney(snapshot.getPaidCents()));
+        boolean checkout = snapshot.getCheckoutCents() > 0;
+        boolean automaticCheckout = checkout && manager.getActiveCheckoutMode()
+                == PenanceManager.CheckoutMode.HARDCORE_AUTO;
+        boolean paypalReady = paypalCredentials.hasCredentials();
+        boolean linkReady = validExternalUrl(manager.getPayPalLink());
+        boolean paymentAvailable = paypalReady || linkReady;
+        PayPalCredentialStore.VaultState vaultState = paypalCredentials.vaultState();
+        if (vaultState.isReady() && !vaultState.maskedPayer().isEmpty()) {
+            binding.paymentAvailability.setText(getString(
+                    R.string.paypal_vault_status_linked, vaultState.maskedPayer()));
+        } else binding.paymentAvailability.setText(paypalReady
+                    ? R.string.penance_payment_ready
+                    : linkReady ? R.string.penance_payment_link_ready
+                    : R.string.penance_payment_unavailable);
+        binding.buttonSettle.setEnabled(
+                paymentAvailable && snapshot.getDueCents() > 0 && !checkout && !checkoutBusy);
+        binding.buttonResumeCheckout.setVisibility(
+                checkout && !automaticCheckout && !manager.getActiveApprovalUrl().isEmpty()
+                        ? View.VISIBLE : View.GONE);
+        binding.buttonCancelCheckout.setVisibility(
+                checkout && !automaticCheckout ? View.VISIBLE : View.GONE);
+        binding.buttonConfirmPayment.setVisibility(
+                checkout && !automaticCheckout ? View.VISIBLE : View.GONE);
+        boolean sandboxOrder = checkout && paypalReady
+                && !manager.getActiveOrderId().isEmpty()
+                && !manager.getActiveOrderId().equals(manager.getActiveSettlementId());
+        binding.buttonConfirmPayment.setText(sandboxOrder
+                ? R.string.penance_confirm_paid : R.string.penance_confirm_link_paid);
+        binding.buttonConfirmPayment.setEnabled(!checkoutBusy);
+        if (checkoutBusy) binding.paymentStatus.setText(R.string.penance_checking);
+        else if (automaticCheckout) {
+            binding.paymentStatus.setText(R.string.paypal_auto_payment_processing);
+        } else if (checkout) binding.paymentStatus.setText(R.string.penance_payment_pending);
+        else binding.paymentStatus.setText("");
+        renderHistory(snapshot, now);
+        renderRuleMathPreview();
+    }
+
+    private void renderHistory(PenanceSnapshot snapshot, long nowMillis) {
+        if (snapshot.getEvents().isEmpty()) {
+            binding.history.setText(R.string.penance_history_empty);
+            return;
+        }
+        StringBuilder text = new StringBuilder();
+        DateFormat date = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT);
+        int count = 0;
+        for (PenanceEvent event : snapshot.getEvents()) {
+            if (count++ >= 12) break;
+            String status;
+            if (event.isInMercy(nowMillis)) status = getString(R.string.penance_status_mercy);
+            else if (event.getStatus() == PenanceEvent.Status.OPEN) status = getString(R.string.penance_status_open);
+            else if (event.getStatus() == PenanceEvent.Status.CHECKOUT) status = getString(R.string.penance_status_checkout);
+            else if (event.getStatus() == PenanceEvent.Status.PAID) status = getString(R.string.penance_status_paid);
+            else status = getString(R.string.penance_status_forgiven);
+            if (text.length() > 0) text.append('\n');
+            text.append(getString(R.string.penance_history_item,
+                    date.format(new Date(event.getCreatedAtMillis())),
+                    infractionLabel(event.getInfraction()), event.getStrikeCount(),
+                    PenanceManager.formatMoney(event.getAmountCents()), status));
+        }
+        binding.history.setText(text.toString());
+    }
+
+    private String infractionLabel(PenanceInfraction infraction) {
+        if (infraction == PenanceInfraction.PAID_PAUSE) {
+            return getString(R.string.paid_pause_history_label);
+        }
+        if (infraction == PenanceInfraction.CENSORED_DWELL) {
+            return getString(R.string.penance_history_dwell);
+        }
+        if (infraction == PenanceInfraction.CENSORED_TAP) {
+            return getString(R.string.penance_history_tap);
+        }
+        if (infraction == PenanceInfraction.WATCHED_APP_OPEN) {
+            return getString(R.string.penance_history_app_open);
+        }
+        return getString(R.string.penance_history_detection);
+    }
+
+    private static boolean validExternalUrl(String value) {
+        try {
+            URI uri = URI.create(value);
+            String host = uri.getHost();
+            return host != null && "https".equalsIgnoreCase(uri.getScheme())
+                    && ("paypal.me".equalsIgnoreCase(host)
+                    || "paypal.com".equalsIgnoreCase(host)
+                    || host.toLowerCase(Locale.ROOT).endsWith(".paypal.com"));
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private static String paymentUrl(String baseUrl, int amountCents) {
+        URI uri = URI.create(baseUrl);
+        if (!"paypal.me".equalsIgnoreCase(uri.getHost())) return baseUrl;
+        String trimmed = baseUrl;
+        while (trimmed.endsWith("/")) trimmed = trimmed.substring(0, trimmed.length() - 1);
+        return trimmed + "/" + String.format(Locale.ROOT, "%.2f", amountCents / 100.0)
+                + PenanceManager.CURRENCY;
+    }
+
+    private static Integer parseEuros(String value) {
+        try {
+            BigDecimal euros = new BigDecimal(value.trim().replace(',', '.'));
+            return euros.movePointRight(2).setScale(0, RoundingMode.UNNECESSARY).intValueExact();
+        } catch (ArithmeticException | NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Integer parseInteger(String value) {
+        try { return Integer.parseInt(value.trim()); }
+        catch (NumberFormatException ignored) { return null; }
+    }
+
+    private static String decimalEuros(int cents) {
+        return String.format(Locale.ROOT, "%.2f", cents / 100.0);
+    }
+
+    private void toast(int resource) {
+        Toast.makeText(this, resource, Toast.LENGTH_SHORT).show();
+    }
+
+    private void toast(String text) {
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+    }
+
+    @Override protected void onDestroy() {
+        timer.removeCallbacks(tick);
+        if (paypalClient != null) paypalClient.close();
+        binding = null;
+        super.onDestroy();
+    }
+}

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">BETASAFE</string><string name="header_subtitle">GUARDIANA LOCAL</string>
+    <string name="header_title">SUBHUB</string><string name="header_subtitle">GUARDIANA LOCAL</string>
     <string name="tab_home">INICIO</string><string name="tab_settings">AJUSTES</string><string name="tab_browser">NAVEGADOR</string><string name="tab_export">EXPORTAR</string><string name="tab_help">AYUDA</string>
     <string name="start_protection">INICIAR PROTECCIÓN</string><string name="stop_protection">DETENER PROTECCIÓN</string><string name="settings_title">AJUSTES DE CENSURA</string><string name="back">ATRÁS</string>
     <string name="help_title">AYUDA Y SEGURIDAD</string><string name="help_subtitle">Configuración, privacidad, reparaciones y guía de funciones.</string>
@@ -8,6 +8,6 @@
     <string name="permission_all_granted">Los permisos de superposición y notificaciones están listos.</string><string name="permission_overlay_name">mostrar sobre otras apps</string><string name="permission_notifications_name">notificaciones</string><string name="permission_missing_fmt">Falta: %1$s</string>
     <string name="settings_language">IDIOMA</string><string name="language_system_default">Predeterminado del sistema</string>
     <string name="help_getting_started">Primeros pasos</string><string name="help_permissions">Permisos</string><string name="help_app_protection">Protección de apps</string><string name="help_browser_protection">Protección del navegador</string><string name="help_censored_downloads">Exportación y descargas</string><string name="help_customisation">Personalización</string><string name="help_popup_storm">Seguridad de Popup Storm</string><string name="help_troubleshooting">Solución de problemas</string><string name="help_privacy">Privacidad y datos</string><string name="help_updates">Compilaciones y actualizaciones</string>
-    <string name="onboarding_title">TU GUARDIANA PRIVADA</string><string name="onboarding_body">BetaSafe censura localmente, solicita el consentimiento de captura de Android y mantiene disponibles los controles normales de parada y desinstalación.</string><string name="onboarding_help">ABRIR LA GUÍA</string><string name="onboarding_dismiss">ENTENDIDO</string>
-    <string name="shortcut_start_protection">Iniciar protección</string><string name="shortcut_start_protection_long">Iniciar la protección de BetaSafe</string><string name="shortcut_open_browser">Abrir navegador</string><string name="shortcut_open_browser_long">Abrir el navegador de BetaSafe</string>
+    <string name="onboarding_title">TU GUARDIANA PRIVADA</string><string name="onboarding_body">SubHub censura localmente, solicita el consentimiento de captura de Android y mantiene disponibles los controles normales de parada y desinstalación.</string><string name="onboarding_help">ABRIR LA GUÍA</string><string name="onboarding_dismiss">ENTENDIDO</string>
+    <string name="shortcut_start_protection">Iniciar protección</string><string name="shortcut_start_protection_long">Iniciar la protección de SubHub</string><string name="shortcut_open_browser">Abrir navegador</string><string name="shortcut_open_browser_long">Abrir el navegador de SubHub</string>
 </resources>

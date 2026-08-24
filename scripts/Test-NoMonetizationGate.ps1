@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$PrivateRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) '..\BetaSafe-private')
+    [string]$PrivateRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) '..\SubHub-private')
 )
 
 $ErrorActionPreference = 'Stop'

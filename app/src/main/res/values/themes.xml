@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.BetaSafe" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.SubHub" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowBackground">@drawable/bg_main</item>
         <item name="android:statusBarColor">@color/background</item>
@@ -16,7 +16,7 @@
         <item name="android:buttonStyle">@style/Widget.SubHub.DefaultButton</item>
     </style>
 
-    <style name="Widget.BetaSafe.Tab" parent="">
+    <style name="Widget.SubHub.Tab" parent="">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">56dp</item>
         <item name="android:layout_weight">1</item>
@@ -30,7 +30,7 @@
         <item name="android:drawableTint">@color/text_muted</item>
     </style>
 
-    <style name="Widget.BetaSafe.DiagnosticsText" parent="">
+    <style name="Widget.SubHub.DiagnosticsText" parent="">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">8dp</item>
@@ -40,7 +40,7 @@
         <item name="android:textSize">12sp</item>
     </style>
 
-    <style name="Widget.BetaSafe.Statistic" parent="">
+    <style name="Widget.SubHub.Statistic" parent="">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:gravity">center</item>
@@ -49,14 +49,14 @@
         <item name="android:textStyle">bold</item>
     </style>
 
-    <style name="Widget.BetaSafe.StatisticColumn" parent="">
+    <style name="Widget.SubHub.StatisticColumn" parent="">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
         <item name="android:orientation">vertical</item>
     </style>
 
-    <style name="Widget.BetaSafe.StatisticLabel" parent="">
+    <style name="Widget.SubHub.StatisticLabel" parent="">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:gravity">center</item>
@@ -65,7 +65,7 @@
         <item name="android:textStyle">bold</item>
     </style>
 
-    <style name="Widget.BetaSafe.SectionHeader" parent="">
+    <style name="Widget.SubHub.SectionHeader" parent="">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textColor">@color/accent</item>
@@ -111,12 +111,38 @@
         <item name="android:textColor">@color/outline_button_text</item>
         <item name="android:textSize">13sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.05</item>
+        <item name="android:textAllCaps">false</item>
         <item name="android:gravity">center</item>
         <item name="android:includeFontPadding">false</item>
         <item name="android:minHeight">0dp</item>
         <item name="android:stateListAnimator">@null</item>
         <item name="android:paddingHorizontal">8dp</item>
         <item name="android:singleLine">true</item>
+    </style>
+
+    <style name="Widget.SubHub.OutlineAction" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:background">@drawable/bg_outline_button</item>
+        <item name="android:backgroundTint">@null</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingHorizontal">10dp</item>
+        <item name="android:textAlignment">center</item>
+        <item name="android:textColor">@color/outline_button_text</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.05</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:singleLine">true</item>
+    </style>
+
+    <style name="Widget.SubHub.DangerAction" parent="Widget.SubHub.OutlineAction">
+        <item name="android:textColor">@color/accent_hot</item>
     </style>
 
     <style name="Widget.SubHub.CompactCard" parent="">
@@ -179,6 +205,8 @@
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
         <item name="android:includeFontPadding">false</item>
     </style>
 
@@ -235,7 +263,7 @@
         <item name="android:padding">7dp</item>
     </style>
 
-    <style name="Widget.BetaSafe.HomeStatCard" parent="">
+    <style name="Widget.SubHub.HomeStatCard" parent="">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">64dp</item>
         <item name="android:layout_weight">1</item>
@@ -245,7 +273,7 @@
         <item name="android:padding">8dp</item>
     </style>
 
-    <style name="Widget.BetaSafe.HomeStatValue" parent="">
+    <style name="Widget.SubHub.HomeStatValue" parent="">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:textColor">@android:color/white</item>
@@ -254,7 +282,7 @@
         <item name="android:includeFontPadding">false</item>
     </style>
 
-    <style name="Widget.BetaSafe.HomeStatLabel" parent="">
+    <style name="Widget.SubHub.HomeStatLabel" parent="">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginTop">2dp</item>
@@ -264,9 +292,9 @@
         <item name="android:includeFontPadding">false</item>
     </style>
 
-    <style name="Widget.BetaSafe.CompactAction" parent="">
+    <style name="Widget.SubHub.CompactAction" parent="">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">38dp</item>
+        <item name="android:layout_height">42dp</item>
         <item name="android:layout_weight">1</item>
         <item name="android:background">@drawable/bg_outline_button</item>
         <item name="android:backgroundTint">@null</item>
@@ -274,16 +302,17 @@
         <item name="android:focusable">true</item>
         <item name="android:gravity">center</item>
         <item name="android:ellipsize">end</item>
-        <item name="android:textColor">@color/accent</item>
-        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">@color/outline_button_text</item>
+        <item name="android:textSize">12sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.05</item>
         <item name="android:includeFontPadding">false</item>
         <item name="android:minHeight">0dp</item>
         <item name="android:paddingHorizontal">6dp</item>
         <item name="android:singleLine">true</item>
     </style>
 
-    <style name="Widget.BetaSafe.OptionRadio" parent="">
+    <style name="Widget.SubHub.OptionRadio" parent="">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">44dp</item>
         <item name="android:layout_columnWeight">1</item>
@@ -328,7 +357,7 @@
 
     <style name="Widget.SubHub.ToolAction" parent="">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">58dp</item>
+        <item name="android:layout_height">64dp</item>
         <item name="android:layout_columnWeight">1</item>
         <item name="android:layout_gravity">fill_horizontal</item>
         <item name="android:layout_margin">3dp</item>
@@ -340,13 +369,14 @@
         <item name="android:drawablePadding">3dp</item>
         <item name="android:drawableTint">@color/accent</item>
         <item name="android:paddingHorizontal">8dp</item>
-        <item name="android:paddingTop">7dp</item>
-        <item name="android:paddingBottom">1dp</item>
+        <item name="android:paddingVertical">6dp</item>
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
         <item name="android:includeFontPadding">false</item>
-        <item name="android:textAlignment">gravity</item>
+        <item name="android:textAlignment">center</item>
     </style>
 
     <style name="Widget.SubHub.SettingsToggle" parent="">
@@ -380,6 +410,7 @@
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.03</item>
         <item name="android:ellipsize">end</item>
         <item name="android:singleLine">true</item>
     </style>
@@ -394,25 +425,32 @@
         <item name="android:minHeight">0dp</item>
         <item name="android:textSize">11sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.04</item>
+        <item name="android:textColor">@color/outline_button_text</item>
     </style>
 
-    <style name="Widget.SubHub.PrimaryButton" parent="">
+    <style name="Widget.SubHub.PrimaryButton" parent="Widget.AppCompat.Button">
         <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">46dp</item>
+        <item name="android:layout_height">48dp</item>
         <item name="android:background">@drawable/bg_primary_button</item>
         <item name="android:backgroundTint">@null</item>
+        <item name="backgroundTint">@null</item>
         <item name="android:gravity">center</item>
         <item name="android:includeFontPadding">false</item>
         <item name="android:minHeight">0dp</item>
         <item name="android:textColor">@color/primary_button_text</item>
         <item name="android:textSize">13sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textAllCaps">false</item>
         <item name="android:ellipsize">end</item>
         <item name="android:paddingHorizontal">10dp</item>
         <item name="android:singleLine">true</item>
+        <item name="android:stateListAnimator">@null</item>
     </style>
 
     <style name="Widget.SubHub.DefaultButton" parent="Widget.AppCompat.Button">
+        <item name="android:layout_height">44dp</item>
         <item name="android:background">@drawable/bg_outline_button</item>
         <item name="android:backgroundTint">@null</item>
         <item name="backgroundTint">@null</item>
@@ -425,6 +463,7 @@
         <item name="android:textColor">@color/outline_button_text</item>
         <item name="android:textSize">12sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.04</item>
         <item name="android:ellipsize">end</item>
         <item name="android:singleLine">true</item>
     </style>

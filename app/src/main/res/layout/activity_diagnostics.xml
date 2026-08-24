@@ -52,7 +52,7 @@
 
             <TextView
                 android:id="@+id/runtime_status"
-                style="@style/Widget.BetaSafe.DiagnosticsText" />
+                style="@style/Widget.SubHub.DiagnosticsText" />
         </LinearLayout>
 
         <LinearLayout
@@ -72,7 +72,7 @@
 
             <TextView
                 android:id="@+id/performance_status"
-                style="@style/Widget.BetaSafe.DiagnosticsText" />
+                style="@style/Widget.SubHub.DiagnosticsText" />
 
             <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/switch_diagnostics_overlay"
@@ -107,7 +107,7 @@
 
             <TextView
                 android:id="@+id/configuration_status"
-                style="@style/Widget.BetaSafe.DiagnosticsText" />
+                style="@style/Widget.SubHub.DiagnosticsText" />
         </LinearLayout>
 
         <LinearLayout
@@ -127,7 +127,7 @@
 
             <TextView
                 android:id="@+id/permissions_status"
-                style="@style/Widget.BetaSafe.DiagnosticsText" />
+                style="@style/Widget.SubHub.DiagnosticsText" />
         </LinearLayout>
 
         <LinearLayout
@@ -147,7 +147,7 @@
 
             <TextView
                 android:id="@+id/build_status"
-                style="@style/Widget.BetaSafe.DiagnosticsText" />
+                style="@style/Widget.SubHub.DiagnosticsText" />
         </LinearLayout>
 
         <Button

@@ -88,7 +88,7 @@
             android:background="@drawable/bg_card"
             android:orientation="vertical"
             android:padding="18dp">
-            <TextView style="@style/Widget.BetaSafe.SectionHeader"
+            <TextView style="@style/Widget.SubHub.SectionHeader"
                 android:text="@string/popup_presets" />
             <LinearLayout android:id="@+id/preset_container"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -103,7 +103,7 @@
             android:background="@drawable/bg_card"
             android:orientation="vertical"
             android:padding="18dp">
-            <TextView style="@style/Widget.BetaSafe.SectionHeader"
+            <TextView style="@style/Widget.SubHub.SectionHeader"
                 android:text="@string/popup_library" />
             <TextView android:id="@+id/library_count" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="7dp"

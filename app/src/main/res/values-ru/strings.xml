@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">BETASAFE</string><string name="header_subtitle">ЛОКАЛЬНАЯ ХРАНИТЕЛЬНИЦА</string>
+    <string name="header_title">SUBHUB</string><string name="header_subtitle">ЛОКАЛЬНАЯ ХРАНИТЕЛЬНИЦА</string>
     <string name="tab_home">ГЛАВНАЯ</string><string name="tab_settings">НАСТРОЙКИ</string><string name="tab_browser">БРАУЗЕР</string><string name="tab_export">ЭКСПОРТ</string><string name="tab_help">ПОМОЩЬ</string>
     <string name="start_protection">ЗАПУСТИТЬ ЗАЩИТУ</string><string name="stop_protection">ОСТАНОВИТЬ ЗАЩИТУ</string><string name="settings_title">НАСТРОЙКИ ЦЕНЗУРЫ</string><string name="back">НАЗАД</string>
     <string name="help_title">ПОМОЩЬ И БЕЗОПАСНОСТЬ</string><string name="help_subtitle">Настройка, конфиденциальность, исправления и руководство по функциям.</string>
@@ -8,6 +8,6 @@
     <string name="permission_all_granted">Разрешения на наложение и уведомления готовы.</string><string name="permission_overlay_name">показ поверх других приложений</string><string name="permission_notifications_name">уведомления</string><string name="permission_missing_fmt">Отсутствует: %1$s</string>
     <string name="settings_language">ЯЗЫК</string><string name="language_system_default">Язык системы</string>
     <string name="help_getting_started">Начало работы</string><string name="help_permissions">Разрешения</string><string name="help_app_protection">Защита приложений</string><string name="help_browser_protection">Защита браузера</string><string name="help_censored_downloads">Экспорт и загрузки</string><string name="help_customisation">Настройка</string><string name="help_popup_storm">Безопасность Popup Storm</string><string name="help_troubleshooting">Устранение неполадок</string><string name="help_privacy">Конфиденциальность и данные</string><string name="help_updates">Сборки и обновления</string>
-    <string name="onboarding_title">ВАША ЛИЧНАЯ ХРАНИТЕЛЬНИЦА</string><string name="onboarding_body">BetaSafe выполняет цензуру на устройстве, запрашивает согласие Android на захват экрана и всегда оставляет доступными обычные функции остановки и удаления.</string><string name="onboarding_help">ОТКРЫТЬ РУКОВОДСТВО</string><string name="onboarding_dismiss">ПОНЯТНО</string>
-    <string name="shortcut_start_protection">Запустить защиту</string><string name="shortcut_start_protection_long">Запустить защиту BetaSafe</string><string name="shortcut_open_browser">Открыть браузер</string><string name="shortcut_open_browser_long">Открыть браузер BetaSafe</string>
+    <string name="onboarding_title">ВАША ЛИЧНАЯ ХРАНИТЕЛЬНИЦА</string><string name="onboarding_body">SubHub выполняет цензуру на устройстве, запрашивает согласие Android на захват экрана и всегда оставляет доступными обычные функции остановки и удаления.</string><string name="onboarding_help">ОТКРЫТЬ РУКОВОДСТВО</string><string name="onboarding_dismiss">ПОНЯТНО</string>
+    <string name="shortcut_start_protection">Запустить защиту</string><string name="shortcut_start_protection_long">Запустить защиту SubHub</string><string name="shortcut_open_browser">Открыть браузер</string><string name="shortcut_open_browser_long">Открыть браузер SubHub</string>
 </resources>

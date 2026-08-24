@@ -17,7 +17,7 @@
     </queries>
 
     <application
-        android:name=".BetaSafeApp"
+        android:name=".SubHubApp"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
@@ -26,7 +26,7 @@
         android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
-        android:theme="@style/Theme.BetaSafe">
+        android:theme="@style/Theme.SubHub">
 
         <activity
             android:name=".MainActivity"
@@ -114,6 +114,11 @@
 
         <receiver
             android:name=".penance.HardcoreAutoPayReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".penance.PaidPauseExpiryReceiver"
             android:enabled="true"
             android:exported="false" />
 

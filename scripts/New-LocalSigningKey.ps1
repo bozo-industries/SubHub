@@ -6,17 +6,17 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$KeyAlias,
 
-    [string]$DistinguishedName = 'CN=BetaSafe Local Debug,O=Local Development,C=DE',
+    [string]$DistinguishedName = 'CN=SubHub Local Debug,O=Local Development,C=DE',
     [int]$ValidityDays = 3650
 )
 
 $ErrorActionPreference = 'Stop'
 
-if ([string]::IsNullOrWhiteSpace($env:BETASAFE_KEYSTORE_PASSWORD)) {
-    throw 'Set BETASAFE_KEYSTORE_PASSWORD in the current process before creating a key.'
+if ([string]::IsNullOrWhiteSpace($env:SUBHUB_KEYSTORE_PASSWORD)) {
+    throw 'Set SUBHUB_KEYSTORE_PASSWORD in the current process before creating a key.'
 }
-if ([string]::IsNullOrWhiteSpace($env:BETASAFE_KEY_PASSWORD)) {
-    throw 'Set BETASAFE_KEY_PASSWORD in the current process before creating a key.'
+if ([string]::IsNullOrWhiteSpace($env:SUBHUB_KEY_PASSWORD)) {
+    throw 'Set SUBHUB_KEY_PASSWORD in the current process before creating a key.'
 }
 if (Test-Path -LiteralPath $KeystorePath) {
     throw "Refusing to overwrite an existing keystore: $KeystorePath"
@@ -40,8 +40,8 @@ if (-not (Test-Path -LiteralPath $parent)) {
     -keysize 2048 `
     -validity $ValidityDays `
     -dname $DistinguishedName `
-    '-storepass:env' BETASAFE_KEYSTORE_PASSWORD `
-    '-keypass:env' BETASAFE_KEY_PASSWORD
+    '-storepass:env' SUBHUB_KEYSTORE_PASSWORD `
+    '-keypass:env' SUBHUB_KEY_PASSWORD
 
 if ($LASTEXITCODE -ne 0) {
     throw "keytool failed with exit code $LASTEXITCODE."

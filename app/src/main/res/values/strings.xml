@@ -287,6 +287,7 @@
     </string-array>
     <string name="stats_title">LIFETIME PROTECTION</string>
     <string name="stats_blocks">LIFETIME BLOCKS</string>
+    <string name="stats_session_blocks">SESSION BLOCKS</string>
     <string name="stats_time">PROTECTED</string>
     <string name="stats_sessions">SESSIONS</string>
     <string name="foundation_ready">PROTECTION PIPELINE READY</string>
@@ -855,5 +856,18 @@
     <string name="sub_wallet_summary">%1$s tribute due · %2$s forgiven · %3$s sent</string>
     <string name="sub_wallet_pay">REVIEW TRIBUTE</string>
     <string name="sub_wallet_resume">RESUME TRIBUTE</string>
+    <string name="paid_pause_config_title">PAID PAUSE</string>
+    <string name="paid_pause_config_help">Let Sub mode buy a short break while Hardcore Mode or a pact is active.</string>
+    <string name="paid_pause_enabled">Offer a paid pause</string>
+    <string name="paid_pause_price_label">PRICE (€)</string>
+    <string name="paid_pause_price_help">Charged for one pause.</string>
+    <string name="paid_pause_minutes_label">PAUSE (MINUTES)</string>
+    <string name="paid_pause_minutes_help">Protection re-arms when this ends.</string>
+    <string name="paid_pause_buy">BUY %1$d MIN PAUSE · %2$s</string>
+    <string name="paid_pause_active">PAUSED · %1$s LEFT</string>
+    <string name="paid_pause_button">PROTECTION PAUSED</string>
+    <string name="paid_pause_active_protection">Protection resumes when the paid pause ends.</string>
+    <string name="paid_pause_unavailable">A paid pause is not available right now.</string>
+    <string name="paid_pause_history_label">paid pause</string>
     <string name="penance_sub_checkout_subtitle">Your tribute ledger and linked PayPal wallet</string>
 </resources>
