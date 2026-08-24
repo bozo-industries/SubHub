@@ -37,9 +37,9 @@ public final class CaptureEpochTest {
         assertEquals(300L, ScreenshotAccessibilityService.captureDelayMs(medium));
         assertEquals(240L, ScreenshotAccessibilityService.captureDelayMs(high));
         assertEquals(180L, ScreenshotAccessibilityService.captureDelayMs(ultra));
-        assertEquals(180L, ScreenshotAccessibilityService.capturePollDelayMs(low));
-        assertEquals(120L, ScreenshotAccessibilityService.capturePollDelayMs(medium));
-        assertEquals(90L, ScreenshotAccessibilityService.capturePollDelayMs(high));
-        assertEquals(70L, ScreenshotAccessibilityService.capturePollDelayMs(ultra));
+        assertEquals(150L, ScreenshotAccessibilityService.capturePollDelayMs(low));
+        assertEquals(90L, ScreenshotAccessibilityService.capturePollDelayMs(medium));
+        assertEquals(60L, ScreenshotAccessibilityService.capturePollDelayMs(high));
+        assertEquals(40L, ScreenshotAccessibilityService.capturePollDelayMs(ultra));
     }
 }

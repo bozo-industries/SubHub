@@ -53,6 +53,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** User-enabled screenshot capture mode backed by Android's accessibility consent screen. */
 public final class ScreenshotAccessibilityService extends AccessibilityService {
@@ -65,6 +66,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final long MOTION_SETTLE_MS = 130L;
 
     private final AtomicBoolean processing = new AtomicBoolean();
+    private final AtomicBoolean inferenceDraining = new AtomicBoolean();
+    private final AtomicBoolean settledInferenceNeeded = new AtomicBoolean();
+    private final AtomicReference<InferenceFrame> pendingInference = new AtomicReference<>();
     private final AtomicLong cumulativeScrollX = new AtomicLong();
     private final AtomicLong cumulativeScrollY = new AtomicLong();
     private final AtomicLong pendingTrackerOffsetX = new AtomicLong();
@@ -79,6 +83,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
             (preferences, key) -> reloadSettings();
     private ScheduledExecutorService worker;
+    private ScheduledExecutorService inferenceWorker;
     private ScheduledExecutorService textWorker;
     private volatile ScheduledFuture<?> captureSchedule;
     private SettingsRepository settings;
@@ -147,6 +152,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         running = true;
 
         worker = Executors.newSingleThreadScheduledExecutor();
+        inferenceWorker = Executors.newSingleThreadScheduledExecutor();
         textWorker = Executors.newSingleThreadScheduledExecutor();
         worker.execute(this::initializePipeline);
         main.post(this::reevaluateRecognition);
@@ -243,24 +249,85 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (!isCurrentCapture(requestedEpoch)) return;
             wrapped = Bitmap.wrapHardwareBuffer(buffer, result.getColorSpace());
             if (wrapped == null) return;
-            // wrapHardwareBuffer returns a hardware bitmap, which cannot be sampled by the
-            // estimator's software canvas. Make one reusable frame copy for motion and, only when
-            // settled, inference; never copy it a second time.
-            frame = wrapped.copy(Bitmap.Config.ARGB_8888, false);
-            if (frame == null) return;
-            latestCaptureWidth = frame.getWidth();
-            latestCaptureHeight = frame.getHeight();
+            latestCaptureWidth = wrapped.getWidth();
+            latestCaptureHeight = wrapped.getHeight();
             ScrollFrameMotionEstimator.Motion motion = motionEstimator == null
-                    ? ScrollFrameMotionEstimator.Motion.NONE : motionEstimator.update(frame);
+                    ? ScrollFrameMotionEstimator.Motion.NONE : motionEstimator.update(wrapped);
             if (motion.moved()) {
                 applyFrameMotion(motion.dx, motion.dy);
                 return;
             }
             long nowUptime = SystemClock.uptimeMillis();
-            if (nowUptime - lastMotionUptime < MOTION_SETTLE_MS
-                    || nowUptime - lastInferenceUptime < captureDelayMs(detectorConfig)) return;
+            if (nowUptime - lastMotionUptime < MOTION_SETTLE_MS) return;
+            boolean priorityFrame = settledInferenceNeeded.get();
+            if (!priorityFrame
+                    && nowUptime - lastInferenceUptime < captureDelayMs(detectorConfig)) return;
             lastInferenceUptime = nowUptime;
             long inferenceMotionGeneration = motionGeneration.get();
+            if (!isCurrentCapture(requestedEpoch)) return;
+            // A full software copy is only needed by ONNX, never by the continuous-scroll path.
+            frame = wrapped.copy(Bitmap.Config.ARGB_8888, false);
+            if (frame == null) return;
+            settledInferenceNeeded.compareAndSet(true, false);
+            enqueueInference(new InferenceFrame(frame, requestedEpoch, requestedScrollX,
+                    requestedScrollY, inferenceMotionGeneration));
+            frame = null;
+        } catch (Exception error) {
+            DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
+            Log.w(TAG, "Could not process accessibility screenshot", error);
+        } finally {
+            if (frame != null && !frame.isRecycled()) frame.recycle();
+            if (wrapped != null && !wrapped.isRecycled()) wrapped.recycle();
+            buffer.close();
+            finishScreenshotRequest();
+        }
+    }
+
+    private void enqueueInference(InferenceFrame candidate) {
+        if (!running || inferenceWorker == null || inferenceWorker.isShutdown()) {
+            candidate.recycle();
+            return;
+        }
+        InferenceFrame replaced = pendingInference.getAndSet(candidate);
+        if (replaced != null) replaced.recycle();
+        if (inferenceWorker != null && inferenceDraining.compareAndSet(false, true)) {
+            inferenceWorker.execute(this::drainInferenceQueue);
+        }
+    }
+
+    /** Runs warmed ONNX work independently so screenshot motion sampling never waits on ML. */
+    private void drainInferenceQueue() {
+        try {
+            while (running) {
+                InferenceFrame candidate = pendingInference.getAndSet(null);
+                if (candidate == null) return;
+                try {
+                    if (!isCurrentCapture(candidate.epoch)
+                            || candidate.motionGeneration != motionGeneration.get()) continue;
+                    runInference(candidate);
+                } catch (Exception error) {
+                    DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
+                    Log.w(TAG, "Could not process detector frame", error);
+                } finally {
+                    candidate.recycle();
+                }
+            }
+        } finally {
+            inferenceDraining.set(false);
+            if (pendingInference.get() != null && inferenceWorker != null
+                    && !inferenceWorker.isShutdown()
+                    && inferenceDraining.compareAndSet(false, true)) {
+                inferenceWorker.execute(this::drainInferenceQueue);
+            }
+        }
+    }
+
+    private void runInference(InferenceFrame candidate) throws Exception {
+            Bitmap frame = candidate.frame;
+            long requestedEpoch = candidate.epoch;
+            long requestedScrollX = candidate.scrollX;
+            long requestedScrollY = candidate.scrollY;
+            long inferenceMotionGeneration = candidate.motionGeneration;
             List<Detection> visualDetections = detector.detect(frame);
             TextSmutConfig currentTextConfig = textSmutConfig;
             List<Detection> accessibilityDetections = Collections.emptyList();
@@ -293,8 +360,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             }
             int width = frame.getWidth();
             int height = frame.getHeight();
-            Bitmap overlayFrame = overlayNeedsSourceFrame ? frame : null;
-            if (overlayFrame != null) frame = null;
+            Bitmap overlayFrame = overlayNeedsSourceFrame ? candidate.detachFrame() : null;
             int dwellInfractions = dwellTracker.update(
                     tracks, now, penance.getDwellSeconds() * 1_000L, false);
             if (dwellInfractions > 0) {
@@ -316,15 +382,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 }
                 else if (overlayFrame != null) overlayFrame.recycle();
             });
-        } catch (Exception error) {
-            DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
-            Log.w(TAG, "Could not process accessibility screenshot", error);
-        } finally {
-            if (frame != null && !frame.isRecycled()) frame.recycle();
-            if (wrapped != null && !wrapped.isRecycled()) wrapped.recycle();
-            buffer.close();
-            finishScreenshotRequest();
-        }
     }
 
     static long captureDelayMs(DetectorConfig config) {
@@ -339,16 +396,18 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     static long capturePollDelayMs(DetectorConfig config) {
         int threads = config == null ? 2 : config.getInferenceThreads();
-        if (threads <= 1) return 180L;
-        if (threads == 2) return 120L;
-        if (threads == 3) return 90L;
-        return 70L;
+        if (threads <= 1) return 150L;
+        if (threads == 2) return 90L;
+        if (threads == 3) return 60L;
+        return 40L;
     }
 
     private void applyFrameMotion(int dx, int dy) {
         if (dx == 0 && dy == 0) return;
         lastMotionUptime = SystemClock.uptimeMillis();
         motionGeneration.incrementAndGet();
+        settledInferenceNeeded.set(true);
+        discardPendingInference();
         // cumulativeScroll stores content-scroll direction; dx/dy are screen movement.
         cumulativeScrollX.addAndGet(-dx);
         cumulativeScrollY.addAndGet(-dy);
@@ -369,6 +428,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         int dy = (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE,
                 pendingTrackerOffsetY.getAndSet(0L)));
         if (tracker != null) tracker.offsetActiveTracks(dx, dy, width, height);
+    }
+
+    private void discardPendingInference() {
+        InferenceFrame pending = pendingInference.getAndSet(null);
+        if (pending != null) pending.recycle();
     }
 
     private Rect screenBounds() {
@@ -508,6 +572,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 // detector frame; thumbnail motion estimation supplies the actual displacement.
                 lastMotionUptime = SystemClock.uptimeMillis();
                 motionGeneration.incrementAndGet();
+                settledInferenceNeeded.set(true);
+                discardPendingInference();
                 textRefreshRequested.set(true);
                 main.removeCallbacks(settledTextRefresh);
                 main.postDelayed(settledTextRefresh, SETTLED_SCROLL_REFRESH_MS);
@@ -668,6 +734,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         ScheduledFuture<?> schedule = captureSchedule;
         captureSchedule = null;
         if (schedule != null) schedule.cancel(false);
+        discardPendingInference();
         DiagnosticsRepository.stop(DIAGNOSTICS_MODE);
         if (overlay != null) overlay.close();
         overlay = null;
@@ -685,6 +752,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         cachedTextScrollY = 0L;
         pendingTrackerOffsetX.set(0L);
         pendingTrackerOffsetY.set(0L);
+        settledInferenceNeeded.set(false);
+        discardPendingInference();
         motionGeneration.incrementAndGet();
         lastMotionUptime = 0L;
         lastInferenceUptime = 0L;
@@ -708,6 +777,38 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 ? DiagnosticsRepository.overlayText(snapshot) : "";
     }
 
+    private static final class InferenceFrame {
+        private Bitmap frame;
+        private final long epoch;
+        private final long scrollX;
+        private final long scrollY;
+        private final long motionGeneration;
+
+        private InferenceFrame(
+                Bitmap frame,
+                long epoch,
+                long scrollX,
+                long scrollY,
+                long motionGeneration) {
+            this.frame = frame;
+            this.epoch = epoch;
+            this.scrollX = scrollX;
+            this.scrollY = scrollY;
+            this.motionGeneration = motionGeneration;
+        }
+
+        private Bitmap detachFrame() {
+            Bitmap detached = frame;
+            frame = null;
+            return detached;
+        }
+
+        private void recycle() {
+            if (frame != null && !frame.isRecycled()) frame.recycle();
+            frame = null;
+        }
+    }
+
     @Override
     public void onDestroy() {
         accountForegroundUsage(System.currentTimeMillis());
@@ -718,6 +819,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             settings.preferences().unregisterOnSharedPreferenceChangeListener(listener);
         }
         if (worker != null) worker.shutdownNow();
+        discardPendingInference();
+        if (inferenceWorker != null) inferenceWorker.shutdownNow();
         if (textWorker != null) textWorker.shutdownNow();
         if (detector != null) detector.close();
         if (motionEstimator != null) motionEstimator.close();
