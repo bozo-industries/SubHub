@@ -1,6 +1,6 @@
 # Generated visual assets
 
-These tracked files were created with Codex's built-in image-generation mode on 2026-08-22. The user's Twitter banner was used only as broad style inspiration for the header and Popup Storm sample; its character, wording, money/card imagery, smoking objects, and composition were explicitly excluded.
+These tracked files were created with Codex's built-in image-generation mode on 2026-08-22 and 2026-08-24. The user's Twitter banner was used only as broad style inspiration for the header and Popup Storm sample; its character, wording, money/card imagery, smoking objects, and composition were explicitly excluded.
 
 | Project file | Final prompt summary |
 | --- | --- |
@@ -10,5 +10,6 @@ These tracked files were created with Codex's built-in image-generation mode on 
 | `app/src/main/res/drawable-nodpi/subhub_app_icon.png` | Original square adaptive-safe horned black privacy shield with a single magenta censor-bar sigil, ultraviolet rim light, distressed screen-print texture, opaque near-black background, strong small-size silhouette, and no text or explicit imagery. |
 | `docs/brand/subhub-hero.jpg` | Clean 2:1 editorial brand banner with broad plum geometry, the SubHub shield-eye, restrained magenta light, and a fully clothed demoness rendered in large graphic shapes. |
 | `docs/brand/subhub-social-preview.jpg` | Minimal 1280×640 repository preview card with a geometric shield-eye, large SubHub wordmark, one-line positioning statement, and a flat violet demoness silhouette. |
+| `docs/brand/achievement-badge-atlas.png` and `app/src/main/res/drawable-nodpi/achievement_badge_*.webp` | Coordinated 4×3 atlas of twelve original circular gothic achievement medallions: censor shield, protected time, sessions, streak, App Mode, limits, pact, Hardcore, Wallet, browser, personalisation, and legend. Deep plum, black, ultraviolet, silver, and hot-magenta enamel; crisp at small UI sizes; transparent background; no copied characters, text, nudity, logos, or currency marks. |
 
-The tracked artwork is original to SubHub. Optional detector models and achievement packs remain separate import assets and are not embedded in these brand files.
+The tracked artwork is original to SubHub. Optional detector models and user-created configuration packs remain separate from these brand files.

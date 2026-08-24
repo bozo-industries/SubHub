@@ -4,6 +4,18 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.subhub.app.R;
+import com.subhub.app.appmode.AppModeManager;
+import com.subhub.app.appmode.AppModePolicy;
+import com.subhub.app.appmode.AppTimerManager;
+import com.subhub.app.commitment.CommitmentManager;
+import com.subhub.app.detection.text.TextSmutConfig;
+import com.subhub.app.pack.PackManager;
+import com.subhub.app.penance.PaidPauseManager;
+import com.subhub.app.penance.PayPalCredentialStore;
+import com.subhub.app.penance.PenanceInfraction;
+import com.subhub.app.penance.PenanceManager;
+import com.subhub.app.security.HardcoreModeManager;
+import com.subhub.app.settings.SettingsRepository;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -18,17 +30,19 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Persistent implementation of all 42 recovered achievement contracts. */
+/** Persistent implementation of the recovered and expanded achievement contracts. */
 public final class AchievementManager {
     private static final String PREFS_NAME = "betablocker_achievements";
     private static final String KEY_UNLOCKED = "unlocked";
     private static final String KEY_PENDING = "pending_notifications";
     private static final List<Achievement> ACHIEVEMENTS = achievements();
+    private final Context context;
     private final SharedPreferences preferences;
     private final Set<String> unlocked;
 
     public AchievementManager(Context context) {
-        preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        this.context = context.getApplicationContext();
+        preferences = this.context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         Set<String> stored = preferences.getStringSet(KEY_UNLOCKED, Collections.emptySet());
         unlocked = new LinkedHashSet<>(stored == null ? Collections.emptySet() : stored);
     }
@@ -117,6 +131,56 @@ public final class AchievementManager {
             case "export_first": case "export_artist": return stats.getExportedImages();
             case "ntr_50": case "ntr_100": case "ntr_200": case "ntr_500": return stats.getAllCategoryCensors();
             case "legend": return unlocked.size();
+            case "app_mode_guardian":
+                return new AppModeManager(context).isArmed() ? 1 : 0;
+            case "app_assignment_curator":
+                return new AppModeManager(context).getMode() == AppModePolicy.Mode.SELECTED_APPS
+                        ? new AppModeManager(context).getSelectedPackages().size() : 0;
+            case "limits_setter":
+                return new AppTimerManager(context).loadSettings().anyEnabled() ? 1 : 0;
+            case "limits_dual_guard": {
+                AppTimerManager.Settings settings = new AppTimerManager(context).loadSettings();
+                return settings.perAppEnabled && settings.totalEnabled ? 1 : 0;
+            }
+            case "pact_sealed":
+                return CommitmentManager.isActive(context) ? 1 : 0;
+            case "pact_long_haul":
+                return CommitmentManager.originalDurationMillis(context)
+                        >= 7L * 24L * 60L * 60L * 1000L ? 1 : 0;
+            case "hardcore_guardian":
+                return new HardcoreModeManager(context).isEnabled() ? 1 : 0;
+            case "text_filter_enabled": {
+                SettingsRepository settings = new SettingsRepository(context);
+                // The default is enabled for compatibility, but only an explicit saved
+                // configuration represents the user's deliberate text-filter milestone.
+                return settings.preferences().contains(SettingsRepository.KEY_TEXT_SMUT_ENABLED)
+                        && settings.loadTextSmutConfig().isEnabled() ? 1 : 0;
+            }
+            case "text_filter_catalog": {
+                SettingsRepository settings = new SettingsRepository(context);
+                TextSmutConfig config = settings.loadTextSmutConfig();
+                return settings.preferences().contains(SettingsRepository.KEY_TEXT_SMUT_CATEGORIES)
+                        && config.isEnabled()
+                        && config.getEnabledCategories().containsAll(TextSmutConfig.DEFAULT_CATEGORIES)
+                        ? config.getEnabledCategories().size() : 0;
+            }
+            case "pack_curator":
+                return new PackManager(context).activePackId() == null ? 0 : 1;
+            case "wallet_keeper":
+                return new PenanceManager(context).isEnabled() ? 1 : 0;
+            case "tribute_rulesmith": {
+                PenanceManager penance = new PenanceManager(context);
+                if (!penance.isEnabled()) return 0;
+                int enabledRules = 0;
+                for (PenanceInfraction infraction : PenanceInfraction.values()) {
+                    if (penance.isInfractionEnabled(infraction)) enabledRules++;
+                }
+                return enabledRules;
+            }
+            case "paypal_vault":
+                return new PayPalCredentialStore(context).vaultState().isReady() ? 1 : 0;
+            case "paid_pause":
+                return new PaidPauseManager(context).isEnabled() ? 1 : 0;
             default: return isUnlocked(id) ? 1 : 0;
         }
     }
@@ -144,6 +208,13 @@ public final class AchievementManager {
             case "browser_warrior": return 25;
             case "ntr_100": return 100;
             case "ntr_200": return 200;
+            case "app_mode_guardian": case "limits_setter": case "limits_dual_guard":
+            case "pact_sealed": case "pact_long_haul": case "hardcore_guardian":
+            case "text_filter_enabled": case "pack_curator": case "wallet_keeper":
+            case "paypal_vault": case "paid_pause": return 1;
+            case "app_assignment_curator": return 3;
+            case "text_filter_catalog": return 3;
+            case "tribute_rulesmith": return 3;
             default: return 0;
         }
     }
@@ -174,71 +245,93 @@ public final class AchievementManager {
 
     private static List<Achievement> achievements() {
         List<Achievement> values = Arrays.asList(
-                a("first_block", R.string.achievement_first_block, R.string.achievement_desc_first_block, "★", "blocks", "badge_newcomer.webp", false),
-                a("blocks_10", R.string.achievement_getting_started, R.string.achievement_desc_blocks_10, "10", "blocks", null, false),
-                a("blocks_100", R.string.achievement_centurion, R.string.achievement_desc_blocks_100, "100", "blocks", null, false),
-                a("blocks_1000", R.string.achievement_block_master, R.string.achievement_desc_blocks_1000, "♛", "blocks", null, false),
-                a("blocks_10000", R.string.achievement_ultimate_blocker, R.string.achievement_desc_blocks_10000, "♚", "blocks", null, false),
-                a("time_1hr", R.string.achievement_first_hour, R.string.achievement_desc_time_1hr, "◷", "time", "badge_bronze.webp", false),
-                a("time_10hr", R.string.achievement_dedicated, R.string.achievement_desc_time_10hr, "◷", "time", "badge_silver.webp", false),
-                a("time_50hr", R.string.achievement_committed, R.string.achievement_desc_time_50hr, "◷", "time", "badge_gold.webp", false),
-                a("time_200hr", R.string.achievement_platinum_protection, R.string.achievement_desc_time_200hr, "◆", "time", "badge_diamond.webp", false),
-                a("first_session", R.string.achievement_first_session, R.string.achievement_desc_first_session, "▶", "sessions", null, false),
-                a("sessions_10", R.string.achievement_regular, R.string.achievement_desc_sessions_10, "↻", "sessions", null, false),
-                a("sessions_100", R.string.achievement_veteran, R.string.achievement_desc_sessions_100, "✪", "sessions", "badge_veteran.webp", false),
-                a("marathon", R.string.achievement_marathon, R.string.achievement_desc_marathon, "⌁", "sessions", null, false),
-                a("streak_7", R.string.achievement_week_warrior, R.string.achievement_desc_streak_7, "♨", "streaks", "badge_dedicated.webp", false),
-                a("streak_30", R.string.achievement_month_master, R.string.achievement_desc_streak_30, "♨", "streaks", null, false),
-                a("midnight_blocker", R.string.achievement_midnight_blocker, R.string.achievement_desc_midnight, "☾", "hidden", null, true),
-                a("early_bird", R.string.achievement_early_bird, R.string.achievement_desc_early_bird, "☀", "hidden", null, true),
-                a("night_owl", R.string.achievement_night_owl, R.string.achievement_desc_night_owl, "◉", "hidden", null, true),
-                a("new_year", R.string.achievement_new_year, R.string.achievement_desc_new_year, "✦", "hidden", null, true),
-                a("halloween_block", R.string.achievement_spooky, R.string.achievement_desc_halloween, "◈", "hidden", null, true),
-                a("christmas_block", R.string.achievement_holiday, R.string.achievement_desc_christmas, "♣", "hidden", null, true),
-                a("valentine_block", R.string.achievement_love, R.string.achievement_desc_valentine, "♥", "hidden", null, true),
-                a("peak_50", R.string.achievement_peak_50, R.string.achievement_desc_peak_50, "▥", "peaks", null, false),
-                a("peak_500", R.string.achievement_peak_500, R.string.achievement_desc_peak_500, "▥", "peaks", null, false),
-                a("mega_marathon", R.string.achievement_mega_marathon, R.string.achievement_desc_mega_marathon, "✪", "peaks", null, false),
-                a("style_explorer", R.string.achievement_style_explorer, R.string.achievement_desc_style_explorer, "◒", "custom", null, false),
-                a("border_artist", R.string.achievement_border_artist, R.string.achievement_desc_border_artist, "▣", "custom", null, false),
-                a("color_picker", R.string.achievement_color_picker, R.string.achievement_desc_color_picker, "◉", "custom", null, false),
-                a("first_custom_phrase", R.string.achievement_first_custom_phrase, R.string.achievement_desc_first_custom_phrase, "✎", "custom", null, false),
-                a("phrase_library", R.string.achievement_phrase_library, R.string.achievement_desc_phrase_library, "▤", "custom", null, false),
-                a("profile_creator", R.string.achievement_profile_creator, R.string.achievement_desc_profile_creator, "▣", "profiles", null, false),
-                a("profile_organizer", R.string.achievement_profile_organizer, R.string.achievement_desc_profile_organizer, "▰", "profiles", null, false),
-                a("browser_first", R.string.achievement_browser_first, R.string.achievement_desc_browser_first, "◎", "browser", null, false),
-                a("browser_warrior", R.string.achievement_browser_warrior, R.string.achievement_desc_browser_warrior, "⬟", "browser", null, false),
-                a("export_first", R.string.achievement_export_first, R.string.achievement_desc_export_first, "⇩", "export", null, false),
-                a("export_artist", R.string.achievement_export_artist, R.string.achievement_desc_export_artist, "⇩", "export", null, false),
-                a("weekend_warrior", R.string.achievement_weekend_warrior, R.string.achievement_desc_weekend_warrior, "☀", "hidden", null, true),
-                a("ntr_50", R.string.achievement_get_cucked, R.string.achievement_desc_get_cucked, "♈", "hidden", null, true),
-                a("ntr_100", R.string.achievement_get_cucked_2, R.string.achievement_desc_get_cucked_2, "♈", "hidden", null, true),
-                a("ntr_200", R.string.achievement_get_cucked_3, R.string.achievement_desc_get_cucked_3, "♈", "hidden", null, true),
-                a("ntr_500", R.string.achievement_get_cucked_4, R.string.achievement_desc_get_cucked_4, "♈", "hidden", null, true),
-                a("legend", R.string.achievement_legend, R.string.achievement_desc_legend, "★", "special", "badge_legend.webp", false));
+                a("first_block", R.string.achievement_first_block, R.string.achievement_desc_first_block, "★", "blocks", R.drawable.achievement_badge_censor, false),
+                a("blocks_10", R.string.achievement_getting_started, R.string.achievement_desc_blocks_10, "10", "blocks", R.drawable.achievement_badge_censor, false),
+                a("blocks_100", R.string.achievement_centurion, R.string.achievement_desc_blocks_100, "100", "blocks", R.drawable.achievement_badge_censor, false),
+                a("blocks_1000", R.string.achievement_block_master, R.string.achievement_desc_blocks_1000, "♛", "blocks", R.drawable.achievement_badge_censor, false),
+                a("blocks_10000", R.string.achievement_ultimate_blocker, R.string.achievement_desc_blocks_10000, "♚", "blocks", R.drawable.achievement_badge_censor, false),
+                a("time_1hr", R.string.achievement_first_hour, R.string.achievement_desc_time_1hr, "◷", "time", R.drawable.achievement_badge_time, false),
+                a("time_10hr", R.string.achievement_dedicated, R.string.achievement_desc_time_10hr, "◷", "time", R.drawable.achievement_badge_time, false),
+                a("time_50hr", R.string.achievement_committed, R.string.achievement_desc_time_50hr, "◷", "time", R.drawable.achievement_badge_time, false),
+                a("time_200hr", R.string.achievement_platinum_protection, R.string.achievement_desc_time_200hr, "◆", "time", R.drawable.achievement_badge_time, false),
+                a("first_session", R.string.achievement_first_session, R.string.achievement_desc_first_session, "▶", "sessions", R.drawable.achievement_badge_session, false),
+                a("sessions_10", R.string.achievement_regular, R.string.achievement_desc_sessions_10, "↻", "sessions", R.drawable.achievement_badge_session, false),
+                a("sessions_100", R.string.achievement_veteran, R.string.achievement_desc_sessions_100, "✪", "sessions", R.drawable.achievement_badge_session, false),
+                a("marathon", R.string.achievement_marathon, R.string.achievement_desc_marathon, "⌁", "sessions", R.drawable.achievement_badge_session, false),
+                a("streak_7", R.string.achievement_week_warrior, R.string.achievement_desc_streak_7, "♨", "streaks", R.drawable.achievement_badge_streak, false),
+                a("streak_30", R.string.achievement_month_master, R.string.achievement_desc_streak_30, "♨", "streaks", R.drawable.achievement_badge_streak, false),
+                a("midnight_blocker", R.string.achievement_midnight_blocker, R.string.achievement_desc_midnight, "☾", "hidden", R.drawable.achievement_badge_censor, true),
+                a("early_bird", R.string.achievement_early_bird, R.string.achievement_desc_early_bird, "☀", "hidden", R.drawable.achievement_badge_censor, true),
+                a("night_owl", R.string.achievement_night_owl, R.string.achievement_desc_night_owl, "◉", "hidden", R.drawable.achievement_badge_censor, true),
+                a("new_year", R.string.achievement_new_year, R.string.achievement_desc_new_year, "✦", "hidden", R.drawable.achievement_badge_censor, true),
+                a("halloween_block", R.string.achievement_spooky, R.string.achievement_desc_halloween, "◈", "hidden", R.drawable.achievement_badge_censor, true),
+                a("christmas_block", R.string.achievement_holiday, R.string.achievement_desc_christmas, "♣", "hidden", R.drawable.achievement_badge_censor, true),
+                a("valentine_block", R.string.achievement_love, R.string.achievement_desc_valentine, "♥", "hidden", R.drawable.achievement_badge_censor, true),
+                a("peak_50", R.string.achievement_peak_50, R.string.achievement_desc_peak_50, "▥", "peaks", R.drawable.achievement_badge_censor, false),
+                a("peak_500", R.string.achievement_peak_500, R.string.achievement_desc_peak_500, "▥", "peaks", R.drawable.achievement_badge_censor, false),
+                a("mega_marathon", R.string.achievement_mega_marathon, R.string.achievement_desc_mega_marathon, "✪", "peaks", R.drawable.achievement_badge_session, false),
+                a("style_explorer", R.string.achievement_style_explorer, R.string.achievement_desc_style_explorer, "◒", "custom", R.drawable.achievement_badge_custom, false),
+                a("border_artist", R.string.achievement_border_artist, R.string.achievement_desc_border_artist, "▣", "custom", R.drawable.achievement_badge_custom, false),
+                a("color_picker", R.string.achievement_color_picker, R.string.achievement_desc_color_picker, "◉", "custom", R.drawable.achievement_badge_custom, false),
+                a("first_custom_phrase", R.string.achievement_first_custom_phrase, R.string.achievement_desc_first_custom_phrase, "✎", "custom", R.drawable.achievement_badge_custom, false),
+                a("phrase_library", R.string.achievement_phrase_library, R.string.achievement_desc_phrase_library, "▤", "custom", R.drawable.achievement_badge_custom, false),
+                a("profile_creator", R.string.achievement_profile_creator, R.string.achievement_desc_profile_creator, "▣", "profiles", R.drawable.achievement_badge_custom, false),
+                a("profile_organizer", R.string.achievement_profile_organizer, R.string.achievement_desc_profile_organizer, "▰", "profiles", R.drawable.achievement_badge_custom, false),
+                a("browser_first", R.string.achievement_browser_first, R.string.achievement_desc_browser_first, "◎", "browser", R.drawable.achievement_badge_browser, false),
+                a("browser_warrior", R.string.achievement_browser_warrior, R.string.achievement_desc_browser_warrior, "⬟", "browser", R.drawable.achievement_badge_browser, false),
+                a("export_first", R.string.achievement_export_first, R.string.achievement_desc_export_first, "⇩", "export", R.drawable.achievement_badge_custom, false),
+                a("export_artist", R.string.achievement_export_artist, R.string.achievement_desc_export_artist, "⇩", "export", R.drawable.achievement_badge_custom, false),
+                a("weekend_warrior", R.string.achievement_weekend_warrior, R.string.achievement_desc_weekend_warrior, "☀", "hidden", R.drawable.achievement_badge_censor, true),
+                a("ntr_50", R.string.achievement_get_cucked, R.string.achievement_desc_get_cucked, "♈", "hidden", R.drawable.achievement_badge_censor, true),
+                a("ntr_100", R.string.achievement_get_cucked_2, R.string.achievement_desc_get_cucked_2, "♈", "hidden", R.drawable.achievement_badge_censor, true),
+                a("ntr_200", R.string.achievement_get_cucked_3, R.string.achievement_desc_get_cucked_3, "♈", "hidden", R.drawable.achievement_badge_censor, true),
+                a("ntr_500", R.string.achievement_get_cucked_4, R.string.achievement_desc_get_cucked_4, "♈", "hidden", R.drawable.achievement_badge_censor, true),
+                a("app_mode_guardian", R.string.achievement_app_mode_guardian, R.string.achievement_desc_app_mode_guardian, "▶", "app_mode", R.drawable.achievement_badge_app_mode, false),
+                a("app_assignment_curator", R.string.achievement_app_assignment_curator, R.string.achievement_desc_app_assignment_curator, "▦", "app_mode", R.drawable.achievement_badge_app_mode, false),
+                a("limits_setter", R.string.achievement_limits_setter, R.string.achievement_desc_limits_setter, "⌛", "limits", R.drawable.achievement_badge_limits, false),
+                a("limits_dual_guard", R.string.achievement_limits_dual_guard, R.string.achievement_desc_limits_dual_guard, "⌛", "limits", R.drawable.achievement_badge_limits, false),
+                a("pact_sealed", R.string.achievement_pact_sealed, R.string.achievement_desc_pact_sealed, "🔒", "pact", R.drawable.achievement_badge_pact, false),
+                a("pact_long_haul", R.string.achievement_pact_long_haul, R.string.achievement_desc_pact_long_haul, "⛓", "pact", R.drawable.achievement_badge_pact, false),
+                a("hardcore_guardian", R.string.achievement_hardcore_guardian, R.string.achievement_desc_hardcore_guardian, "♜", "hardcore", R.drawable.achievement_badge_hardcore, false),
+                a("text_filter_enabled", R.string.achievement_text_filter_enabled, R.string.achievement_desc_text_filter_enabled, "Aa", "censor", R.drawable.achievement_badge_censor, false),
+                a("text_filter_catalog", R.string.achievement_text_filter_catalog, R.string.achievement_desc_text_filter_catalog, "Aa", "censor", R.drawable.achievement_badge_censor, false),
+                a("pack_curator", R.string.achievement_pack_curator, R.string.achievement_desc_pack_curator, "▤", "custom", R.drawable.achievement_badge_custom, false),
+                a("wallet_keeper", R.string.achievement_wallet_keeper, R.string.achievement_desc_wallet_keeper, "¤", "wallet", R.drawable.achievement_badge_wallet, false),
+                a("tribute_rulesmith", R.string.achievement_tribute_rulesmith, R.string.achievement_desc_tribute_rulesmith, "¤", "wallet", R.drawable.achievement_badge_wallet, false),
+                a("paypal_vault", R.string.achievement_paypal_vault, R.string.achievement_desc_paypal_vault, "¤", "wallet", R.drawable.achievement_badge_wallet, false),
+                a("paid_pause", R.string.achievement_paid_pause, R.string.achievement_desc_paid_pause, "Ⅱ", "wallet", R.drawable.achievement_badge_wallet, false),
+                a("legend", R.string.achievement_legend, R.string.achievement_desc_legend, "★", "special", R.drawable.achievement_badge_legend, false));
         return Collections.unmodifiableList(values);
     }
 
     private static Achievement a(String id, int name, int description, String icon,
-            String category, String badge, boolean hidden) {
-        return new Achievement(id, name, description, icon, category, badge, hidden);
+            String category, int badgeArtRes, boolean hidden) {
+        return new Achievement(id, name, description, icon, category, badgeArtRes, hidden);
     }
 
     public static final class Achievement {
         private final String id; private final int name; private final int description;
-        private final String icon; private final String category; private final String badge;
+        private final String icon; private final String category; private final int badgeArtRes;
         private final boolean hidden;
         Achievement(String id, int name, int description, String icon, String category,
-                String badge, boolean hidden) {
+                int badgeArtRes, boolean hidden) {
             this.id = id; this.name = name; this.description = description; this.icon = icon;
-            this.category = category; this.badge = badge; this.hidden = hidden;
+            this.category = category; this.badgeArtRes = badgeArtRes; this.hidden = hidden;
         }
         public String getId() { return id; }
         public int getName() { return name; }
         public int getDescription() { return description; }
         public String getIcon() { return icon; }
         public String getCategory() { return category; }
-        public String getBadge() { return badge; }
+        /** @return the generated illustrated badge drawable for this achievement. */
+        public int getBadgeArtRes() { return badgeArtRes; }
+        /**
+         * Legacy asset accessor retained for binary/source compatibility.
+         *
+         * <p>Badges no longer use licensed asset filenames; callers should use
+         * {@link #getBadgeArtRes()} instead.</p>
+         */
+        @Deprecated public String getBadge() { return null; }
         public boolean isHidden() { return hidden; }
     }
 
