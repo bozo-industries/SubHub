@@ -39,6 +39,8 @@ import com.subhub.app.penance.PenanceManager;
 import com.subhub.app.settings.CensorAppearance;
 import com.subhub.app.settings.SettingsRepository;
 import com.subhub.app.settings.FeatureModuleManager;
+import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.security.HardcoreSettingsGuard;
 import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.stats.AchievementManager;
@@ -76,6 +78,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final AtomicLong motionGeneration = new AtomicLong();
     private final AtomicBoolean firstFrameReported = new AtomicBoolean();
     private final AtomicBoolean initializing = new AtomicBoolean();
+    private final AtomicBoolean hardcoreGuardRefreshQueued = new AtomicBoolean();
     private final AtomicBoolean textRefreshRequested = new AtomicBoolean(true);
     private final AtomicBoolean textRefreshRunning = new AtomicBoolean();
     private final CaptureEpoch captureEpoch = new CaptureEpoch();
@@ -107,6 +110,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile long lastInferenceUptime;
     private volatile boolean overlayNeedsSourceFrame;
     private volatile String foregroundPackage = "";
+    private volatile String guardForegroundPackage = "";
     private AppTimerManager timers;
     private PenanceManager penance;
     private final DwellInfractionTracker dwellTracker = new DwellInfractionTracker();
@@ -117,7 +121,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private long lastBlockedAtMillis;
     private HardcoreSettingsGuard hardcoreSettingsGuard;
     private ScrollFrameMotionEstimator motionEstimator;
-    private final Runnable settledHardcoreGuardRefresh = this::refreshHardcoreSettingsGuard;
+    private final Runnable settledHardcoreGuardRefresh = () -> {
+        hardcoreGuardRefreshQueued.set(false);
+        refreshHardcoreSettingsGuard();
+    };
     private final Runnable settledTextRefresh = this::requestTextRefresh;
     private final Runnable timerTick = new Runnable() {
         @Override public void run() {
@@ -553,17 +560,19 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (event == null) return;
         String packageName = event.getPackageName() == null
                 ? "" : event.getPackageName().toString();
+        if (!packageName.isEmpty()) guardForegroundPackage = packageName;
         boolean settingsEvent = HardcoreSettingsGuard.isSettingsPackage(packageName);
         boolean windowTransition = event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
                 || event.getEventType() == AccessibilityEvent.TYPE_WINDOWS_CHANGED;
         if (settingsEvent && (windowTransition
                 || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
                 || event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED)) {
-            main.removeCallbacks(settledHardcoreGuardRefresh);
-            main.postDelayed(settledHardcoreGuardRefresh, 120L);
+            queueHardcoreSettingsGuardRefresh(windowTransition ? 0L : 32L);
         } else if (windowTransition && hardcoreSettingsGuard != null) {
-            main.removeCallbacks(settledHardcoreGuardRefresh);
-            hardcoreSettingsGuard.clear();
+            // Adding the accessibility badge itself emits a window event from our package. A
+            // live-root refresh distinguishes that feedback from actually leaving Settings and
+            // prevents the guard from clearing/re-adding (the visible flash users reported).
+            queueHardcoreSettingsGuardRefresh(0L);
         }
         if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
             if (recognitionActive && packageName.equals(foregroundPackage)) {
@@ -685,25 +694,39 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void reevaluateRecognition() {
         if (!running || settings == null) return;
-        boolean shouldRun = new AppModeManager(this).shouldRecognize(foregroundPackage);
+        // Android Settings is handled by the lightweight Hardcore guard. Running the detector
+        // there competes for the same accessibility overlay channel and wastes capture/ML work.
+        boolean shouldRun = !HardcoreSettingsGuard.isSettingsPackage(foregroundPackage)
+                && new AppModeManager(this).shouldRecognize(foregroundPackage);
         if (shouldRun && !recognitionActive) activateRecognition();
         else if (!shouldRun && recognitionActive) deactivateRecognition();
     }
 
     private void refreshHardcoreSettingsGuard() {
         if (hardcoreSettingsGuard == null) return;
-        if (!HardcoreSettingsGuard.isSettingsPackage(foregroundPackage)) {
+        boolean hardcore = new HardcoreModeManager(this).isEnabled();
+        boolean domMode = ControllerPinManager.isDomModeActive();
+        if (!hardcore || domMode) {
             hardcoreSettingsGuard.clear();
             return;
         }
+        String expectedPackage = guardForegroundPackage;
+        // Window-state events can be coalesced while Settings restores a Compose page. In
+        // Hardcore/Sub mode, confirm against the live root once per guard tick instead of
+        // trusting a stale package cache and silently leaving destructive controls uncovered.
         AccessibilityNodeInfo root = getRootInActiveWindow();
         try {
             String activePackage = root != null && root.getPackageName() != null
-                    ? root.getPackageName().toString() : foregroundPackage;
+                    ? root.getPackageName().toString() : expectedPackage;
             hardcoreSettingsGuard.refresh(activePackage, root);
         } finally {
             if (root != null) root.recycle();
         }
+    }
+
+    private void queueHardcoreSettingsGuardRefresh(long delayMillis) {
+        if (!hardcoreGuardRefreshQueued.compareAndSet(false, true)) return;
+        main.postDelayed(settledHardcoreGuardRefresh, Math.max(0L, delayMillis));
     }
 
     private void activateRecognition() {
@@ -828,6 +851,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (hardcoreSettingsGuard != null) hardcoreSettingsGuard.clear();
         hardcoreSettingsGuard = null;
         main.removeCallbacks(settledHardcoreGuardRefresh);
+        hardcoreGuardRefreshQueued.set(false);
         main.removeCallbacks(settledTextRefresh);
         dwellTracker.clear();
         tapTracker.clear();

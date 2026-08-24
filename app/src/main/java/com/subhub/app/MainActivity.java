@@ -51,6 +51,7 @@ import com.subhub.app.appmode.ResumeNotificationManager;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.ControllerEditMode;
+import com.subhub.app.security.ProtectionStopPolicy;
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.util.AppShortcuts;
 import com.subhub.app.util.SubHubNavigation;
@@ -184,9 +185,16 @@ public final class MainActivity extends AppCompatActivity {
         AppModeManager appMode = new AppModeManager(this);
         boolean stopping = ScreenCaptureService.isRunning() || appMode.isArmed()
                 || ScreenshotAccessibilityService.isRecognitionActive();
-        if (stopping && !CommitmentManager.mayStopProtection(this)) {
-            showStatus(R.string.commitment_stop_requires_dom);
-            return;
+        if (stopping) {
+            ProtectionStopPolicy.Decision stopDecision = ProtectionStopPolicy.decision(this);
+            if (stopDecision == ProtectionStopPolicy.Decision.TIMER_LOCKED) {
+                showStatus(R.string.commitment_stop_requires_dom);
+                return;
+            }
+            if (stopDecision == ProtectionStopPolicy.Decision.REQUIRE_CONTROLLER) {
+                ControllerPinGate.require(this, () -> toggleProtection(view), false);
+                return;
+            }
         }
         if (ScreenCaptureService.isRunning()) {
             startService(ScreenCaptureService.stopIntent(this));

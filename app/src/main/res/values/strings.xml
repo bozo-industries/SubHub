@@ -27,9 +27,10 @@
     <string name="hardcore_status_off">OFF · SubHub can be uninstalled normally</string>
     <string name="hardcore_status_pending">WAITING · approve Device Admin on Android’s next screen</string>
     <string name="hardcore_status_active">ACTIVE · Device Admin must be deactivated before uninstall</string>
-    <string name="hardcore_status_accessibility">ACTIVE · enable Accessibility once for automatic scanning</string>
+    <string name="hardcore_status_accessibility">ACTIVE · Accessibility guard is off. If Android blocks it: App info › ⋮ › Allow restricted settings.</string>
     <string name="hardcore_open_admin">OPEN DEVICE ADMIN SETTINGS</string>
-    <string name="hardcore_open_accessibility">ENABLE SCANNING ACCESS</string>
+    <string name="hardcore_open_accessibility">OPEN ACCESSIBILITY</string>
+    <string name="hardcore_open_restricted">OPEN APP INFO</string>
     <string name="hardcore_consent_title">ENABLE HARDCORE MODE?</string>
     <string name="hardcore_consent_body">Android will ask you to enable Device Admin. Hardcore Mode adds an extra step before uninstall and re-arms scanning after reboot.</string>
     <string name="hardcore_consent_enable">CONTINUE TO ANDROID</string>

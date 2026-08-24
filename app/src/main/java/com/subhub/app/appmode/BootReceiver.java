@@ -7,6 +7,7 @@ import android.content.Intent;
 import com.subhub.app.commitment.CommitmentManager;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.HardcoreModeManager;
+import com.subhub.app.security.ProtectionStopPolicy;
 import com.subhub.app.penance.HardcoreAutoPayManager;
 import com.subhub.app.penance.PaidPauseManager;
 
@@ -18,8 +19,10 @@ public final class BootReceiver extends BroadcastReceiver {
         String action = intent == null ? "" : intent.getAction();
         AppModeManager mode = new AppModeManager(context);
         if (ACTION_DISARM.equals(action)) {
-            if (!CommitmentManager.mayStopProtection(context)) {
+            if (ProtectionStopPolicy.decision(context)
+                    != ProtectionStopPolicy.Decision.ALLOW) {
                 CommitmentManager.reinforceProtection(context);
+                new HardcoreModeManager(context).applyBootPolicy();
                 return;
             }
             mode.setArmed(false);

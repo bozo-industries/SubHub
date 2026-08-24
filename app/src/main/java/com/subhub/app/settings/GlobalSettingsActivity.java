@@ -122,6 +122,9 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
             if (!updatingHardcore) changeHardcoreMode(checked);
         });
         binding.buttonHardcoreSystem.setOnClickListener(view -> openHardcoreSystemPage());
+        binding.buttonHardcoreRestricted.setOnClickListener(view -> startActivity(new Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.parse("package:" + getPackageName()))));
         binding.buttonAccessibilitySettings.setOnClickListener(view ->
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         binding.buttonSaveRecognition.setOnClickListener(view -> saveRecognition());
@@ -196,6 +199,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.switchModuleWallet.setEnabled(editingUnlocked);
         binding.switchHardcoreMode.setEnabled(editingUnlocked);
         binding.buttonHardcoreSystem.setEnabled(editingUnlocked);
+        binding.buttonHardcoreRestricted.setEnabled(editingUnlocked);
         binding.buttonAccessibilitySettings.setEnabled(editingUnlocked);
         binding.armed.setEnabled(editingUnlocked);
         binding.modeAlways.setEnabled(editingUnlocked);
@@ -460,8 +464,11 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         if (binding == null || hardcore == null) return;
         updatingHardcore = true;
         boolean active = hardcore.isEnabled();
+        boolean accessibilityMissing = active && !new AppModeManager(this).isAccessibilityEnabled();
         binding.switchHardcoreMode.setChecked(active || hardcore.isRequested());
-        if (active && !new AppModeManager(this).isAccessibilityEnabled()) {
+        binding.buttonHardcoreRestricted.setVisibility(
+                accessibilityMissing ? View.VISIBLE : View.GONE);
+        if (accessibilityMissing) {
             binding.hardcoreStatus.setText(R.string.hardcore_status_accessibility);
             binding.buttonHardcoreSystem.setText(R.string.hardcore_open_accessibility);
         } else if (active) {

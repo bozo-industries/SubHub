@@ -14,7 +14,7 @@ import androidx.core.content.ContextCompat;
 
 import com.subhub.app.MainActivity;
 import com.subhub.app.R;
-import com.subhub.app.commitment.CommitmentManager;
+import com.subhub.app.security.ProtectionStopPolicy;
 
 /** Visible boot/resume state. It never attempts to reuse or bypass capture consent. */
 public final class ResumeNotificationManager {
@@ -55,7 +55,7 @@ public final class ResumeNotificationManager {
                 .setOngoing(appModeArmed && !projectionPending)
                 .setAutoCancel(projectionPending)
                 .setSilent(true);
-        if (!CommitmentManager.isActive(context)) {
+        if (ProtectionStopPolicy.showNotificationStop(context)) {
             builder.addAction(0, context.getString(R.string.app_mode_disarm), disarm);
         }
         notifications.notify(NOTIFICATION_ID, builder.build());
