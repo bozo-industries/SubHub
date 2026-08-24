@@ -122,6 +122,14 @@ public final class ObjectTracker {
         nextId = 1;
     }
 
+    /** Keeps tracker identity in the same moving screen coordinate space as the overlay. */
+    public synchronized void offsetActiveTracks(int dx, int dy, int frameWidth, int frameHeight) {
+        if (dx == 0 && dy == 0) return;
+        for (TrackedObject track : tracks.values()) {
+            if (track.isActive()) track.offset(dx, dy, frameWidth, frameHeight);
+        }
+    }
+
     public synchronized void setConfig(DetectorConfig config) {
         this.config = config;
     }

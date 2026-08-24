@@ -61,5 +61,19 @@ public final class TrackedObject {
         velocityY *= 0.8f;
     }
 
+    void offset(int dx, int dy, int frameWidth, int frameHeight) {
+        box = shifted(box, dx, dy, frameWidth, frameHeight);
+        rawBox = shifted(rawBox, dx, dy, frameWidth, frameHeight);
+        if (box.getWidth() == 0 || box.getHeight() == 0) active = false;
+    }
+
+    private static BBox shifted(BBox value, int dx, int dy, int width, int height) {
+        int left = Math.max(0, value.getX() + dx);
+        int top = Math.max(0, value.getY() + dy);
+        int right = Math.min(width, value.getRight() + dx);
+        int bottom = Math.min(height, value.getBottom() + dy);
+        return new BBox(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+    }
+
     void deactivate() { active = false; }
 }
