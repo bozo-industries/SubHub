@@ -69,7 +69,7 @@ public final class PageMapScreenshotTest {
 
         try (ActivityScenario<? extends Activity> scenario = ActivityScenario.launch(activityClass)) {
             UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
-            device.waitForIdle();
+            device.waitForIdle(750L);
             Thread.sleep(350L);
             if (!device.takeScreenshot(new File(directory, name + ".png"))) {
                 throw new IllegalStateException("Could not capture " + name);
@@ -86,13 +86,13 @@ public final class PageMapScreenshotTest {
         }
         try (ActivityScenario<? extends Activity> scenario = ActivityScenario.launch(activityClass)) {
             UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
-            device.waitForIdle();
+            device.waitForIdle(750L);
             int x = device.getDisplayWidth() / 2;
             int fromY = Math.round(device.getDisplayHeight() * 0.78f);
             int toY = Math.round(device.getDisplayHeight() * 0.24f);
             for (int index = 0; index < swipes; index++) {
                 device.swipe(x, fromY, x, toY, 24);
-                device.waitForIdle();
+                device.waitForIdle(500L);
             }
             Thread.sleep(250L);
             if (!device.takeScreenshot(new File(directory, name + ".png"))) {

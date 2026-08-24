@@ -1,16 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="background">#070409</color>
+    <color name="background">#08060C</color>
     <color name="launcher_icon_background">#14091D</color>
-    <color name="surface">#140E19</color>
-    <color name="surface_high">#24142C</color>
-    <color name="accent">#9C4CC4</color>
-    <color name="accent_hot">#D52B7E</color>
-    <color name="accent_dark">#5E2876</color>
-    <color name="accent_dim">#559C4CC4</color>
-    <color name="nav_pill">#0D0911</color>
-    <color name="nav_active">#31183B</color>
-    <color name="nav_stroke">#472653</color>
+    <color name="surface">#120E18</color>
+    <color name="surface_high">#241832</color>
+    <!-- Near-black surfaces keep contrast high while the violet tint stays quiet. -->
+    <color name="surface_deep">#0D0B12</color>
+    <color name="surface_card">#15131C</color>
+    <color name="surface_card_raised">#1D1927</color>
+    <color name="surface_pressed">#2A1734</color>
+    <color name="surface_disabled">#17131D</color>
+    <color name="outline_subtle">#3A3045</color>
+    <color name="outline_default">#5A3D68</color>
+    <color name="outline_selected">#E743B4</color>
+    <color name="outline_focus">#C957D6</color>
+    <color name="shadow_soft">#66000000</color>
+    <color name="accent_glow">#66D247E6</color>
+    <color name="accent">#A45BC7</color>
+    <color name="accent_mid">#C451D1</color>
+    <color name="accent_hot">#E33A8F</color>
+    <color name="accent_dark">#602E79</color>
+    <color name="accent_dim">#66A45BC7</color>
+    <color name="accent_hot_dim">#66B92F78</color>
+    <color name="nav_pill">#0D0A12</color>
+    <color name="nav_active">#351C42</color>
+    <color name="nav_active_pressed">#4C1F55</color>
+    <color name="nav_stroke">#4A2E58</color>
     <color name="text_primary">#F8F1FC</color>
     <color name="text_secondary">#C9BCD3</color>
     <color name="text_muted">#8F809B</color>

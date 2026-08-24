@@ -4,8 +4,12 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
@@ -36,7 +40,15 @@ public final class AppModeActivity extends AppCompatActivity {
     private AppModeManager manager;
     private AppTimerManager timers;
     private boolean editingUnlocked;
+    private boolean populatingTimers;
     private final Map<String, EditText> allowanceInputs = new LinkedHashMap<>();
+    private final Handler autoSaveHandler = new Handler(Looper.getMainLooper());
+    private final Runnable persistTimers = () -> save(false);
+    private final TextWatcher autoSaveWatcher = new TextWatcher() {
+        @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
+        @Override public void onTextChanged(CharSequence value, int start, int before, int count) {}
+        @Override public void afterTextChanged(Editable value) { scheduleAutoSave(); }
+    };
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -50,13 +62,22 @@ public final class AppModeActivity extends AppCompatActivity {
         binding.perAppLimitEnabled.setChecked(timerSettings.perAppEnabled);
         binding.totalLimitEnabled.setChecked(timerSettings.totalEnabled);
         binding.totalLimitMinutes.setText(String.valueOf(timerSettings.totalMinutes));
-        binding.perAppLimitEnabled.setOnCheckedChangeListener((button, checked) ->
-                renderTimerControls());
-        binding.totalLimitEnabled.setOnCheckedChangeListener((button, checked) ->
-                renderTimerControls());
+        binding.perAppLimitEnabled.setOnCheckedChangeListener((button, checked) -> {
+            renderTimerControls();
+            scheduleAutoSave();
+            if (checked) promptForAccessibility();
+        });
+        binding.totalLimitEnabled.setOnCheckedChangeListener((button, checked) -> {
+            renderTimerControls();
+            scheduleAutoSave();
+            if (checked) promptForAccessibility();
+        });
+        binding.totalLimitMinutes.addTextChangedListener(autoSaveWatcher);
+        binding.totalLimitMinutes.setOnFocusChangeListener((view, focused) -> {
+            if (!focused) commitTimers(true);
+        });
         binding.buttonBack.setOnClickListener(view -> finish());
         binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
-        binding.buttonSave.setOnClickListener(view -> save());
         renderPerAppAllowances();
         renderTimerControls();
         renderTimerUsage();
@@ -69,6 +90,12 @@ public final class AppModeActivity extends AppCompatActivity {
         applyEditState();
     }
 
+    @Override protected void onPause() {
+        autoSaveHandler.removeCallbacks(persistTimers);
+        if (editingUnlocked) save(false);
+        super.onPause();
+    }
+
     private void toggleEditSession() {
         if (ControllerPinManager.isSessionUnlocked()) {
             ControllerEditMode.enterSubMode(this);
@@ -79,18 +106,18 @@ public final class AppModeActivity extends AppCompatActivity {
         if (binding == null) return;
         editingUnlocked = ControllerPinManager.isSessionUnlocked();
         ControllerEditMode.renderButton(this, binding.buttonEditLock);
-        View[] editable = {binding.buttonSave,
-                binding.perAppLimitEnabled, binding.totalLimitEnabled};
+        View[] editable = {binding.perAppLimitEnabled, binding.totalLimitEnabled};
         for (View view : editable) view.setEnabled(editingUnlocked);
         renderTimerControls();
     }
 
-    private void save() {
+    private boolean save(boolean showInvalid) {
         boolean watchedAppsRequired = binding.perAppLimitEnabled.isChecked()
                 || binding.totalLimitEnabled.isChecked();
         if (watchedAppsRequired && manager.getTimerPackages().isEmpty()) {
-            Toast.makeText(this, R.string.app_mode_select_one, Toast.LENGTH_SHORT).show();
-            return;
+            if (showInvalid) Toast.makeText(this, R.string.app_mode_select_one,
+                    Toast.LENGTH_SHORT).show();
+            return false;
         }
         Integer totalMinutes = readMinutes(binding.totalLimitMinutes,
                 binding.totalLimitEnabled.isChecked());
@@ -99,32 +126,52 @@ public final class AppModeActivity extends AppCompatActivity {
             for (Map.Entry<String, EditText> entry : allowanceInputs.entrySet()) {
                 Integer minutes = readMinutes(entry.getValue(), true);
                 if (minutes == null) {
-                    Toast.makeText(this, R.string.app_timer_invalid_minutes,
+                    if (showInvalid) Toast.makeText(this, R.string.app_timer_invalid_minutes,
                             Toast.LENGTH_SHORT).show();
-                    return;
+                    return false;
                 }
                 allowances.put(entry.getKey(), minutes);
             }
         }
         if (totalMinutes == null) {
-            Toast.makeText(this, R.string.app_timer_invalid_minutes, Toast.LENGTH_SHORT).show();
-            return;
+            if (showInvalid) Toast.makeText(this, R.string.app_timer_invalid_minutes,
+                    Toast.LENGTH_SHORT).show();
+            return false;
         }
         AppTimerManager.Settings existing = timers.loadSettings();
         timers.saveSettings(binding.perAppLimitEnabled.isChecked(), existing.perAppMinutes,
                 binding.totalLimitEnabled.isChecked(), totalMinutes);
         timers.saveAllowances(manager.getTimerPackages(), allowances);
-        Toast.makeText(this, R.string.app_mode_saved, Toast.LENGTH_SHORT).show();
-        binding.buttonSave.setText(R.string.app_mode_saved_button);
-        binding.buttonSave.postDelayed(() -> {
-            if (binding != null) binding.buttonSave.setText(R.string.app_mode_save_limits);
-        }, 1400L);
-        boolean accessibilityRequired = binding.perAppLimitEnabled.isChecked()
-                || binding.totalLimitEnabled.isChecked();
-        if (accessibilityRequired && !accessibilityEnabled()) {
-            Toast.makeText(this, R.string.app_mode_enable_prompt, Toast.LENGTH_LONG).show();
-            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-        }
+        return true;
+    }
+
+    private void scheduleAutoSave() {
+        if (populatingTimers || !editingUnlocked) return;
+        autoSaveHandler.removeCallbacks(persistTimers);
+        autoSaveHandler.postDelayed(persistTimers, 450L);
+    }
+
+    private void commitTimers(boolean restoreIfInvalid) {
+        if (populatingTimers || !editingUnlocked) return;
+        autoSaveHandler.removeCallbacks(persistTimers);
+        if (!save(restoreIfInvalid) && restoreIfInvalid) restoreTimerValues();
+    }
+
+    private void restoreTimerValues() {
+        populatingTimers = true;
+        AppTimerManager.Settings saved = timers.loadSettings();
+        binding.perAppLimitEnabled.setChecked(saved.perAppEnabled);
+        binding.totalLimitEnabled.setChecked(saved.totalEnabled);
+        binding.totalLimitMinutes.setText(String.valueOf(saved.totalMinutes));
+        renderPerAppAllowances();
+        populatingTimers = false;
+        renderTimerControls();
+    }
+
+    private void promptForAccessibility() {
+        if (populatingTimers || !editingUnlocked || accessibilityEnabled()) return;
+        Toast.makeText(this, R.string.app_mode_enable_prompt, Toast.LENGTH_LONG).show();
+        startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
     }
 
     private void renderTimerControls() {
@@ -177,6 +224,10 @@ public final class AppModeActivity extends AppCompatActivity {
             input.setHintTextColor(getColor(R.color.text_muted));
             input.setTextSize(12f);
             input.setGravity(Gravity.CENTER);
+            input.addTextChangedListener(autoSaveWatcher);
+            input.setOnFocusChangeListener((view, focused) -> {
+                if (!focused) commitTimers(true);
+            });
             row.addView(input, new LinearLayout.LayoutParams(dp(104), dp(46)));
             allowanceInputs.put(packageName, input);
             binding.perAppAllowancesList.addView(row);
@@ -237,6 +288,7 @@ public final class AppModeActivity extends AppCompatActivity {
     }
 
     @Override protected void onDestroy() {
+        autoSaveHandler.removeCallbacksAndMessages(null);
         binding = null;
         super.onDestroy();
     }

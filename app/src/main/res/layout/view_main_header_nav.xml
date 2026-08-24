@@ -12,10 +12,10 @@
     <ImageView
         android:layout_width="44dp"
         android:layout_height="44dp"
-        android:background="@drawable/bg_bottom_tab_active"
-        android:contentDescription="@string/nav_censor"
+        android:background="@drawable/bg_header_icon"
+        android:contentDescription="@string/nav_home"
         android:padding="10dp"
-        android:src="@drawable/ic_nav_censor"
+        android:src="@drawable/ic_tab_home"
         app:tint="@color/text_primary" />
 
     <LinearLayout
@@ -25,7 +25,7 @@
         android:layout_weight="1"
         android:orientation="vertical">
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:letterSpacing="0.1" android:text="@string/nav_censor"
+            android:letterSpacing="0.1" android:text="@string/app_name"
             android:textColor="@color/text_primary" android:textSize="20sp"
             android:textStyle="bold" />
         <TextView android:id="@+id/header_subtitle" android:layout_width="match_parent"

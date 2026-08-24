@@ -30,6 +30,7 @@ import com.subhub.app.penance.PenanceActivity;
 import com.subhub.app.penance.PenanceManager;
 import com.subhub.app.penance.PaidPauseManager;
 import com.subhub.app.penance.PenanceSnapshot;
+import com.subhub.app.penance.TamperTributeReporter;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.subhub.app.appmode.AppModeManager;
@@ -60,13 +61,14 @@ import com.google.android.material.snackbar.Snackbar;
 
 /** Main source UI and explicit permission flow for starting on-device protection. */
 public final class MainActivity extends AppCompatActivity {
+    private static final long PACT_UNTIL_RELEASED = -1L;
     private ActivityMainBinding binding;
     private TextView editLockButton;
     private MediaProjectionManager projectionManager;
     private ActivityResultLauncher<Intent> projectionPermission;
     private ActivityResultLauncher<Intent> overlayPermission;
     private ActivityResultLauncher<String> notificationPermission;
-    private long selectedPactDurationMs;
+    private long selectedPactDurationMs = PACT_UNTIL_RELEASED;
     private final Handler uiTimer = new Handler(Looper.getMainLooper());
     private final Runnable uiTick = new Runnable() {
         @Override public void run() {
@@ -135,6 +137,8 @@ public final class MainActivity extends AppCompatActivity {
                 selectPactDuration(7L * 24L * 60L * 60L * 1000L));
         binding.commitmentTimer30d.setOnClickListener(view ->
                 selectPactDuration(30L * 24L * 60L * 60L * 1000L));
+        binding.commitmentTimerPermanent.setOnClickListener(view ->
+                selectPactDuration(PACT_UNTIL_RELEASED));
         binding.buttonPenanceView.setOnClickListener(view ->
                 startActivity(new Intent(this, PenanceActivity.class)));
         binding.subWalletPay.setOnClickListener(view ->
@@ -188,6 +192,7 @@ public final class MainActivity extends AppCompatActivity {
         if (stopping) {
             ProtectionStopPolicy.Decision stopDecision = ProtectionStopPolicy.decision(this);
             if (stopDecision == ProtectionStopPolicy.Decision.TIMER_LOCKED) {
+                TamperTributeReporter.record(this);
                 showStatus(R.string.commitment_stop_requires_dom);
                 return;
             }
@@ -247,15 +252,17 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void selectPactDuration(long durationMillis) {
-        if (ControllerPinManager.isDomModeActive() || CommitmentManager.isActive(this)) return;
-        selectedPactDurationMs = selectedPactDurationMs == durationMillis ? 0L : durationMillis;
+        if (CommitmentManager.isActive(this)) return;
+        selectedPactDurationMs = durationMillis;
         renderPactSelection();
     }
 
     private void startSelectedPact() {
-        if (selectedPactDurationMs <= 0L || CommitmentManager.isActive(this)) return;
-        CommitmentManager.start(this, selectedPactDurationMs);
-        selectedPactDurationMs = 0L;
+        if (CommitmentManager.isActive(this)) return;
+        if (selectedPactDurationMs > 0L) {
+            CommitmentManager.start(this, selectedPactDurationMs);
+            selectedPactDurationMs = PACT_UNTIL_RELEASED;
+        }
         renderCommitmentState();
     }
 
@@ -264,6 +271,7 @@ public final class MainActivity extends AppCompatActivity {
         pactButton(binding.commitmentTimer24h, 24L * 60L * 60L * 1000L);
         pactButton(binding.commitmentTimer7d, 7L * 24L * 60L * 60L * 1000L);
         pactButton(binding.commitmentTimer30d, 30L * 24L * 60L * 60L * 1000L);
+        pactButton(binding.commitmentTimerPermanent, PACT_UNTIL_RELEASED);
     }
 
     private void pactButton(TextView button, long duration) {

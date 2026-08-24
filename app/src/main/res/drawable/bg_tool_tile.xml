@@ -1,18 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/surface_disabled" />
+            <stroke android:width="1dp" android:color="@color/outline_subtle" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
-            <gradient android:angle="0" android:startColor="#FF422054"
-                android:endColor="#FF5A204B" />
+            <gradient android:angle="0" android:startColor="@color/surface_pressed"
+                android:endColor="#FF54204D" />
             <stroke android:width="1dp" android:color="@color/accent_hot" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/surface_card_raised" />
+            <stroke android:width="2dp" android:color="@color/outline_focus" />
             <corners android:radius="16dp" />
         </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
-            <gradient android:angle="0" android:startColor="#F21D1428"
-                android:endColor="#F229162F" />
-            <stroke android:width="1dp" android:color="#806C3A79" />
+            <gradient android:angle="0" android:startColor="@color/surface_card"
+                android:endColor="#F225162F" />
+            <stroke android:width="1dp" android:color="@color/outline_default" />
             <corners android:radius="16dp" />
         </shape>
     </item>
