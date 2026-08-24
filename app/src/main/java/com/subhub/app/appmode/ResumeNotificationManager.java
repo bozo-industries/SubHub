@@ -48,7 +48,7 @@ public final class ResumeNotificationManager {
         int message = projectionPending ? R.string.app_mode_notification_resume_projection
                 : R.string.app_mode_notification_armed;
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setSmallIcon(R.drawable.ic_launcher_monochrome)
                 .setContentTitle(context.getString(R.string.app_mode_notification_title))
                 .setContentText(context.getString(message))
                 .setContentIntent(open)

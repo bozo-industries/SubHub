@@ -99,7 +99,7 @@ final class HardcoreAutoPayEngine {
         notifications.createNotificationChannel(new NotificationChannel(
                 CHANNEL, "Hardcore Wallet", NotificationManager.IMPORTANCE_DEFAULT));
         notifications.notify(9062, new NotificationCompat.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setSmallIcon(R.drawable.ic_launcher_monochrome)
                 .setContentTitle(success ? "SubHub Wallet" : "SubHub Wallet needs attention")
                 .setContentText(text)
                 .setAutoCancel(true)
