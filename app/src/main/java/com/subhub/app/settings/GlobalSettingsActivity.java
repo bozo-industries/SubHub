@@ -162,20 +162,30 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private void arrangeSettingsSections() {
         LinearLayout container = binding.settingsSections;
         View[] order = {
+                binding.settingsGroupProtection,
                 binding.hardcoreCard,
                 binding.featureAreasCard,
+                binding.settingsGroupCoverage,
                 binding.androidAccessCard,
                 binding.recognitionCard,
                 binding.appListCard,
-                binding.paypalCard,
-                binding.appSettingsCard
+                binding.settingsGroupServices,
+                binding.appSettingsCard,
+                binding.paypalCard
         };
         for (View card : order) container.removeView(card);
         for (int index = 0; index < order.length; index++) {
             View card = order[index];
             LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) card.getLayoutParams();
-            params.topMargin = index == 0 ? 0 : dp(8);
-            params.bottomMargin = 0;
+            boolean groupLabel = isSettingsGroupLabel(card);
+            boolean followsGroupLabel = index > 0 && isSettingsGroupLabel(order[index - 1]);
+            params.topMargin = groupLabel
+                    ? getResources().getDimensionPixelSize(index == 0
+                            ? R.dimen.settings_first_group_gap : R.dimen.settings_group_gap)
+                    : (followsGroupLabel ? 0
+                            : getResources().getDimensionPixelSize(R.dimen.settings_card_gap));
+            params.bottomMargin = groupLabel
+                    ? getResources().getDimensionPixelSize(R.dimen.settings_group_label_gap) : 0;
             card.setLayoutParams(params);
             container.addView(card);
         }
@@ -184,6 +194,12 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                 (LinearLayout.LayoutParams) binding.settingsHeader.getLayoutParams();
         header.bottomMargin = dp(8);
         binding.settingsHeader.setLayoutParams(header);
+    }
+
+    private boolean isSettingsGroupLabel(View view) {
+        return view == binding.settingsGroupProtection
+                || view == binding.settingsGroupCoverage
+                || view == binding.settingsGroupServices;
     }
 
     @Override protected void onResume() {

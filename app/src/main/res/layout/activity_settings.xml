@@ -230,31 +230,6 @@
                         android:layout_width="match_parent"
                         android:layout_height="72dp"
                         android:layout_margin="8dp"
-                        android:tag="bar" />
-                    <RadioButton
-                        android:id="@+id/radio_bar"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:background="@drawable/bg_style_radio_overlay"
-                        android:button="@null"
-                        android:gravity="bottom|center_horizontal"
-                        android:paddingBottom="9dp"
-                        android:text="@string/style_bar"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11sp" />
-                </FrameLayout>
-
-                <FrameLayout
-                    android:layout_width="0dp"
-                    android:layout_height="118dp"
-                    android:layout_columnWeight="1"
-                    android:layout_gravity="fill_horizontal"
-                    android:layout_margin="4dp"
-                    android:background="@drawable/bg_style_tile">
-                    <com.subhub.app.settings.CensorPreviewView
-                        android:layout_width="match_parent"
-                        android:layout_height="72dp"
-                        android:layout_margin="8dp"
                         android:tag="custom" />
                     <RadioButton
                         android:id="@+id/radio_custom"

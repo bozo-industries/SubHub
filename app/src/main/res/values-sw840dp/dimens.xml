@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <dimen name="page_margin">180dp</dimen>
+    <dimen name="home_primary_content_gap">20dp</dimen>
+    <dimen name="settings_card_gap">10dp</dimen>
+    <dimen name="settings_first_group_gap">10dp</dimen>
+    <dimen name="settings_group_gap">20dp</dimen>
+    <dimen name="settings_group_label_gap">8dp</dimen>
     <dimen name="bottom_nav_margin">220dp</dimen>
     <dimen name="bottom_nav_bottom_margin">24dp</dimen>
     <dimen name="bottom_nav_height">86dp</dimen>

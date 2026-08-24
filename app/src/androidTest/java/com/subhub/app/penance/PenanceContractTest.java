@@ -19,6 +19,7 @@ import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.commitment.CommitmentManager;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.HardcoreModeManager;
+import com.subhub.app.settings.FeatureModuleManager;
 import com.subhub.app.settings.SettingsRepository;
 
 import org.junit.After;
@@ -41,6 +42,7 @@ public final class PenanceContractTest {
         context.getSharedPreferences(SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE)
                 .edit().remove(HardcoreModeManager.KEY_REQUESTED).commit();
         manager = new PenanceManager(context);
+        new FeatureModuleManager(context).save(true, true, true);
         new AppModeManager(context).setArmed(true);
         new HardcoreAutoPayManager(context).disable();
     }
@@ -55,6 +57,7 @@ public final class PenanceContractTest {
         new PayPalCredentialStore(context).clear();
         new HardcoreAutoPayManager(context).disable();
         new AppModeManager(context).setArmed(false);
+        new FeatureModuleManager(context).save(true, true, true);
     }
 
     @Test public void disabledProtectionNeverCreatesTribute() {
@@ -68,6 +71,7 @@ public final class PenanceContractTest {
 
     @Test public void paidPauseUsesItsExactConfiguredCheckoutAndStartsAfterPayment() {
         long now = System.currentTimeMillis();
+        manager.configure(true, 100, 500, 2_000, 0);
         PaidPauseManager pause = new PaidPauseManager(context);
         pause.configure(true, 375, 12);
         CommitmentManager.start(context, 60L * 60L * 1000L);
@@ -80,6 +84,64 @@ public final class PenanceContractTest {
         assertTrue(manager.completeSettlement(settlement.getId(), 375));
         assertTrue(pause.isActive());
         assertFalse(new AppModeManager(context).isArmed());
+    }
+
+    @Test public void disabledMoneyRulesBlockPaidPauseAtEveryActionBoundary() {
+        long now = System.currentTimeMillis();
+        PaidPauseManager pause = new PaidPauseManager(context);
+        pause.configure(true, 375, 12);
+        CommitmentManager.start(context, 60L * 60L * 1000L);
+        new AppModeManager(context).setArmed(true);
+
+        assertFalse(pause.canPurchase());
+        assertFalse(manager.requestPaidPause(now));
+        assertTrue(manager.snapshot(now).getEvents().isEmpty());
+
+        manager.configure(true, 100, 500, 2_000, 0);
+        assertTrue(manager.requestPaidPause(now));
+        PenanceManager.Settlement settlement = manager.beginPaidPauseSettlement(now);
+        assertNotNull(settlement);
+        manager.configure(false, 100, 500, 2_000, 0);
+
+        assertFalse(manager.completeSettlement(settlement.getId(), 375));
+        assertFalse(pause.isActive());
+    }
+
+    @Test public void disabledWalletModuleBlocksPaidPauseAndTamperTribute() {
+        long now = System.currentTimeMillis();
+        Map<PenanceInfraction, Integer> rules = new EnumMap<>(PenanceInfraction.class);
+        rules.put(PenanceInfraction.TAMPER_ATTEMPT, 500);
+        manager.configure(true, rules, 2_000, 10_000, 0, 10, 1, 5);
+        new PaidPauseManager(context).configure(true, 375, 12);
+        CommitmentManager.start(context, 60L * 60L * 1000L);
+        context.getSharedPreferences(SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE)
+                .edit().putBoolean(HardcoreModeManager.KEY_REQUESTED, true).commit();
+        new FeatureModuleManager(context).save(true, true, false);
+
+        assertFalse(new PaidPauseManager(context).canPurchase());
+        assertFalse(manager.requestPaidPause(now));
+        assertEquals(0, manager.recordInfraction(
+                PenanceInfraction.TAMPER_ATTEMPT, 1, now));
+        assertEquals(0, TamperTributeReporter.record(context));
+        assertTrue(manager.snapshot(now).getEvents().isEmpty());
+    }
+
+    @Test public void paidPauseOfferIsHiddenUntilMoneyRulesAreEnabled() {
+        ControllerPinManager.enterDomMode();
+        try (ActivityScenario<PenanceActivity> scenario =
+                     ActivityScenario.launch(PenanceActivity.class)) {
+            scenario.onActivity(activity -> {
+                View paidPauseCard = activity.findViewById(R.id.paid_pause_config_card);
+                android.widget.CheckBox master = activity.findViewById(R.id.ledger_enabled);
+                assertFalse(master.isChecked());
+                assertEquals(View.GONE, paidPauseCard.getVisibility());
+
+                master.setChecked(true);
+                assertEquals(View.VISIBLE, paidPauseCard.getVisibility());
+            });
+        } finally {
+            ControllerPinManager.enterSubMode();
+        }
     }
 
     @Test public void sandboxCredentialsAreEncryptedPerInstallAndCanBeCleared() {
@@ -153,14 +215,20 @@ public final class PenanceContractTest {
         long now = 1_725_552_000_000L;
         manager.configure(true, 125, 500, 2_000, 0);
         assertEquals(250, manager.recordStrikes(2, now));
+        assertEquals(0L, manager.getTotalPaidCents());
         PenanceManager.Settlement settlement = manager.beginSettlement(now);
         assertNotNull(settlement);
         assertEquals(250, settlement.getAmountCents());
+        assertEquals(0L, manager.getTotalPaidCents());
         assertFalse(manager.completeSettlement(settlement.getId(), 249));
+        assertEquals(0L, manager.getTotalPaidCents());
         assertEquals(250, manager.snapshot(now).getCheckoutCents());
         assertTrue(manager.completeSettlement(settlement.getId(), 250));
         assertEquals(0, manager.snapshot(now).getCheckoutCents());
         assertEquals(250, manager.snapshot(now).getPaidCents());
+        assertEquals(250L, manager.getTotalPaidCents());
+        assertFalse(manager.completeSettlement(settlement.getId(), 250));
+        assertEquals(250L, manager.getTotalPaidCents());
     }
 
     @Test public void safetyReleaseForgivesDueAndCheckoutEntries() {

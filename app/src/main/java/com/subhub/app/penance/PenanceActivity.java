@@ -130,7 +130,8 @@ public final class PenanceActivity extends AppCompatActivity {
                 ? R.string.penance_subtitle : R.string.penance_sub_checkout_subtitle);
         binding.ruleConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
         binding.safetyConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
-        binding.paidPauseConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
+        binding.paidPauseConfigCard.setVisibility(
+                editing && binding.ledgerEnabled.isChecked() ? View.VISIBLE : View.GONE);
         binding.correctionsCard.setVisibility(editing ? View.VISIBLE : View.GONE);
         View[] editable = {binding.ledgerEnabled, binding.ruleDetectionEnabled,
                 binding.ruleDetectionAmount, binding.detectionBatch, binding.ruleDwellEnabled,
@@ -229,6 +230,9 @@ public final class PenanceActivity extends AppCompatActivity {
 
     private void attachRuleMathListeners() {
         binding.ledgerEnabled.setOnCheckedChangeListener((button, checked) -> {
+            binding.paidPauseConfigCard.setVisibility(
+                    ControllerPinManager.isDomModeActive() && checked
+                            ? View.VISIBLE : View.GONE);
             renderRuleMathPreview();
             scheduleRulesSave();
         });
@@ -393,6 +397,10 @@ public final class PenanceActivity extends AppCompatActivity {
     }
 
     private void beginCheckout(boolean paidPauseOnly) {
+        if (paidPauseOnly && !new PaidPauseManager(this).canPurchase()) {
+            toast(R.string.paid_pause_unavailable);
+            return;
+        }
         boolean paypalReady = paypalCredentials.hasCredentials();
         boolean linkReady = validExternalUrl(manager.getPayPalLink());
         if (!paypalReady && !linkReady) {
@@ -427,6 +435,12 @@ public final class PenanceActivity extends AppCompatActivity {
                     if (!result.isSuccess()) {
                         manager.cancelSettlement(settlement.getId());
                         toast(getString(R.string.penance_checkout_failed, result.error()));
+                        render();
+                        return;
+                    }
+                    if (!canProcessSettlement(settlement.getId())) {
+                        manager.cancelSettlement(settlement.getId());
+                        toast(R.string.paid_pause_unavailable);
                         render();
                         return;
                     }
@@ -483,6 +497,12 @@ public final class PenanceActivity extends AppCompatActivity {
             toast(R.string.penance_payment_mismatch);
             return;
         }
+        if (!canProcessSettlement(settlementId)) {
+            manager.cancelSettlement(settlementId);
+            toast(R.string.paid_pause_unavailable);
+            render();
+            return;
+        }
         PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
         if (!credentials.boundaryId().equals(manager.getActivePayPalBoundary())) {
             toast(R.string.penance_payment_boundary_changed);
@@ -512,6 +532,11 @@ public final class PenanceActivity extends AppCompatActivity {
                     } else toast(R.string.penance_payment_complete);
                     render();
                 });
+    }
+
+    private boolean canProcessSettlement(String settlementId) {
+        return !manager.isPaidPauseSettlement(settlementId)
+                || new PaidPauseManager(this).canPurchase();
     }
 
     private void handlePayPalReturn(Intent intent) {

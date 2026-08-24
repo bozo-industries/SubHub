@@ -10,6 +10,7 @@ public final class TamperTributeReporter {
         if (context == null) return 0;
         long now = System.currentTimeMillis();
         PenanceManager manager = new PenanceManager(context);
+        if (!manager.isEnabled()) return 0;
         int charged = manager.recordInfraction(PenanceInfraction.TAMPER_ATTEMPT, 1, now);
         PenanceChargeNotifier.show(context, manager,
                 PenanceInfraction.TAMPER_ATTEMPT, charged, now);

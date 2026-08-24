@@ -181,6 +181,9 @@ public final class AchievementManager {
                 return new PayPalCredentialStore(context).vaultState().isReady() ? 1 : 0;
             case "paid_pause":
                 return new PaidPauseManager(context).isEnabled() ? 1 : 0;
+            case "wallet_paid_10": case "wallet_paid_100":
+            case "wallet_paid_500": case "wallet_paid_1000":
+                return new PenanceManager(context).getTotalPaidCents();
             default: return isUnlocked(id) ? 1 : 0;
         }
     }
@@ -193,11 +196,12 @@ public final class AchievementManager {
             case "blocks_100": case "sessions_100": return 100;
             case "blocks_1000": return 1000;
             case "blocks_10000": return 10000;
-            case "time_1hr": case "marathon": return 3600;
+            case "time_1hr": return 3600;
             case "time_10hr": return 36000;
             case "time_50hr": return 180000;
             case "time_200hr": return 720000;
-            case "mega_marathon": return 10800;
+            case "marathon": return 24L * 60L * 60L;
+            case "mega_marathon": return 7L * 24L * 60L * 60L;
             case "streak_7": return 7;
             case "streak_30": return 30;
             case "peak_50": case "export_artist": case "ntr_50": return 50;
@@ -215,6 +219,10 @@ public final class AchievementManager {
             case "app_assignment_curator": return 3;
             case "text_filter_catalog": return 3;
             case "tribute_rulesmith": return 3;
+            case "wallet_paid_10": return 1_000;
+            case "wallet_paid_100": return 10_000;
+            case "wallet_paid_500": return 50_000;
+            case "wallet_paid_1000": return 100_000;
             default: return 0;
         }
     }
@@ -300,6 +308,10 @@ public final class AchievementManager {
                 a("tribute_rulesmith", R.string.achievement_tribute_rulesmith, R.string.achievement_desc_tribute_rulesmith, "¤", "wallet", R.drawable.achievement_badge_tribute_rulesmith, false),
                 a("paypal_vault", R.string.achievement_paypal_vault, R.string.achievement_desc_paypal_vault, "¤", "wallet", R.drawable.achievement_badge_paypal_vault, false),
                 a("paid_pause", R.string.achievement_paid_pause, R.string.achievement_desc_paid_pause, "Ⅱ", "wallet", R.drawable.achievement_badge_paid_pause, false),
+                a("wallet_paid_10", R.string.achievement_wallet_paid_10, R.string.achievement_desc_wallet_paid_10, "◆", "wallet", R.drawable.achievement_badge_wallet_paid_10, false),
+                a("wallet_paid_100", R.string.achievement_wallet_paid_100, R.string.achievement_desc_wallet_paid_100, "◆", "wallet", R.drawable.achievement_badge_wallet_paid_100, false),
+                a("wallet_paid_500", R.string.achievement_wallet_paid_500, R.string.achievement_desc_wallet_paid_500, "◆", "wallet", R.drawable.achievement_badge_wallet_paid_500, false),
+                a("wallet_paid_1000", R.string.achievement_wallet_paid_1000, R.string.achievement_desc_wallet_paid_1000, "◆", "wallet", R.drawable.achievement_badge_wallet_paid_1000, false),
                 a("legend", R.string.achievement_legend, R.string.achievement_desc_legend, "★", "special", R.drawable.achievement_badge_legend, false));
         return Collections.unmodifiableList(values);
     }

@@ -72,10 +72,10 @@ final class CensorOverlayView extends View {
         super(context);
         customImages = new CustomImagePool(context);
         nearestPaint.setFilterBitmap(false);
-        cyanShiftPaint.setAlpha(90);
+        cyanShiftPaint.setAlpha(220);
         cyanShiftPaint.setColorFilter(new PorterDuffColorFilter(
                 Color.rgb(0, 180, 255), PorterDuff.Mode.SRC_ATOP));
-        redShiftPaint.setAlpha(90);
+        redShiftPaint.setAlpha(220);
         redShiftPaint.setColorFilter(new PorterDuffColorFilter(
                 Color.rgb(255, 0, 80), PorterDuff.Mode.SRC_ATOP));
         tapeRedPaint.setColor(Color.rgb(229, 57, 53));
@@ -228,12 +228,8 @@ final class CensorOverlayView extends View {
             boolean textRegion = "text_smut".equals(track.getCategory());
             setPaddedRect(track.getBox(), scaleX, scaleY, textRegion);
             drawRect.offset(contentOffsetX, contentOffsetY);
-            if (textRegion && appearance.getType() == CensorAppearance.Type.BAR) {
-                drawSolid(canvas, drawRect, appearance.getIntensity());
-            } else {
-                drawEffect(canvas, drawRect, track.getId(), appearance.getType(),
-                        appearance.getIntensity());
-            }
+            drawEffect(canvas, drawRect, track.getId(), appearance.getType(),
+                    appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
             if (appearance.isShowText() && drawRect.height() >= dp(22)
                     && drawRect.width() >= dp(44)
@@ -247,7 +243,7 @@ final class CensorOverlayView extends View {
         RectF whole = new RectF(0, 0, getWidth(), getHeight());
         int layer = canvas.saveLayer(whole, null);
         CensorAppearance.Type type = appearance.getType();
-        if (type == CensorAppearance.Type.BOX || type == CensorAppearance.Type.BAR
+        if (type == CensorAppearance.Type.BOX
                 || type == CensorAppearance.Type.CUSTOM) type = CensorAppearance.Type.PIXELATE;
         drawEffect(canvas, whole, 0, type, appearance.getReverseStrength());
 
@@ -309,9 +305,6 @@ final class CensorOverlayView extends View {
             case ERROR_POPUP:
                 drawErrorPopup(canvas, rect);
                 break;
-            case BAR:
-                drawBar(canvas, rect);
-                break;
             case BOX:
             default:
                 drawSolid(canvas, rect, intensity);
@@ -324,17 +317,6 @@ final class CensorOverlayView extends View {
         fill.setColor(appearance.getEffectPalette().first());
         fill.setAlpha(255);
         canvas.drawRoundRect(rect, dp(8), dp(8), fill);
-    }
-
-    private void drawBar(Canvas canvas, RectF rect) {
-        RectF bar = new RectF(rect);
-        float halfHeight = Math.max(dp(12), rect.height() * 0.22f);
-        bar.top = rect.centerY() - halfHeight;
-        bar.bottom = rect.centerY() + halfHeight;
-        fill.setShader(null);
-        fill.setColor(appearance.getEffectPalette().first());
-        fill.setAlpha(255);
-        canvas.drawRoundRect(bar, dp(6), dp(6), fill);
     }
 
     private boolean drawPixelatedFrame(Canvas canvas, RectF rect, int intensity) {
@@ -431,17 +413,20 @@ final class CensorOverlayView extends View {
         }
         int save = canvas.save();
         canvas.clipRect(rect);
-        canvas.drawBitmap(frame, sourceRect, rect, bitmapPaint);
+        fill.setShader(null);
+        fill.setColor(Color.rgb(7, 5, 12));
+        fill.setAlpha(255);
+        canvas.drawRect(rect, fill);
         float strength = Math.max(1, Math.min(100, intensity)) / 100f;
-        float shift = Math.max(2f, (.02f + .06f * strength) * rect.width());
+        float shift = Math.max(3f, (.05f + .10f * strength) * rect.width());
         effectRect.set(rect);
         effectRect.offset(-shift, 0);
         canvas.drawBitmap(frame, sourceRect, effectRect, cyanShiftPaint);
         effectRect.set(rect);
         effectRect.offset(shift, 0);
         canvas.drawBitmap(frame, sourceRect, effectRect, redShiftPaint);
-        int bands = Math.max(3, Math.round(4 + strength * 8));
-        int sourceBandHeight = Math.max(2, sourceRect.height() / 14);
+        int bands = Math.max(6, Math.round(8 + strength * 10));
+        int sourceBandHeight = Math.max(3, sourceRect.height() / 11);
         long tick = SystemClock.uptimeMillis() / 90L;
         for (int band = 0; band < bands; band++) {
             int available = Math.max(1, sourceRect.height() - sourceBandHeight);
@@ -456,7 +441,7 @@ final class CensorOverlayView extends View {
                     rect.right + offset, rect.top + rect.height() * bottomRatio);
             canvas.drawBitmap(frame, bandSourceRect, bandRect, bitmapPaint);
             fill.setColor(appearance.getEffectPalette().third());
-            fill.setAlpha(48);
+            fill.setAlpha(175);
             canvas.drawRect(rect.left, bandRect.top, rect.right, bandRect.bottom, fill);
         }
         canvas.restoreToCount(save);
