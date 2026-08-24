@@ -15,7 +15,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -59,9 +58,7 @@ public final class DetectionEngine implements AutoCloseable {
 
     public synchronized void initialize() throws IOException, OrtException {
         closeSession();
-        List<String> candidates = new ArrayList<>();
-        candidates.add(config.getModelFilename());
-        if (!"320n.onnx".equals(config.getModelFilename())) candidates.add("320n.onnx");
+        List<String> candidates = Collections.singletonList(config.getModelFilename());
 
         Exception lastFailure = null;
         for (String model : candidates) {
