@@ -2,9 +2,12 @@ package com.subhub.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
@@ -12,7 +15,11 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -41,6 +48,8 @@ import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.stats.StatsSnapshot;
 import com.subhub.app.stats.StatsActivity;
 import com.subhub.app.stats.AchievementManager;
+import com.subhub.app.stats.AchievementBadgeView;
+import com.subhub.app.stats.AchievementsActivity;
 import com.subhub.app.stats.MilestoneManager;
 import com.subhub.app.help.HelpActivity;
 import com.subhub.app.settings.SettingsRepository;
@@ -56,8 +65,10 @@ import com.subhub.app.security.ProtectionStopPolicy;
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.util.AppShortcuts;
 import com.subhub.app.util.SubHubNavigation;
-import androidx.appcompat.app.AlertDialog;
 import com.google.android.material.snackbar.Snackbar;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /** Main source UI and explicit permission flow for starting on-device protection. */
 public final class MainActivity extends AppCompatActivity {
@@ -69,6 +80,7 @@ public final class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<Intent> overlayPermission;
     private ActivityResultLauncher<String> notificationPermission;
     private long selectedPactDurationMs = PACT_UNTIL_RELEASED;
+    private String achievementPreviewFingerprint = "";
     private final Handler uiTimer = new Handler(Looper.getMainLooper());
     private final Runnable uiTick = new Runnable() {
         @Override public void run() {
@@ -123,6 +135,10 @@ public final class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(this, HelpActivity.class)));
         binding.buttonStatistics.setOnClickListener(view ->
                 startActivity(new Intent(this, StatsActivity.class)));
+        binding.achievementsHomeCard.setOnClickListener(view ->
+                startActivity(new Intent(this, AchievementsActivity.class)));
+        binding.buttonAchievements.setOnClickListener(view ->
+                startActivity(new Intent(this, AchievementsActivity.class)));
         binding.onboardingHelp.setOnClickListener(view -> {
             markOnboardingSeen();
             startActivity(new Intent(this, HelpActivity.class));
@@ -323,6 +339,7 @@ public final class MainActivity extends AppCompatActivity {
                             PenanceManager.formatMoney(penance.getPaidCents()))
                     : getString(R.string.penance_home_inactive));
             showProgressUnlocks(new StatsRepository(this).load());
+            renderAchievementsPreview(new StatsRepository(this).load());
             renderEditState();
             renderSubDashboard();
         }
@@ -501,8 +518,61 @@ public final class MainActivity extends AppCompatActivity {
         binding.statsBlocks.setText(String.valueOf(stats.getCurrentSessionBlocks()));
         binding.statsTime.setText(StatsSnapshot.formatClock(stats.getCurrentSessionSeconds()));
         binding.statsSessions.setText(String.valueOf(stats.getSessions()));
+        renderAchievementsPreview(stats);
         renderCommitmentState();
         renderSubDashboard();
+    }
+
+    private void renderAchievementsPreview(StatsSnapshot stats) {
+        if (binding == null) return;
+        AchievementManager achievements = new AchievementManager(this);
+        achievements.checkAchievements(stats);
+        AchievementManager.Achievement next = null;
+        AchievementManager.Progress nextProgress = null;
+        for (AchievementManager.Achievement value : achievements.all()) {
+            AchievementManager.Progress progress = achievements.progress(value, stats);
+            if (!achievements.isUnlocked(value.getId()) && !value.isHidden()
+                    && progress.isCountable()) {
+                next = value;
+                nextProgress = progress;
+                break;
+            }
+        }
+        String fingerprint = achievements.getUnlockedCount() + ":"
+                + (next == null ? "complete" : next.getId() + ":" + nextProgress.percent());
+        if (fingerprint.equals(achievementPreviewFingerprint)) return;
+        achievementPreviewFingerprint = fingerprint;
+
+        binding.achievementsHomeCount.setText(getString(
+                R.string.achievements_progress_compact,
+                achievements.getUnlockedCount(), achievements.getTotalCount()));
+        binding.achievementsHomeBadges.removeAllViews();
+        Set<Integer> artwork = new LinkedHashSet<>();
+        int shown = 0;
+        for (AchievementManager.Achievement value : achievements.all()) {
+            if (!artwork.add(value.getBadgeArtRes())) continue;
+            boolean unlocked = achievements.isUnlocked(value.getId());
+            boolean concealed = value.isHidden() && !unlocked;
+            AchievementBadgeView badge = new AchievementBadgeView(this);
+            badge.bind(value.getBadgeArtRes(), unlocked, concealed,
+                    concealed ? getString(R.string.achievement_hidden_name)
+                            : getString(value.getName()));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(48), dp(48));
+            if (shown > 0) params.leftMargin = dp(8);
+            badge.setLayoutParams(params);
+            binding.achievementsHomeBadges.addView(badge);
+            shown++;
+            if (shown == 5) break;
+        }
+        if (next == null) {
+            binding.achievementsHomeNext.setText(R.string.achievements_all_complete);
+            binding.achievementsHomeProgress.setProgress(100);
+        } else {
+            binding.achievementsHomeNext.setText(getString(R.string.achievements_next_fmt,
+                    getString(next.getName()), nextProgress.getCurrent() + " / "
+                            + nextProgress.getTarget()));
+            binding.achievementsHomeProgress.setProgress(nextProgress.percent());
+        }
     }
 
     private void showProgressUnlocks(StatsSnapshot stats) {
@@ -512,20 +582,49 @@ public final class MainActivity extends AppCompatActivity {
                 achievements.takePendingNotifications();
         if (!unlocked.isEmpty()) {
             AchievementManager.Achievement first = unlocked.get(0);
-            String message = getString(first.getDescription());
-            if (unlocked.size() > 1) message += "\n\n" + getString(
-                    R.string.achievement_more_unlocked, unlocked.size() - 1);
-            new AlertDialog.Builder(this)
-                    .setTitle(getString(R.string.achievement_unlocked_title)
-                            + " " + getString(first.getName()))
-                    .setMessage(message)
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show();
+            showAchievementUnlock(first, unlocked.size() - 1);
             return;
         }
         MilestoneManager.Result milestone = MilestoneManager.takeUnseen(this, stats.getTotalBlocks());
         if (milestone != null) {
             Snackbar.make(binding.getRoot(), milestone.getMessage(), Snackbar.LENGTH_LONG).show();
+        }
+    }
+
+    private void showAchievementUnlock(AchievementManager.Achievement achievement,
+            int additionalUnlocks) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        View content = LayoutInflater.from(this).inflate(
+                R.layout.dialog_achievement_unlocked, null, false);
+        AchievementBadgeView badge = content.findViewById(R.id.achievement_unlock_badge);
+        badge.bind(achievement.getBadgeArtRes(), true, false,
+                getString(achievement.getName()));
+        ((TextView) content.findViewById(R.id.achievement_unlock_name))
+                .setText(achievement.getName());
+        ((TextView) content.findViewById(R.id.achievement_unlock_description))
+                .setText(achievement.getDescription());
+        TextView more = content.findViewById(R.id.achievement_unlock_more);
+        if (additionalUnlocks > 0) {
+            more.setText(getString(R.string.achievement_more_unlocked, additionalUnlocks));
+            more.setVisibility(View.VISIBLE);
+        }
+        content.findViewById(R.id.achievement_unlock_action).setOnClickListener(view -> {
+            dialog.dismiss();
+            startActivity(new Intent(this, AchievementsActivity.class));
+        });
+        dialog.setContentView(content);
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            WindowManager.LayoutParams attributes = window.getAttributes();
+            attributes.dimAmount = 0.58f;
+            window.setAttributes(attributes);
+            window.setLayout(WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT);
         }
     }
 
