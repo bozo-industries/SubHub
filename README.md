@@ -9,7 +9,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Android-8.0%2B-c74cd8?style=flat-square&logo=android&logoColor=white" alt="Android 8.0+" />
-  <img src="https://img.shields.io/badge/release-v0.2.0-7e3db7?style=flat-square" alt="v0.2.0" />
+  <img src="https://img.shields.io/badge/release-v0.3.0-7e3db7?style=flat-square" alt="v0.3.0" />
   <img src="https://img.shields.io/badge/detection-on--device-ff2f9f?style=flat-square" alt="On-device detection" />
   <img src="https://img.shields.io/badge/source-human--editable-2b1038?style=flat-square" alt="Human-editable source" />
 </p>
