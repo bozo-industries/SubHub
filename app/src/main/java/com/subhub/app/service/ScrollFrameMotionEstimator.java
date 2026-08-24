@@ -1,10 +1,6 @@
 package com.subhub.app.service;
 
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Rect;
 
 /**
  * Estimates whole-feed motion from a tiny luminance thumbnail.
@@ -20,11 +16,6 @@ final class ScrollFrameMotionEstimator implements AutoCloseable {
     private static final int EDGE_THRESHOLD = 24;
     private static final int MIN_FEATURES = 70;
 
-    private final Bitmap sample = Bitmap.createBitmap(
-            SAMPLE_WIDTH, SAMPLE_HEIGHT, Bitmap.Config.ARGB_8888);
-    private final Canvas canvas = new Canvas(sample);
-    private final Paint filtered = new Paint(Paint.FILTER_BITMAP_FLAG);
-    private final Rect destination = new Rect(0, 0, SAMPLE_WIDTH, SAMPLE_HEIGHT);
     private final int[] pixels = new int[SAMPLE_WIDTH * SAMPLE_HEIGHT];
     private int[] previous = new int[SAMPLE_WIDTH * SAMPLE_HEIGHT];
     private int[] current = new int[SAMPLE_WIDTH * SAMPLE_HEIGHT];
@@ -32,9 +23,24 @@ final class ScrollFrameMotionEstimator implements AutoCloseable {
 
     synchronized Motion update(Bitmap frame) {
         if (frame == null || frame.isRecycled()) return Motion.NONE;
-        canvas.drawColor(Color.BLACK);
-        canvas.drawBitmap(frame, null, destination, filtered);
-        sample.getPixels(pixels, 0, SAMPLE_WIDTH, 0, 0, SAMPLE_WIDTH, SAMPLE_HEIGHT);
+        Bitmap scaled = null;
+        Bitmap readable = null;
+        try {
+            // Accessibility supplies a hardware bitmap. Scale that first so the GPU/native path
+            // reduces the frame before the tiny CPU readback; never copy the full display merely
+            // to estimate scroll motion.
+            scaled = Bitmap.createScaledBitmap(frame, SAMPLE_WIDTH, SAMPLE_HEIGHT, true);
+            readable = scaled.getConfig() == Bitmap.Config.HARDWARE
+                    ? scaled.copy(Bitmap.Config.ARGB_8888, false) : scaled;
+            if (readable == null) return Motion.NONE;
+            readable.getPixels(pixels, 0, SAMPLE_WIDTH, 0, 0,
+                    SAMPLE_WIDTH, SAMPLE_HEIGHT);
+        } finally {
+            if (readable != null && readable != scaled && !readable.isRecycled()) {
+                readable.recycle();
+            }
+            if (scaled != null && scaled != frame && !scaled.isRecycled()) scaled.recycle();
+        }
         for (int index = 0; index < pixels.length; index++) {
             int color = pixels[index];
             current[index] = (((color >>> 16) & 0xff) * 3
@@ -127,7 +133,7 @@ final class ScrollFrameMotionEstimator implements AutoCloseable {
     }
 
     @Override public void close() {
-        sample.recycle();
+        reset();
     }
 
     static final class Motion {
