@@ -1,10 +1,15 @@
 package com.subhub.app.security;
 
 import android.accessibilityservice.AccessibilityService;
+import android.content.Context;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
+import android.hardware.display.DisplayManager;
+import android.os.Build;
+import android.util.Log;
+import android.view.Display;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -21,18 +26,34 @@ import java.util.Locale;
 
 /** Touch-blocking accessibility badges over SubHub's destructive Android Settings actions. */
 public final class HardcoreSettingsGuard {
+    private static final String TAG = "HardcoreSettingsGuard";
     static final String SETTINGS_PACKAGE = "com.android.settings";
     private static final int MAX_NODES = 500;
     private static final int MAX_BADGES = 4;
 
     private final AccessibilityService service;
+    private final Context overlayContext;
     private final WindowManager windows;
     private final List<View> badges = new ArrayList<>();
     private final List<Rect> guardedBounds = new ArrayList<>();
 
     public HardcoreSettingsGuard(AccessibilityService service) {
         this.service = service;
-        windows = service.getSystemService(WindowManager.class);
+        overlayContext = createOverlayContext(service);
+        windows = overlayContext.getSystemService(WindowManager.class);
+    }
+
+    private static Context createOverlayContext(AccessibilityService service) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return service;
+        }
+        DisplayManager displays = service.getSystemService(DisplayManager.class);
+        Display primary = displays == null ? null : displays.getDisplay(Display.DEFAULT_DISPLAY);
+        if (primary == null) return service;
+        // A single display-bound window context gives TYPE_ACCESSIBILITY_OVERLAY its own valid
+        // token. Reuse it for the service lifetime: creating one per Settings event is costly.
+        return service.createDisplayContext(primary).createWindowContext(
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, null);
     }
 
     public void refresh(String foregroundPackage, AccessibilityNodeInfo root) {
@@ -44,20 +65,18 @@ public final class HardcoreSettingsGuard {
             clear();
             return;
         }
-        // Android Settings briefly publishes an empty/partial accessibility tree while it
-        // rebuilds a page. Keep the last verified blockers during that transient gap; clearing
-        // them here made the uninstall/data controls flash uncovered between events.
-        if (root == null || !isSubHubPage(root)) {
+        // A null tree is a transient Settings handoff, so retain the last verified bounds for one
+        // refresh. A real non-SubHub page must clear immediately or stale badges remain stranded.
+        if (root == null) {
+            return;
+        }
+        if (!isSubHubPage(root)) {
+            clear();
             return;
         }
         List<Rect> controls = new ArrayList<>();
         collectControls(root, controls, new int[]{0});
-        if (sameBounds(controls, guardedBounds)) return;
-        clear();
-        for (int index = 0; index < Math.min(MAX_BADGES, controls.size()); index++) {
-            Rect bounds = controls.get(index);
-            if (showBadge(bounds)) guardedBounds.add(new Rect(bounds));
-        }
+        updateBadges(controls);
     }
 
     public void clear() {
@@ -75,6 +94,31 @@ public final class HardcoreSettingsGuard {
             if (!left.get(index).equals(right.get(index))) return false;
         }
         return true;
+    }
+
+    private void updateBadges(List<Rect> controls) {
+        List<Rect> clipped = new ArrayList<>();
+        for (int index = 0; index < Math.min(MAX_BADGES, controls.size()); index++) {
+            Rect bounds = clipBounds(controls.get(index));
+            if (bounds != null) clipped.add(bounds);
+        }
+        if (sameBounds(clipped, guardedBounds)) return;
+        if (clipped.size() == badges.size()) {
+            try {
+                for (int index = 0; index < clipped.size(); index++) {
+                    windows.updateViewLayout(badges.get(index), layoutParams(clipped.get(index)));
+                }
+                guardedBounds.clear();
+                for (Rect bounds : clipped) guardedBounds.add(new Rect(bounds));
+                return;
+            } catch (RuntimeException ignored) {
+                // Rebuild below if Settings replaced the underlying window during navigation.
+            }
+        }
+        clear();
+        for (Rect bounds : clipped) {
+            if (showBadge(bounds)) guardedBounds.add(new Rect(bounds));
+        }
     }
 
     static boolean shouldGuard(boolean hardcore, boolean domMode, String foregroundPackage) {
@@ -189,14 +233,10 @@ public final class HardcoreSettingsGuard {
     }
 
     private boolean showBadge(Rect rawBounds) {
-        android.util.DisplayMetrics display = service.getResources().getDisplayMetrics();
-        Rect bounds = new Rect(
-                Math.max(0, rawBounds.left), Math.max(0, rawBounds.top),
-                Math.min(display.widthPixels, rawBounds.right),
-                Math.min(display.heightPixels, rawBounds.bottom));
-        if (bounds.width() <= 0 || bounds.height() <= 0) return false;
+        Rect bounds = clipBounds(rawBounds);
+        if (bounds == null) return false;
 
-        TextView badge = new TextView(service);
+        TextView badge = new TextView(overlayContext);
         badge.setText(R.string.hardcore_settings_badge);
         badge.setTextColor(Color.WHITE);
         badge.setTextSize(11f);
@@ -217,6 +257,26 @@ public final class HardcoreSettingsGuard {
             return true;
         });
 
+        try {
+            windows.addView(badge, layoutParams(bounds));
+            badges.add(badge);
+            return true;
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Could not attach Hardcore Settings guard", error);
+            return false;
+        }
+    }
+
+    private Rect clipBounds(Rect rawBounds) {
+        android.util.DisplayMetrics display = service.getResources().getDisplayMetrics();
+        Rect bounds = new Rect(
+                Math.max(0, rawBounds.left), Math.max(0, rawBounds.top),
+                Math.min(display.widthPixels, rawBounds.right),
+                Math.min(display.heightPixels, rawBounds.bottom));
+        return bounds.width() > 0 && bounds.height() > 0 ? bounds : null;
+    }
+
+    private WindowManager.LayoutParams layoutParams(Rect bounds) {
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 bounds.width(), bounds.height(), WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 overlayFlags(),
@@ -225,13 +285,7 @@ public final class HardcoreSettingsGuard {
         params.x = bounds.left;
         params.y = bounds.top;
         params.setTitle("SubHub Hardcore guard");
-        try {
-            windows.addView(badge, params);
-            badges.add(badge);
-            return true;
-        } catch (RuntimeException error) {
-            return false;
-        }
+        return params;
     }
 
     private int dp(int value) {

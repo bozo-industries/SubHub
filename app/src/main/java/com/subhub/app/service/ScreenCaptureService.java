@@ -45,6 +45,8 @@ import com.subhub.app.settings.CensorAppearance;
 import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.stats.AchievementManager;
 import com.subhub.app.commitment.CommitmentManager;
+import com.subhub.app.security.HardcoreModeManager;
+import com.subhub.app.security.ProtectionStopPolicy;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -111,7 +113,8 @@ public final class ScreenCaptureService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) return START_NOT_STICKY;
         if (ACTION_STOP.equals(intent.getAction())) {
-            if (!CommitmentManager.mayStopProtection(this)) return START_STICKY;
+            if (ProtectionStopPolicy.decision(this)
+                    != ProtectionStopPolicy.Decision.ALLOW) return START_STICKY;
             explicitlyStoppedByController = true;
             ProtectionSessionManager.markMediaProjectionExplicitlyStopped(this);
             ResumeNotificationManager.cancel(this);
@@ -299,7 +302,7 @@ public final class ScreenCaptureService extends Service {
                 .setContentIntent(openApp)
                 .setOngoing(true)
                 .setSilent(true);
-        if (!CommitmentManager.isActive(this)) {
+        if (ProtectionStopPolicy.showNotificationStop(this)) {
             builder.addAction(0, getString(R.string.notification_stop), stop);
         }
         return builder.build();
@@ -335,7 +338,10 @@ public final class ScreenCaptureService extends Service {
         PopupStormManager.get().stop();
         if (projection != null) projection.stop();
         stopForeground(STOP_FOREGROUND_REMOVE);
-        if (!explicitlyStoppedByController) CommitmentManager.reinforceProtection(this);
+        if (!explicitlyStoppedByController) {
+            CommitmentManager.reinforceProtection(this);
+            new HardcoreModeManager(this).applyBootPolicy();
+        }
         super.onDestroy();
     }
 

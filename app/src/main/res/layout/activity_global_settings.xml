@@ -103,6 +103,13 @@
                     android:layout_marginTop="9dp"
                     android:text="@string/hardcore_open_admin"
                     />
+                <TextView
+                    android:id="@+id/button_hardcore_restricted"
+                    style="@style/Widget.SubHub.OutlineAction"
+                    android:layout_height="42dp"
+                    android:layout_marginTop="7dp"
+                    android:text="@string/hardcore_open_restricted"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <LinearLayout
