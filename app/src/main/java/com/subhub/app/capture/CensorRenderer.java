@@ -45,10 +45,10 @@ public final class CensorRenderer implements AutoCloseable {
         text.setTextAlign(Paint.Align.CENTER);
         text.setFakeBoldText(true);
         nearest.setFilterBitmap(false);
-        cyanShift.setAlpha(90);
+        cyanShift.setAlpha(220);
         cyanShift.setColorFilter(new PorterDuffColorFilter(
                 Color.rgb(0, 180, 255), PorterDuff.Mode.SRC_ATOP));
-        redShift.setAlpha(90);
+        redShift.setAlpha(220);
         redShift.setColorFilter(new PorterDuffColorFilter(
                 Color.rgb(255, 0, 80), PorterDuff.Mode.SRC_ATOP));
     }
@@ -104,7 +104,7 @@ public final class CensorRenderer implements AutoCloseable {
             CensorAppearance appearance) {
         CensorAppearance.Type type = requestedType;
         if (appearance.isReverseMode() && (type == CensorAppearance.Type.BOX
-                || type == CensorAppearance.Type.BAR || type == CensorAppearance.Type.CUSTOM)) {
+                || type == CensorAppearance.Type.CUSTOM)) {
             type = CensorAppearance.Type.PIXELATE;
         }
         switch (type) {
@@ -128,13 +128,6 @@ public final class CensorRenderer implements AutoCloseable {
                 break;
             case ERROR_POPUP:
                 drawErrorPopup(canvas, rect, appearance);
-                break;
-            case BAR:
-                RectF bar = new RectF(rect.left, rect.centerY() - rect.height() * .22f,
-                        rect.right, rect.centerY() + rect.height() * .22f);
-                fill.setColor(appearance.getEffectPalette().first());
-                fill.setAlpha(255);
-                canvas.drawRoundRect(bar, 8, 8, fill);
                 break;
             case BOX:
             default:
@@ -216,20 +209,23 @@ public final class CensorRenderer implements AutoCloseable {
         Rect sourceRegion = sourceRect(source, rect);
         int save = canvas.save();
         canvas.clipRect(rect);
-        canvas.drawBitmap(source, sourceRegion, rect, filtered);
+        fill.setShader(null);
+        fill.setColor(Color.rgb(7, 5, 12));
+        fill.setAlpha(255);
+        canvas.drawRect(rect, fill);
         float strength = Math.max(1, Math.min(100, intensity)) / 100f;
         cyanShift.setColorFilter(new PorterDuffColorFilter(
                 appearance.getEffectPalette().first(), PorterDuff.Mode.SRC_ATOP));
         redShift.setColorFilter(new PorterDuffColorFilter(
                 appearance.getEffectPalette().second(), PorterDuff.Mode.SRC_ATOP));
-        float shift = Math.max(2f, (.02f + .06f * strength) * rect.width());
+        float shift = Math.max(3f, (.05f + .10f * strength) * rect.width());
         RectF shifted = new RectF(rect);
         shifted.offset(-shift, 0);
         canvas.drawBitmap(source, sourceRegion, shifted, cyanShift);
         shifted.offset(shift * 2f, 0);
         canvas.drawBitmap(source, sourceRegion, shifted, redShift);
-        int bands = Math.max(3, Math.round(4 + strength * 8));
-        int sourceBandHeight = Math.max(2, sourceRegion.height() / 14);
+        int bands = Math.max(6, Math.round(8 + strength * 10));
+        int sourceBandHeight = Math.max(3, sourceRegion.height() / 11);
         for (int index = 0; index < bands; index++) {
             int available = Math.max(1, sourceRegion.height() - sourceBandHeight);
             int sourceTop = sourceRegion.top + hashInt(id * 131L + index * 31L) % available;
@@ -244,7 +240,7 @@ public final class CensorRenderer implements AutoCloseable {
                     rect.top + rect.height() * bottomRatio);
             canvas.drawBitmap(source, bandSource, bandDestination, filtered);
             fill.setColor(appearance.getEffectPalette().third());
-            fill.setAlpha(48);
+            fill.setAlpha(175);
             canvas.drawRect(rect.left, bandDestination.top, rect.right,
                     bandDestination.bottom, fill);
         }

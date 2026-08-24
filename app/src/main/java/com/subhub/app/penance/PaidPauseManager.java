@@ -61,6 +61,10 @@ public final class PaidPauseManager {
     public boolean isActive() {
         long until = preferences.getLong(KEY_ACTIVE_UNTIL, 0L);
         if (until <= 0L) return false;
+        if (!new PenanceManager(context).isEnabled()) {
+            finish();
+            return false;
+        }
         if (until <= System.currentTimeMillis()) {
             finish();
             return false;
@@ -74,7 +78,8 @@ public final class PaidPauseManager {
     }
 
     public boolean canPurchase() {
-        if (!new FeatureModuleManager(context).isWalletEnabled() || !isEnabled() || isActive()) {
+        if (!new FeatureModuleManager(context).isWalletEnabled()
+                || !new PenanceManager(context).isEnabled() || !isEnabled() || isActive()) {
             return false;
         }
         boolean boundedMode = CommitmentManager.isActive(context)
@@ -83,7 +88,8 @@ public final class PaidPauseManager {
     }
 
     /** Called only after the matching checkout is recorded as paid. */
-    public void activate() {
+    public boolean activate() {
+        if (!canPurchase()) return false;
         boolean rearm = isProtectionRunning();
         long until = System.currentTimeMillis() + getDurationMinutes() * 60_000L;
         preferences.edit().putLong(KEY_ACTIVE_UNTIL, until)
@@ -92,6 +98,7 @@ public final class PaidPauseManager {
         context.stopService(new Intent(context, ScreenCaptureService.class));
         ResumeNotificationManager.cancel(context);
         schedule(until);
+        return true;
     }
 
     public void applyBootPolicy() {

@@ -12,7 +12,7 @@ public final class CensorAppearance {
     public enum Type {
         BOX("box"), PIXELATE("pixelate"), BLUR("blur"), CUSTOM("custom"),
         STATIC("static"), GLITCH("glitch"), TAPE("tape"),
-        ERROR_POPUP("error_popup"), BAR("bar");
+        ERROR_POPUP("error_popup");
 
         private final String preferenceValue;
 
@@ -22,7 +22,8 @@ public final class CensorAppearance {
         public static Type fromPreference(String value) {
             if (value == null) return BOX;
             String normalized = value.trim().toLowerCase(Locale.ROOT);
-            if (normalized.equals("solid") || normalized.equals("solid_box")) return BOX;
+            if (normalized.equals("solid") || normalized.equals("solid_box")
+                    || normalized.equals("bar")) return BOX;
             if (normalized.equals("mosaic")) return PIXELATE;
             if (normalized.equals("image") || normalized.equals("custom_image")) return CUSTOM;
             if (normalized.equals("noise") || normalized.equals("tv_static")) return STATIC;
@@ -159,7 +160,7 @@ public final class CensorAppearance {
     /** Whether this effect needs a retained screenshot after inference has completed. */
     public boolean requiresSourceFrame() {
         Type effectiveType = type;
-        if (reverseMode && (type == Type.BOX || type == Type.BAR || type == Type.CUSTOM)) {
+        if (reverseMode && (type == Type.BOX || type == Type.CUSTOM)) {
             effectiveType = Type.PIXELATE;
         }
         return effectiveType == Type.PIXELATE

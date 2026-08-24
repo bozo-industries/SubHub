@@ -44,6 +44,7 @@ public final class PenanceManager {
     private static final String KEY_TAMPER_COOLDOWN_MINUTES = "tamper_cooldown_minutes";
     private static final String KEY_LAST_TAMPER_AT = "last_tamper_at";
     private static final String KEY_EVENTS = "events_v1";
+    private static final String KEY_TOTAL_PAID_CENTS = "total_paid_cents_v1";
     private static final String LEGACY_KEY_BACKEND_URL = "paypal_backend_url";
     private static final String KEY_PAYPAL_LINK = "paypal_payment_link";
     private static final String KEY_ORDER_ID = "active_order_id";
@@ -262,7 +263,7 @@ public final class PenanceManager {
     /** Adds one immediate, fixed-price pause purchase without applying infraction caps. */
     public boolean requestPaidPause(long nowMillis) {
         PaidPauseManager pause = new PaidPauseManager(context);
-        if (!modules.isWalletEnabled() || !pause.canPurchase()) return false;
+        if (!isEnabled() || !pause.canPurchase()) return false;
         synchronized (LOCK) {
             List<PenanceEvent> events = loadEvents();
             for (PenanceEvent event : events) {
@@ -309,6 +310,17 @@ public final class PenanceManager {
             List<PenanceEvent> newestFirst = new ArrayList<>(events);
             newestFirst.sort(Comparator.comparingLong(PenanceEvent::getCreatedAtMillis).reversed());
             return new PenanceSnapshot(isEnabled(), due, mercy, checkout, paid, newestFirst);
+        }
+    }
+
+    /**
+     * Lifetime value of settlements confirmed as paid. Open, grace-period, and checkout entries
+     * never contribute. Existing installs migrate from the retained paid ledger the first time
+     * this value is read, after which the accumulator survives bounded history trimming.
+     */
+    public long getTotalPaidCents() {
+        synchronized (LOCK) {
+            return totalPaidCentsLocked(loadEvents());
         }
     }
 
@@ -375,6 +387,7 @@ public final class PenanceManager {
 
     /** Begins an exact-price checkout containing only the pending paid-pause request. */
     public Settlement beginPaidPauseSettlement(long nowMillis) {
+        if (!isEnabled() || !new PaidPauseManager(context).canPurchase()) return null;
         synchronized (LOCK) {
             List<PenanceEvent> events = loadEvents();
             for (PenanceEvent event : events) {
@@ -417,7 +430,10 @@ public final class PenanceManager {
         if (settlementId == null || settlementId.isEmpty()
                 || orderId == null || orderId.isEmpty()) return;
         synchronized (LOCK) {
-            if (!settlementExists(loadEvents(), settlementId)) return;
+            List<PenanceEvent> events = loadEvents();
+            if (!settlementExists(events, settlementId)
+                    || (containsPaidPause(events, settlementId)
+                    && !new PaidPauseManager(context).canPurchase())) return;
             preferences.edit().putString(KEY_ORDER_ID, orderId)
                     .putString(KEY_APPROVAL_URL, approvalUrl == null ? "" : approvalUrl)
                     .putString(KEY_PAYPAL_BOUNDARY,
@@ -493,29 +509,55 @@ public final class PenanceManager {
         if (settlementId == null || settlementId.isEmpty() || paidAmountCents <= 0) return false;
         synchronized (LOCK) {
             List<PenanceEvent> events = loadEvents();
+            long paidBeforeSettlement = totalPaidCentsLocked(events);
             int expected = 0;
+            boolean activatesPause = false;
             for (PenanceEvent event : events) {
                 if (event.getStatus() == PenanceEvent.Status.CHECKOUT
                         && settlementId.equals(event.getSettlementId())) {
                     expected += event.getAmountCents();
+                    activatesPause |= event.getInfraction() == PenanceInfraction.PAID_PAUSE;
                 }
             }
             if (expected != paidAmountCents) return false;
-            boolean activatesPause = false;
+            if (activatesPause && !new PaidPauseManager(context).activate()) return false;
             for (int index = 0; index < events.size(); index++) {
                 PenanceEvent event = events.get(index);
                 if (event.getStatus() == PenanceEvent.Status.CHECKOUT
                         && settlementId.equals(event.getSettlementId())) {
-                    activatesPause |= event.getInfraction() == PenanceInfraction.PAID_PAUSE;
                     events.set(index, event.withStatus(
                             PenanceEvent.Status.PAID, settlementId));
                 }
             }
             saveEvents(events);
+            long updatedTotal = paidBeforeSettlement > Long.MAX_VALUE - paidAmountCents
+                    ? Long.MAX_VALUE : paidBeforeSettlement + paidAmountCents;
+            preferences.edit().putLong(KEY_TOTAL_PAID_CENTS, updatedTotal).apply();
             clearOrderState();
             HardcoreAutoPayManager.schedule(context);
-            if (activatesPause) new PaidPauseManager(context).activate();
             return true;
+        }
+    }
+
+    private long totalPaidCentsLocked(List<PenanceEvent> events) {
+        if (preferences.contains(KEY_TOTAL_PAID_CENTS)) {
+            return Math.max(0L, preferences.getLong(KEY_TOTAL_PAID_CENTS, 0L));
+        }
+        long migratedTotal = 0L;
+        for (PenanceEvent event : events) {
+            if (event.getStatus() != PenanceEvent.Status.PAID) continue;
+            long amount = Math.max(0, event.getAmountCents());
+            migratedTotal = migratedTotal > Long.MAX_VALUE - amount
+                    ? Long.MAX_VALUE : migratedTotal + amount;
+        }
+        preferences.edit().putLong(KEY_TOTAL_PAID_CENTS, migratedTotal).apply();
+        return migratedTotal;
+    }
+
+    public boolean isPaidPauseSettlement(String settlementId) {
+        if (settlementId == null || settlementId.isEmpty()) return false;
+        synchronized (LOCK) {
+            return containsPaidPause(loadEvents(), settlementId);
         }
     }
 
@@ -604,6 +646,16 @@ public final class PenanceManager {
         for (PenanceEvent event : events) {
             if (event.getStatus() == PenanceEvent.Status.CHECKOUT
                     && settlementId.equals(event.getSettlementId())) return true;
+        }
+        return false;
+    }
+
+    private static boolean containsPaidPause(
+            List<PenanceEvent> events, String settlementId) {
+        for (PenanceEvent event : events) {
+            if (event.getStatus() == PenanceEvent.Status.CHECKOUT
+                    && settlementId.equals(event.getSettlementId())
+                    && event.getInfraction() == PenanceInfraction.PAID_PAUSE) return true;
         }
         return false;
     }

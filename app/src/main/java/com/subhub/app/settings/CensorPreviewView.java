@@ -62,8 +62,6 @@ public final class CensorPreviewView extends View {
             drawPixelate(canvas);
         } else if ("blur".equals(style)) {
             drawBlur(canvas);
-        } else if ("bar".equals(style)) {
-            drawBar(canvas);
         } else if ("custom".equals(style)) {
             drawCustom(canvas);
         } else if ("static".equals(style)) {
@@ -156,19 +154,6 @@ public final class CensorPreviewView extends View {
         canvas.drawCircle(target.centerX(), target.centerY(), target.height() * 0.20f, paint);
     }
 
-    private void drawBar(Canvas canvas) {
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.rgb(9, 7, 12));
-        RectF band = new RectF(scene.left + scene.width() * 0.06f,
-                target.centerY() - target.height() * 0.22f,
-                scene.right - scene.width() * 0.06f,
-                target.centerY() + target.height() * 0.22f);
-        canvas.drawRoundRect(band, band.height() * 0.20f, band.height() * 0.20f, paint);
-        paint.setColor(MAGENTA);
-        canvas.drawRect(band.left + band.width() * 0.18f, band.centerY() - 1.5f,
-                band.right - band.width() * 0.18f, band.centerY() + 1.5f, paint);
-    }
-
     private void drawCustom(Canvas canvas) {
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(Color.rgb(27, 16, 35));
@@ -227,23 +212,26 @@ public final class CensorPreviewView extends View {
 
     private void drawGlitch(Canvas canvas) {
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.rgb(19, 15, 29));
+        paint.setColor(Color.rgb(7, 5, 12));
         canvas.drawRect(target, paint);
-        float[] heights = {0.13f, 0.09f, 0.18f, 0.10f, 0.15f};
-        float y = target.top + target.height() * 0.07f;
+        float[] heights = {0.15f, 0.10f, 0.19f, 0.12f, 0.17f};
+        float y = target.top + target.height() * 0.03f;
         for (int index = 0; index < heights.length; index++) {
             float bandHeight = target.height() * heights[index];
-            float shift = target.width() * ((index % 2 == 0) ? 0.08f : -0.05f);
+            float shift = target.width() * ((index % 2 == 0) ? 0.15f : -0.11f);
             paint.setColor(index % 3 == 0 ? CYAN : (index % 3 == 1 ? MAGENTA : VIOLET));
             canvas.drawRect(target.left + shift, y, target.right + shift * 0.45f,
                     y + bandHeight, paint);
-            y += bandHeight + target.height() * 0.06f;
+            paint.setColor(index % 2 == 0 ? MAGENTA : CYAN);
+            canvas.drawRect(target.left - shift * 0.55f, y + bandHeight * 0.58f,
+                    target.right - shift * 0.20f, y + bandHeight, paint);
+            y += bandHeight + target.height() * 0.025f;
         }
         paint.setColor(Color.WHITE);
-        canvas.drawRect(target.left + target.width() * 0.18f,
-                target.centerY() - target.height() * 0.025f,
-                target.right - target.width() * 0.12f,
-                target.centerY() + target.height() * 0.025f, paint);
+        canvas.drawRect(target.left + target.width() * 0.08f,
+                target.centerY() - target.height() * 0.045f,
+                target.right - target.width() * 0.05f,
+                target.centerY() + target.height() * 0.045f, paint);
     }
 
     private void drawTape(Canvas canvas) {

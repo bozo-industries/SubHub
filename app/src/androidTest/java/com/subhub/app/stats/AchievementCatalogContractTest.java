@@ -10,6 +10,7 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.subhub.app.R;
+import com.subhub.app.penance.PenanceManager;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -27,7 +28,7 @@ public final class AchievementCatalogContractTest {
         Context context = ApplicationProvider.getApplicationContext();
         AchievementManager manager = new AchievementManager(context);
 
-        assertEquals(56, manager.getTotalCount());
+        assertEquals(60, manager.getTotalCount());
         Set<String> ids = new HashSet<>();
         Set<Integer> badgeResources = new HashSet<>();
         Set<String> badgeDigests = new HashSet<>();
@@ -48,8 +49,8 @@ public final class AchievementCatalogContractTest {
             }
         }
 
-        assertEquals(56, badgeResources.size());
-        assertEquals(56, badgeDigests.size());
+        assertEquals(60, badgeResources.size());
+        assertEquals(60, badgeDigests.size());
         assertEquals(R.drawable.achievement_badge_app_mode_guardian,
                 find(manager, "app_mode_guardian").getBadgeArtRes());
         assertEquals(R.drawable.achievement_badge_limits_setter,
@@ -60,8 +61,32 @@ public final class AchievementCatalogContractTest {
                 find(manager, "hardcore_guardian").getBadgeArtRes());
         assertEquals(R.drawable.achievement_badge_paypal_vault,
                 find(manager, "paypal_vault").getBadgeArtRes());
+        assertEquals(R.drawable.achievement_badge_wallet_paid_1000,
+                find(manager, "wallet_paid_1000").getBadgeArtRes());
         assertFalse(find(manager, "app_mode_guardian").getCategory().isEmpty());
         assertFalse(find(manager, "paid_pause").getCategory().isEmpty());
+    }
+
+    @Test
+    public void marathonAndConfirmedWalletPaymentTargetsUseTheExpandedRequirements() {
+        Context context = ApplicationProvider.getApplicationContext();
+        context.getSharedPreferences(PenanceManager.PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().clear().commit();
+        AchievementManager manager = new AchievementManager(context);
+        StatsSnapshot stats = new StatsRepository(context).load();
+
+        assertEquals(24L * 60L * 60L, manager.progress(find(manager, "marathon"), stats)
+                .getTarget());
+        assertEquals(7L * 24L * 60L * 60L,
+                manager.progress(find(manager, "mega_marathon"), stats).getTarget());
+        assertEquals(1_000L,
+                manager.progress(find(manager, "wallet_paid_10"), stats).getTarget());
+        assertEquals(10_000L,
+                manager.progress(find(manager, "wallet_paid_100"), stats).getTarget());
+        assertEquals(50_000L,
+                manager.progress(find(manager, "wallet_paid_500"), stats).getTarget());
+        assertEquals(100_000L,
+                manager.progress(find(manager, "wallet_paid_1000"), stats).getTarget());
     }
 
     private static AchievementManager.Achievement find(AchievementManager manager, String id) {

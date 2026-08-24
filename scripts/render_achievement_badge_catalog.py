@@ -38,8 +38,8 @@ def font(size: int) -> ImageFont.ImageFont:
 
 def main() -> None:
     ids = catalog_ids()
-    if len(ids) != 56 or len(ids) != len(set(ids)):
-        raise SystemExit(f"Expected 56 unique achievement IDs, found {len(ids)}")
+    if len(ids) != 60 or len(ids) != len(set(ids)):
+        raise SystemExit(f"Expected 60 unique achievement IDs, found {len(ids)}")
 
     badges: list[tuple[str, Image.Image]] = []
     digests: set[str] = set()
@@ -70,7 +70,7 @@ def main() -> None:
     label_font = font(18)
     meta_font = font(20)
 
-    draw.text((MARGIN, 24), "SUBHUB · 56 ORIGINAL ACHIEVEMENT BADGES",
+    draw.text((MARGIN, 24), "SUBHUB · 60 ORIGINAL ACHIEVEMENT BADGES",
               fill="#f5edf8", font=title_font)
     draw.text((MARGIN, 76), "One badge per milestone · coordinated tier families",
               fill="#c986df", font=meta_font)

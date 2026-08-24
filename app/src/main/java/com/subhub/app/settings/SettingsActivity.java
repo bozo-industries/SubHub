@@ -446,8 +446,7 @@ public final class SettingsActivity extends AppCompatActivity {
 
     private int paletteSlotCount(CensorAppearance.Type type) {
         switch (type) {
-            case BOX:
-            case BAR: return 1;
+            case BOX: return 1;
             case STATIC: return 2;
             case GLITCH:
             case TAPE:
@@ -586,7 +585,6 @@ public final class SettingsActivity extends AppCompatActivity {
         switch (type) {
             case PIXELATE: return R.id.radio_pixelate;
             case BLUR: return R.id.radio_blur;
-            case BAR: return R.id.radio_bar;
             case CUSTOM: return R.id.radio_custom;
             case STATIC: return R.id.radio_static;
             case GLITCH: return R.id.radio_glitch;
@@ -611,14 +609,13 @@ public final class SettingsActivity extends AppCompatActivity {
 
     private static int[] styleRadioIds() {
         return new int[]{R.id.radio_box, R.id.radio_pixelate, R.id.radio_blur,
-                R.id.radio_bar, R.id.radio_custom, R.id.radio_static, R.id.radio_glitch,
+                R.id.radio_custom, R.id.radio_static, R.id.radio_glitch,
                 R.id.radio_tape, R.id.radio_error};
     }
 
     private CensorAppearance.Type typeFor(int id) {
         if (id == R.id.radio_pixelate) return CensorAppearance.Type.PIXELATE;
         if (id == R.id.radio_blur) return CensorAppearance.Type.BLUR;
-        if (id == R.id.radio_bar) return CensorAppearance.Type.BAR;
         if (id == R.id.radio_custom) return CensorAppearance.Type.CUSTOM;
         if (id == R.id.radio_static) return CensorAppearance.Type.STATIC;
         if (id == R.id.radio_glitch) return CensorAppearance.Type.GLITCH;

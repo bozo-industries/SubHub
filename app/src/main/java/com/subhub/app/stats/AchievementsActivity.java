@@ -277,13 +277,32 @@ public final class AchievementsActivity extends AppCompatActivity {
     private String formatProgress(AchievementManager.Achievement achievement,
             AchievementManager.Progress progress) {
         String category = achievement.getCategory();
-        if ("time".equals(category) || "marathon".equals(achievement.getId())
-                || "mega_marathon".equals(achievement.getId())) {
+        if ("time".equals(category)) {
             return compactDuration(progress.getCurrent()) + " / "
                     + compactDuration(progress.getTarget());
         }
+        if ("marathon".equals(achievement.getId())
+                || "mega_marathon".equals(achievement.getId())) {
+            return compactContinuousDuration(progress.getCurrent()) + " / "
+                    + compactContinuousDuration(progress.getTarget());
+        }
+        if (achievement.getId().startsWith("wallet_paid_")) {
+            return formatEuros(progress.getCurrent()) + " / "
+                    + formatEuros(progress.getTarget());
+        }
         return String.format(Locale.getDefault(), "%,d / %,d",
                 progress.getCurrent(), progress.getTarget());
+    }
+
+    private String formatEuros(long cents) {
+        return String.format(Locale.getDefault(), "€%,.2f", Math.max(0L, cents) / 100.0);
+    }
+
+    private String compactContinuousDuration(long seconds) {
+        if (seconds < 24L * 60L * 60L) return compactDuration(seconds);
+        float days = seconds / (24f * 60f * 60f);
+        if (days == Math.round(days)) return Math.round(days) + "d";
+        return String.format(Locale.getDefault(), "%.1fd", days);
     }
 
     private String compactDuration(long seconds) {

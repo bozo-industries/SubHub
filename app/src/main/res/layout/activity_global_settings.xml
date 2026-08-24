@@ -67,11 +67,17 @@
                     android:text="@string/controller_edit_locked" />
             </LinearLayout>
 
+            <TextView
+                android:id="@+id/settings_group_protection"
+                style="@style/Widget.SubHub.SettingsGroupLabel"
+                android:layout_marginTop="@dimen/settings_first_group_gap"
+                android:layout_marginBottom="@dimen/settings_group_label_gap"
+                android:text="@string/global_settings_group_protection" />
+
             <LinearLayout
                 android:id="@+id/hardcore_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="9dp"
                 android:background="@drawable/bg_sub_hero"
                 android:orientation="vertical"
                 android:paddingStart="16dp"
@@ -117,6 +123,7 @@
                 android:id="@+id/feature_areas_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/settings_card_gap"
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
@@ -148,11 +155,17 @@
                     android:text="@string/global_feature_wallet_help" />
             </LinearLayout>
 
+            <TextView
+                android:id="@+id/settings_group_coverage"
+                style="@style/Widget.SubHub.SettingsGroupLabel"
+                android:layout_marginTop="@dimen/settings_group_gap"
+                android:layout_marginBottom="@dimen/settings_group_label_gap"
+                android:text="@string/global_settings_group_coverage" />
+
             <LinearLayout
                 android:id="@+id/android_access_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="9dp"
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
@@ -268,11 +281,17 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <TextView
+                android:id="@+id/settings_group_services"
+                style="@style/Widget.SubHub.SettingsGroupLabel"
+                android:layout_marginTop="@dimen/settings_group_gap"
+                android:layout_marginBottom="@dimen/settings_group_label_gap"
+                android:text="@string/global_settings_group_services" />
+
             <LinearLayout
                 android:id="@+id/app_settings_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="9dp"
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
@@ -302,7 +321,7 @@
                 android:id="@+id/paypal_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="9dp"
+                android:layout_marginTop="@dimen/settings_card_gap"
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">

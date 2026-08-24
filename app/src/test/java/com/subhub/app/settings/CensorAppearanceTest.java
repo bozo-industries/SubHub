@@ -19,6 +19,13 @@ public final class CensorAppearanceTest {
                 CensorAppearance.Type.fromPreference("PIXELATE"));
     }
 
+    @Test public void legacyBarPreferenceMigratesToBlackout() {
+        assertEquals(CensorAppearance.Type.BOX,
+                CensorAppearance.Type.fromPreference("bar"));
+        assertEquals(CensorAppearance.Type.BOX,
+                CensorAppearance.Type.fromPreference(" BAR "));
+    }
+
     @Test public void recoveredStyleAliasesAreAccepted() {
         assertEquals(CensorAppearance.Type.PIXELATE,
                 CensorAppearance.Type.fromPreference("mosaic"));
