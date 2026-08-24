@@ -1,4 +1,21 @@
 {
-	"version": 1,
-	"entries": []
+	"version": 3,
+	"entries": [
+		{
+			"commitHash": "5166399247fc532d82919c80dbce6ec19bcc4be1",
+			"parentCommitHash": null,
+			"treeHash": "359e8a5fea4910dd5eb51371f09fcb7422f286f6",
+			"commitType": "commit",
+			"commitMessage": "[chore] ignore local Jolli integration state",
+			"commitDate": "2026-08-24T11:29:15.000Z",
+			"branch": "master",
+			"generatedAt": "2026-08-24T11:29:19.055Z",
+			"topicCount": 0,
+			"diffStats": {
+				"filesChanged": 1,
+				"insertions": 1,
+				"deletions": 0
+			}
+		}
+	]
 }

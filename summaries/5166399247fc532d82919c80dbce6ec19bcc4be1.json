@@ -1,0 +1,34 @@
+{
+	"version": 5,
+	"commitHash": "5166399247fc532d82919c80dbce6ec19bcc4be1",
+	"commitMessage": "[chore] ignore local Jolli integration state",
+	"commitAuthor": "ClaraCrazy",
+	"commitDate": "2026-08-24T11:29:15.000Z",
+	"branch": "master",
+	"generatedAt": "2026-08-24T11:29:19.055Z",
+	"commitType": "commit",
+	"commitSource": "cli",
+	"transcriptEntries": 0,
+	"conversationTurns": 0,
+	"llm": {
+		"model": "claude-sonnet-4-6",
+		"inputTokens": 7029,
+		"outputTokens": 10,
+		"cachedTokens": 0,
+		"apiLatencyMs": 2355,
+		"stopReason": null,
+		"source": "jolli-proxy"
+	},
+	"stats": {
+		"filesChanged": 1,
+		"insertions": 1,
+		"deletions": 0
+	},
+	"topics": [],
+	"diffStats": {
+		"filesChanged": 1,
+		"insertions": 1,
+		"deletions": 0
+	},
+	"transcripts": []
+}
