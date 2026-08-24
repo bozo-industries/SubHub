@@ -3,6 +3,7 @@ package com.subhub.app.overlay;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
+import android.os.Build;
 import android.view.Gravity;
 import android.view.WindowManager;
 
@@ -30,6 +31,12 @@ public final class OverlayController implements AutoCloseable {
 
     public void show() {
         if (attached) return;
+        WindowManager.LayoutParams params = createLayoutParams(windowType);
+        windowManager.addView(view, params);
+        attached = true;
+    }
+
+    static WindowManager.LayoutParams createLayoutParams(int windowType) {
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
@@ -41,8 +48,15 @@ public final class OverlayController implements AutoCloseable {
                 flags,
                 PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.START;
-        windowManager.addView(view, params);
-        attached = true;
+        // Detector boxes use full-display coordinates. Android 11+ otherwise fits overlay windows
+        // below system bars even with FLAG_LAYOUT_IN_SCREEN, shifting every censor down by the
+        // status-bar height. Keep the overlay origin at the physical display's top-left instead.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) params.setFitInsetsTypes(0);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            params.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+        }
+        return params;
     }
 
     public void update(
