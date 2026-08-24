@@ -12,6 +12,7 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.GridLayout;
 
 import androidx.test.core.app.ActivityScenario;
@@ -143,6 +144,8 @@ public final class AppModeContractTest {
                         activity.findViewById(R.id.button_save_recognition).getVisibility());
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.app_list_card).getVisibility());
+                ViewGroup sections = activity.findViewById(R.id.settings_sections);
+                assertEquals(activity.findViewById(R.id.hardcore_card), sections.getChildAt(1));
             });
         }
     }

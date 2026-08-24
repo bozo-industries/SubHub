@@ -153,11 +153,11 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private void arrangeSettingsSections() {
         LinearLayout container = binding.settingsSections;
         View[] order = {
+                binding.hardcoreCard,
                 binding.featureAreasCard,
                 binding.androidAccessCard,
                 binding.recognitionCard,
                 binding.appListCard,
-                binding.hardcoreCard,
                 binding.paypalCard,
                 binding.appSettingsCard
         };
