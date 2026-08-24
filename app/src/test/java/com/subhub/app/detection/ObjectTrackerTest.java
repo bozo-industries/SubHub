@@ -69,6 +69,24 @@ public final class ObjectTrackerTest {
         assertEquals(result.get(0).getId(), nested.getTrackId());
     }
 
+    @Test
+    public void scrollMotionMovesTrackerWithoutCreatingAStackedIdentity() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .trackingSmoothing(1f).build());
+        Detection original = detection(new BBox(80, 420, 140, 160));
+        int id = tracker.update(Collections.singletonList(original), 1_000_000_000L)
+                .get(0).getId();
+
+        tracker.offsetActiveTracks(0, -180, 1080, 2400);
+        Detection afterScroll = detection(new BBox(80, 240, 140, 160));
+        List<TrackedObject> result = tracker.update(
+                Collections.singletonList(afterScroll), 1_100_000_000L);
+
+        assertEquals(1, result.size());
+        assertEquals(id, result.get(0).getId());
+        assertEquals(id, afterScroll.getTrackId());
+    }
+
     private static Detection detection(BBox box) {
         return new Detection("FEMALE_BREAST_EXPOSED", "breasts", 0.9f, box, true, true);
     }
