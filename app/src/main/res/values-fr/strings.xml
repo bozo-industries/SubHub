@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">BETASAFE</string><string name="header_subtitle">GARDIENNE LOCALE</string>
+    <string name="header_title">SUBHUB</string><string name="header_subtitle">GARDIENNE LOCALE</string>
     <string name="tab_home">ACCUEIL</string><string name="tab_settings">RÉGLAGES</string><string name="tab_browser">NAVIGATEUR</string><string name="tab_export">EXPORT</string><string name="tab_help">AIDE</string>
     <string name="start_protection">DÉMARRER LA PROTECTION</string><string name="stop_protection">ARRÊTER LA PROTECTION</string><string name="settings_title">RÉGLAGES DE CENSURE</string><string name="back">RETOUR</string>
     <string name="help_title">AIDE ET SÉCURITÉ</string><string name="help_subtitle">Configuration, confidentialité, réparations et guide des fonctions.</string>
@@ -8,6 +8,6 @@
     <string name="permission_all_granted">Les autorisations de superposition et de notification sont prêtes.</string><string name="permission_overlay_name">affichage sur les autres applis</string><string name="permission_notifications_name">notifications</string><string name="permission_missing_fmt">Manquant : %1$s</string>
     <string name="settings_language">LANGUE</string><string name="language_system_default">Langue du système</string>
     <string name="help_getting_started">Bien démarrer</string><string name="help_permissions">Autorisations</string><string name="help_app_protection">Protection des applis</string><string name="help_browser_protection">Protection du navigateur</string><string name="help_censored_downloads">Export et téléchargements</string><string name="help_customisation">Personnalisation</string><string name="help_popup_storm">Sécurité de Popup Storm</string><string name="help_troubleshooting">Dépannage</string><string name="help_privacy">Confidentialité et données</string><string name="help_updates">Builds et mises à jour</string>
-    <string name="onboarding_title">VOTRE GARDIENNE PRIVÉE</string><string name="onboarding_body">BetaSafe censure localement, demande le consentement de capture d’Android et laisse toujours disponibles les commandes normales d’arrêt et de désinstallation.</string><string name="onboarding_help">OUVRIR LE GUIDE</string><string name="onboarding_dismiss">COMPRIS</string>
-    <string name="shortcut_start_protection">Démarrer la protection</string><string name="shortcut_start_protection_long">Démarrer la protection BetaSafe</string><string name="shortcut_open_browser">Ouvrir le navigateur</string><string name="shortcut_open_browser_long">Ouvrir le navigateur BetaSafe</string>
+    <string name="onboarding_title">VOTRE GARDIENNE PRIVÉE</string><string name="onboarding_body">SubHub censure localement, demande le consentement de capture d’Android et laisse toujours disponibles les commandes normales d’arrêt et de désinstallation.</string><string name="onboarding_help">OUVRIR LE GUIDE</string><string name="onboarding_dismiss">COMPRIS</string>
+    <string name="shortcut_start_protection">Démarrer la protection</string><string name="shortcut_start_protection_long">Démarrer la protection SubHub</string><string name="shortcut_open_browser">Ouvrir le navigateur</string><string name="shortcut_open_browser_long">Ouvrir le navigateur SubHub</string>
 </resources>

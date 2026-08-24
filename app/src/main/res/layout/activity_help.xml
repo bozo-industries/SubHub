@@ -37,7 +37,7 @@
             android:layout_marginHorizontal="@dimen/page_margin"
             android:background="@drawable/bg_card" android:orientation="vertical"
             android:padding="14dp">
-            <TextView style="@style/Widget.BetaSafe.SectionHeader"
+            <TextView style="@style/Widget.SubHub.SectionHeader"
                 android:text="@string/help_permission_check" />
             <TextView android:id="@+id/permission_status" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"
@@ -54,7 +54,7 @@
             android:layout_marginHorizontal="@dimen/page_margin" android:layout_marginTop="14dp"
             android:background="@drawable/bg_card" android:orientation="vertical"
             android:padding="14dp">
-            <TextView style="@style/Widget.BetaSafe.SectionHeader"
+            <TextView style="@style/Widget.SubHub.SectionHeader"
                 android:text="@string/settings_language" />
             <TextView android:id="@+id/language_status" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:layout_marginTop="8dp"

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">BETASAFE</string><string name="header_subtitle">로컬 가디언</string>
+    <string name="header_title">SUBHUB</string><string name="header_subtitle">로컬 가디언</string>
     <string name="tab_home">홈</string><string name="tab_settings">설정</string><string name="tab_browser">브라우저</string><string name="tab_export">내보내기</string><string name="tab_help">도움말</string>
     <string name="start_protection">보호 시작</string><string name="stop_protection">보호 중지</string><string name="settings_title">검열 설정</string><string name="back">뒤로</string>
     <string name="help_title">도움말 및 안전</string><string name="help_subtitle">설정, 개인정보 보호, 복구 및 기능 안내.</string>
@@ -8,6 +8,6 @@
     <string name="permission_all_granted">오버레이 및 알림 권한을 사용할 수 있습니다.</string><string name="permission_overlay_name">다른 앱 위에 표시</string><string name="permission_notifications_name">알림</string><string name="permission_missing_fmt">누락: %1$s</string>
     <string name="settings_language">언어</string><string name="language_system_default">시스템 기본값</string>
     <string name="help_getting_started">시작하기</string><string name="help_permissions">권한</string><string name="help_app_protection">앱 보호</string><string name="help_browser_protection">브라우저 보호</string><string name="help_censored_downloads">내보내기 및 다운로드</string><string name="help_customisation">사용자 지정</string><string name="help_popup_storm">Popup Storm 안전</string><string name="help_troubleshooting">문제 해결</string><string name="help_privacy">개인정보 및 데이터</string><string name="help_updates">빌드 및 업데이트</string>
-    <string name="onboarding_title">나만의 가디언</string><string name="onboarding_body">BetaSafe는 기기에서 검열하고 Android의 화면 캡처 동의를 요청하며 일반 중지 및 제거 기능을 항상 사용할 수 있게 합니다.</string><string name="onboarding_help">가이드 열기</string><string name="onboarding_dismiss">확인</string>
-    <string name="shortcut_start_protection">보호 시작</string><string name="shortcut_start_protection_long">BetaSafe 보호 시작</string><string name="shortcut_open_browser">브라우저 열기</string><string name="shortcut_open_browser_long">BetaSafe 브라우저 열기</string>
+    <string name="onboarding_title">나만의 가디언</string><string name="onboarding_body">SubHub는 기기에서 검열하고 Android의 화면 캡처 동의를 요청하며 일반 중지 및 제거 기능을 항상 사용할 수 있게 합니다.</string><string name="onboarding_help">가이드 열기</string><string name="onboarding_dismiss">확인</string>
+    <string name="shortcut_start_protection">보호 시작</string><string name="shortcut_start_protection_long">SubHub 보호 시작</string><string name="shortcut_open_browser">브라우저 열기</string><string name="shortcut_open_browser_long">SubHub 브라우저 열기</string>
 </resources>

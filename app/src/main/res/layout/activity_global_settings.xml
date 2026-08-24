@@ -77,7 +77,7 @@
                 android:paddingTop="14dp"
                 android:paddingEnd="14dp"
                 android:paddingBottom="14dp">
-                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                <TextView style="@style/Widget.SubHub.SectionHeader"
                     android:text="@string/hardcore_title" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:layout_marginTop="4dp"
@@ -98,18 +98,11 @@
                     android:textSize="11sp" />
                 <TextView
                     android:id="@+id/button_hardcore_system"
-                    android:layout_width="match_parent"
-                    android:layout_height="40dp"
+                    style="@style/Widget.SubHub.OutlineAction"
+                    android:layout_height="42dp"
                     android:layout_marginTop="9dp"
-                    android:background="@drawable/bg_outline_button"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
                     android:text="@string/hardcore_open_admin"
-                    android:textColor="@color/accent"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
+                    />
             </LinearLayout>
 
             <LinearLayout
@@ -119,7 +112,7 @@
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
-                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                <TextView style="@style/Widget.SubHub.SectionHeader"
                     android:text="@string/global_features_title" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:layout_marginTop="3dp"
@@ -155,7 +148,7 @@
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
-                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                <TextView style="@style/Widget.SubHub.SectionHeader"
                     android:text="@string/app_mode_service_title" />
                 <TextView
                     android:id="@+id/service_status"
@@ -183,7 +176,7 @@
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
-                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                <TextView style="@style/Widget.SubHub.SectionHeader"
                     android:text="@string/app_mode_rules_title" />
                 <CheckBox
                     android:id="@+id/armed"
@@ -229,7 +222,7 @@
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
-                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                <TextView style="@style/Widget.SubHub.SectionHeader"
                     android:text="@string/app_selection_title" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:layout_marginTop="3dp"
@@ -285,7 +278,7 @@
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
-                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                <TextView style="@style/Widget.SubHub.SectionHeader"
                     android:text="@string/global_app_settings_title" />
                 <GridLayout
                     android:layout_width="match_parent"
@@ -315,7 +308,7 @@
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
-                <TextView style="@style/Widget.BetaSafe.SectionHeader"
+                <TextView style="@style/Widget.SubHub.SectionHeader"
                     android:text="@string/paypal_settings_title" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:layout_marginTop="3dp"

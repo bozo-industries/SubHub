@@ -2,14 +2,14 @@
 
 SubHub is a private Android reconstruction workspace based on the licensed Beta Blocker 1.67 APK. The primary goal is a maintainable, human-editable source implementation that preserves the original app's useful on-device behavior while providing a cohesive purple control-center interface.
 
-The repository and compatibility identifiers still use `BetaSafe` and `com.betasafe.app` internally. Those stable implementation names are intentionally separate from the user-facing SubHub product name.
+The maintained source, Gradle project, and Android package now use the SubHub identity throughout; the application ID is `com.subhub.app`.
 
 The primary workstream is now a clean, human-editable Android source reconstruction under `app/`. Raw JADX output remains private reference material; tracked code is written and maintained as ordinary source. See [Reconstruction Roadmap](docs/reconstruction-roadmap.md).
 
 The repository contains sanitized notes, repeatable tooling, maintained source, and original project-owned art. The purchased APK, decompiled code, vendor art, model files, signing keys, and rebuilt APKs stay outside version control in the adjacent private workspace:
 
 ```text
-C:\Users\user\Code\BetaSafe-private\
+C:\Users\user\Code\SubHub-private\
   apktool\   # authoritative, rebuildable resources + smali
   jadx\      # readable Java reconstruction for navigation
   build\     # unsigned/aligned/signed local APKs and local signing key
@@ -23,7 +23,7 @@ C:\Users\user\Code\BetaSafe-private\
 - Local v2/v3 signing and verification: passing
 - JADX 1.5.5: usable, with method-level failures that require smali fallback
 - Monetization-gate audit: no billing/paywall/entitlement code found; every scripted build rechecks this invariant
-- Clean source baseline: builds, installs, and runs independently as `com.betasafe.app`
+- Clean source baseline: builds, installs, and runs independently as `com.subhub.app`
 - Clean release variant: unsigned release APK assembly and release lint pass; release manifest has no cleartext override and its optional Device Admin receiver declares no device policies
 - API 35 emulator suite: 53 unit and 59 instrumented checks cover the adaptive SubHub shell, UI/settings, browser/download/full-screen workflows, both consent-driven capture modes, native-text classification, app-mode persistence/boot/disarm behavior, daily app budgets, NNAPI inference, every censor style/border/reverse shape, custom-image import, MediaStore export, profiles/packs, diagnostics, statistics/achievements, Popup Storm, Help/onboarding/locales/shortcuts, commitment safety, money-rule safety, and clean stop behavior
 - Help and language surface: ten expandable source-authored guides, guided permission repair, first-run disclosure, two launcher shortcuts, and the recovered 11-choice locale selector are working; shell copy is localized and deeper untranslated copy falls back to English
@@ -41,7 +41,7 @@ A patched APK signed with a new local key cannot update an installation signed b
 
 ## Working with the APK
 
-Browse reconstructed logic under `BetaSafe-private\jadx\sources\com\betablocker\lite`. Make round-trip changes in `BetaSafe-private\apktool`, using the JADX tree only as a guide.
+Browse reconstructed logic under `SubHub-private\jadx\sources\com\betablocker\lite`. Make round-trip changes in `SubHub-private\apktool`, using the JADX tree only as a guide.
 
 Create a fresh private workspace from a licensed APK:
 
@@ -72,18 +72,18 @@ To produce a detector-capable local APK, import the two licensed models directly
 .\gradlew.bat clean testDebugUnitTest assembleDebug
 ```
 
-The editable debug APK is written to `app\build\outputs\apk\debug\app-debug.apk` with package ID `com.betasafe.app`, so it can coexist with the vendor-signed installation.
+The editable debug APK is written to `app\build\outputs\apk\debug\app-debug.apk` with package ID `com.subhub.app`, so it can coexist with the vendor-signed installation.
 
 See [API 35 Device Smoke Test](docs/device-smoke-test.md) and [Visual Parity Audit](docs/visual-parity.md) for the verified runtime path, matched-screen review, and remaining physical-device coverage.
 
 To sign, provide a private keystore path and process-scoped password variables. Password values are never passed as command-line arguments:
 
 ```powershell
-$env:BETASAFE_KEYSTORE_PASSWORD = '<private value>'
-$env:BETASAFE_KEY_PASSWORD = '<private value>'
-.\scripts\New-LocalSigningKey.ps1 -KeystorePath 'C:\private\key.p12' -KeyAlias 'betasafe-local'
-.\scripts\Build-PatchedApk.ps1 -KeystorePath 'C:\private\key.p12' -KeyAlias 'betasafe-local'
-Remove-Item Env:\BETASAFE_KEYSTORE_PASSWORD, Env:\BETASAFE_KEY_PASSWORD
+$env:SUBHUB_KEYSTORE_PASSWORD = '<private value>'
+$env:SUBHUB_KEY_PASSWORD = '<private value>'
+.\scripts\New-LocalSigningKey.ps1 -KeystorePath 'C:\private\key.p12' -KeyAlias 'subhub-local'
+.\scripts\Build-PatchedApk.ps1 -KeystorePath 'C:\private\key.p12' -KeyAlias 'subhub-local'
+Remove-Item Env:\SUBHUB_KEYSTORE_PASSWORD, Env:\SUBHUB_KEY_PASSWORD
 ```
 
 See [Architecture](docs/architecture.md) for code maps, [Generated Visual Assets](docs/generated-assets.md) for art provenance and prompt summaries, and [Static Evidence](docs/static-evidence.md) for the redacted extraction record.

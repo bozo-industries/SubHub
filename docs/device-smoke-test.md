@@ -1,8 +1,8 @@
 # API 35 device smoke test
 
 - Date: 2026-08-23
-- Device: dedicated `betasafe_api35` Android Emulator, Google APIs x86_64
-- Package: `com.betasafe.app`
+- Device: dedicated `subhub_api35` Android Emulator, Google APIs x86_64
+- Package: `com.subhub.app`
 
 ## Result
 

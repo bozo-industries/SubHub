@@ -44,7 +44,7 @@
             android:visibility="gone">
 
             <TextView
-                style="@style/Widget.BetaSafe.SectionHeader"
+                style="@style/Widget.SubHub.SectionHeader"
                 android:text="@string/commitment_make_pact" />
 
             <TextView
@@ -118,7 +118,7 @@
             android:padding="18dp"
             android:visibility="gone">
 
-            <TextView style="@style/Widget.BetaSafe.SectionHeader" android:text="@string/commitment_pact_sealed" />
+            <TextView style="@style/Widget.SubHub.SectionHeader" android:text="@string/commitment_pact_sealed" />
 
             <TextView
                 android:id="@+id/countdown"
@@ -169,16 +169,10 @@
 
             <TextView
                 android:id="@+id/button_emergency_release"
-                android:layout_width="match_parent"
+                style="@style/Widget.SubHub.DangerAction"
                 android:layout_height="52dp"
                 android:layout_marginTop="16dp"
-                android:background="@drawable/bg_card"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
                 android:text="@string/commitment_emergency_release"
-                android:textColor="@color/accent"
-                android:textStyle="bold"
                 android:visibility="gone" />
 
             <TextView

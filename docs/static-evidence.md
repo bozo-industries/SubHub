@@ -6,7 +6,7 @@
 - User-owned artifact inspected: licensed APK supplied locally by the user
 - Authorized operations: read-only static analysis, private decompilation, and local rebuild/signing
 - Explicit deep-analysis authorization: repackaging was requested; no runtime hooks, certificate bypass, traffic interception, or authentication bypass was used
-- Private working location: `C:\Users\user\Code\BetaSafe-private`
+- Private working location: `C:\Users\user\Code\SubHub-private`
 - Repository handling: APKs, decompiled output, ONNX models, keys, and rebuilds are excluded from Git
 
 Original artifact SHA-256:
@@ -32,7 +32,7 @@ Original artifact SHA-256:
 - The model output class order has 18 entries and the output tensor contains 22 features: four box values followed by 18 class scores.
 - Desktop ONNX Runtime loaded the private FP16 model and proved the signature `images: [batch, 3, height, width] -> output0: [batch, 22, candidates]`.
 - A zero-frame 320×320 inference completed with output shape `[1, 22, 2100]`, confirming the reconstructed tensor assumptions independently of the decompiler.
-- The clean implementation is ordinary Java under `app/src/main/java/com/betasafe/app/detection`; synthetic unit tests cover geometry, output decoding, NMS, track identity, and expiry.
+- The clean implementation is ordinary Java under `app/src/main/java/com/subhub/app/detection`; synthetic unit tests cover geometry, output decoding, NMS, track identity, and expiry.
 
 ## Endpoint evidence ledger
 

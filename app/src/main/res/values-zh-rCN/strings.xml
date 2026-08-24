@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">BETASAFE</string><string name="header_subtitle">本地守护者</string>
+    <string name="header_title">SUBHUB</string><string name="header_subtitle">本地守护者</string>
     <string name="tab_home">主页</string><string name="tab_settings">设置</string><string name="tab_browser">浏览器</string><string name="tab_export">导出</string><string name="tab_help">帮助</string>
     <string name="start_protection">启动保护</string><string name="stop_protection">停止保护</string><string name="settings_title">审查设置</string><string name="back">返回</string>
     <string name="help_title">帮助与安全</string><string name="help_subtitle">设置、隐私、修复和功能指南。</string>
@@ -8,6 +8,6 @@
     <string name="permission_all_granted">悬浮窗和通知权限已就绪。</string><string name="permission_overlay_name">显示在其他应用上层</string><string name="permission_notifications_name">通知</string><string name="permission_missing_fmt">缺少：%1$s</string>
     <string name="settings_language">语言</string><string name="language_system_default">系统默认</string>
     <string name="help_getting_started">开始使用</string><string name="help_permissions">权限</string><string name="help_app_protection">应用保护</string><string name="help_browser_protection">浏览器保护</string><string name="help_censored_downloads">导出与下载</string><string name="help_customisation">自定义</string><string name="help_popup_storm">Popup Storm 安全</string><string name="help_troubleshooting">故障排除</string><string name="help_privacy">隐私与数据</string><string name="help_updates">构建与更新</string>
-    <string name="onboarding_title">你的专属守护者</string><string name="onboarding_body">BetaSafe 在设备上进行审查，申请 Android 屏幕捕获同意，并始终保留正常的停止和卸载功能。</string><string name="onboarding_help">打开指南</string><string name="onboarding_dismiss">知道了</string>
-    <string name="shortcut_start_protection">启动保护</string><string name="shortcut_start_protection_long">启动 BetaSafe 保护</string><string name="shortcut_open_browser">打开浏览器</string><string name="shortcut_open_browser_long">打开 BetaSafe 浏览器</string>
+    <string name="onboarding_title">你的专属守护者</string><string name="onboarding_body">SubHub 在设备上进行审查，申请 Android 屏幕捕获同意，并始终保留正常的停止和卸载功能。</string><string name="onboarding_help">打开指南</string><string name="onboarding_dismiss">知道了</string>
+    <string name="shortcut_start_protection">启动保护</string><string name="shortcut_start_protection_long">启动 SubHub 保护</string><string name="shortcut_open_browser">打开浏览器</string><string name="shortcut_open_browser_long">打开 SubHub 浏览器</string>
 </resources>

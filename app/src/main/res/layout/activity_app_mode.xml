@@ -44,7 +44,7 @@
             android:layout_height="wrap_content" android:layout_marginHorizontal="@dimen/page_margin"
             android:layout_marginTop="8dp" android:background="@drawable/bg_card"
             android:orientation="vertical" android:padding="11dp">
-            <TextView style="@style/Widget.BetaSafe.SectionHeader"
+            <TextView style="@style/Widget.SubHub.SectionHeader"
                 android:text="@string/app_timer_title" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="6dp" android:text="@string/app_timer_body"

@@ -134,47 +134,47 @@
 
                 <RadioButton
                     android:id="@+id/radio_box"
-                    style="@style/Widget.BetaSafe.OptionRadio"
+                    style="@style/Widget.SubHub.OptionRadio"
                     android:text="@string/style_box" />
 
                 <RadioButton
                     android:id="@+id/radio_pixelate"
-                    style="@style/Widget.BetaSafe.OptionRadio"
+                    style="@style/Widget.SubHub.OptionRadio"
                     android:text="@string/style_pixelate" />
 
                 <RadioButton
                     android:id="@+id/radio_blur"
-                    style="@style/Widget.BetaSafe.OptionRadio"
+                    style="@style/Widget.SubHub.OptionRadio"
                     android:text="@string/style_blur" />
 
                 <RadioButton
                     android:id="@+id/radio_bar"
-                    style="@style/Widget.BetaSafe.OptionRadio"
+                    style="@style/Widget.SubHub.OptionRadio"
                     android:text="@string/style_bar" />
 
                 <RadioButton
                     android:id="@+id/radio_custom"
-                    style="@style/Widget.BetaSafe.OptionRadio"
+                    style="@style/Widget.SubHub.OptionRadio"
                     android:text="@string/style_custom" />
 
                 <RadioButton
                     android:id="@+id/radio_static"
-                    style="@style/Widget.BetaSafe.OptionRadio"
+                    style="@style/Widget.SubHub.OptionRadio"
                     android:text="@string/style_static" />
 
                 <RadioButton
                     android:id="@+id/radio_glitch"
-                    style="@style/Widget.BetaSafe.OptionRadio"
+                    style="@style/Widget.SubHub.OptionRadio"
                     android:text="@string/style_glitch" />
 
                 <RadioButton
                     android:id="@+id/radio_tape"
-                    style="@style/Widget.BetaSafe.OptionRadio"
+                    style="@style/Widget.SubHub.OptionRadio"
                     android:text="@string/style_tape" />
 
                 <RadioButton
                     android:id="@+id/radio_error"
-                    style="@style/Widget.BetaSafe.OptionRadio"
+                    style="@style/Widget.SubHub.OptionRadio"
                     android:text="@string/style_error" />
             </GridLayout>
 

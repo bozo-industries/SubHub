@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$PrivateRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) '..\BetaSafe-private'),
+    [string]$PrivateRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) '..\SubHub-private'),
     [string]$KeystorePath,
     [string]$KeyAlias
 )
@@ -37,9 +37,9 @@ if (-not (Test-Path -LiteralPath $buildRoot)) {
     New-Item -ItemType Directory -Path $buildRoot | Out-Null
 }
 
-$unsignedApk = Join-Path $buildRoot 'betasafe-unsigned.apk'
-$alignedApk = Join-Path $buildRoot 'betasafe-aligned.apk'
-$signedApk = Join-Path $buildRoot 'betasafe-local-signed.apk'
+$unsignedApk = Join-Path $buildRoot 'subhub-unsigned.apk'
+$alignedApk = Join-Path $buildRoot 'subhub-aligned.apk'
+$signedApk = Join-Path $buildRoot 'subhub-local-signed.apk'
 
 & $apktool b $decodeRoot -o $unsignedApk
 if ($LASTEXITCODE -ne 0) {
@@ -66,18 +66,18 @@ if ([string]::IsNullOrWhiteSpace($KeyAlias)) {
 if (-not (Test-Path -LiteralPath $KeystorePath -PathType Leaf)) {
     throw "Keystore does not exist: $KeystorePath"
 }
-if ([string]::IsNullOrWhiteSpace($env:BETASAFE_KEYSTORE_PASSWORD)) {
-    throw 'Set BETASAFE_KEYSTORE_PASSWORD in the current process before signing.'
+if ([string]::IsNullOrWhiteSpace($env:SUBHUB_KEYSTORE_PASSWORD)) {
+    throw 'Set SUBHUB_KEYSTORE_PASSWORD in the current process before signing.'
 }
 
 $signArgs = @(
     'sign',
     '--ks', (Resolve-Path -LiteralPath $KeystorePath).Path,
     '--ks-key-alias', $KeyAlias,
-    '--ks-pass', 'env:BETASAFE_KEYSTORE_PASSWORD'
+    '--ks-pass', 'env:SUBHUB_KEYSTORE_PASSWORD'
 )
-if (-not [string]::IsNullOrWhiteSpace($env:BETASAFE_KEY_PASSWORD)) {
-    $signArgs += @('--key-pass', 'env:BETASAFE_KEY_PASSWORD')
+if (-not [string]::IsNullOrWhiteSpace($env:SUBHUB_KEY_PASSWORD)) {
+    $signArgs += @('--key-pass', 'env:SUBHUB_KEY_PASSWORD')
 }
 $signArgs += @('--out', $signedApk, $alignedApk)
 

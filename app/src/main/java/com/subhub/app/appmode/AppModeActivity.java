@@ -1,0 +1,243 @@
+package com.subhub.app.appmode;
+
+import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.text.InputType;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.subhub.app.R;
+import com.subhub.app.databinding.ActivityAppModeBinding;
+import com.subhub.app.security.ControllerPinGate;
+import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.security.ControllerEditMode;
+import com.subhub.app.util.SubHubNavigation;
+
+import java.text.Collator;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+/** Styled launcher-app picker and lifecycle controls for accessibility app mode. */
+public final class AppModeActivity extends AppCompatActivity {
+    private ActivityAppModeBinding binding;
+    private AppModeManager manager;
+    private AppTimerManager timers;
+    private boolean editingUnlocked;
+    private final Map<String, EditText> allowanceInputs = new LinkedHashMap<>();
+
+    @Override protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        binding = ActivityAppModeBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
+        if (SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.LIMITS)) return;
+        manager = new AppModeManager(this);
+        timers = new AppTimerManager(this);
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.LIMITS);
+        AppTimerManager.Settings timerSettings = timers.loadSettings();
+        binding.perAppLimitEnabled.setChecked(timerSettings.perAppEnabled);
+        binding.totalLimitEnabled.setChecked(timerSettings.totalEnabled);
+        binding.totalLimitMinutes.setText(String.valueOf(timerSettings.totalMinutes));
+        binding.perAppLimitEnabled.setOnCheckedChangeListener((button, checked) ->
+                renderTimerControls());
+        binding.totalLimitEnabled.setOnCheckedChangeListener((button, checked) ->
+                renderTimerControls());
+        binding.buttonBack.setOnClickListener(view -> finish());
+        binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
+        binding.buttonSave.setOnClickListener(view -> save());
+        renderPerAppAllowances();
+        renderTimerControls();
+        renderTimerUsage();
+        applyEditState();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        renderPerAppAllowances();
+        applyEditState();
+    }
+
+    private void toggleEditSession() {
+        if (ControllerPinManager.isSessionUnlocked()) {
+            ControllerEditMode.enterSubMode(this);
+        } else ControllerPinGate.require(this, this::applyEditState, false);
+    }
+
+    private void applyEditState() {
+        if (binding == null) return;
+        editingUnlocked = ControllerPinManager.isSessionUnlocked();
+        ControllerEditMode.renderButton(this, binding.buttonEditLock);
+        View[] editable = {binding.buttonSave,
+                binding.perAppLimitEnabled, binding.totalLimitEnabled};
+        for (View view : editable) view.setEnabled(editingUnlocked);
+        renderTimerControls();
+    }
+
+    private void save() {
+        boolean watchedAppsRequired = binding.perAppLimitEnabled.isChecked()
+                || binding.totalLimitEnabled.isChecked();
+        if (watchedAppsRequired && manager.getTimerPackages().isEmpty()) {
+            Toast.makeText(this, R.string.app_mode_select_one, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Integer totalMinutes = readMinutes(binding.totalLimitMinutes,
+                binding.totalLimitEnabled.isChecked());
+        Map<String, Integer> allowances = new LinkedHashMap<>();
+        if (binding.perAppLimitEnabled.isChecked()) {
+            for (Map.Entry<String, EditText> entry : allowanceInputs.entrySet()) {
+                Integer minutes = readMinutes(entry.getValue(), true);
+                if (minutes == null) {
+                    Toast.makeText(this, R.string.app_timer_invalid_minutes,
+                            Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                allowances.put(entry.getKey(), minutes);
+            }
+        }
+        if (totalMinutes == null) {
+            Toast.makeText(this, R.string.app_timer_invalid_minutes, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        AppTimerManager.Settings existing = timers.loadSettings();
+        timers.saveSettings(binding.perAppLimitEnabled.isChecked(), existing.perAppMinutes,
+                binding.totalLimitEnabled.isChecked(), totalMinutes);
+        timers.saveAllowances(manager.getTimerPackages(), allowances);
+        Toast.makeText(this, R.string.app_mode_saved, Toast.LENGTH_SHORT).show();
+        binding.buttonSave.setText(R.string.app_mode_saved_button);
+        binding.buttonSave.postDelayed(() -> {
+            if (binding != null) binding.buttonSave.setText(R.string.app_mode_save_limits);
+        }, 1400L);
+        boolean accessibilityRequired = binding.perAppLimitEnabled.isChecked()
+                || binding.totalLimitEnabled.isChecked();
+        if (accessibilityRequired && !accessibilityEnabled()) {
+            Toast.makeText(this, R.string.app_mode_enable_prompt, Toast.LENGTH_LONG).show();
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+        }
+    }
+
+    private void renderTimerControls() {
+        boolean perAppEnabled = binding.perAppLimitEnabled.isChecked();
+        for (EditText input : allowanceInputs.values()) {
+            input.setEnabled(editingUnlocked && perAppEnabled);
+            input.setAlpha(perAppEnabled ? 1f : 0.5f);
+        }
+        binding.totalLimitMinutes.setEnabled(
+                editingUnlocked && binding.totalLimitEnabled.isChecked());
+        binding.totalLimitMinutes.setAlpha(binding.totalLimitEnabled.isChecked() ? 1f : 0.5f);
+    }
+
+    private void renderPerAppAllowances() {
+        if (binding == null || manager == null || timers == null) return;
+        Set<String> packages = manager.getTimerPackages();
+        Map<String, Integer> saved = timers.loadAllowances(packages);
+        List<String> ordered = new ArrayList<>(packages);
+        Collator collator = Collator.getInstance(Locale.getDefault());
+        ordered.sort((left, right) -> collator.compare(appLabel(left), appLabel(right)));
+        binding.perAppAllowancesList.removeAllViews();
+        allowanceInputs.clear();
+        if (ordered.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(R.string.app_timer_no_limited_apps);
+            empty.setTextColor(getColor(R.color.text_muted));
+            empty.setTextSize(11f);
+            empty.setPadding(0, dp(8), 0, dp(5));
+            binding.perAppAllowancesList.addView(empty);
+            return;
+        }
+        for (String packageName : ordered) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(3), 0, dp(3));
+            TextView label = new TextView(this);
+            label.setText(appLabel(packageName));
+            label.setTextColor(getColor(R.color.text_primary));
+            label.setTextSize(12f);
+            label.setMaxLines(2);
+            row.addView(label, new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            EditText input = new EditText(this);
+            input.setHint(R.string.app_timer_allowance_minutes);
+            input.setText(String.valueOf(saved.get(packageName)));
+            input.setInputType(InputType.TYPE_CLASS_NUMBER);
+            input.setSingleLine(true);
+            input.setTextColor(getColor(R.color.text_primary));
+            input.setHintTextColor(getColor(R.color.text_muted));
+            input.setTextSize(12f);
+            input.setGravity(Gravity.CENTER);
+            row.addView(input, new LinearLayout.LayoutParams(dp(104), dp(46)));
+            allowanceInputs.put(packageName, input);
+            binding.perAppAllowancesList.addView(row);
+        }
+    }
+
+    private String appLabel(String packageName) {
+        try {
+            PackageManager packages = getPackageManager();
+            ApplicationInfo info = packages.getApplicationInfo(packageName, 0);
+            CharSequence label = packages.getApplicationLabel(info);
+            return label == null ? packageName : label.toString();
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return packageName;
+        }
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private void renderTimerUsage() {
+        AppTimerManager.UsageSnapshot usage = timers.snapshot("", System.currentTimeMillis());
+        if (usage.totalUsedMillis <= 0L) {
+            binding.timerUsageStatus.setText(R.string.app_timer_usage_none);
+        } else {
+            binding.timerUsageStatus.setText(getString(R.string.app_timer_usage_total,
+                    formatUsage(usage.totalUsedMillis)));
+        }
+    }
+
+    private Integer readMinutes(EditText input, boolean required) {
+        String value = input.getText() == null ? "" : input.getText().toString().trim();
+        if (!required) {
+            try {
+                return AppTimerManager.sanitizeMinutes(Integer.parseInt(value));
+            } catch (NumberFormatException ignored) {
+                return 1;
+            }
+        }
+        try {
+            int minutes = Integer.parseInt(value);
+            return minutes >= 1 && minutes <= 1440 ? minutes : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private String formatUsage(long millis) {
+        long totalMinutes = Math.max(0L, millis) / 60_000L;
+        long hours = totalMinutes / 60L;
+        long minutes = totalMinutes % 60L;
+        return hours > 0L ? hours + "h " + minutes + "m" : minutes + "m";
+    }
+
+    private boolean accessibilityEnabled() {
+        return manager.isAccessibilityEnabled();
+    }
+
+    @Override protected void onDestroy() {
+        binding = null;
+        super.onDestroy();
+    }
+}

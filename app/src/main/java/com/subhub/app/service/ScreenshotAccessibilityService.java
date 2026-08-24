@@ -1,0 +1,707 @@
+package com.subhub.app.service;
+
+import android.accessibilityservice.AccessibilityService;
+import android.graphics.Bitmap;
+import android.graphics.Rect;
+import android.hardware.HardwareBuffer;
+import android.os.Build;
+import android.os.SystemClock;
+import android.util.Log;
+import android.view.Display;
+import android.view.WindowManager;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.Toast;
+
+import androidx.annotation.RequiresApi;
+
+import com.subhub.app.appmode.AppModeManager;
+import com.subhub.app.appmode.AppModePolicy;
+import com.subhub.app.appmode.AppTimerManager;
+import com.subhub.app.detection.Detection;
+import com.subhub.app.detection.BBox;
+import com.subhub.app.detection.DetectionEngine;
+import com.subhub.app.detection.DetectorConfig;
+import com.subhub.app.detection.ObjectTracker;
+import com.subhub.app.detection.TrackedObject;
+import com.subhub.app.detection.text.AccessibilityTextSmutDetector;
+import com.subhub.app.detection.text.DetectionFusion;
+import com.subhub.app.detection.text.TextDetectionCoordinateMapper;
+import com.subhub.app.detection.text.TextSmutConfig;
+import com.subhub.app.diagnostics.DiagnosticsRepository;
+import com.subhub.app.overlay.OverlayController;
+import com.subhub.app.popup.PopupStormManager;
+import com.subhub.app.penance.CensorTapTracker;
+import com.subhub.app.penance.DwellInfractionTracker;
+import com.subhub.app.penance.PenanceChargeNotifier;
+import com.subhub.app.penance.PenanceInfraction;
+import com.subhub.app.penance.PenanceManager;
+import com.subhub.app.settings.CensorAppearance;
+import com.subhub.app.settings.SettingsRepository;
+import com.subhub.app.settings.FeatureModuleManager;
+import com.subhub.app.security.HardcoreSettingsGuard;
+import com.subhub.app.stats.StatsRepository;
+import com.subhub.app.stats.AchievementManager;
+
+import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
+/** User-enabled screenshot capture mode backed by Android's accessibility consent screen. */
+public final class ScreenshotAccessibilityService extends AccessibilityService {
+    private static final String TAG = "ScreenshotA11y";
+    private static final String DIAGNOSTICS_MODE = "Accessibility screenshot";
+    private static volatile boolean running;
+    private static volatile boolean recognitionActive;
+    private static final long MIN_TEXT_REFRESH_MS = 300L;
+    private static final long SETTLED_SCROLL_REFRESH_MS = 140L;
+    private static final long SCROLL_QUIET_MS = 110L;
+
+    private final AtomicBoolean processing = new AtomicBoolean();
+    private final AtomicLong cumulativeScrollX = new AtomicLong();
+    private final AtomicLong cumulativeScrollY = new AtomicLong();
+    private final AtomicBoolean firstFrameReported = new AtomicBoolean();
+    private final AtomicBoolean initializing = new AtomicBoolean();
+    private final AtomicBoolean textRefreshRequested = new AtomicBoolean(true);
+    private final AtomicBoolean textRefreshRunning = new AtomicBoolean();
+    private final CaptureEpoch captureEpoch = new CaptureEpoch();
+    private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
+            (preferences, key) -> reloadSettings();
+    private ScheduledExecutorService worker;
+    private ScheduledExecutorService textWorker;
+    private volatile ScheduledFuture<?> captureSchedule;
+    private SettingsRepository settings;
+    private StatsRepository stats;
+    private DetectionEngine detector;
+    private ObjectTracker tracker;
+    private final AccessibilityTextSmutDetector accessibilityText =
+            new AccessibilityTextSmutDetector();
+    private OverlayController overlay;
+    private volatile DetectorConfig detectorConfig;
+    private volatile TextSmutConfig textSmutConfig;
+    private volatile List<Detection> cachedTextDetections = Collections.emptyList();
+    private volatile long cachedTextScrollX;
+    private volatile long cachedTextScrollY;
+    private volatile int cachedTextWidth = 1;
+    private volatile int cachedTextHeight = 1;
+    private volatile int latestCaptureWidth = 1;
+    private volatile int latestCaptureHeight = 1;
+    private volatile long lastTextRefreshMillis;
+    private volatile long lastScrollEventUptime;
+    private int lastAbsoluteScrollX = Integer.MIN_VALUE;
+    private int lastAbsoluteScrollY = Integer.MIN_VALUE;
+    private volatile boolean overlayNeedsSourceFrame;
+    private volatile String foregroundPackage = "";
+    private AppTimerManager timers;
+    private PenanceManager penance;
+    private final DwellInfractionTracker dwellTracker = new DwellInfractionTracker();
+    private final CensorTapTracker tapTracker = new CensorTapTracker();
+    private long lastMatchedTapMillis;
+    private long foregroundSinceMillis;
+    private String lastBlockedPackage = "";
+    private long lastBlockedAtMillis;
+    private HardcoreSettingsGuard hardcoreSettingsGuard;
+    private final Runnable settledHardcoreGuardRefresh = this::refreshHardcoreSettingsGuard;
+    private final Runnable settledTextRefresh = this::requestTextRefresh;
+    private final Runnable settledVisualRefresh = () -> {
+        if (worker != null && running && recognitionActive) worker.execute(this::requestScreenshot);
+    };
+    private final Runnable timerTick = new Runnable() {
+        @Override public void run() {
+            if (!running) return;
+            long now = System.currentTimeMillis();
+            accountForegroundUsage(now);
+            enforceForegroundLimit(now);
+            reevaluateRecognition();
+            refreshHardcoreSettingsGuard();
+            main.postDelayed(this, 1_000L);
+        }
+    };
+
+    public static boolean isRunning() { return running; }
+    public static boolean isRecognitionActive() { return recognitionActive; }
+
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            Log.w(TAG, "Accessibility screenshot capture requires Android 11 or newer");
+            disableSelf();
+            return;
+        }
+        settings = new SettingsRepository(this);
+        stats = new StatsRepository(this);
+        timers = new AppTimerManager(this);
+        penance = new PenanceManager(this);
+        hardcoreSettingsGuard = new HardcoreSettingsGuard(this);
+        settings.preferences().registerOnSharedPreferenceChangeListener(listener);
+        running = true;
+
+        worker = Executors.newSingleThreadScheduledExecutor();
+        textWorker = Executors.newSingleThreadScheduledExecutor();
+        worker.execute(this::initializePipeline);
+        main.post(this::reevaluateRecognition);
+        main.post(timerTick);
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private void initializePipeline() {
+        if (!running || !initializing.compareAndSet(false, true)) return;
+        try {
+            DetectorConfig config = settings.loadDetectorConfig();
+            detectorConfig = config;
+            textSmutConfig = settings.loadTextSmutConfig();
+            if (detector == null) {
+                detector = new DetectionEngine(this, config);
+                detector.initialize();
+            } else {
+                detector.setConfig(config);
+            }
+            if (tracker == null) tracker = new ObjectTracker(config);
+            else tracker.setConfig(config);
+            tracker.clear();
+            if (!recognitionActive) {
+                Log.i(TAG, "Detector prewarmed; capture remains asleep");
+                return;
+            }
+            DiagnosticsRepository.begin(DIAGNOSTICS_MODE, config.getInferenceResolution());
+            DiagnosticsRepository.ready(DIAGNOSTICS_MODE, detector.getActiveProvider(),
+                    detector.getActiveModel(), config.getInferenceResolution());
+            ScheduledFuture<?> existing = captureSchedule;
+            if (existing != null) existing.cancel(false);
+            captureSchedule = worker.scheduleWithFixedDelay(
+                    this::requestScreenshot,
+                    0,
+                    captureDelayMs(config),
+                    TimeUnit.MILLISECONDS);
+        } catch (Exception error) {
+            if (detector != null) detector.close();
+            detector = null;
+            tracker = null;
+            if (recognitionActive) DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
+            Log.e(TAG, "Could not initialize accessibility capture", error);
+            main.post(this::deactivateRecognition);
+        } finally {
+            initializing.set(false);
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private void requestScreenshot() {
+        // During a fling the retained boxes are translated from accessibility scroll deltas.
+        // Running ONNX at the same time competes with the foreground app and delays those events;
+        // take one fresh frame when motion settles instead.
+        if (SystemClock.uptimeMillis() - lastScrollEventUptime < SCROLL_QUIET_MS) return;
+        if (!running || !recognitionActive || !processing.compareAndSet(false, true)) return;
+        long requestedEpoch = captureEpoch.token();
+        long requestedScrollX = cumulativeScrollX.get();
+        long requestedScrollY = cumulativeScrollY.get();
+        TakeScreenshotCallback callback = new TakeScreenshotCallback() {
+            @Override
+            public void onSuccess(ScreenshotResult result) {
+                process(result, requestedEpoch, requestedScrollX, requestedScrollY);
+            }
+
+            @Override
+            public void onFailure(int errorCode) {
+                DiagnosticsRepository.failCode(
+                        DIAGNOSTICS_MODE, "Screenshot error", errorCode);
+                Log.w(TAG, "Accessibility screenshot failed with code " + errorCode);
+                finishScreenshotRequest();
+            }
+        };
+        // Android 14+ can capture the foreground app window directly. Unlike a display capture,
+        // this excludes SubHub's own accessibility overlay, so a censor stays continuously visible
+        // without becoming part of the next detector input.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root != null) {
+                int windowId = root.getWindowId();
+                root.recycle();
+                takeScreenshotOfWindow(windowId, worker, callback);
+                return;
+            }
+        }
+        takeScreenshot(Display.DEFAULT_DISPLAY, worker, callback);
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private void process(
+            ScreenshotResult result,
+            long requestedEpoch,
+            long requestedScrollX,
+            long requestedScrollY) {
+        Bitmap wrapped = null;
+        Bitmap frame = null;
+        HardwareBuffer buffer = result.getHardwareBuffer();
+        try {
+            if (!isCurrentCapture(requestedEpoch)) return;
+            wrapped = Bitmap.wrapHardwareBuffer(buffer, result.getColorSpace());
+            if (wrapped == null) return;
+            frame = wrapped.copy(Bitmap.Config.ARGB_8888, false);
+            latestCaptureWidth = frame.getWidth();
+            latestCaptureHeight = frame.getHeight();
+            List<Detection> visualDetections = detector.detect(frame);
+            TextSmutConfig currentTextConfig = textSmutConfig;
+            List<Detection> accessibilityDetections = Collections.emptyList();
+            if (currentTextConfig != null && currentTextConfig.isEnabled()) {
+                accessibilityDetections = cachedTextForFrame(
+                        frame.getWidth(), frame.getHeight(), requestedScrollX, requestedScrollY);
+                requestTextRefresh();
+            }
+            List<Detection> detections = DetectionFusion.merge(
+                    visualDetections, accessibilityDetections);
+            if (!isCurrentCapture(requestedEpoch)) return;
+            List<TrackedObject> tracks = tracker.update(detections);
+            DetectorConfig currentConfig = detectorConfig;
+            int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
+                    ? null : currentConfig.getEnabledCategories());
+            long now = System.currentTimeMillis();
+            if (recordedBlocks > 0) {
+                int charged = penance.recordInfraction(
+                        PenanceInfraction.NEW_DETECTION, recordedBlocks, now);
+                PenanceChargeNotifier.show(this, penance,
+                        PenanceInfraction.NEW_DETECTION, charged, now);
+                new AchievementManager(this).checkAchievements(stats.load());
+            }
+            if (firstFrameReported.compareAndSet(false, true)) {
+                Log.i(TAG, "First accessibility frame processed in "
+                        + detector.getLastInferenceMs() + " ms at "
+                        + frame.getWidth() + "x" + frame.getHeight());
+            }
+            int width = frame.getWidth();
+            int height = frame.getHeight();
+            Bitmap overlayFrame = overlayNeedsSourceFrame ? frame : null;
+            if (overlayFrame != null) frame = null;
+            int dwellInfractions = dwellTracker.update(
+                    tracks, now, penance.getDwellSeconds() * 1_000L, false);
+            if (dwellInfractions > 0) {
+                int charged = penance.recordInfraction(
+                        PenanceInfraction.CENSORED_DWELL, dwellInfractions, now);
+                PenanceChargeNotifier.show(this, penance,
+                        PenanceInfraction.CENSORED_DWELL, charged, now);
+            }
+            tapTracker.update(tracks, width, height, now);
+            PopupStormManager.get().updateTrackedObjects(tracks, width, height);
+            DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
+                    DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
+            String diagnosticText = diagnosticsOverlayText(diagnostics);
+            main.post(() -> {
+                if (isCurrentCapture(requestedEpoch) && overlay != null) {
+                    int motionX = clampScrollMotion(-(cumulativeScrollX.get() - requestedScrollX),
+                            width);
+                    int motionY = clampScrollMotion(-(cumulativeScrollY.get() - requestedScrollY),
+                            height);
+                    overlay.setDiagnostics(diagnosticText);
+                    overlay.update(tracks, width, height, overlayFrame, motionX, motionY);
+                }
+                else if (overlayFrame != null) overlayFrame.recycle();
+            });
+        } catch (Exception error) {
+            DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
+            Log.w(TAG, "Could not process accessibility screenshot", error);
+        } finally {
+            if (frame != null && !frame.isRecycled()) frame.recycle();
+            if (wrapped != null && !wrapped.isRecycled()) wrapped.recycle();
+            buffer.close();
+            finishScreenshotRequest();
+        }
+    }
+
+    private static int clampScrollMotion(long value, int frameExtent) {
+        long limit = Math.max(1, frameExtent) * 2L;
+        return (int) Math.max(-limit, Math.min(limit, value));
+    }
+
+    static long captureDelayMs(DetectorConfig config) {
+        int threads = config == null ? 2 : config.getInferenceThreads();
+        long floor;
+        if (threads <= 1) floor = 450L;
+        else if (threads == 2) floor = 300L;
+        else if (threads == 3) floor = 240L;
+        else floor = 180L;
+        return Math.max(floor, config == null ? 0L : config.getDetectionIntervalMs());
+    }
+
+    private Rect screenBounds() {
+        WindowManager manager = getSystemService(WindowManager.class);
+        if (manager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Rect bounds = manager.getMaximumWindowMetrics().getBounds();
+            if (!bounds.isEmpty()) return new Rect(0, 0, bounds.width(), bounds.height());
+        }
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        return new Rect(0, 0, Math.max(1, metrics.widthPixels), Math.max(1, metrics.heightPixels));
+    }
+
+    private void finishScreenshotRequest() {
+        processing.set(false);
+    }
+
+    private void requestTextRefresh() {
+        TextSmutConfig config = textSmutConfig;
+        if (!running || !recognitionActive || textWorker == null || config == null
+                || !config.isEnabled() || !textRefreshRequested.get()
+                || !textRefreshRunning.compareAndSet(false, true)) return;
+        long wait = MIN_TEXT_REFRESH_MS
+                - (System.currentTimeMillis() - lastTextRefreshMillis);
+        if (wait > 0L) {
+            textRefreshRunning.set(false);
+            main.removeCallbacks(settledTextRefresh);
+            main.postDelayed(settledTextRefresh, wait);
+            return;
+        }
+        textRefreshRequested.set(false);
+        long epoch = captureEpoch.token();
+        int captureWidth = latestCaptureWidth;
+        int captureHeight = latestCaptureHeight;
+        long scrollX = cumulativeScrollX.get();
+        long scrollY = cumulativeScrollY.get();
+        textWorker.execute(() -> {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            try {
+                if (root == null || !isCurrentCapture(epoch)) return;
+                Rect screen = screenBounds();
+                List<Detection> screenDetections = accessibilityText.detect(
+                        root, config, screen.width(), screen.height());
+                List<Detection> mapped = TextDetectionCoordinateMapper.screenToCapture(
+                        screenDetections, screen.width(), screen.height(),
+                        captureWidth, captureHeight);
+                if (!isCurrentCapture(epoch)) return;
+                cachedTextDetections = mapped;
+                cachedTextWidth = captureWidth;
+                cachedTextHeight = captureHeight;
+                cachedTextScrollX = scrollX;
+                cachedTextScrollY = scrollY;
+                lastTextRefreshMillis = System.currentTimeMillis();
+            } finally {
+                if (root != null) root.recycle();
+                textRefreshRunning.set(false);
+                if (textRefreshRequested.get()) main.post(settledTextRefresh);
+            }
+        });
+    }
+
+    private List<Detection> cachedTextForFrame(
+            int width, int height, long requestedScrollX, long requestedScrollY) {
+        List<Detection> source = cachedTextDetections;
+        if (source.isEmpty()) return source;
+        float scaleX = width / (float) Math.max(1, cachedTextWidth);
+        float scaleY = height / (float) Math.max(1, cachedTextHeight);
+        Rect screen = screenBounds();
+        float scrollScaleX = width / (float) Math.max(1, screen.width());
+        float scrollScaleY = height / (float) Math.max(1, screen.height());
+        int offsetX = Math.round(-(requestedScrollX - cachedTextScrollX) * scrollScaleX);
+        int offsetY = Math.round(-(requestedScrollY - cachedTextScrollY) * scrollScaleY);
+        List<Detection> shifted = new ArrayList<>(source.size());
+        for (Detection detection : source) {
+            BBox box = detection.getBox();
+            int left = Math.round(box.getX() * scaleX) + offsetX;
+            int top = Math.round(box.getY() * scaleY) + offsetY;
+            int right = Math.round(box.getRight() * scaleX) + offsetX;
+            int bottom = Math.round(box.getBottom() * scaleY) + offsetY;
+            if (right <= 0 || bottom <= 0 || left >= width || top >= height) continue;
+            left = Math.max(0, left);
+            top = Math.max(0, top);
+            right = Math.min(width, right);
+            bottom = Math.min(height, bottom);
+            shifted.add(new Detection(detection.getClassName(), detection.getCategory(),
+                    detection.getConfidence(),
+                    new BBox(left, top, Math.max(1, right - left), Math.max(1, bottom - top)),
+                    detection.isNsfw(), detection.isExposed()));
+        }
+        return shifted;
+    }
+
+    private boolean isCurrentCapture(long requestedEpoch) {
+        return captureEpoch.accepts(requestedEpoch, running, recognitionActive);
+    }
+
+    private void reloadSettings() {
+        if (settings == null) return;
+        main.post(() -> {
+            if (overlay != null) {
+                CensorAppearance appearance = settings.loadAppearance();
+                overlayNeedsSourceFrame = appearance.requiresSourceFrame();
+                overlay.setAppearance(appearance);
+                overlay.setDiagnostics(diagnosticsOverlayText());
+            }
+        });
+        DetectorConfig config = settings.loadDetectorConfig();
+        detectorConfig = config;
+        textSmutConfig = settings.loadTextSmutConfig();
+        textRefreshRequested.set(true);
+        if (detector != null) detector.setConfig(config);
+        if (tracker != null) tracker.setConfig(config);
+        PopupStormManager.get().reloadSettings(this);
+        main.post(this::reevaluateRecognition);
+    }
+
+    @Override
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event == null) return;
+        String packageName = event.getPackageName() == null
+                ? "" : event.getPackageName().toString();
+        boolean settingsEvent = HardcoreSettingsGuard.isSettingsPackage(packageName);
+        boolean windowTransition = event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                || event.getEventType() == AccessibilityEvent.TYPE_WINDOWS_CHANGED;
+        if (settingsEvent && (windowTransition
+                || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                || event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED)) {
+            main.removeCallbacks(settledHardcoreGuardRefresh);
+            main.postDelayed(settledHardcoreGuardRefresh, 120L);
+        } else if (windowTransition && hardcoreSettingsGuard != null) {
+            main.removeCallbacks(settledHardcoreGuardRefresh);
+            hardcoreSettingsGuard.clear();
+        }
+        if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            if (recognitionActive && packageName.equals(foregroundPackage)) {
+                dwellTracker.onScroll();
+                int deltaX = event.getScrollDeltaX();
+                int deltaY = event.getScrollDeltaY();
+                int absoluteX = event.getScrollX();
+                int absoluteY = event.getScrollY();
+                if (deltaX == 0 && absoluteX >= 0 && lastAbsoluteScrollX >= 0) {
+                    deltaX = absoluteX - lastAbsoluteScrollX;
+                }
+                if (deltaY == 0 && absoluteY >= 0 && lastAbsoluteScrollY >= 0) {
+                    deltaY = absoluteY - lastAbsoluteScrollY;
+                }
+                if (absoluteX >= 0) lastAbsoluteScrollX = absoluteX;
+                if (absoluteY >= 0) lastAbsoluteScrollY = absoluteY;
+                lastScrollEventUptime = SystemClock.uptimeMillis();
+                if (deltaX != 0 || deltaY != 0) {
+                    cumulativeScrollX.addAndGet(deltaX);
+                    cumulativeScrollY.addAndGet(deltaY);
+                    if (overlay != null) overlay.offsetContent(-deltaX, -deltaY);
+                }
+                main.removeCallbacks(settledVisualRefresh);
+                main.postDelayed(settledVisualRefresh, SETTLED_SCROLL_REFRESH_MS);
+                textRefreshRequested.set(true);
+                main.removeCallbacks(settledTextRefresh);
+                main.postDelayed(settledTextRefresh, SETTLED_SCROLL_REFRESH_MS);
+            }
+            return;
+        }
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                && recognitionActive && packageName.equals(foregroundPackage)) {
+            textRefreshRequested.set(true);
+            main.removeCallbacks(settledTextRefresh);
+            main.postDelayed(settledTextRefresh, 100L);
+            return;
+        }
+        if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            recordCensoredTap(event, packageName);
+            return;
+        }
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && event.getEventType() != AccessibilityEvent.TYPE_WINDOWS_CHANGED) return;
+        String className = event.getClassName() == null ? "" : event.getClassName().toString();
+        AppModeManager mode = new AppModeManager(this);
+        if (!AppModePolicy.shouldAcceptForegroundEvent(packageName, className, getPackageName(),
+                mode.inputMethodPackage())) return;
+        if (packageName.equals(foregroundPackage)) return;
+        long now = System.currentTimeMillis();
+        accountForegroundUsage(now);
+        captureEpoch.invalidate();
+        foregroundPackage = packageName;
+        foregroundSinceMillis = now;
+        if (mode.getSelectedPackages().contains(packageName)) {
+            int charged = penance.recordInfraction(
+                    PenanceInfraction.WATCHED_APP_OPEN, 1, now);
+            PenanceChargeNotifier.show(this, penance,
+                    PenanceInfraction.WATCHED_APP_OPEN, charged, now);
+        }
+        dwellTracker.clear();
+        tapTracker.clear();
+        resetScrollCompensation();
+        if (recognitionActive && worker != null) {
+            worker.execute(() -> {
+                if (tracker != null) tracker.clear();
+            });
+        }
+        if (overlay != null) overlay.clear();
+        PopupStormManager.get().updateDetections(Collections.emptyList());
+        if (enforceForegroundLimit(System.currentTimeMillis())) return;
+        reevaluateRecognition();
+    }
+
+    private void recordCensoredTap(AccessibilityEvent event, String packageName) {
+        if (!recognitionActive || !packageName.equals(foregroundPackage) || penance == null) return;
+        long now = System.currentTimeMillis();
+        if (now - lastMatchedTapMillis < 500L) return;
+        AccessibilityNodeInfo source = event.getSource();
+        if (source == null) return;
+        Rect bounds = new Rect();
+        try {
+            source.getBoundsInScreen(bounds);
+        } finally {
+            source.recycle();
+        }
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        if (tapTracker.matchesClick(bounds.left, bounds.top, bounds.right, bounds.bottom,
+                metrics.widthPixels, metrics.heightPixels, now)) {
+            lastMatchedTapMillis = now;
+            int charged = penance.recordInfraction(PenanceInfraction.CENSORED_TAP, 1, now);
+            PenanceChargeNotifier.show(this, penance,
+                    PenanceInfraction.CENSORED_TAP, charged, now);
+        }
+    }
+
+    private void accountForegroundUsage(long nowMillis) {
+        long started = foregroundSinceMillis;
+        foregroundSinceMillis = nowMillis;
+        if (timers == null || started <= 0L || nowMillis <= started
+                || !new FeatureModuleManager(this).isLimitsEnabled()) return;
+        AppModeManager mode = new AppModeManager(this);
+        timers.recordUsage(foregroundPackage, nowMillis - started,
+                mode.getTimerPackages(), nowMillis);
+    }
+
+    /** Returns true when the current foreground app was dismissed for a spent budget. */
+    private boolean enforceForegroundLimit(long nowMillis) {
+        if (timers == null || foregroundPackage.isEmpty()
+                || !new FeatureModuleManager(this).isLimitsEnabled()) return false;
+        AppModeManager mode = new AppModeManager(this);
+        Set<String> selected = mode.getTimerPackages();
+        AppTimerManager.LimitStatus status = timers.limitStatus(
+                foregroundPackage, selected, nowMillis);
+        if (status == AppTimerManager.LimitStatus.NONE) return false;
+
+        String blockedPackage = foregroundPackage;
+        deactivateRecognition();
+        boolean repeated = blockedPackage.equals(lastBlockedPackage)
+                && nowMillis - lastBlockedAtMillis < 3_000L;
+        lastBlockedPackage = blockedPackage;
+        lastBlockedAtMillis = nowMillis;
+        int message = status == AppTimerManager.LimitStatus.PER_APP
+                ? com.subhub.app.R.string.app_timer_blocked_app
+                : com.subhub.app.R.string.app_timer_blocked_total;
+        if (!repeated) Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        Log.i(TAG, "Daily app limit enforced for " + blockedPackage + " (" + status + ")");
+        if (performGlobalAction(GLOBAL_ACTION_HOME)) {
+            foregroundPackage = "";
+            foregroundSinceMillis = 0L;
+        }
+        return true;
+    }
+
+    private void reevaluateRecognition() {
+        if (!running || settings == null) return;
+        boolean shouldRun = new AppModeManager(this).shouldRecognize(foregroundPackage);
+        if (shouldRun && !recognitionActive) activateRecognition();
+        else if (!shouldRun && recognitionActive) deactivateRecognition();
+    }
+
+    private void refreshHardcoreSettingsGuard() {
+        if (hardcoreSettingsGuard == null) return;
+        if (!HardcoreSettingsGuard.isSettingsPackage(foregroundPackage)) {
+            hardcoreSettingsGuard.clear();
+            return;
+        }
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        try {
+            String activePackage = root != null && root.getPackageName() != null
+                    ? root.getPackageName().toString() : foregroundPackage;
+            hardcoreSettingsGuard.refresh(activePackage, root);
+        } finally {
+            if (root != null) root.recycle();
+        }
+    }
+
+    private void activateRecognition() {
+        if (recognitionActive || !running || worker == null) return;
+        captureEpoch.invalidate();
+        recognitionActive = true;
+        Log.i(TAG, "Recognition activated for foreground package " + foregroundPackage);
+        firstFrameReported.set(false);
+        resetScrollCompensation();
+        overlay = new OverlayController(
+                this, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY);
+        CensorAppearance appearance = settings.loadAppearance();
+        overlayNeedsSourceFrame = appearance.requiresSourceFrame();
+        overlay.setAppearance(appearance);
+        overlay.setDiagnostics(diagnosticsOverlayText());
+        overlay.show();
+        PopupStormManager.get().start(this);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            worker.execute(this::initializePipeline);
+        }
+    }
+
+    private void deactivateRecognition() {
+        if (!recognitionActive && overlay == null) return;
+        recognitionActive = false;
+        captureEpoch.invalidate();
+        Log.i(TAG, "Recognition suspended for foreground package " + foregroundPackage);
+        ScheduledFuture<?> schedule = captureSchedule;
+        captureSchedule = null;
+        if (schedule != null) schedule.cancel(false);
+        DiagnosticsRepository.stop(DIAGNOSTICS_MODE);
+        if (overlay != null) overlay.close();
+        overlay = null;
+        PopupStormManager.get().stop();
+        dwellTracker.clear();
+        tapTracker.clear();
+        resetScrollCompensation();
+    }
+
+    private void resetScrollCompensation() {
+        cumulativeScrollX.set(0L);
+        cumulativeScrollY.set(0L);
+        cachedTextDetections = Collections.emptyList();
+        cachedTextScrollX = 0L;
+        cachedTextScrollY = 0L;
+        lastScrollEventUptime = 0L;
+        lastAbsoluteScrollX = Integer.MIN_VALUE;
+        lastAbsoluteScrollY = Integer.MIN_VALUE;
+        textRefreshRequested.set(true);
+        main.removeCallbacks(settledVisualRefresh);
+        main.removeCallbacks(settledTextRefresh);
+    }
+
+    @Override
+    public void onInterrupt() {
+        // Android may temporarily interrupt feedback; the scheduled capture loop remains owned here.
+    }
+
+    private String diagnosticsOverlayText() {
+        return diagnosticsOverlayText(DiagnosticsRepository.snapshot());
+    }
+
+    private String diagnosticsOverlayText(DiagnosticsRepository.Snapshot snapshot) {
+        return settings != null && settings.preferences().getBoolean(
+                DiagnosticsRepository.PREF_OVERLAY, false)
+                ? DiagnosticsRepository.overlayText(snapshot) : "";
+    }
+
+    @Override
+    public void onDestroy() {
+        accountForegroundUsage(System.currentTimeMillis());
+        running = false;
+        main.removeCallbacks(timerTick);
+        deactivateRecognition();
+        if (settings != null) {
+            settings.preferences().unregisterOnSharedPreferenceChangeListener(listener);
+        }
+        if (worker != null) worker.shutdownNow();
+        if (textWorker != null) textWorker.shutdownNow();
+        if (detector != null) detector.close();
+        if (hardcoreSettingsGuard != null) hardcoreSettingsGuard.clear();
+        hardcoreSettingsGuard = null;
+        main.removeCallbacks(settledHardcoreGuardRefresh);
+        main.removeCallbacks(settledVisualRefresh);
+        main.removeCallbacks(settledTextRefresh);
+        dwellTracker.clear();
+        tapTracker.clear();
+        recognitionActive = false;
+        super.onDestroy();
+    }
+}
