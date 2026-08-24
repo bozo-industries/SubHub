@@ -18,12 +18,34 @@ public final class CensorTapTracker {
             List<TrackedObject> tracks, int width, int height, long nowMillis) {
         List<BBox> current = new ArrayList<>();
         for (TrackedObject track : tracks) {
-            if (track.isActive() && track.getFramesMissing() == 0) current.add(track.getBox());
+            // If the overlay still renders a predicted track, its tap target must remain active
+            // too. Requiring a detection in the latest frame made the visible censor unbillable.
+            if (track.isActive()) current.add(track.getBox());
         }
         boxes = current;
         frameWidth = Math.max(1, width);
         frameHeight = Math.max(1, height);
         frameAtMillis = nowMillis;
+    }
+
+    /** Keeps tap targets in lockstep with the event-speed overlay between detector frames. */
+    public synchronized void offsetContent(
+            int screenDx, int screenDy, int screenWidth, int screenHeight, long nowMillis) {
+        if (boxes.isEmpty() || (screenDx == 0 && screenDy == 0)) return;
+        int dx = Math.round(screenDx * frameWidth / (float) Math.max(1, screenWidth));
+        int dy = Math.round(screenDy * frameHeight / (float) Math.max(1, screenHeight));
+        List<BBox> shifted = new ArrayList<>(boxes.size());
+        for (BBox box : boxes) {
+            int left = clamp(box.getX() + dx, 0, frameWidth);
+            int top = clamp(box.getY() + dy, 0, frameHeight);
+            int right = clamp(box.getRight() + dx, 0, frameWidth);
+            int bottom = clamp(box.getBottom() + dy, 0, frameHeight);
+            if (right > left && bottom > top) {
+                shifted.add(new BBox(left, top, right - left, bottom - top));
+            }
+        }
+        boxes = shifted;
+        if (!boxes.isEmpty()) frameAtMillis = nowMillis;
     }
 
     public synchronized boolean matchesClick(
@@ -37,11 +59,33 @@ public final class CensorTapTracker {
         long screenArea = (long) safeScreenWidth * safeScreenHeight;
         if (clickArea * 100L >= screenArea * 65L) return false;
         for (BBox box : boxes) {
-            int centerX = Math.round(box.getCenterX() * safeScreenWidth / (float) frameWidth);
-            int centerY = Math.round(box.getCenterY() * safeScreenHeight / (float) frameHeight);
-            if (centerX >= left && centerX <= right && centerY >= top && centerY <= bottom) {
-                return true;
+            int boxLeft = Math.round(box.getX() * safeScreenWidth / (float) frameWidth);
+            int boxTop = Math.round(box.getY() * safeScreenHeight / (float) frameHeight);
+            int boxRight = Math.round(box.getRight() * safeScreenWidth / (float) frameWidth);
+            int boxBottom = Math.round(box.getBottom() * safeScreenHeight / (float) frameHeight);
+            int intersectionLeft = Math.max(left, boxLeft);
+            int intersectionTop = Math.max(top, boxTop);
+            int intersectionRight = Math.min(right, boxRight);
+            int intersectionBottom = Math.min(bottom, boxBottom);
+            if (intersectionRight <= intersectionLeft || intersectionBottom <= intersectionTop) {
+                continue;
             }
+            long intersection = (long) (intersectionRight - intersectionLeft)
+                    * (intersectionBottom - intersectionTop);
+            long boxArea = (long) Math.max(1, boxRight - boxLeft)
+                    * Math.max(1, boxBottom - boxTop);
+            long smallerArea = Math.min(clickArea, boxArea);
+            boolean censorCenterInTarget = box.getCenterX() * safeScreenWidth
+                    >= (long) left * frameWidth
+                    && box.getCenterX() * safeScreenWidth <= (long) right * frameWidth
+                    && box.getCenterY() * safeScreenHeight >= (long) top * frameHeight
+                    && box.getCenterY() * safeScreenHeight <= (long) bottom * frameHeight;
+            int clickCenterX = left + (right - left) / 2;
+            int clickCenterY = top + (bottom - top) / 2;
+            boolean targetCenterInCensor = clickCenterX >= boxLeft && clickCenterX <= boxRight
+                    && clickCenterY >= boxTop && clickCenterY <= boxBottom;
+            if (censorCenterInTarget || targetCenterInCensor
+                    || intersection * 100L >= smallerArea * 15L) return true;
         }
         return false;
     }
@@ -49,5 +93,9 @@ public final class CensorTapTracker {
     public synchronized void clear() {
         boxes = List.of();
         frameAtMillis = 0L;
+    }
+
+    private static int clamp(int value, int minimum, int maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
     }
 }
