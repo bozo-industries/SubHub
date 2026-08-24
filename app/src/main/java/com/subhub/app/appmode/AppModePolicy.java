@@ -37,6 +37,20 @@ public final class AppModePolicy {
                 && candidateClass.endsWith("Activity");
     }
 
+    /**
+     * A package reported by the active Accessibility root is stronger evidence than an event.
+     * The app's own non-focusable overlay cannot own that root, so the own package here means the
+     * user actually opened SubHub and recognition must sleep. System chrome and keyboards remain
+     * transient surfaces over the app underneath them.
+     */
+    public static boolean shouldAcceptLiveForegroundPackage(
+            String packageName, String inputMethodPackage) {
+        String candidate = clean(packageName);
+        return !candidate.isEmpty()
+                && !candidate.equals(clean(inputMethodPackage))
+                && !isTransientSystemSurface(candidate);
+    }
+
     public static Set<String> sanitizePackages(Set<String> packages) {
         if (packages == null || packages.isEmpty()) return Collections.emptySet();
         Set<String> result = new LinkedHashSet<>();
