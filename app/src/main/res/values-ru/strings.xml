@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">SUBHUB</string><string name="header_subtitle">ЛОКАЛЬНАЯ ХРАНИТЕЛЬНИЦА</string>
-    <string name="tab_home">ГЛАВНАЯ</string><string name="tab_settings">НАСТРОЙКИ</string><string name="tab_browser">БРАУЗЕР</string><string name="tab_export">ЭКСПОРТ</string><string name="tab_help">ПОМОЩЬ</string>
+    <string name="header_subtitle">ЛОКАЛЬНАЯ ХРАНИТЕЛЬНИЦА</string>
     <string name="start_protection">ЗАПУСТИТЬ ЗАЩИТУ</string><string name="stop_protection">ОСТАНОВИТЬ ЗАЩИТУ</string><string name="settings_title">НАСТРОЙКИ ЦЕНЗУРЫ</string><string name="back">НАЗАД</string>
     <string name="help_title">ПОМОЩЬ И БЕЗОПАСНОСТЬ</string><string name="help_subtitle">Настройка, конфиденциальность, исправления и руководство по функциям.</string>
     <string name="help_permission_check">ПРОВЕРКА РАЗРЕШЕНИЙ</string><string name="help_fix_permissions">ИСПРАВИТЬ СЛЕДУЮЩЕЕ РАЗРЕШЕНИЕ</string><string name="help_accessibility_settings">НАСТРОЙКИ ЗАХВАТА СПЕЦВОЗМОЖНОСТЕЙ</string><string name="help_choose_language">ВЫБРАТЬ ЯЗЫК ПРИЛОЖЕНИЯ</string>

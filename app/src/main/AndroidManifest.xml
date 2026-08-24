@@ -75,12 +75,32 @@
         <activity android:name=".help.HelpActivity" android:exported="false" />
         <activity android:name=".commitment.CommitmentActivity" android:exported="false" />
         <activity android:name=".appmode.AppModeActivity" android:exported="false" />
-        <activity android:name=".penance.PenanceActivity" android:exported="true">
+        <activity android:name=".penance.PenanceActivity" android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="subhub" android:host="paypal" />
+                <data android:scheme="subhubapp" android:host="paypal"
+                    android:path="/checkout/return" />
+                <data android:scheme="subhubapp" android:host="paypal"
+                    android:path="/checkout/cancel" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".penance.PayPalVaultCallbackActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="subhubapp" android:host="paypal"
+                    android:path="/vault/return" />
+                <data android:scheme="subhubapp" android:host="paypal"
+                    android:path="/vault/cancel" />
             </intent-filter>
         </activity>
 

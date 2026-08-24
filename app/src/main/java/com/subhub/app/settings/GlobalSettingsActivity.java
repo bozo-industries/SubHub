@@ -71,6 +71,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private boolean updatingPaypalEnvironment;
     private boolean updatingAutoPay;
     private boolean paypalConnecting;
+    private boolean paypalVaultBusy;
     private boolean editingUnlocked;
     private final Set<String> censorPackages = new LinkedHashSet<>();
     private final Set<String> timerPackages = new LinkedHashSet<>();
@@ -136,6 +137,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.buttonSavePaypal.setOnClickListener(view -> savePayPalLink());
         binding.buttonSavePaypalSandbox.setOnClickListener(view -> savePayPalSandbox());
         binding.buttonClearPaypalSandbox.setOnClickListener(view -> clearPayPalSandbox());
+        binding.buttonLinkPaypalWallet.setOnClickListener(view -> linkPayPalWallet());
         binding.paypalEnvironment.setOnCheckedChangeListener((group, checkedId) -> {
             if (!updatingPaypalEnvironment) changePayPalEnvironment(checkedId);
         });
@@ -216,6 +218,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.paypalClientSecret.setEnabled(editingUnlocked);
         binding.buttonSavePaypalSandbox.setEnabled(editingUnlocked && !paypalConnecting);
         binding.buttonClearPaypalSandbox.setEnabled(editingUnlocked);
+        binding.buttonLinkPaypalWallet.setEnabled(editingUnlocked
+                && paypalCredentials.hasVerifiedCredentials() && !paypalVaultBusy);
         binding.paypalEnvironmentSandbox.setEnabled(editingUnlocked);
         binding.paypalEnvironmentLive.setEnabled(editingUnlocked);
         binding.paypalAutoPayEnabled.setEnabled(editingUnlocked);
@@ -349,9 +353,84 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                 && !vaultState.maskedPayer().isEmpty()
                 ? getString(R.string.paypal_vault_status_linked, vaultState.maskedPayer())
                 : getString(vaultStatus));
+        PayPalCredentialStore.PendingVaultSetup pending =
+                paypalCredentials.pendingVaultSetup();
+        int linkLabel = paypalVaultBusy ? R.string.paypal_wallet_linking
+                : pending.isPresent() && validPayPalLink(pending.approvalUrl())
+                ? R.string.paypal_wallet_resume
+                : vaultState.isReady() ? R.string.paypal_wallet_relink
+                : R.string.paypal_wallet_link;
+        binding.buttonLinkPaypalWallet.setText(linkLabel);
+        binding.buttonLinkPaypalWallet.setEnabled(editingUnlocked
+                && paypalCredentials.hasVerifiedCredentials() && !paypalVaultBusy);
         updatingAutoPay = true;
         binding.paypalAutoPayEnabled.setChecked(autoPay.isEnabled());
         updatingAutoPay = false;
+    }
+
+    private void linkPayPalWallet() {
+        if (!editingUnlocked || paypalVaultBusy) return;
+        if (!paypalCredentials.hasVerifiedCredentials()) {
+            Toast.makeText(this, R.string.paypal_wallet_connect_first,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        PayPalCredentialStore.PendingVaultSetup pending =
+                paypalCredentials.pendingVaultSetup();
+        if (pending.isPresent() && validPayPalLink(pending.approvalUrl())) {
+            if (!openPayPalApproval(pending.approvalUrl())) {
+                Toast.makeText(this, R.string.paypal_wallet_open_failed,
+                        Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+        PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
+        paypalVaultBusy = true;
+        refreshPayPalSandboxState();
+        paypalClient.createVaultSetupToken(credentials,
+                paypalCredentials.vaultState().customerId(), result -> {
+                    paypalVaultBusy = false;
+                    if (binding == null) return;
+                    if (!result.isSuccess()) {
+                        if (result.errorKind()
+                                == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
+                            paypalCredentials.markVaultUnavailable(credentials);
+                            Toast.makeText(this, R.string.paypal_vault_not_enabled,
+                                    Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(this, getString(
+                                    R.string.paypal_vault_link_failed, result.error()),
+                                    Toast.LENGTH_LONG).show();
+                        }
+                        refreshPayPalSandboxState();
+                        return;
+                    }
+                    PayPalOrdersClient.VaultSetup setup = result.value();
+                    if (!paypalCredentials.recordPendingVaultSetup(credentials,
+                            setup.setupTokenId(), setup.customerId(),
+                            setup.clientMetadataId(), setup.approvalUrl())) {
+                        Toast.makeText(this, R.string.paypal_sandbox_store_failed,
+                                Toast.LENGTH_LONG).show();
+                        refreshPayPalSandboxState();
+                        return;
+                    }
+                    refreshPayPalSandboxState();
+                    if (!openPayPalApproval(setup.approvalUrl())) {
+                        Toast.makeText(this, R.string.paypal_wallet_open_failed,
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
+    }
+
+    private boolean openPayPalApproval(String approvalUrl) {
+        if (!validPayPalLink(approvalUrl)) return false;
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW,
+                    android.net.Uri.parse(approvalUrl)));
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private PayPalEnvironment selectedPayPalEnvironment() {

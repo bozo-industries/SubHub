@@ -26,7 +26,7 @@ public final class SessionTrendView extends View {
         timePaint.setAlpha(110);
         axisPaint.setColor(context.getColor(R.color.surface_high));
         axisPaint.setStrokeWidth(dp(1));
-        setContentDescription("Recent session blocks and duration chart");
+        setContentDescription(context.getString(R.string.statistics_chart_description));
     }
 
     public void setEntries(List<StatsRepository.SessionEntry> values) {

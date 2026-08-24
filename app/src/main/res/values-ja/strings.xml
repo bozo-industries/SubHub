@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">SUBHUB</string><string name="header_subtitle">ローカルガーディアン</string>
-    <string name="tab_home">ホーム</string><string name="tab_settings">設定</string><string name="tab_browser">ブラウザ</string><string name="tab_export">エクスポート</string><string name="tab_help">ヘルプ</string>
+    <string name="header_subtitle">ローカルガーディアン</string>
     <string name="start_protection">保護を開始</string><string name="stop_protection">保護を停止</string><string name="settings_title">検閲設定</string><string name="back">戻る</string>
     <string name="help_title">ヘルプと安全</string><string name="help_subtitle">設定、プライバシー、修復、機能ガイド。</string>
     <string name="help_permission_check">権限チェック</string><string name="help_fix_permissions">次の権限を修復</string><string name="help_accessibility_settings">ユーザー補助キャプチャ設定</string><string name="help_choose_language">アプリの言語を選択</string>

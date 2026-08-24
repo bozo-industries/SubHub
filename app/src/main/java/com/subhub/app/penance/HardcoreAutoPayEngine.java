@@ -55,7 +55,8 @@ final class HardcoreAutoPayEngine {
         penance.markAutomaticSettlement(settlement.getId(), credentials.boundaryId());
         PayPalOrdersClient client = new PayPalOrdersClient(app);
         client.createStoredWalletPayment(credentials, settlement.getId(),
-                settlement.getAmountCents(), vault.vaultId(), result -> {
+                settlement.getAmountCents(), vault.vaultId(),
+                PayPalOrderDetails.from(app, settlement), result -> {
                     try {
                         if (result.isSuccess()) {
                             if (penance.completeSettlement(

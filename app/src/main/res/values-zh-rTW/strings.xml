@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">SUBHUB</string><string name="header_subtitle">本機守護者</string>
-    <string name="tab_home">首頁</string><string name="tab_settings">設定</string><string name="tab_browser">瀏覽器</string><string name="tab_export">匯出</string><string name="tab_help">說明</string>
+    <string name="header_subtitle">本機守護者</string>
     <string name="start_protection">啟動保護</string><string name="stop_protection">停止保護</string><string name="settings_title">審查設定</string><string name="back">返回</string>
     <string name="help_title">說明與安全</string><string name="help_subtitle">設定、隱私、修復和功能指南。</string>
     <string name="help_permission_check">權限檢查</string><string name="help_fix_permissions">修復下一個權限</string><string name="help_accessibility_settings">無障礙擷取設定</string><string name="help_choose_language">選擇應用程式語言</string>

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">SUBHUB</string><string name="header_subtitle">로컬 가디언</string>
-    <string name="tab_home">홈</string><string name="tab_settings">설정</string><string name="tab_browser">브라우저</string><string name="tab_export">내보내기</string><string name="tab_help">도움말</string>
+    <string name="header_subtitle">로컬 가디언</string>
     <string name="start_protection">보호 시작</string><string name="stop_protection">보호 중지</string><string name="settings_title">검열 설정</string><string name="back">뒤로</string>
     <string name="help_title">도움말 및 안전</string><string name="help_subtitle">설정, 개인정보 보호, 복구 및 기능 안내.</string>
     <string name="help_permission_check">권한 확인</string><string name="help_fix_permissions">다음 권한 수정</string><string name="help_accessibility_settings">접근성 캡처 설정</string><string name="help_choose_language">앱 언어 선택</string>

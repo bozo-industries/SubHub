@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">SUBHUB</string><string name="header_subtitle">LOKALE SCHUTZWÄCHTERIN</string>
-    <string name="tab_home">START</string><string name="tab_settings">EINSTELLUNGEN</string><string name="tab_browser">BROWSER</string><string name="tab_export">EXPORT</string><string name="tab_help">HILFE</string>
+    <string name="header_subtitle">LOKALE SCHUTZWÄCHTERIN</string>
     <string name="start_protection">SCHUTZ STARTEN</string><string name="stop_protection">SCHUTZ STOPPEN</string><string name="settings_title">ZENSUR-EINSTELLUNGEN</string><string name="back">ZURÜCK</string>
     <string name="help_title">HILFE &amp; SICHERHEIT</string><string name="help_subtitle">Einrichtung, Datenschutz, Reparaturen und Funktionshinweise.</string>
     <string name="help_permission_check">BERECHTIGUNGEN PRÜFEN</string><string name="help_fix_permissions">NÄCHSTE BERECHTIGUNG REPARIEREN</string><string name="help_accessibility_settings">EINSTELLUNGEN FÜR BARRIEREFREIE AUFNAHME</string><string name="help_choose_language">APP-SPRACHE WÄHLEN</string>

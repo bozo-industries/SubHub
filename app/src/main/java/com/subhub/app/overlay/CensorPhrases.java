@@ -43,12 +43,13 @@ public final class CensorPhrases {
     private static Map<String, List<String>> categories() {
         Map<String, List<String>> value = new LinkedHashMap<>();
         value.put("short", Arrays.asList("BLOCKED", "CENSORED", "DENIED", "LOCKED"));
-        value.put("denial", Arrays.asList("NO PEEKING", "ACCESS DENIED", "NOT FOR YOU"));
-        value.put("humiliation", Arrays.asList("EYES FORWARD", "PERMISSION REQUIRED", "BEHAVE"));
-        value.put("edge", Arrays.asList("LOOK AWAY", "HANDS OFF", "STAY FOCUSED"));
-        value.put("findom", Arrays.asList("LOCKED BY CHOICE", "EARN PERMISSION"));
-        value.put("ntr", Arrays.asList("NOT YOUR VIEW", "KEEP SCROLLING"));
-        value.put("gooner", Arrays.asList("BREAK THE LOOP", "CLOSE THE TAB"));
+        value.put("denial", Arrays.asList("NO PEEKING", "ACCESS DENIED", "EYES OFF"));
+        value.put("humiliation", Arrays.asList(
+                "EYES FORWARD, BETA", "ASK PERMISSION", "BEHAVE, CUCK"));
+        value.put("edge", Arrays.asList("LOOK AWAY", "HANDS OFF", "NO RELIEF"));
+        value.put("findom", Arrays.asList("TRIBUTE FIRST", "PAY TO PEEK", "EARN IT"));
+        value.put("ntr", Arrays.asList("NOT YOURS TO SEE", "KEEP SCROLLING"));
+        value.put("gooner", Arrays.asList("BREAK THE LOOP", "HANDS OFF", "CLOSE IT"));
         return value;
     }
 

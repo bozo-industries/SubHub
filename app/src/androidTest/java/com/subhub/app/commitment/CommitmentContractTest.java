@@ -86,7 +86,6 @@ public final class CommitmentContractTest {
             scenario.onActivity(activity -> {
                 activity.findViewById(R.id.button_edit_lock).performClick();
                 assertFalse(ControllerPinManager.isDomModeActive());
-                assertEquals(View.GONE, activity.findViewById(R.id.setup_panel).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.active_panel).getVisibility());
                 assertFalse(((TextView) activity.findViewById(R.id.countdown))
                         .getText().toString().isEmpty());
@@ -120,9 +119,9 @@ public final class CommitmentContractTest {
 
     @Test public void pactAndHardcoreCopyAvoidsImplementationJargon() {
         String hardcore = context.getString(R.string.hardcore_title).toLowerCase();
-        String pactSetup = context.getString(R.string.commitment_setup_body).toLowerCase();
+        String pactCopy = context.getString(R.string.commitment_active_body).toLowerCase();
         assertFalse(hardcore.contains("consensual"));
-        assertFalse(pactSetup.contains("hash"));
-        assertFalse(pactSetup.contains("salt"));
+        assertFalse(pactCopy.contains("hash"));
+        assertFalse(pactCopy.contains("salt"));
     }
 }

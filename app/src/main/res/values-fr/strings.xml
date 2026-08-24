@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="header_title">SUBHUB</string><string name="header_subtitle">GARDIENNE LOCALE</string>
-    <string name="tab_home">ACCUEIL</string><string name="tab_settings">RÉGLAGES</string><string name="tab_browser">NAVIGATEUR</string><string name="tab_export">EXPORT</string><string name="tab_help">AIDE</string>
+    <string name="header_subtitle">GARDIENNE LOCALE</string>
     <string name="start_protection">DÉMARRER LA PROTECTION</string><string name="stop_protection">ARRÊTER LA PROTECTION</string><string name="settings_title">RÉGLAGES DE CENSURE</string><string name="back">RETOUR</string>
     <string name="help_title">AIDE ET SÉCURITÉ</string><string name="help_subtitle">Configuration, confidentialité, réparations et guide des fonctions.</string>
     <string name="help_permission_check">VÉRIFICATION DES AUTORISATIONS</string><string name="help_fix_permissions">CORRIGER L’AUTORISATION SUIVANTE</string><string name="help_accessibility_settings">RÉGLAGES DE CAPTURE D’ACCESSIBILITÉ</string><string name="help_choose_language">CHOISIR LA LANGUE DE L’APP</string>

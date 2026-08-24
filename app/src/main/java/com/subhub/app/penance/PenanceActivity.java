@@ -352,26 +352,18 @@ public final class PenanceActivity extends AppCompatActivity {
         checkoutBusy = true;
         render();
         PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
-        boolean requestVault = paypalCredentials.vaultState().status()
-                != PayPalCredentialStore.VaultStatus.UNAVAILABLE;
         paypalClient.createOrder(credentials, settlement.getId(),
-                settlement.getAmountCents(), requestVault, result -> {
+                settlement.getAmountCents(), false,
+                PayPalOrderDetails.from(this, settlement), result -> {
                     checkoutBusy = false;
                     if (binding == null) return;
                     if (!result.isSuccess()) {
-                        if (result.errorKind()
-                                == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
-                            paypalCredentials.markVaultUnavailable(credentials);
-                        }
                         manager.cancelSettlement(settlement.getId());
                         toast(getString(R.string.penance_checkout_failed, result.error()));
                         render();
                         return;
                     }
                     PayPalOrdersClient.Order order = result.value();
-                    if (!order.vaultRequested()) {
-                        paypalCredentials.markVaultUnavailable(credentials);
-                    }
                     activeClientMetadataId = order.clientMetadataId();
                     manager.bindOrder(settlement.getId(), order.id(), order.approvalUrl(),
                             credentials.boundaryId());
@@ -438,17 +430,12 @@ public final class PenanceActivity extends AppCompatActivity {
                     checkoutBusy = false;
                     if (binding == null) return;
                     if (!result.isSuccess()) {
-                        if (result.errorKind()
-                                == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE) {
-                            paypalCredentials.markVaultUnavailable(credentials);
-                        }
                         toast(getString(R.string.penance_checkout_failed, result.error()));
                         render();
                         return;
                     }
                     PayPalOrdersClient.Capture capture = result.value();
-                    if (paypalCredentials.vaultState().status()
-                            != PayPalCredentialStore.VaultStatus.UNAVAILABLE) {
+                    if (!capture.vaultId().isEmpty() && !capture.customerId().isEmpty()) {
                         paypalCredentials.recordVaultResult(credentials,
                                 capture.vaultStatus(), capture.vaultId(), capture.customerId(),
                                 capture.payerEmail(), capture.payerAccountId());
@@ -463,12 +450,12 @@ public final class PenanceActivity extends AppCompatActivity {
     private void handlePayPalReturn(Intent intent) {
         if (intent == null || !Intent.ACTION_VIEW.equals(intent.getAction())) return;
         Uri data = intent.getData();
-        if (data == null || !"subhub".equalsIgnoreCase(data.getScheme())
+        if (data == null || !"subhubapp".equalsIgnoreCase(data.getScheme())
                 || !"paypal".equalsIgnoreCase(data.getHost())) return;
         String metadata = data.getQueryParameter("cmid");
         if (metadata != null && metadata.length() <= 36) activeClientMetadataId = metadata;
-        if ("/cancel".equalsIgnoreCase(data.getPath())) cancelCheckout();
-        else if ("/return".equalsIgnoreCase(data.getPath())) capturePayPalPayment();
+        if ("/checkout/cancel".equalsIgnoreCase(data.getPath())) cancelCheckout();
+        else if ("/checkout/return".equalsIgnoreCase(data.getPath())) capturePayPalPayment();
     }
 
     private void cancelCheckout() {
