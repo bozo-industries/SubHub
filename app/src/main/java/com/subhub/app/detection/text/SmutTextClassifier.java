@@ -1,5 +1,7 @@
 package com.subhub.app.detection.text;
 
+import android.content.Context;
+
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,8 +25,26 @@ public final class SmutTextClassifier {
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     private static final Pattern LETTER_SPACED = Pattern.compile(
             "(?:(?<=^)|(?<=\\s))(?:[a-z]\\s+){2,}[a-z](?=\\s|$)");
+    private final LocalSmutModel semanticModel;
+
+    public SmutTextClassifier() {
+        semanticModel = null;
+    }
+
+    public SmutTextClassifier(Context context) {
+        semanticModel = context == null ? null : new LocalSmutModel(context);
+    }
+
+    /** Loads the compact table before the first protected frame needs contextual scoring. */
+    public void warmSemanticModel() {
+        if (semanticModel != null) semanticModel.score("local model warmup");
+    }
 
     public Match classify(String source, TextSmutConfig config) {
+        return classify(source, config, false);
+    }
+
+    public Match classify(String source, TextSmutConfig config, boolean semanticEnabled) {
         if (config == null || !config.isEnabled() || source == null) return Match.none();
         String text = normalize(source);
         if (text.length() < 3) return Match.none();
@@ -53,7 +73,9 @@ public final class SmutTextClassifier {
         if (SAFE_CONTEXT.matcher(text).find()) score = Math.max(0, score - 5);
         int threshold = config.getSensitivity() == TextSmutConfig.SENSITIVITY_STRICT
                 ? 6 : config.getSensitivity() == TextSmutConfig.SENSITIVITY_BROAD ? 3 : 4;
-        if (score < threshold) return Match.none();
+        if (score < threshold) {
+            return classifySemantically(text, config, semanticEnabled);
+        }
 
         String category = TextSmutConfig.CATEGORY_EXPLICIT;
         int strongest = explicit;
@@ -66,6 +88,20 @@ public final class SmutTextClassifier {
         return new Match(true, category, score, confidence,
                 matchStart == text.length() ? 0 : matchStart,
                 Math.max(matchStart + 1, matchEnd), text.length());
+    }
+
+    private Match classifySemantically(
+            String normalizedText, TextSmutConfig config, boolean semanticEnabled) {
+        if (!semanticEnabled || semanticModel == null
+                || !config.getEnabledCategories().contains(TextSmutConfig.CATEGORY_EXPLICIT)
+                || SAFE_CONTEXT.matcher(normalizedText).find()) return Match.none();
+        float probability = semanticModel.score(normalizedText);
+        float threshold = config.getSensitivity() == TextSmutConfig.SENSITIVITY_STRICT
+                ? 0.75f : config.getSensitivity() == TextSmutConfig.SENSITIVITY_BROAD
+                ? 0.40f : 0.52f;
+        return probability < threshold ? Match.none()
+                : Match.semantic(TextSmutConfig.CATEGORY_EXPLICIT,
+                        probability, normalizedText.length());
     }
 
     static String normalize(String source) {
@@ -186,6 +222,10 @@ public final class SmutTextClassifier {
         }
 
         public static Match none() { return NONE; }
+        static Match semantic(String category, float confidence, int normalizedLength) {
+            return new Match(true, category, 0, confidence,
+                    0, Math.max(1, normalizedLength), normalizedLength);
+        }
         public boolean isMatched() { return matched; }
         public String getCategory() { return category; }
         public int getScore() { return score; }

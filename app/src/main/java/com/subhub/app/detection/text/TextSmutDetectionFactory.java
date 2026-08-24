@@ -14,8 +14,18 @@ final class TextSmutDetectionFactory {
     }
 
     Detection create(String text, Rect source, TextSmutConfig config, int width, int height) {
+        return create(text, source, config, width, height, false);
+    }
+
+    Detection create(
+            String text,
+            Rect source,
+            TextSmutConfig config,
+            int width,
+            int height,
+            boolean semanticEnabled) {
         if (source == null || source.isEmpty() || width <= 0 || height <= 0) return null;
-        SmutTextClassifier.Match match = classifier.classify(text, config);
+        SmutTextClassifier.Match match = classifier.classify(text, config, semanticEnabled);
         if (!match.isMatched()) return null;
         BBox projected = TextRegionProjector.project(text, match,
                 source.left, source.top, source.right, source.bottom, width, height);

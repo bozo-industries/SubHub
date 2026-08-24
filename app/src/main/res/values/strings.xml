@@ -164,7 +164,7 @@
     <string name="category_armpits">Armpits</string>
     <string name="category_covered">Covered categories</string>
     <string name="text_smut_title">EXPLICIT TEXT</string>
-    <string name="text_smut_description">Censor sexual writing as well as images. App Mode reads visible native app text immediately and keeps all classification on this device.</string>
+    <string name="text_smut_description">Censor sexual writing. High understands context; Ultra also reads text drawn inside images.</string>
     <string name="text_smut_enable">Detect explicit text</string>
     <string name="text_smut_sensitivity">TEXT SENSITIVITY</string>
     <string name="text_smut_sensitivity_help">Balanced requires an explicit word or several contextual signals. Strict reduces false positives; Broad catches more suggestive wording.</string>
