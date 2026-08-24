@@ -3,6 +3,8 @@ package com.subhub.app.penance;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.subhub.app.appmode.AppModeManager;
+import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.settings.FeatureModuleManager;
 
 import java.time.ZoneId;
@@ -27,6 +29,9 @@ public final class PenanceManager {
     public static final int DEFAULT_MERCY_MINUTES = 10;
     public static final int DEFAULT_DWELL_SECONDS = 10;
     public static final int DEFAULT_DETECTION_BATCH = 1;
+    public static final int DEFAULT_TAMPER_COOLDOWN_MINUTES = 5;
+    public static final int MIN_TAMPER_COOLDOWN_MINUTES = 1;
+    public static final int MAX_TAMPER_COOLDOWN_MINUTES = 1_440;
     public static final String CURRENCY = "EUR";
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_STRIKE_CENTS = "strike_cents";
@@ -36,6 +41,8 @@ public final class PenanceManager {
     private static final String KEY_DWELL_SECONDS = "dwell_seconds";
     private static final String KEY_DETECTION_BATCH = "detection_batch";
     private static final String KEY_DETECTION_REMAINDER = "detection_batch_remainder";
+    private static final String KEY_TAMPER_COOLDOWN_MINUTES = "tamper_cooldown_minutes";
+    private static final String KEY_LAST_TAMPER_AT = "last_tamper_at";
     private static final String KEY_EVENTS = "events_v1";
     private static final String LEGACY_KEY_BACKEND_URL = "paypal_backend_url";
     private static final String KEY_PAYPAL_LINK = "paypal_payment_link";
@@ -108,6 +115,11 @@ public final class PenanceManager {
                 preferences.getInt(KEY_DETECTION_REMAINDER, 0)));
     }
 
+    public int getTamperCooldownMinutes() {
+        return clampTamperCooldown(preferences.getInt(
+                KEY_TAMPER_COOLDOWN_MINUTES, DEFAULT_TAMPER_COOLDOWN_MINUTES));
+    }
+
     public int getDailyRemainingCents(long nowMillis) {
         synchronized (LOCK) {
             int used = PenancePolicy.periodTotal(
@@ -151,6 +163,13 @@ public final class PenanceManager {
     public void configure(boolean enabled, Map<PenanceInfraction, Integer> enabledRuleCosts,
             int dailyCapCents, int weeklyCapCents, int mercyMinutes, int dwellSeconds,
             int detectionBatch) {
+        configure(enabled, enabledRuleCosts, dailyCapCents, weeklyCapCents, mercyMinutes,
+                dwellSeconds, detectionBatch, getTamperCooldownMinutes());
+    }
+
+    public void configure(boolean enabled, Map<PenanceInfraction, Integer> enabledRuleCosts,
+            int dailyCapCents, int weeklyCapCents, int mercyMinutes, int dwellSeconds,
+            int detectionBatch, int tamperCooldownMinutes) {
         Map<PenanceInfraction, Integer> rules = enabledRuleCosts == null
                 ? Collections.emptyMap() : enabledRuleCosts;
         int largestRule = PenancePolicy.MIN_STRIKE_CENTS;
@@ -172,6 +191,8 @@ public final class PenanceManager {
                 .putInt(KEY_MERCY_MINUTES, PenancePolicy.clampMercyMinutes(mercyMinutes))
                 .putInt(KEY_DWELL_SECONDS, PenancePolicy.clampDwellSeconds(dwellSeconds))
                 .putInt(KEY_DETECTION_BATCH, boundedBatch)
+                .putInt(KEY_TAMPER_COOLDOWN_MINUTES,
+                        clampTamperCooldown(tamperCooldownMinutes))
                 .remove(LEGACY_KEY_BACKEND_URL);
         if (resetDetectionProgress) editor.putInt(KEY_DETECTION_REMAINDER, 0);
         for (PenanceInfraction infraction : PenanceInfraction.values()) {
@@ -191,8 +212,15 @@ public final class PenanceManager {
     /** Returns the bounded amount added to the ledger in cents. */
     public int recordInfraction(PenanceInfraction infraction, int count, long nowMillis) {
         if (infraction == null || !isEnabled() || !isInfractionEnabled(infraction)
-                || count <= 0) return 0;
+                || !new AppModeManager(context).isArmed() || count <= 0) return 0;
         synchronized (LOCK) {
+            if (infraction == PenanceInfraction.TAMPER_ATTEMPT) {
+                HardcoreModeManager hardcore = new HardcoreModeManager(context);
+                if (!hardcore.isRequested()) return 0;
+                long last = preferences.getLong(KEY_LAST_TAMPER_AT, 0L);
+                long cooldown = getTamperCooldownMinutes() * 60_000L;
+                if (last > 0L && nowMillis >= last && nowMillis - last < cooldown) return 0;
+            }
             int billableCount = count;
             if (infraction == PenanceInfraction.NEW_DETECTION) {
                 int batch = getDetectionBatch();
@@ -213,9 +241,17 @@ public final class PenanceManager {
             events.add(new PenanceEvent(UUID.randomUUID().toString(), nowMillis, mercyEnds,
                     amount, billableCount, infraction, PenanceEvent.Status.OPEN, ""));
             saveEvents(events);
+            if (infraction == PenanceInfraction.TAMPER_ATTEMPT) {
+                preferences.edit().putLong(KEY_LAST_TAMPER_AT, nowMillis).apply();
+            }
             HardcoreAutoPayManager.schedule(context);
             return amount;
         }
+    }
+
+    private static int clampTamperCooldown(int minutes) {
+        return Math.max(MIN_TAMPER_COOLDOWN_MINUTES,
+                Math.min(MAX_TAMPER_COOLDOWN_MINUTES, minutes));
     }
 
     /** Compatibility entry point for the original new-detection rule. */

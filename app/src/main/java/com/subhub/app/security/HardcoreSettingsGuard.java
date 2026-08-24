@@ -20,6 +20,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Toast;
 
 import com.subhub.app.R;
+import com.subhub.app.penance.TamperTributeReporter;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -248,6 +249,7 @@ public final class HardcoreSettingsGuard {
         badge.setBackground(new ColorDrawable(0xFF211E24));
         badge.setOnTouchListener((view, event) -> {
             if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                TamperTributeReporter.record(service);
                 Toast.makeText(service, R.string.hardcore_settings_blocked,
                         Toast.LENGTH_SHORT).show();
             }

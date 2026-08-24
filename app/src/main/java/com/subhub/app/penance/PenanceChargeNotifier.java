@@ -9,6 +9,8 @@ import com.subhub.app.R;
 
 /** Shows a compact confirmation only after a real ledger entry has been created. */
 public final class PenanceChargeNotifier {
+    private static Toast activeToast;
+
     private PenanceChargeNotifier() {}
 
     public static void show(Context context, PenanceManager manager,
@@ -22,8 +24,11 @@ public final class PenanceChargeNotifier {
                 label(context, infraction), PenanceManager.formatMoney(amountCents),
                 PenanceManager.formatMoney(unsettledCents));
         Context app = context.getApplicationContext();
-        new Handler(Looper.getMainLooper()).post(
-                () -> Toast.makeText(app, message, Toast.LENGTH_LONG).show());
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (activeToast != null) activeToast.cancel();
+            activeToast = Toast.makeText(app, message, Toast.LENGTH_LONG);
+            activeToast.show();
+        });
     }
 
     private static String label(Context context, PenanceInfraction infraction) {
@@ -35,6 +40,9 @@ public final class PenanceChargeNotifier {
         }
         if (infraction == PenanceInfraction.WATCHED_APP_OPEN) {
             return context.getString(R.string.penance_history_app_open);
+        }
+        if (infraction == PenanceInfraction.TAMPER_ATTEMPT) {
+            return context.getString(R.string.penance_history_tamper);
         }
         return context.getString(R.string.penance_history_detection);
     }

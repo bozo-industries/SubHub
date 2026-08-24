@@ -18,6 +18,8 @@ import com.subhub.app.R;
 import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.commitment.CommitmentManager;
 import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.security.HardcoreModeManager;
+import com.subhub.app.settings.SettingsRepository;
 
 import org.junit.After;
 import org.junit.Before;
@@ -36,7 +38,10 @@ public final class PenanceContractTest {
         context = ApplicationProvider.getApplicationContext();
         context.getSharedPreferences(PenanceManager.PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().clear().commit();
+        context.getSharedPreferences(SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE)
+                .edit().remove(HardcoreModeManager.KEY_REQUESTED).commit();
         manager = new PenanceManager(context);
+        new AppModeManager(context).setArmed(true);
         new HardcoreAutoPayManager(context).disable();
     }
 
@@ -45,8 +50,20 @@ public final class PenanceContractTest {
         new PaidPauseManager(context).finish();
         context.getSharedPreferences(PenanceManager.PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().clear().commit();
+        context.getSharedPreferences(SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE)
+                .edit().remove(HardcoreModeManager.KEY_REQUESTED).commit();
         new PayPalCredentialStore(context).clear();
         new HardcoreAutoPayManager(context).disable();
+        new AppModeManager(context).setArmed(false);
+    }
+
+    @Test public void disabledProtectionNeverCreatesTribute() {
+        long now = 1_725_552_000_000L;
+        manager.configure(true, 100, 500, 2_000, 0);
+        new AppModeManager(context).setArmed(false);
+
+        assertEquals(0, manager.recordStrikes(1, now));
+        assertTrue(manager.snapshot(now).getEvents().isEmpty());
     }
 
     @Test public void paidPauseUsesItsExactConfiguredCheckoutAndStartsAfterPayment() {
@@ -186,6 +203,24 @@ public final class PenanceContractTest {
         assertTrue(manager.snapshot(now).getEvents().stream().anyMatch(event ->
                 event.getInfraction() == PenanceInfraction.CENSORED_TAP
                         && event.getAmountCents() == 250));
+    }
+
+    @Test public void tamperTributeRequiresHardcoreAndIsRateLimited() {
+        long now = 1_725_552_000_000L;
+        Map<PenanceInfraction, Integer> rules = new EnumMap<>(PenanceInfraction.class);
+        rules.put(PenanceInfraction.TAMPER_ATTEMPT, 500);
+        manager.configure(true, rules, 2_000, 10_000, 0, 10, 1, 5);
+
+        assertEquals(0, manager.recordInfraction(
+                PenanceInfraction.TAMPER_ATTEMPT, 1, now));
+        context.getSharedPreferences(SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE)
+                .edit().putBoolean(HardcoreModeManager.KEY_REQUESTED, true).commit();
+        assertEquals(500, manager.recordInfraction(
+                PenanceInfraction.TAMPER_ATTEMPT, 1, now));
+        assertEquals(0, manager.recordInfraction(
+                PenanceInfraction.TAMPER_ATTEMPT, 1, now + 4 * 60_000L));
+        assertEquals(500, manager.recordInfraction(
+                PenanceInfraction.TAMPER_ATTEMPT, 1, now + 5 * 60_000L));
     }
 
     @Test public void newDetectionRuleBillsOnlyAtConfiguredBatchBoundary() {

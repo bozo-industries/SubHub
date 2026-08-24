@@ -4,6 +4,8 @@ import android.os.Build;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityRecord;
 
+import androidx.annotation.RequiresApi;
+
 /** Converts Accessibility scroll metadata into immediate screen-pixel overlay motion. */
 final class AccessibilityScrollMotionResolver {
     private String absoluteKey = "";
@@ -70,6 +72,7 @@ final class AccessibilityScrollMotionResolver {
         return best;
     }
 
+    @RequiresApi(Build.VERSION_CODES.P)
     private static Motion motionFromRecord(
             AccessibilityRecord record, int viewportWidth, int viewportHeight) {
         int contentDx = normalizeDelta(record.getScrollDeltaX());

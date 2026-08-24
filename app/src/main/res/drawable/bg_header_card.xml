@@ -1,17 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:top="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/shadow_soft" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
     <item>
         <shape android:shape="rectangle">
-            <gradient android:angle="0" android:startColor="#FF181220"
-                android:centerColor="#FF21142E" android:endColor="#FF30133B" />
-            <stroke android:width="1dp" android:color="#805A3470" />
+            <gradient android:angle="0" android:startColor="#FF15111D"
+                android:centerColor="#FF21172C" android:endColor="#FF2A1836" />
+            <stroke android:width="1dp" android:color="@color/outline_default" />
             <corners android:radius="18dp" />
         </shape>
     </item>
     <item android:height="2dp" android:gravity="bottom">
         <shape android:shape="rectangle">
-            <gradient android:angle="0" android:startColor="@color/accent"
-                android:endColor="@color/accent_hot" />
+            <gradient android:angle="0" android:startColor="@color/accent_dim"
+                android:endColor="@color/accent_hot_dim" />
             <corners android:bottomLeftRadius="18dp" android:bottomRightRadius="18dp" />
         </shape>
     </item>

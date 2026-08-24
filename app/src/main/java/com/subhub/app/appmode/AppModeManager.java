@@ -18,6 +18,7 @@ import java.util.Set;
 public final class AppModeManager {
     public static final String KEY_ARMED = "app_mode_armed";
     public static final String KEY_MODE = "app_mode_kind";
+    public static final String KEY_MODE_EXPLICIT = "app_mode_kind_explicit_v2";
     public static final String KEY_SELECTED_PACKAGES = "app_mode_selected_packages";
     public static final String KEY_TIMER_PACKAGES = "app_timer_selected_packages";
     private static final String MODE_ALWAYS = "always";
@@ -43,11 +44,16 @@ public final class AppModeManager {
     }
 
     public AppModePolicy.Mode getMode() {
+        String storedMode = preferences.getString(KEY_MODE, MODE_ALWAYS);
+        if (preferences.getBoolean(KEY_MODE_EXPLICIT, false)) {
+            return MODE_SELECTED.equals(storedMode)
+                    ? AppModePolicy.Mode.SELECTED_APPS : AppModePolicy.Mode.ALWAYS;
+        }
         // Per-app Censor checkboxes are the most specific intent. Older builds saved them
         // independently from this mode and could leave a stale "always" value behind, causing
         // recognition in every app despite an explicit X-only (or similar) assignment.
         if (!getSelectedPackages().isEmpty()) return AppModePolicy.Mode.SELECTED_APPS;
-        return MODE_SELECTED.equals(preferences.getString(KEY_MODE, MODE_ALWAYS))
+        return MODE_SELECTED.equals(storedMode)
                 ? AppModePolicy.Mode.SELECTED_APPS : AppModePolicy.Mode.ALWAYS;
     }
 
@@ -71,7 +77,9 @@ public final class AppModeManager {
                         new LinkedHashSet<>(cleanCensorPackages))
                 .putStringSet(KEY_TIMER_PACKAGES,
                         new LinkedHashSet<>(AppModePolicy.sanitizePackages(timerPackages)));
-        if (!cleanCensorPackages.isEmpty()) editor.putString(KEY_MODE, MODE_SELECTED);
+        if (!cleanCensorPackages.isEmpty()) {
+            editor.putString(KEY_MODE, MODE_SELECTED).putBoolean(KEY_MODE_EXPLICIT, true);
+        }
         editor.commit();
     }
 
@@ -81,6 +89,7 @@ public final class AppModeManager {
                 .putBoolean(KEY_ARMED, armed)
                 .putString(KEY_MODE,
                         mode == AppModePolicy.Mode.SELECTED_APPS ? MODE_SELECTED : MODE_ALWAYS)
+                .putBoolean(KEY_MODE_EXPLICIT, true)
                 .putStringSet(KEY_SELECTED_PACKAGES,
                         new LinkedHashSet<>(AppModePolicy.sanitizePackages(selectedPackages)))
                 .commit();

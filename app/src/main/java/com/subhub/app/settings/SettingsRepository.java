@@ -101,11 +101,11 @@ public final class SettingsRepository {
 
     public CaptureMethod loadCaptureMethod() {
         return CaptureMethod.fromPreference(preferences.getString(
-                KEY_CAPTURE_METHOD, CaptureMethod.SCREEN_RECORDING.preferenceValue()));
+                KEY_CAPTURE_METHOD, CaptureMethod.APP_MODE.preferenceValue()));
     }
 
     public void saveCaptureMethod(CaptureMethod method) {
-        CaptureMethod safe = method == null ? CaptureMethod.SCREEN_RECORDING : method;
+        CaptureMethod safe = method == null ? CaptureMethod.APP_MODE : method;
         preferences.edit().putString(KEY_CAPTURE_METHOD, safe.preferenceValue()).apply();
     }
 

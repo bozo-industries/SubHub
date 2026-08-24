@@ -46,6 +46,7 @@ public final class AppModeContractTest {
                 SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE);
         preferences.edit().remove(AppModeManager.KEY_ARMED)
                 .remove(AppModeManager.KEY_MODE)
+                .remove(AppModeManager.KEY_MODE_EXPLICIT)
                 .remove(AppModeManager.KEY_SELECTED_PACKAGES)
                 .remove(AppModeManager.KEY_TIMER_PACKAGES)
                 .remove(HardcoreModeManager.KEY_REQUESTED).commit();
@@ -139,7 +140,6 @@ public final class AppModeContractTest {
         try (ActivityScenario<AppModeActivity> scenario = ActivityScenario.launch(
                 AppModeActivity.class)) {
             scenario.onActivity(activity -> {
-                assertEquals(View.VISIBLE, activity.findViewById(R.id.button_save).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.timer_card).getVisibility());
                 assertNull(activity.findViewById(R.id.button_accessibility_settings));
                 assertNull(activity.findViewById(R.id.app_list_card));
@@ -154,8 +154,6 @@ public final class AppModeContractTest {
             scenario.onActivity(activity -> {
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.button_accessibility_settings).getVisibility());
-                assertEquals(View.VISIBLE,
-                        activity.findViewById(R.id.button_save_recognition).getVisibility());
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.app_list_card).getVisibility());
                 ViewGroup sections = activity.findViewById(R.id.settings_sections);

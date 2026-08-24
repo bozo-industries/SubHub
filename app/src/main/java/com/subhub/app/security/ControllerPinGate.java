@@ -13,6 +13,7 @@ import android.widget.TextView;
 import androidx.appcompat.app.AlertDialog;
 
 import com.subhub.app.R;
+import com.subhub.app.penance.TamperTributeReporter;
 
 /** Consistent setup and unlock dialogs for settings-changing surfaces. */
 public final class ControllerPinGate {
@@ -84,6 +85,7 @@ public final class ControllerPinGate {
             styleDialog(activity, dialog);
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
                     if (!ControllerPinManager.verify(activity, pin.getText().toString())) {
+                        TamperTributeReporter.record(activity);
                         pin.setError(activity.getString(R.string.controller_pin_wrong));
                     } else {
                         dialog.dismiss();

@@ -12,6 +12,7 @@ import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.appmode.ResumeNotificationManager;
 import com.subhub.app.penance.HardcoreAutoPayManager;
 import com.subhub.app.penance.PaidPauseManager;
+import com.subhub.app.penance.TamperTributeReporter;
 import com.subhub.app.settings.SettingsRepository;
 
 /**
@@ -97,6 +98,9 @@ public final class HardcoreModeManager {
     }
 
     public void onAdminDisabled() {
+        // disable() clears KEY_REQUESTED before removing admin, so only an out-of-band
+        // deactivation reaches this reporter as a tamper signal.
+        if (isRequested()) TamperTributeReporter.record(context);
         HardcoreAutoPayManager.cancel(context);
         preferences.edit().putBoolean(KEY_REQUESTED, false).commit();
     }

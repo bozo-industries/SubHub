@@ -591,6 +591,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void requestSettledCapture() {
         if (!running || !recognitionActive || worker == null || worker.isShutdown()) return;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return;
         long now = SystemClock.uptimeMillis();
         long wait = settledCaptureDelayMs(
                 now, lastMotionUptime, lastScreenshotRequestUptime);

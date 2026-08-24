@@ -1,95 +1,139 @@
 # SubHub
 
-SubHub is a private Android reconstruction workspace based on the licensed Beta Blocker 1.67 APK. The primary goal is a maintainable, human-editable source implementation that preserves the original app's useful on-device behavior while providing a cohesive purple control-center interface.
+**A private Android control space for consensual D/s: live censoring, app limits, and an optional tribute wallet.**
 
-The maintained source, Gradle project, and Android package now use the SubHub identity throughout; the application ID is `com.subhub.app`.
+SubHub keeps the everyday experience simple. The Dom configures the rules, locks the controls, and hands the device back. The Sub sees one clean Home page with the active boundaries, current session, pact timer, and any tribute due.
 
-The primary workstream is now a clean, human-editable Android source reconstruction under `app/`. Raw JADX output remains private reference material; tracked code is written and maintained as ordinary source. See [Reconstruction Roadmap](docs/reconstruction-roadmap.md).
+> **18+ project.** The real-device examples below show social-media filtering in an adult-content context. The images demonstrate the censor overlay; detected content remains covered.
 
-The repository contains sanitized notes, repeatable tooling, maintained source, and original project-owned art. The purchased APK, decompiled code, vendor art, model files, signing keys, and rebuilt APKs stay outside version control in the adjacent private workspace:
+<p align="center">
+  <img src="docs/screenshots/live-image-and-text-filter.jpg" alt="SubHub covering an image and nearby text on a real Android device" width="280" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/live-text-filter.jpg" alt="SubHub covering multiple text regions on a real Android device" width="280" />
+</p>
 
-```text
-C:\Users\user\Code\SubHub-private\
-  apktool\   # authoritative, rebuildable resources + smali
-  jadx\      # readable Java reconstruction for navigation
-  build\     # unsigned/aligned/signed local APKs and local signing key
-```
+## Interface
 
-## Current state
+SubHub uses a dark plum control-room surface, quieter violet structure, and hot-pink emphasis only where attention or selection matters. Dom mode exposes the full system; Sub mode collapses the same configuration into a focused hand-off screen.
 
-- Original: Beta Blocker 1.67 (`com.betablocker.lite`, version code 16)
-- APKTool 3.0.2 decode/rebuild: passing
-- Zip alignment: passing
-- Local v2/v3 signing and verification: passing
-- JADX 1.5.5: usable, with method-level failures that require smali fallback
-- Monetization-gate audit: no billing/paywall/entitlement code found; every scripted build rechecks this invariant
-- Clean source baseline: builds, installs, and runs independently as `com.subhub.app`
-- Clean release variant: unsigned release APK assembly and release lint pass; release manifest has no cleartext override and its optional Device Admin receiver declares no device policies
-- API 35 emulator suite: 53 unit and 59 instrumented checks cover the adaptive SubHub shell, UI/settings, browser/download/full-screen workflows, both consent-driven capture modes, native-text classification, app-mode persistence/boot/disarm behavior, daily app budgets, NNAPI inference, every censor style/border/reverse shape, custom-image import, MediaStore export, profiles/packs, diagnostics, statistics/achievements, Popup Storm, Help/onboarding/locales/shortcuts, commitment safety, money-rule safety, and clean stop behavior
-- Help and language surface: ten expandable source-authored guides, guided permission repair, first-run disclosure, two launcher shortcuts, and the recovered 11-choice locale selector are working; shell copy is localized and deeper untranslated copy falls back to English
-- Commitment Pact: 1-hour, 24-hour, 7-day, or 30-day keeper-code pacts seal configuration, keep protection armed in Sub mode, require Dom mode to stop it, and re-arm App Mode after reboot
-- Battery-aware app mode: the user-enabled Accessibility service can recognize in every external app or only selected launcher apps; selected mode keeps only the platform event binding alive and suspends screenshot scheduling, inference, tracking, and overlays everywhere else. Visible native text can be classified locally without OCR and fused into the same stable tracker as visual detections
-- Opt-in daily app limits: watched apps can have an independent per-app budget, one combined budget, or both, independently of the censor-recognition mode; only foreground time accrues, usage resets at local midnight, and a spent app is returned to Android Home
-- Predictable restart behavior: normal use restores the last armed/disarmed state; a sealed pact or Hardcore Mode forces App Mode armed after reboot, while MediaProjection still needs Android’s capture prompt
-- Consent-first Money Rules: new stable detector tracks can add locally bounded EUR entries with Every-N batching, daily/weekly caps, and a correction window. Dom Settings can select Sandbox or Live, stores the selected installation's credentials with Android Keystore encryption, collects PayPal device risk data, and strictly verifies every Orders v2 capture
-- Dom/Sub boundary: Sub mode presents one clean active-state dashboard with no configuration navigation; the controller PIN enters Dom mode for every rule and setting, while Start/Stop Protection and explicit Wallet settlement remain ordinary Sub actions
-- Hardcore Mode: an optional Dom-only toggle launches Android's own Device Admin approval, declares no wipe/password/camera/lock/monitoring policies, and adds only the supported deactivate-before-uninstall step plus boot re-arming of App Mode intent
-- Preset-aware rendering: Low/Medium/High/Ultra bound ONNX kernel concurrency to 1/2/3/4 threads and scale the predecoded custom-censor pool; capture remains single-flight so stale inference frames cannot queue
-- Modular shell: Censor, Limits, and Wallet can each be enabled independently from the always-available Settings page. Disabled areas disappear from the centered bottom pill; visible destinations use a violet active capsule, purpose-built icons, dense utility cards, and adaptive phone/tablet gutters. Censor tools use centered icon-over-label tiles, and secondary tools retain the same palette and card language without crowding the primary navigation
+<p align="center">
+  <img src="docs/screenshots/ui-map/page-map/01-censor-home.png" alt="SubHub Home in Dom mode" width="250" />
+  &nbsp;
+  <img src="docs/screenshots/ui-map/page-map/05-censor-settings.png" alt="SubHub visual censor-style previews" width="250" />
+  &nbsp;
+  <img src="docs/screenshots/ui-map/page-map/04-global-settings.png" alt="SubHub global settings" width="250" />
+</p>
 
-A patched APK signed with a new local key cannot update an installation signed by the vendor key. Export any settings you need before uninstalling the original, or change the package ID so both builds can coexist. Keep the same private local key for every later SubHub update.
+The repository keeps a full, device-rendered [UI page map](docs/ui-map.md) as a design and regression reference. It covers every primary page plus scrolled states for long forms and app assignment.
 
-## Working with the APK
+## What it does
 
-Browse reconstructed logic under `SubHub-private\jadx\sources\com\betablocker\lite`. Make round-trip changes in `SubHub-private\apktool`, using the JADX tree only as a guide.
+| Area | Purpose |
+|---|---|
+| **Home** | Enter or leave service, choose an optional 1-hour to 30-day pact, and see only the active rules and session state. |
+| **Censor** | Cover selected visual categories and explicit text with blackouts, bars, blur, pixelation, custom images, and other local effects. |
+| **Limits** | Give assigned apps an individual daily allowance, a shared allowance, or both. A spent app returns to Android Home. |
+| **Wallet** | Keep a bounded local tribute ledger and settle it through an explicitly configured PayPal flow. |
+| **Settings** | Assign apps, choose the capture path, enable only the modules a couple wants, and control the Dom/Sub boundary. |
 
-Create a fresh private workspace from a licensed APK:
+### Dom mode and Sub mode
 
-```powershell
-.\scripts\Initialize-Workspace.ps1 -ApkPath 'C:\path\to\licensed.apk'
-```
+- **Dom mode** reveals every setting, assignment, safety limit, and payment control.
+- **Sub mode** hides configuration and leaves one focused Home surface. Starting service remains available without unlocking settings.
+- The Dom PIN protects configuration. A pact can keep service active for a chosen duration.
+- Optional Hardcore Mode adds Android-supported device-admin friction and reboot re-arming. It is a speed bump, not an unbreakable security boundary.
 
-Rebuild and align after editing smali or resources:
+### A session in four steps
 
-```powershell
-.\scripts\Build-PatchedApk.ps1
-```
+1. **Shape the rules in Dom mode.** Enable only the modules the relationship uses, assign apps, choose censor behavior, set allowances, and bound any tribute rules.
+2. **Lock the controls.** Sub mode removes configuration from view and turns Home into the hand-off surface.
+3. **Enter service.** Start an ordinary session or select a pact first. Session time and blocks persist until service actually ends; merely reopening SubHub does not create a new session.
+4. **Review together.** Statistics, allowance usage, and the local tribute ledger remain available without mixing configuration into the Sub experience.
 
-The patched-vendor build runs `Test-NoMonetizationGate.ps1` first and stops if known billing, premium, paywall, purchase-token, or entitlement gate indicators appear in the decoded purchased APK. This audit remains about removing vendor access gates; it does not scan or disable the clean source project's separate, opt-in Money Rules feature.
+### App-aware protection
 
-## Building the editable source project
+SubHub can run against every external app or only assigned apps. Each assigned app may independently receive censoring, a time limit, or both. App Mode uses Android Accessibility for foreground awareness and visible-text geometry; Screen Capture uses Android's MediaProjection approval path. Detection, tracking, and rendering are suspended outside the selected scope.
 
-The clean source tree builds without proprietary model assets, which keeps tests and UI work reproducible:
+### Censor engine
+
+Blackout, Censor Bar, Blur, Pixelate, Custom Image, TV Static, Glitch, Privacy Tape, and Error Popup share one tracked-overlay pipeline. Stable regions survive ordinary frame changes and scrolling; repeated frames do not become fresh blocks or fresh tribute events. Border choices include classic, gradient, glow, and rainbow treatments, with effect-specific color controls.
+
+Four presets trade battery for coverage without exposing raw confidence tuning:
+
+| Preset | Intended use |
+|---|---|
+| **Low** | Battery-first sessions and slower devices. |
+| **Medium** | Balanced everyday behavior. |
+| **High** | More frequent analysis and better small-region coverage. |
+| **Ultra** | Maximum local compute, concurrent visual/text work, and the fastest refresh path on flagship hardware. |
+
+### Tribute protocol
+
+The Wallet can count enabled events such as a new temptation, lingering on one still screen, tapping a visible censor, opening an assigned app, or testing a Hardcore lock. Every event is gated behind active service. Price, batching, cooldowns, daily and weekly caps, and the Dom's correction window are configurable.
+
+PayPal credentials belong to the installation and are entered only in Dom mode. Merchant secrets are encrypted with Android Keystore. Saved-wallet and automatic Hardcore checkout remain separate opt-ins and still depend on PayPal account eligibility.
+
+## Privacy at a glance
+
+- Visual inference and text classification run on the device.
+- Captured frames are processed in memory; SubHub does not provide a remote content-analysis service.
+- Censoring, Limits, and Wallet are independent modules and can be hidden entirely.
+- Sub mode can always settle an enabled Wallet, but it cannot edit its rules.
+- Device Admin declares no wipe, camera, password, lock-screen, or monitoring policy.
+- Android may still require system approval for capture, Accessibility, overlays, notifications, or Device Admin.
+
+## Safety and control boundaries
+
+SubHub is designed for informed adult use, but playful framing never replaces an exit path:
+
+- The Dom PIN governs configuration; it is not presented as device-grade authentication.
+- Pacts lock the ordinary stop action until their timer ends. Dom mode remains the configuration boundary.
+- Hardcore Mode uses only platform-supported friction. Android, the device owner, safe mode, ADB, or uninstall after Device Admin removal can still defeat it.
+- Tamper tribute accepts only explicit, rate-limited signals such as a wrong Dom PIN, a blocked uninstall/data-clear action, a sealed stop attempt, or out-of-band Device Admin removal. No charge is created when service is off.
+- Tribute totals are capped locally. PayPal settlement and any saved-wallet automation require their own setup and eligibility.
+
+## Build the editable source
+
+Requirements:
+
+- Android Studio or a JDK 17 command line
+- Android SDK 35
+- Android 8.0+ device or emulator; a modern Android release is recommended for the full app-aware workflow
 
 ```powershell
 .\gradlew.bat testDebugUnitTest assembleDebug
 ```
 
-To produce a detector-capable local APK, import the two licensed models directly from your purchased APK. They are ignored by Git:
+The debug build uses package `com.subhub.app` and produces ABI-specific APKs:
 
-```powershell
-.\scripts\Import-PrivateModelAssets.ps1 -ApkPath 'C:\path\to\licensed.apk'
-.\gradlew.bat clean testDebugUnitTest assembleDebug
+```text
+app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+app/build/outputs/apk/debug/app-x86_64-debug.apk
 ```
 
-The editable debug APK is written to `app\build\outputs\apk\debug\app-debug.apk` with package ID `com.subhub.app`, so it can coexist with the vendor-signed installation.
-
-See [API 35 Device Smoke Test](docs/device-smoke-test.md) and [Visual Parity Audit](docs/visual-parity.md) for the verified runtime path, matched-screen review, and remaining physical-device coverage.
-
-To sign, provide a private keystore path and process-scoped password variables. Password values are never passed as command-line arguments:
+For a focused device pass:
 
 ```powershell
-$env:SUBHUB_KEYSTORE_PASSWORD = '<private value>'
-$env:SUBHUB_KEY_PASSWORD = '<private value>'
-.\scripts\New-LocalSigningKey.ps1 -KeystorePath 'C:\private\key.p12' -KeyAlias 'subhub-local'
-.\scripts\Build-PatchedApk.ps1 -KeystorePath 'C:\private\key.p12' -KeyAlias 'subhub-local'
-Remove-Item Env:\SUBHUB_KEYSTORE_PASSWORD, Env:\SUBHUB_KEY_PASSWORD
+.\gradlew.bat connectedDebugAndroidTest
 ```
 
-See [Architecture](docs/architecture.md) for code maps, [Generated Visual Assets](docs/generated-assets.md) for art provenance and prompt summaries, and [Static Evidence](docs/static-evidence.md) for the redacted extraction record.
+See [Architecture](docs/architecture.md), [Device smoke test](docs/device-smoke-test.md), [visual audit](docs/visual-parity.md), and [PayPal integration](docs/paypal-penance.md) for deeper implementation notes.
 
-PayPal setup, saved-wallet eligibility, and the payment-security boundary are documented in [PayPal Money Rules Integration](docs/paypal-penance.md). Credentials are entered per installation and are not compiled into the APK.
+## Project layout
 
-## Boundaries
+```text
+app/src/main/java/com/subhub/app/   Human-editable Android source
+app/src/main/res/                   Purple SubHub interface and resources
+app/src/androidTest/                Device and UI contracts
+app/src/test/                       Local logic contracts
+docs/                               Architecture, safety, and reconstruction notes
+scripts/                            Repeatable private-workspace and build helpers
+```
 
-Do not commit or redistribute the vendor APK, code, art, models, user data, captures, or signing material. Confirm that any planned distribution and derivative work remains within the purchased license and applicable law.
+## Licensed reconstruction boundary
+
+SubHub is a clean, human-editable reconstruction informed by a lawfully purchased copy of Beta Blocker Mobile. The maintained app has its own `com.subhub.app` identity and a distinct interface, navigation model, Dom/Sub boundary, Limits module, and Wallet workflow. The public [Beta Blocker Mobile product page](https://isla2d.itch.io/beta-blocker-mobile) remains useful product inspiration for local filtering and customizable censor styles.
+
+The purchased APK, decompiled vendor code, vendor artwork, signing material, account credentials, and private captures must not be committed or redistributed. Keep reverse-engineering evidence in the adjacent private workspace and confirm that any distribution remains within the purchased license and applicable law. See the [reconstruction roadmap](docs/reconstruction-roadmap.md) and [static evidence notes](docs/static-evidence.md).
+
+The README presentation follows the concise screenshot, privacy, compatibility, and build patterns used by mature Android projects such as [Bitwarden Android](https://github.com/bitwarden/android) and [Mushotoku](https://github.com/tomfrischmuth/mushotoku), adapted to SubHub's own visual language.

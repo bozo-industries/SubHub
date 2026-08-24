@@ -68,6 +68,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private HardcoreAutoPayManager autoPay;
     private ActivityResultLauncher<Intent> hardcoreActivation;
     private boolean updatingHardcore;
+    private boolean updatingRecognition;
     private boolean updatingPaypalEnvironment;
     private boolean updatingAutoPay;
     private boolean paypalConnecting;
@@ -133,8 +134,9 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                 android.net.Uri.parse("package:" + getPackageName()))));
         binding.buttonAccessibilitySettings.setOnClickListener(view ->
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
-        binding.buttonSaveRecognition.setOnClickListener(view -> saveRecognition());
-        binding.buttonSaveApps.setOnClickListener(view -> saveAppAssignments());
+        binding.modeGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            if (!updatingRecognition) saveRecognition();
+        });
         binding.buttonSavePaypal.setOnClickListener(view -> savePayPalLink());
         binding.buttonSavePaypalSandbox.setOnClickListener(view -> savePayPalSandbox());
         binding.buttonClearPaypalSandbox.setOnClickListener(view -> clearPayPalSandbox());
@@ -214,8 +216,6 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.armed.setEnabled(editingUnlocked);
         binding.modeAlways.setEnabled(editingUnlocked);
         binding.modeSelected.setEnabled(editingUnlocked);
-        binding.buttonSaveRecognition.setEnabled(editingUnlocked);
-        binding.buttonSaveApps.setEnabled(editingUnlocked);
         binding.paypalLink.setEnabled(editingUnlocked);
         binding.buttonSavePaypal.setEnabled(editingUnlocked);
         binding.paypalClientId.setEnabled(editingUnlocked);
@@ -243,24 +243,23 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         if (!editingUnlocked) return;
         AppModePolicy.Mode mode = binding.modeSelected.isChecked()
                 ? AppModePolicy.Mode.SELECTED_APPS : AppModePolicy.Mode.ALWAYS;
-        if (mode == AppModePolicy.Mode.SELECTED_APPS && censorPackages.isEmpty()) {
-            Toast.makeText(this, R.string.app_mode_select_one, Toast.LENGTH_SHORT).show();
-            return;
-        }
         // This card configures where recognition runs. Only Home starts or stops protection.
         boolean armed = appMode.isArmed();
         appMode.save(armed, mode, censorPackages);
         if (armed) ResumeNotificationManager.show(this);
         else ResumeNotificationManager.cancel(this);
-        Toast.makeText(this, R.string.app_mode_saved, Toast.LENGTH_SHORT).show();
         refreshAccessState();
     }
 
     private void saveAppAssignments() {
         if (!editingUnlocked) return;
         appMode.saveAppSelections(censorPackages, timerPackages);
-        if (!censorPackages.isEmpty()) binding.modeGroup.check(R.id.mode_selected);
-        Toast.makeText(this, R.string.app_assignments_saved, Toast.LENGTH_SHORT).show();
+        if (!censorPackages.isEmpty() && !binding.modeSelected.isChecked()) {
+            updatingRecognition = true;
+            binding.modeGroup.check(R.id.mode_selected);
+            updatingRecognition = false;
+            saveRecognition();
+        }
         renderSelectedCount();
     }
 
@@ -766,13 +765,13 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                 if (checked) censorPackages.add(entry.packageName);
                 else censorPackages.remove(entry.packageName);
                 updateTile.run();
-                renderSelectedCount();
+                saveAppAssignments();
             });
             limit.setOnCheckedChangeListener((button, checked) -> {
                 if (checked) timerPackages.add(entry.packageName);
                 else timerPackages.remove(entry.packageName);
                 updateTile.run();
-                renderSelectedCount();
+                saveAppAssignments();
             });
             updateTile.run();
             GridLayout.LayoutParams tileParams = new GridLayout.LayoutParams(
