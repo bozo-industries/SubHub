@@ -131,6 +131,29 @@ public final class CensorRendererTest {
         }
     }
 
+    @Test public void rainbowExportBorderIsConfinedToTheDetectionRectangle() {
+        Context context = ApplicationProvider.getApplicationContext();
+        Bitmap source = gradient(240, 180);
+        Bitmap target = Bitmap.createBitmap(240, 180, Bitmap.Config.ARGB_8888);
+        target.eraseColor(Color.TRANSPARENT);
+        CensorAppearance appearance = new CensorAppearance(
+                CensorAppearance.Type.BOX, 1, 0f, true, true,
+                CensorAppearance.BorderEffect.RAINBOW, false, Color.MAGENTA,
+                Collections.emptyList(), false, 100, "rectangle", "SubHub", "Blocked");
+        try (CensorRenderer renderer = new CensorRenderer(context)) {
+            renderer.draw(target, source, Collections.singletonList(
+                    detection(20, 70, 200, 20)), appearance);
+            assertEquals(Color.BLACK, target.getPixel(120, 80));
+            assertEquals(Color.TRANSPARENT, target.getPixel(120, 30));
+            assertEquals(Color.TRANSPARENT, target.getPixel(120, 130));
+            assertEquals(Color.TRANSPARENT, target.getPixel(5, 80));
+            assertEquals(Color.TRANSPARENT, target.getPixel(235, 80));
+        } finally {
+            source.recycle();
+            target.recycle();
+        }
+    }
+
     @Test public void customImageStoreImportsTogglesRendersAndDeletes() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         CustomImageManager manager = new CustomImageManager(context);

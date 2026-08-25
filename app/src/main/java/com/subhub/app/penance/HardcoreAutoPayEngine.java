@@ -32,6 +32,10 @@ final class HardcoreAutoPayEngine {
         PenanceManager.CheckoutMode existingMode = penance.getActiveCheckoutMode();
         if (existingMode != PenanceManager.CheckoutMode.NONE
                 && existingMode != PenanceManager.CheckoutMode.HARDCORE_AUTO) {
+            String settlementId = penance.getActiveSettlementId();
+            if (!settlementId.isEmpty()) penance.cancelSettlement(settlementId);
+            policy.pause("An interactive checkout blocked automatic Wallet payment");
+            notify(app, false, "Automatic Wallet payment paused");
             done(finished);
             return;
         }
@@ -55,8 +59,7 @@ final class HardcoreAutoPayEngine {
         penance.markAutomaticSettlement(settlement.getId(), credentials.boundaryId());
         PayPalOrdersClient client = new PayPalOrdersClient(app);
         client.createStoredWalletPayment(credentials, settlement.getId(),
-                settlement.getAmountCents(), vault.vaultId(),
-                PayPalOrderDetails.from(app, settlement), result -> {
+                settlement.getAmountCents(), vault.vaultId(), result -> {
                     try {
                         if (result.isSuccess()) {
                             if (penance.completeSettlement(
@@ -76,6 +79,11 @@ final class HardcoreAutoPayEngine {
                             HardcoreAutoPayManager.scheduleRetry(app);
                         } else {
                             penance.cancelSettlement(settlement.getId());
+                            if (result.errorKind() == PayPalOrdersClient.ErrorKind.VAULT_UNAVAILABLE
+                                    || result.errorKind()
+                                    == PayPalOrdersClient.ErrorKind.REAUTHORIZATION_REQUIRED) {
+                                store.markVaultUnavailable(credentials);
+                            }
                             policy.pause(result.error());
                             notify(app, false, result.errorKind()
                                     == PayPalOrdersClient.ErrorKind.REAUTHORIZATION_REQUIRED

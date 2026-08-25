@@ -43,12 +43,11 @@ public final class StatsActivity extends AppCompatActivity {
         binding.totalTime.setText(StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds()));
         binding.totalSessions.setText(String.valueOf(stats.getSessions()));
         binding.detailStats.setText(String.format(Locale.ROOT,
-                "%s: %d days\n%s: %d blocks\n%s: %s\n%s: %d\n%s: %d\n%s: %d",
+                "%s: %d days\n%s: %d blocks\n%s: %s\n%s: %d\n%s: %d",
                 getString(R.string.statistics_current_streak), stats.getCurrentStreak(),
                 getString(R.string.statistics_peak), stats.getPeakSessionBlocks(),
                 getString(R.string.statistics_longest),
                 StatsSnapshot.formatDuration(stats.getLongestSessionSeconds()),
-                getString(R.string.statistics_browser), stats.getBrowserSessions(),
                 getString(R.string.statistics_exported), stats.getExportedImages(),
                 getString(R.string.statistics_active_days), stats.getActiveDates().size()));
 

@@ -52,6 +52,23 @@ public final class AppTimerManagerTest {
                 timers.limitStatus(APP_ONE, selected, DAY_ONE));
         assertEquals(AppTimerManager.LimitStatus.NONE,
                 timers.limitStatus(APP_TWO, selected, DAY_ONE));
+
+        AppTimerManager.AllowanceSummary summary = timers.summarizeAllowances(selected);
+        assertEquals(2, summary.appCount);
+        assertEquals(1, summary.minimumMinutes);
+        assertEquals(3, summary.maximumMinutes);
+        assertEquals(false, summary.isUniform());
+    }
+
+    @Test public void allowanceSummaryOnlyCallsValuesUniformWhenTheyMatch() {
+        timers.saveSettings(true, 30, true, 120);
+        timers.saveAllowances(selected, Map.of(APP_ONE, 45, APP_TWO, 45));
+
+        AppTimerManager.AllowanceSummary summary = timers.summarizeAllowances(selected);
+        assertEquals(2, summary.appCount);
+        assertEquals(45, summary.minimumMinutes);
+        assertEquals(45, summary.maximumMinutes);
+        assertEquals(true, summary.isUniform());
     }
 
     @Test public void perAppLimitBlocksOnlySpentApp() {

@@ -27,7 +27,7 @@ import java.util.Set;
 public final class AchievementsActivity extends AppCompatActivity {
     private static final String[] CATEGORY_ORDER = {
             "blocks", "time", "sessions", "peaks", "streaks", "app_mode", "limits",
-            "pact", "hardcore", "censor", "custom", "profiles", "browser", "export",
+            "pact", "hardcore", "censor", "custom", "profiles", "export",
             "wallet", "hidden", "special"
     };
     private ActivityAchievementsBinding binding;
@@ -55,6 +55,8 @@ public final class AchievementsActivity extends AppCompatActivity {
         binding.achievementBadgeStrip.removeAllViews();
         binding.achievementProgress.setText(getString(R.string.achievements_progress_compact,
                 manager.getUnlockedCount(), manager.getTotalCount()));
+        binding.achievementOverallProgress.setProgress(Math.round(
+                manager.getUnlockedCount() * 100f / Math.max(1, manager.getTotalCount())));
         addShowcaseBadges();
         renderNextMilestone();
 
@@ -91,21 +93,23 @@ public final class AchievementsActivity extends AppCompatActivity {
             LinearLayout cell = new LinearLayout(this);
             cell.setOrientation(LinearLayout.VERTICAL);
             cell.setGravity(Gravity.CENTER_HORIZONTAL);
-            LinearLayout.LayoutParams cellParams = new LinearLayout.LayoutParams(dp(68),
+            LinearLayout.LayoutParams cellParams = new LinearLayout.LayoutParams(dp(88),
                     LinearLayout.LayoutParams.MATCH_PARENT);
-            if (index > 0) cellParams.leftMargin = dp(4);
+            if (index > 0) cellParams.leftMargin = dp(6);
             cell.setLayoutParams(cellParams);
+            cell.setBackgroundResource(R.drawable.bg_achievement_preview_cell);
 
-            AchievementBadgeView badge = badge(achievement, unlocked, concealed, 48);
+            AchievementBadgeView badge = badge(achievement, unlocked, concealed, 72);
             cell.addView(badge);
             TextView label = text(concealed ? getString(R.string.achievement_hidden_name)
-                    : getString(achievement.getName()), 9, R.color.text_secondary, false);
+                    : getString(achievement.getName()), 10,
+                    unlocked ? R.color.text_primary : R.color.text_muted, unlocked);
             label.setGravity(Gravity.CENTER);
             label.setMaxLines(1);
             label.setEllipsize(android.text.TextUtils.TruncateAt.END);
             LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            labelParams.topMargin = dp(3);
+            labelParams.topMargin = dp(4);
             label.setLayoutParams(labelParams);
             cell.addView(label);
             binding.achievementBadgeStrip.addView(cell);
@@ -149,14 +153,14 @@ public final class AchievementsActivity extends AppCompatActivity {
     }
 
     private void addCategoryHeader(String category) {
-        TextView header = text(getString(categoryTitle(category)), 11,
+        TextView header = text(getString(categoryTitle(category)), 12,
                 R.color.accent_mid, true);
         header.setAllCaps(true);
         header.setLetterSpacing(0.15f);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.topMargin = binding.achievementList.getChildCount() == 0 ? dp(2) : dp(15);
-        params.bottomMargin = dp(7);
+        params.topMargin = binding.achievementList.getChildCount() == 0 ? dp(2) : dp(20);
+        params.bottomMargin = dp(9);
         header.setLayoutParams(params);
         binding.achievementList.addView(header);
     }
@@ -167,42 +171,42 @@ public final class AchievementsActivity extends AppCompatActivity {
         AchievementManager.Progress progress = manager.progress(achievement, stats);
 
         MaterialCardView card = new MaterialCardView(this);
-        card.setRadius(dp(18));
-        card.setCardElevation(dp(2));
+        card.setRadius(dp(20));
+        card.setCardElevation(dp(3));
         card.setCardBackgroundColor(getColor(unlocked
                 ? R.color.surface_card_raised : R.color.surface_card));
         card.setStrokeWidth(dp(1));
         card.setStrokeColor(getColor(unlocked ? R.color.accent_hot : R.color.outline_subtle));
         LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardParams.bottomMargin = dp(8);
+        cardParams.bottomMargin = dp(10);
         card.setLayoutParams(cardParams);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(12), dp(11), dp(12), dp(11));
+        row.setPadding(dp(15), dp(14), dp(15), dp(14));
         card.addView(row);
 
-        row.addView(badge(achievement, unlocked, concealed, 56));
+        row.addView(badge(achievement, unlocked, concealed, 80));
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams contentParams = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        contentParams.leftMargin = dp(12);
+        contentParams.leftMargin = dp(15);
         content.setLayoutParams(contentParams);
 
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = text(concealed ? getString(R.string.achievement_hidden_name)
-                : getString(achievement.getName()), 14, R.color.text_primary, true);
+                : getString(achievement.getName()), 16, R.color.text_primary, true);
         title.setLayoutParams(new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         titleRow.addView(title);
         if (unlocked) {
-            TextView tag = text(getString(R.string.achievement_unlocked_tag), 8,
+            TextView tag = text(getString(R.string.achievement_unlocked_tag), 9,
                     R.color.accent_hot, true);
             tag.setAllCaps(true);
             tag.setLetterSpacing(0.1f);
@@ -219,10 +223,11 @@ public final class AchievementsActivity extends AppCompatActivity {
         content.addView(titleRow);
 
         TextView description = text(concealed ? getString(R.string.achievement_hidden_desc)
-                : getString(achievement.getDescription()), 11, R.color.text_secondary, false);
+                : getString(achievement.getDescription()), 12, R.color.text_secondary, false);
+        description.setLineSpacing(dp(2), 1f);
         LinearLayout.LayoutParams descriptionParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        descriptionParams.topMargin = dp(2);
+        descriptionParams.topMargin = dp(5);
         description.setLayoutParams(descriptionParams);
         content.addView(description);
 
@@ -231,7 +236,7 @@ public final class AchievementsActivity extends AppCompatActivity {
         progressRow.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams progressRowParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        progressRowParams.topMargin = dp(8);
+        progressRowParams.topMargin = dp(11);
         progressRow.setLayoutParams(progressRowParams);
         if (progress.isCountable() && !concealed) {
             ProgressBar bar = new ProgressBar(this, null,
@@ -242,9 +247,9 @@ public final class AchievementsActivity extends AppCompatActivity {
                     unlocked ? R.color.accent_hot : R.color.accent_mid)));
             bar.setProgressBackgroundTintList(
                     ColorStateList.valueOf(getColor(R.color.outline_subtle)));
-            bar.setLayoutParams(new LinearLayout.LayoutParams(0, dp(4), 1f));
+            bar.setLayoutParams(new LinearLayout.LayoutParams(0, dp(6), 1f));
             progressRow.addView(bar);
-            TextView count = text(formatProgress(achievement, progress), 9,
+            TextView count = text(formatProgress(achievement, progress), 10,
                     unlocked ? R.color.accent_hot : R.color.text_muted, true);
             LinearLayout.LayoutParams countParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -321,7 +326,6 @@ public final class AchievementsActivity extends AppCompatActivity {
             case "streaks": return R.string.achievement_category_streaks;
             case "custom": return R.string.achievement_category_custom;
             case "profiles": return R.string.achievement_category_profiles;
-            case "browser": return R.string.achievement_category_browser;
             case "export": return R.string.achievement_category_export;
             case "app_mode": return R.string.achievement_category_app_mode;
             case "limits": return R.string.achievement_category_limits;

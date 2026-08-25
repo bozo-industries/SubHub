@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
@@ -50,6 +51,7 @@ final class CensorOverlayView extends View {
     private final Rect bandSourceRect = new Rect();
     private final RectF effectRect = new RectF();
     private final RectF bandRect = new RectF();
+    private final Matrix borderShaderMatrix = new Matrix();
     private final CustomImagePool customImages;
 
     private List<TrackedObject> tracks = new ArrayList<>();
@@ -67,6 +69,7 @@ final class CensorOverlayView extends View {
     private float contentOffsetY;
     private float sourceFrameOffsetX;
     private float sourceFrameOffsetY;
+    private long borderAnimationTimeOverride = -1L;
 
     CensorOverlayView(Context context) {
         super(context);
@@ -185,6 +188,10 @@ final class CensorOverlayView extends View {
     void setDiagnostics(String value) {
         diagnostics = value == null ? "" : value;
         invalidate();
+    }
+
+    void setBorderAnimationTimeForTest(long uptimeMillis) {
+        borderAnimationTimeOverride = Math.max(0L, uptimeMillis);
     }
 
     @Override
@@ -600,10 +607,17 @@ final class CensorOverlayView extends View {
     }
 
     private void drawBorder(Canvas canvas, RectF rect) {
+        if (rect.isEmpty()) return;
         border.setStrokeWidth(dp(2));
         border.setShader(null);
         border.setColor(appearance.getBorderColor());
         border.setAlpha(255);
+        long animationTime = borderAnimationTimeOverride >= 0L
+                ? borderAnimationTimeOverride : SystemClock.uptimeMillis();
+        float phase = appearance.isAnimateBorder()
+                ? (animationTime % 4000L) / 4000f * 360f : 0f;
+        int save = canvas.save();
+        canvas.clipRect(rect);
         switch (appearance.getBorderEffect()) {
             case GLOW:
                 for (int step = 4; step >= 1; step--) {
@@ -615,26 +629,26 @@ final class CensorOverlayView extends View {
                 border.setAlpha(255);
                 break;
             case GRADIENT:
+                float pulse = phase <= 180f ? phase / 180f : (360f - phase) / 180f;
                 border.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
-                        appearance.getBorderColor(), Color.WHITE, Shader.TileMode.CLAMP));
+                        blendColor(appearance.getBorderColor(), Color.WHITE, .12f + pulse * .24f),
+                        blendColor(appearance.getBorderColor(), Color.rgb(76, 216, 235),
+                                .30f - pulse * .16f), Shader.TileMode.CLAMP));
                 break;
             case RAINBOW:
-                float phase = appearance.isAnimateBorder()
-                        ? (SystemClock.uptimeMillis() % 4000L) / 4000f * 360f : 0f;
-                border.setShader(new SweepGradient(rect.centerX(), rect.centerY(),
+                SweepGradient rainbow = new SweepGradient(rect.centerX(), rect.centerY(),
                         new int[]{Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN,
-                                Color.BLUE, Color.MAGENTA, Color.RED}, null));
-                canvas.save();
-                canvas.rotate(phase, rect.centerX(), rect.centerY());
-                drawShape(canvas, rect, border);
-                canvas.restore();
-                border.setShader(null);
-                return;
+                                Color.BLUE, Color.MAGENTA, Color.RED}, null);
+                borderShaderMatrix.setRotate(phase, rect.centerX(), rect.centerY());
+                rainbow.setLocalMatrix(borderShaderMatrix);
+                border.setShader(rainbow);
+                break;
             case CLASSIC:
             default:
                 break;
         }
         drawShape(canvas, rect, border);
+        canvas.restoreToCount(save);
         border.setShader(null);
         border.setAlpha(255);
     }
@@ -703,7 +717,7 @@ final class CensorOverlayView extends View {
     }
 
     private boolean isAnimated() {
-        return appearance.isAnimateBorder()
+        return appearance.isShowBorder() && appearance.isAnimateBorder()
                 || appearance.getType() == CensorAppearance.Type.STATIC
                 || appearance.getType() == CensorAppearance.Type.GLITCH
                 || appearance.getType() == CensorAppearance.Type.TAPE;

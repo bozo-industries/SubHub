@@ -69,7 +69,6 @@ public final class HelpActivity extends AppCompatActivity {
                 {R.string.help_getting_started, R.string.help_body_started},
                 {R.string.help_permissions, R.string.help_body_perms},
                 {R.string.help_app_protection, R.string.help_body_app},
-                {R.string.help_browser_protection, R.string.help_body_browser},
                 {R.string.help_censored_downloads, R.string.help_body_downloads},
                 {R.string.help_customisation, R.string.help_body_custom},
                 {R.string.help_popup_storm, R.string.help_body_popup},

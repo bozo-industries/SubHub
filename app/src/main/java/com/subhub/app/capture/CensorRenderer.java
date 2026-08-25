@@ -385,10 +385,13 @@ public final class CensorRenderer implements AutoCloseable {
     }
 
     private void drawBorder(Canvas canvas, RectF rect, CensorAppearance appearance) {
+        if (rect.isEmpty()) return;
         border.setStrokeWidth(Math.max(2, Math.min(rect.width(), rect.height()) * .025f));
         border.setColor(appearance.getBorderColor());
         border.setAlpha(255);
         border.setShader(null);
+        int save = canvas.save();
+        canvas.clipRect(rect);
         if (appearance.getBorderEffect() == CensorAppearance.BorderEffect.GLOW) {
             for (int step = 4; step >= 1; step--) {
                 border.setStrokeWidth(2 + step * 3);
@@ -406,6 +409,7 @@ public final class CensorRenderer implements AutoCloseable {
                     Color.MAGENTA, Color.RED}, null));
         }
         drawShape(canvas, rect, border, appearance);
+        canvas.restoreToCount(save);
         border.setShader(null);
         border.setAlpha(255);
     }

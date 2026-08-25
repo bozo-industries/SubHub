@@ -291,23 +291,16 @@ public final class PayPalOrdersClient {
         });
     }
 
-    /** Captures a saved PayPal wallet for an explicitly authorized Hardcore pact. */
+    /** Captures a saved PayPal wallet for explicitly authorized timed protection. */
     public void createStoredWalletPayment(PayPalCredentialStore.Credentials credentials,
             String settlementId, int amountCents, String vaultId,
             Callback<Capture> callback) {
-        createStoredWalletPayment(credentials, settlementId, amountCents, vaultId,
-                Collections.emptyList(), callback);
-    }
-
-    public void createStoredWalletPayment(PayPalCredentialStore.Credentials credentials,
-            String settlementId, int amountCents, String vaultId,
-            List<OrderItem> orderItems, Callback<Capture> callback) {
-        List<OrderItem> items = orderItems == null
-                ? Collections.emptyList() : new ArrayList<>(orderItems);
         network.execute(() -> {
             try {
-                String cleanVaultId = vaultId == null ? "" : vaultId.trim();
-                if (cleanVaultId.isEmpty()) {
+                PayPalRequestPolicy.StoredWalletRequest stored;
+                try {
+                    stored = PayPalRequestPolicy.storedWalletRequest(vaultId);
+                } catch (IllegalArgumentException missingToken) {
                     throw new ReauthorizationRequiredException(
                             "The saved PayPal wallet must be linked again");
                 }
@@ -323,13 +316,12 @@ public final class PayPalOrdersClient {
                         .put("amount", new JSONObject()
                                 .put("currency_code", PenanceManager.CURRENCY)
                                 .put("value", decimalAmount(amountCents)));
-                addOrderItems(unit, unit.getJSONObject("amount"), amountCents, items);
                 JSONObject paypal = new JSONObject()
-                        .put("vault_id", cleanVaultId)
+                        .put("vault_id", stored.vaultId())
                         .put("stored_credential", new JSONObject()
-                                .put("payment_initiator", "MERCHANT")
-                                .put("usage", "SUBSEQUENT")
-                                .put("usage_pattern", "UNSCHEDULED_POSTPAID"));
+                                .put("payment_initiator", stored.paymentInitiator())
+                                .put("usage", stored.usage())
+                                .put("usage_pattern", stored.usagePattern()));
                 JSONObject body = new JSONObject()
                         .put("intent", "CAPTURE")
                         .put("purchase_units", new JSONArray().put(unit))
@@ -338,11 +330,17 @@ public final class PayPalOrdersClient {
                         "/v2/checkout/orders", token, body.toString(),
                         PayPalRequestPolicy.autoRequestId(settlementId), clientMetadataId);
                 String status = response.optString("status", "");
-                if ("PAYER_ACTION_REQUIRED".equalsIgnoreCase(status)
-                        || !link(response.optJSONArray("links"), "payer-action").isEmpty()
-                        || !link(response.optJSONArray("links"), "approve").isEmpty()) {
+                PayPalRequestPolicy.StoredWalletOutcome outcome =
+                        PayPalRequestPolicy.storedWalletOutcome(status,
+                                !link(response.optJSONArray("links"), "payer-action").isEmpty(),
+                                !link(response.optJSONArray("links"), "approve").isEmpty());
+                if (outcome == PayPalRequestPolicy.StoredWalletOutcome.REAUTHORIZATION_REQUIRED) {
                     throw new ReauthorizationRequiredException(
                             "PayPal requires the wallet owner to approve again");
+                }
+                if (outcome != PayPalRequestPolicy.StoredWalletOutcome.COMPLETED) {
+                    throw new IllegalStateException(
+                            "PayPal did not complete the automatic wallet payment");
                 }
                 deliver(callback, Result.success(parseCapture(
                         response, settlementId, amountCents)));

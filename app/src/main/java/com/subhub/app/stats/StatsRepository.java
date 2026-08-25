@@ -227,15 +227,6 @@ public final class StatsRepository {
         preferences.edit().putLong(KEY_EXPORTED_IMAGES,
                 getLongCompat(KEY_EXPORTED_IMAGES) + count).apply();
     }
-    public void recordBrowserSession() {
-        preferences.edit().putInt(KEY_BROWSER_SESSIONS,
-                preferences.getInt(KEY_BROWSER_SESSIONS, 0) + 1).apply();
-    }
-    public void addBrowserPage() {
-        preferences.edit().putInt(KEY_BROWSER_PAGES,
-                preferences.getInt(KEY_BROWSER_PAGES, 0) + 1).apply();
-    }
-
     private void updateStreak() {
         String today = today();
         String previous = preferences.getString(KEY_LAST_SESSION_DATE, "");
