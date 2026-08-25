@@ -126,7 +126,7 @@ public final class PenanceContractTest {
         assertTrue(manager.snapshot(now).getEvents().isEmpty());
     }
 
-    @Test public void paidPauseOfferIsHiddenUntilMoneyRulesAreEnabled() {
+    @Test public void paidPauseOfferStaysConfigurableWhenMoneyRulesAreDisabled() {
         ControllerPinManager.enterDomMode();
         try (ActivityScenario<PenanceActivity> scenario =
                      ActivityScenario.launch(PenanceActivity.class)) {
@@ -134,9 +134,12 @@ public final class PenanceContractTest {
                 View paidPauseCard = activity.findViewById(R.id.paid_pause_config_card);
                 android.widget.CheckBox master = activity.findViewById(R.id.ledger_enabled);
                 assertFalse(master.isChecked());
-                assertEquals(View.GONE, paidPauseCard.getVisibility());
+                assertEquals(View.VISIBLE, paidPauseCard.getVisibility());
 
                 master.setChecked(true);
+                assertEquals(View.VISIBLE, paidPauseCard.getVisibility());
+
+                master.setChecked(false);
                 assertEquals(View.VISIBLE, paidPauseCard.getVisibility());
             });
         } finally {

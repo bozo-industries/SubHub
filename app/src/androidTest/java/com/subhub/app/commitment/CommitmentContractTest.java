@@ -117,11 +117,26 @@ public final class CommitmentContractTest {
         }
     }
 
-    @Test public void pactAndHardcoreCopyAvoidsImplementationJargon() {
+    @Test public void serviceDurationAndHardcoreCopyUseTheCurrentModel() {
         String hardcore = context.getString(R.string.hardcore_title).toLowerCase();
-        String pactCopy = context.getString(R.string.commitment_active_body).toLowerCase();
+        int[] serviceCopy = {
+                R.string.commitment_title,
+                R.string.commitment_subtitle,
+                R.string.commitment_active_body,
+                R.string.commitment_emergency_title,
+                R.string.commitment_stop_requires_dom,
+                R.string.achievement_desc_pact_sealed,
+                R.string.achievement_desc_pact_long_haul,
+                R.string.achievement_desc_paid_pause
+        };
         assertFalse(hardcore.contains("consensual"));
-        assertFalse(pactCopy.contains("hash"));
-        assertFalse(pactCopy.contains("salt"));
+        for (int resource : serviceCopy) {
+            String copy = context.getString(resource).toLowerCase();
+            assertFalse(copy.contains("timed protection"));
+            assertFalse(copy.contains("timed mode"));
+            assertFalse(copy.contains("pact"));
+            assertFalse(copy.contains("hash"));
+            assertFalse(copy.contains("salt"));
+        }
     }
 }

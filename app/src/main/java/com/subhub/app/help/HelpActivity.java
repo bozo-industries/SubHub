@@ -68,10 +68,14 @@ public final class HelpActivity extends AppCompatActivity {
         int[][] sections = {
                 {R.string.help_getting_started, R.string.help_body_started},
                 {R.string.help_permissions, R.string.help_body_perms},
-                {R.string.help_app_protection, R.string.help_body_app},
-                {R.string.help_censored_downloads, R.string.help_body_downloads},
-                {R.string.help_customisation, R.string.help_body_custom},
-                {R.string.help_popup_storm, R.string.help_body_popup},
+                {R.string.help_dom_sub, R.string.help_body_dom_sub},
+                {R.string.help_service_timers, R.string.help_body_service_timers},
+                {R.string.help_app_assignment, R.string.help_body_app_assignment},
+                {R.string.help_censoring, R.string.help_body_censoring},
+                {R.string.help_limits, R.string.help_body_limits},
+                {R.string.help_wallet, R.string.help_body_wallet},
+                {R.string.help_paypal_setup, R.string.help_body_paypal_setup},
+                {R.string.help_hardcore, R.string.help_body_hardcore},
                 {R.string.help_troubleshooting, R.string.help_body_troubleshooting},
                 {R.string.help_privacy, R.string.help_body_privacy},
                 {R.string.help_updates, R.string.help_body_updates}

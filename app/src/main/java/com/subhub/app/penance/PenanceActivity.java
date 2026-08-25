@@ -130,8 +130,9 @@ public final class PenanceActivity extends AppCompatActivity {
                 ? R.string.penance_subtitle : R.string.penance_sub_checkout_subtitle);
         binding.ruleConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
         binding.safetyConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
-        binding.paidPauseConfigCard.setVisibility(
-                editing && binding.ledgerEnabled.isChecked() ? View.VISIBLE : View.GONE);
+        // Dom mode must always expose the buyout setup. The Wallet master switch still
+        // gates purchasing and settlement, but it should not hide configuration.
+        binding.paidPauseConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
         binding.correctionsCard.setVisibility(editing ? View.VISIBLE : View.GONE);
         View[] editable = {binding.ledgerEnabled, binding.ruleDetectionEnabled,
                 binding.ruleDetectionAmount, binding.detectionBatch, binding.ruleDwellEnabled,
@@ -230,9 +231,6 @@ public final class PenanceActivity extends AppCompatActivity {
 
     private void attachRuleMathListeners() {
         binding.ledgerEnabled.setOnCheckedChangeListener((button, checked) -> {
-            binding.paidPauseConfigCard.setVisibility(
-                    ControllerPinManager.isDomModeActive() && checked
-                            ? View.VISIBLE : View.GONE);
             renderRuleMathPreview();
             scheduleRulesSave();
         });

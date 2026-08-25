@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/censor_page"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:background="@drawable/bg_main">
@@ -316,13 +317,11 @@
                 android:layout_marginHorizontal="3dp" android:layout_marginBottom="2dp"
                 android:text="@string/censor_tools_title" />
             <GridLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:columnCount="3" android:orientation="horizontal">
+                android:columnCount="2" android:orientation="horizontal">
                 <TextView android:id="@+id/button_censor_settings" style="@style/Widget.SubHub.ToolAction"
                     android:drawableTop="@drawable/ic_tab_settings" android:text="@string/censor_tool_settings" />
                 <TextView android:id="@+id/button_export" style="@style/Widget.SubHub.ToolAction"
                     android:drawableTop="@drawable/ic_tab_export" android:text="@string/censor_tool_export" />
-                <TextView android:id="@+id/button_help" style="@style/Widget.SubHub.ToolAction"
-                    android:drawableTop="@drawable/ic_tab_help" android:text="@string/censor_tool_help" />
             </GridLayout>
         </LinearLayout>
 
@@ -361,6 +360,61 @@
                 android:layout_marginStart="8dp" android:text="@string/penance_open" />
         </LinearLayout>
 
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/button_help"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:minHeight="66dp"
+            android:orientation="horizontal"
+            android:paddingStart="13dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="13dp"
+            android:paddingBottom="10dp">
+            <ImageView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_header_icon"
+                android:contentDescription="@string/help_title"
+                android:padding="9dp"
+                android:src="@drawable/ic_tab_help"
+                app:tint="@color/accent" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="11dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/help_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:maxLines="2"
+                    android:text="@string/help_subtitle"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="10sp" />
+            </LinearLayout>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="›"
+                android:textColor="@color/accent"
+                android:textSize="22sp" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>
