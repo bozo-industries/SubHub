@@ -37,7 +37,7 @@ Source-dependent effects transfer the already-owned capture bitmap to the overla
 
 `AppTimerManager` is a separate, opt-in policy for the watched package set. It stores per-app and combined daily foreground milliseconds under a local calendar-day key. The Accessibility service accounts elapsed time on accepted foreground transitions and a one-second boundary tick, independently of detector readiness and recognition mode. When either configured budget is exhausted, recognition is suspended if needed and Android's supported `GLOBAL_ACTION_HOME` returns the watched app to Home. Unwatched apps and disabled limits neither accrue nor enforce timer usage.
 
-`BootReceiver` is non-exported and performs no capture. Normal boot preserves the last armed/disarmed state. An active Commitment Pact or Hardcore Mode forces the persisted App Mode state back to armed; a prior MediaProjection session can only produce a notification that returns to the app for fresh Android approval. The notification Disarm action clears automatic recognition and pending session intent only when a pact is not sealed.
+`BootReceiver` is non-exported and performs no capture. Normal boot preserves the last armed/disarmed state. An active service lock or Hardcore Mode forces the persisted App Mode state back to armed; a prior MediaProjection session can only produce a notification that returns to the app for fresh Android approval. The notification Disarm action clears automatic recognition and pending session intent only when service is not locked.
 
 ## High-value code areas
 
@@ -96,21 +96,21 @@ bottom navigation, configuration links, or editable controls. Dom mode requires
 the controller PIN and restores the full feature-aware navigation and settings
 until the user explicitly returns to Sub mode or the process ends.
 
-This boundary is separate from Android permissions and the optional Commitment
-Pact. It is an app-local presentation and configuration boundary, not a device
+This boundary is separate from Android permissions and the optional service
+lock. It is an app-local presentation and configuration boundary, not a device
 security guarantee. The Sub dashboard uses project-owned layouts, art, icons,
 copy, and a darker asymmetrical card system rather than reproducing the purchased
 reference app's screen hierarchy.
 
-`MainActivity` owns a non-blocking first-run card and two dynamic launcher shortcuts routed through its exported entry point. `HelpActivity` owns current permission status, one-step overlay/notification repair, the accessibility-settings handoff, language selection, and ten source-authored expandable guides. `LocaleHelper` persists the recovered 11-choice language set through AppCompat per-app locales. Navigation, onboarding, permission repair, and Help section labels have localized resources; untranslated detail deliberately uses Android's English resource fallback.
+`MainActivity` owns a non-blocking first-run card and two dynamic launcher shortcuts routed through its exported entry point. `HelpActivity` owns current permission status, one-step overlay/notification repair, the accessibility-settings handoff, language selection, and thirteen source-authored expandable guides. `LocaleHelper` persists the recovered 11-choice language set through AppCompat per-app locales. Navigation, onboarding, permission repair, and Help section labels have localized resources; untranslated detail deliberately uses Android's English resource fallback.
 
 The maintained header and Help surfaces use the project-owned gothic header and demoness guardian art. They do not depend on the purchased APK's decorative assets.
 
-## Commitment pact
+## Service lock
 
-`CommitmentManager` stores timer state in private settings. `CommitmentActivity` provides a live countdown and Dom-only release. While active, protected settings remain behind the controller boundary. Sub mode cannot stop protection from the Home button or either notification action; Dom mode can stop it after the control PIN unlocks the session.
+`CommitmentManager` is the internal compatibility name for the private service-lock state. The selected duration can be 1 hour, 24 hours, 7 days, 30 days, or Permanent. `CommitmentActivity` shows the active lock and its remaining time when bounded, plus the Dom-only release. While active, protected settings remain behind the controller boundary. Sub mode cannot stop service from Home or either notification action; Dom mode can release it after the control PIN unlocks the session.
 
-Commitment Pact does not activate Device Admin. Sealing immediately arms App Mode, reboot re-arms it when Android has already enabled Accessibility, and an unexpected MediaProjection end falls back to the persistent armed state. Android uninstall and data clearing remain outside the app.
+The service lock does not activate Device Admin. Starting service immediately arms App Mode, reboot re-arms it when Android has already enabled Accessibility, and an unexpected MediaProjection end falls back to the persistent armed state. Android uninstall and data clearing remain outside the app unless the separate Hardcore option is enabled.
 
 ## Device Admin and restart boundary
 

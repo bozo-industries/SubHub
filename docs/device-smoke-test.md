@@ -16,7 +16,7 @@ The source app builds, installs, launches, persists settings, obtains explicit A
 - The first-run disclosure, gothic/demoness shell, ten-section Help screen, permission status/repair controls, and complete 11-choice language dialog rendered correctly.
 - Selecting German recreated Help with localized title, permissions, language status, and section labels; the default locale was restored after validation.
 - The dynamic Enter Service launcher shortcut was registered.
-- The Commitment Pact setup, matching keeper-code entry, sealed countdown, wrong/correct-code contracts, Sub-mode stop lock, Dom release, and boot re-arming were exercised. An active pact routes configuration to the pact screen while keeping Start/Stop visible.
+- All five service-duration choices, bounded remaining-time display, Permanent lock, Sub-mode stop lock, Dom/PIN release, and boot re-arming were exercised. An active service lock keeps the Home control visible while routing lock details to its status surface.
 - A generated gradient corpus exercised all nine censor types, four border effects, three reverse cutout shapes, and a real imported private custom-censor PNG.
 - Export wrote a synthetic censored JPEG through MediaStore, decoded it from the returned gallery URI, and removed the test artifact. Source-deletion enablement required its second confirmation.
 - Changing the UI to `pixelate`, moving intensity to `83%`, and disabling the pink border produced the expected values in `betablocker_settings.xml`.
@@ -28,7 +28,7 @@ The source app builds, installs, launches, persists settings, obtains explicit A
 - Log review found no `FATAL EXCEPTION`, pipeline-start failure, or frame-processing failure.
 - The release merged manifest contained no cleartext override. The later optional Hardcore Mode pass adds a policy-empty Device Admin receiver; the debug APK verified with its normal v2 debug signature.
 - The purple-demoness App Mode screen rendered correctly with its Android-service status, all/selected mode controls, save action, real launcher icons, and exact package labels.
-- App-mode instrumentation verified persisted selected-package state, last-state boot behavior, pact-forced boot re-arming, pact-aware notification Disarm, launcher-only package discovery, and a non-exported boot receiver.
+- App-mode instrumentation verified persisted selected-package state, last-state boot behavior, service-lock-forced boot re-arming, lock-aware notification Disarm, launcher-only package discovery, and a non-exported boot receiver.
 - With Calendar as the sole watched package, the live Accessibility service activated recognition on Calendar, loaded the licensed FP16 detector through NNAPI, processed a 1080×2400 frame in 77 ms, ignored its own overlay window event, and suspended immediately when Android Settings became foreground.
 
 ## 2026-08-23 SubHub shell and timer pass

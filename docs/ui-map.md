@@ -34,9 +34,9 @@ This inventory is captured from the real debug app on an Android 15 phone-sized 
 |---|---|---|
 | ![Custom images](screenshots/ui-map/page-map/11-custom-images.png) | ![Profiles](screenshots/ui-map/page-map/12-profiles.png) | ![Configuration packs](screenshots/ui-map/page-map/13-configuration-packs.png) |
 
-| Popup storm | Diagnostics | Commitment pact |
+| Popup storm | Diagnostics | Service lock |
 |---|---|---|
-| ![Popup storm](screenshots/ui-map/page-map/14-popup-storm.png) | ![Diagnostics](screenshots/ui-map/page-map/15-diagnostics.png) | ![Commitment pact](screenshots/ui-map/page-map/16-commitment-pact.png) |
+| ![Popup storm](screenshots/ui-map/page-map/14-popup-storm.png) | ![Diagnostics](screenshots/ui-map/page-map/15-diagnostics.png) | ![Service lock](screenshots/ui-map/page-map/16-commitment-pact.png) |
 
 ## Refreshing the map
 

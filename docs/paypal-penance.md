@@ -1,5 +1,8 @@
 # PayPal wallet settlement
 
+For merchant-dashboard, environment, eligibility, and payer-linking steps, see
+[PayPal setup](paypal-setup.md).
+
 SubHub keeps its Wallet ledger on the device. Dom Settings selects Sandbox or Live and accepts the
 matching PayPal Client ID and secret for this installation. Both values are encrypted at rest with
 an Android Keystore AES-GCM key and are never compiled into the APK. An optional PayPal.Me or other
