@@ -21,8 +21,7 @@ public final class UiComponentContractTest {
     @Test public void toolButtonsCenterTheIconAndLabelAsOneGroup() {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
-                int[] ids = {R.id.button_censor_settings,
-                        R.id.button_export, R.id.button_help};
+                int[] ids = {R.id.button_censor_settings, R.id.button_export};
                 for (int id : ids) {
                     TextView button = activity.findViewById(id);
                     assertEquals(Gravity.CENTER, button.getGravity());

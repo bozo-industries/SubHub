@@ -30,7 +30,6 @@ import com.subhub.app.appmode.AppModePolicy;
 import com.subhub.app.appmode.ResumeNotificationManager;
 import com.subhub.app.commitment.CommitmentActivity;
 import com.subhub.app.diagnostics.DiagnosticsActivity;
-import com.subhub.app.help.HelpActivity;
 import com.subhub.app.penance.PenanceManager;
 import com.subhub.app.penance.HardcoreAutoPayManager;
 import com.subhub.app.penance.PayPalCredentialStore;
@@ -115,8 +114,6 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                 ? R.id.paypal_environment_live : R.id.paypal_environment_sandbox);
         updatingPaypalEnvironment = false;
         binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
-        binding.buttonHelp.setOnClickListener(view ->
-                startActivity(new Intent(this, HelpActivity.class)));
         binding.buttonProfiles.setOnClickListener(view ->
                 startActivity(new Intent(this, ProfilesActivity.class)));
         binding.buttonDiagnostics.setOnClickListener(view ->
@@ -170,8 +167,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                 binding.recognitionCard,
                 binding.appListCard,
                 binding.settingsGroupServices,
-                binding.appSettingsCard,
-                binding.paypalCard
+                binding.paypalCard,
+                binding.appSettingsCard
         };
         for (View card : order) container.removeView(card);
         for (int index = 0; index < order.length; index++) {
