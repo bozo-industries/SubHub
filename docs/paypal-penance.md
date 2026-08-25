@@ -43,6 +43,19 @@ Live vault eligibility is reviewed and enabled in PayPal's account/developer set
 generic preflight API result. Switching to Live therefore requires Live credentials and a fresh
 payer authorization even if Sandbox was already ready.
 
+When automatic Wallet settlement is explicitly enabled and its Hardcore/timed-protection boundary
+is active, an eligible balance uses the saved payment token directly. The app creates a single-step
+Orders v2 request with `paypal.vault_id` and a merchant-initiated `SUBSEQUENT` /
+`UNSCHEDULED_POSTPAID` stored credential. PayPal does not support multiple line items for this saved
+wallet flow, so SubHub sends the bounded settlement total and retains the itemized infractions in
+its local ledger. A payer-action or approval URL is treated as expired authorization: automatic
+settlement pauses and asks for the wallet to be linked again instead of silently opening checkout.
+
+Manual settlement remains payer-present. Interactive order state cannot be reused for automatic
+settlement, and enabling automatic settlement clears any stale interactive checkout before a new
+background attempt. The app never falls back from configured auto-pay to an unnoticed interactive
+approval page.
+
 For payment-link fallback, PayPal.Me links receive the exact EUR amount using PayPal's documented
 `paypal.me/name/10.00EUR` form. The payer returns to SubHub and marks only the local ledger paid; the
 app does not represent that fallback as PayPal-side verification.

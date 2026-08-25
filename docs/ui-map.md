@@ -20,9 +20,9 @@ This inventory is captured from the real debug app on an Android 15 phone-sized 
 |---|---|---|
 | ![Global settings](screenshots/ui-map/page-map/04-global-settings.png) | ![Censor style previews](screenshots/ui-map/page-map/05-censor-settings.png) | ![Detection categories](screenshots/ui-map/page-map/05b-settings-detection-categories.png) |
 
-| Phrases and tools | Safe Browser | Photo censoring |
-|---|---|---|
-| ![Phrases and tools](screenshots/ui-map/page-map/05c-settings-phrases-and-tools.png) | ![Safe Browser](screenshots/ui-map/page-map/06-safe-browser.png) | ![Photo censoring](screenshots/ui-map/page-map/07-censor-photos.png) |
+| Phrases and tools | Photo censoring |
+|---|---|
+| ![Phrases and tools](screenshots/ui-map/page-map/05c-settings-phrases-and-tools.png) | ![Photo censoring](screenshots/ui-map/page-map/07-censor-photos.png) |
 
 ## Review, safety, and supporting tools
 

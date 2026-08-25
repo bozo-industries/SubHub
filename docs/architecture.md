@@ -43,7 +43,7 @@ Source-dependent effects transfer the already-owned capture bitmap to the overla
 
 | Area | Readable JADX path | Rebuildable APKTool path |
 | --- | --- | --- |
-| App shell and browser | `jadx/sources/com/betablocker/lite/MainActivity.java` | `apktool/smali/com/betablocker/lite/MainActivity.smali` |
+| App shell | `jadx/sources/com/betablocker/lite/MainActivity.java` | `apktool/smali/com/betablocker/lite/MainActivity.smali` |
 | MediaProjection service | `jadx/.../service/ScreenCaptureService.java` | `apktool/smali/.../service/ScreenCaptureService.smali` |
 | Accessibility capture | `jadx/.../service/ScreenshotAccessibilityService.java` | `apktool/smali/.../service/ScreenshotAccessibilityService.smali` |
 | ONNX inference | `jadx/.../detection/DetectionEngine.java` | `apktool/smali/.../detection/DetectionEngine.smali` |
@@ -69,7 +69,7 @@ The purchased manifest requests MediaProjection foreground-service, overlay, not
 
 ## Network behavior
 
-No Retrofit-style product backend or remote license API was found in the application package. Network use is primarily the built-in WebView, Google search suggestions, image download/export, and external support/social links.
+No Retrofit-style product backend or remote license API was found in the application package. Network use is limited to explicit external links, support destinations, and the optional PayPal Wallet integration.
 
 The app also contains a diagnostics HTTP server on TCP port 8765. It constructs `ServerSocket(8765)`, exposes `/`, `/data`, and `/reset`, and has no apparent authentication. Because the socket is not explicitly bound to loopback, treat it as LAN-exposed whenever started. A future maintained implementation should remove it from release builds or bind it to loopback with explicit opt-in and authentication.
 
@@ -108,7 +108,7 @@ The maintained header and Help surfaces use the project-owned gothic header and 
 
 ## Commitment pact
 
-`CommitmentManager` stores pact timing and keeper-code verification material in private settings. `CommitmentActivity` provides setup, a live countdown, keeper release, and a Dom-only release. While active, entry to censor settings and browser-shield configuration routes to the pact screen. Sub mode cannot stop protection from the home button or either notification action; Dom mode can stop it after the control PIN unlocks the session.
+`CommitmentManager` stores timer state in private settings. `CommitmentActivity` provides a live countdown and Dom-only release. While active, protected settings remain behind the controller boundary. Sub mode cannot stop protection from the Home button or either notification action; Dom mode can stop it after the control PIN unlocks the session.
 
 Commitment Pact does not activate Device Admin. Sealing immediately arms App Mode, reboot re-arms it when Android has already enabled Accessibility, and an unexpected MediaProjection end falls back to the persistent armed state. Android uninstall and data clearing remain outside the app.
 

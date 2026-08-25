@@ -19,11 +19,11 @@ Original artifact SHA-256:
 
 | Rung | Attempt | Evidence gained | Limitation / next decision |
 | --- | --- | --- | --- |
-| Official/public | Reviewed the current itch.io product page | Current download is 1.67/71 MB; claimed local inference, browser, capture, and Android requirements | Marketing claims do not prove implementation |
+| Official/public | Reviewed the current itch.io product page | Current download is 1.67/71 MB; claimed local inference, capture, and Android requirements | Marketing claims do not prove implementation |
 | Existing artifacts | Inspected APK metadata, manifest, ZIP contents, signatures, DEX, native libraries, and resources | Package/version, permissions, single DEX, ONNX assets/runtime, debug signer, supported ABIs | Static metadata does not prove runtime behavior |
 | Minimal raw request | Not attempted | Not needed for the requested rebuild workspace | No authenticated product API was identified |
-| Proxy capture | Not attempted | Avoided because static analysis answered the current questions | Browser traffic remains unobserved |
-| Static analysis | APKTool, normal JADX, simple-mode JADX, and smali private output | Capture/inference/render flow, tensor decoding, settings/statistics storage, browser URLs, local diagnostics server | Smali remains authoritative where high-level output is inconsistent |
+| Proxy capture | Not attempted | Avoided because static analysis answered the current questions | Network traffic remains unobserved |
+| Static analysis | APKTool, normal JADX, simple-mode JADX, and smali private output | Capture/inference/render flow, tensor decoding, settings/statistics storage, network URLs, local diagnostics server | Smali remains authoritative where high-level output is inconsistent |
 
 ## Detector reconstruction evidence
 
@@ -94,7 +94,7 @@ Conclusion: Beta Blocker Android 1.67 already contains no premium/payment enforc
 ## Security and uncertainty notes
 
 - The diagnostics server appears unauthenticated and not loopback-bound. Exposure depends on whether and when application code starts it; no call site was established in this static pass.
-- The APK requests Internet permission because the safe browser and suggestion/download features access arbitrary remote content. No dedicated remote product API was identified.
+- The audited APK requests Internet permission for remote content features. No dedicated remote product API was identified.
 - No claims from third-party screenshots about paywalls, device administration, or other controls were accepted without artifact evidence.
 
 ## Artifact handling
