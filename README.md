@@ -25,7 +25,7 @@
 
 ## One clean handoff
 
-Dom mode holds every rule. Sub mode keeps only the active scene: choose a protection timer, enter service, and see the current limits, ledger, session, and milestones without exposing configuration.
+Dom mode holds every rule. Sub mode keeps only the active scene: choose a service duration, enter service, and see the current limits, ledger, session, and milestones without exposing configuration.
 
 | **Dom mode** | **Sub mode** |
 |---|---|
@@ -92,7 +92,7 @@ The Dom sets prices, batching, grace, correction time, and daily or weekly caps.
 
 ## Milestones
 
-SubHub includes 58 original illustrated achievements across censoring, protected time, sessions, streaks, customisation, App Mode, limits, timed protection, Hardcore Mode, and confirmed Wallet payments. Related tiers keep one visual family and grow richer as the target rises.
+SubHub includes 58 original illustrated achievements across censoring, protected time, sessions, streaks, customisation, App Mode, limits, service locks, Hardcore Mode, and confirmed Wallet payments. Related tiers keep one visual family and grow richer as the target rises.
 
 <details>
 <summary><strong>Open the complete badge collection</strong></summary>
@@ -128,6 +128,7 @@ Editable source lives under `app/src/main/java/com/subhub/app/`. Versioned tags 
 - [Architecture](docs/architecture.md)
 - [Device smoke test](docs/device-smoke-test.md)
 - [Visual audit](docs/visual-parity.md)
+- [PayPal setup](docs/paypal-setup.md)
 - [PayPal settlement](docs/paypal-penance.md)
 
 </details>
