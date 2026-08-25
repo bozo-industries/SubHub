@@ -438,6 +438,12 @@
                     android:textColor="@color/text_primary" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:text="@string/paypal_auto_pay_help" />
+                <TextView
+                    android:id="@+id/paypal_auto_pay_status"
+                    style="@style/Widget.SubHub.FieldHelp"
+                    android:layout_marginTop="5dp"
+                    android:textColor="@color/accent_hot"
+                    android:visibility="gone" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:layout_marginTop="8dp"
                     android:text="@string/paypal_link_help" />

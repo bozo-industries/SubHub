@@ -381,6 +381,13 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         updatingAutoPay = true;
         binding.paypalAutoPayEnabled.setChecked(autoPay.isEnabled());
         updatingAutoPay = false;
+        String autoPayError = autoPay.lastError();
+        boolean autoPayPaused = "PAUSED".equals(autoPay.status()) && !autoPayError.isEmpty();
+        binding.paypalAutoPayStatus.setVisibility(autoPayPaused ? View.VISIBLE : View.GONE);
+        if (autoPayPaused) {
+            binding.paypalAutoPayStatus.setText(getString(
+                    R.string.paypal_auto_pay_paused_status, autoPayError));
+        }
     }
 
     private void linkPayPalWallet() {

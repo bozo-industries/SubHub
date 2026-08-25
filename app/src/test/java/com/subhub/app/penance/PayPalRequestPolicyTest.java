@@ -35,4 +35,46 @@ public final class PayPalRequestPolicyTest {
         assertFalse(PayPalRequestPolicy.hasRequestBody("POST", ""));
         assertTrue(PayPalRequestPolicy.hasRequestBody("POST", "{}"));
     }
+
+    @Test public void automaticWalletRequestIsMerchantInitiatedAndHeadless() {
+        PayPalRequestPolicy.StoredWalletRequest request =
+                PayPalRequestPolicy.storedWalletRequest("vault-token");
+        assertEquals("vault-token", request.vaultId());
+        assertEquals("MERCHANT", request.paymentInitiator());
+        assertEquals("SUBSEQUENT", request.usage());
+        assertEquals("UNSCHEDULED_POSTPAID", request.usagePattern());
+        assertFalse(request.permitsInteractiveCheckout());
+        assertFalse(request.permitsLineItems());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void automaticWalletRequestRejectsMissingVaultToken() {
+        PayPalRequestPolicy.storedWalletRequest("  ");
+    }
+
+    @Test public void automaticWalletResponseNeverRoutesToCheckout() {
+        assertEquals(PayPalRequestPolicy.StoredWalletOutcome.COMPLETED,
+                PayPalRequestPolicy.storedWalletOutcome("COMPLETED", false, false));
+        assertEquals(PayPalRequestPolicy.StoredWalletOutcome.REAUTHORIZATION_REQUIRED,
+                PayPalRequestPolicy.storedWalletOutcome("PAYER_ACTION_REQUIRED", false, false));
+        assertEquals(PayPalRequestPolicy.StoredWalletOutcome.REAUTHORIZATION_REQUIRED,
+                PayPalRequestPolicy.storedWalletOutcome("CREATED", true, false));
+        assertEquals(PayPalRequestPolicy.StoredWalletOutcome.REAUTHORIZATION_REQUIRED,
+                PayPalRequestPolicy.storedWalletOutcome("CREATED", false, true));
+        assertEquals(PayPalRequestPolicy.StoredWalletOutcome.INVALID_RESPONSE,
+                PayPalRequestPolicy.storedWalletOutcome("CREATED", false, false));
+    }
+
+    @Test public void eligibleAutomaticSettlementCannotUsePayerPresentCheckout() {
+        assertEquals(PayPalRequestPolicy.CheckoutRoute.STORED_WALLET,
+                PayPalRequestPolicy.checkoutRoute(false, true, true, true));
+        assertEquals(PayPalRequestPolicy.CheckoutRoute.BLOCKED,
+                PayPalRequestPolicy.checkoutRoute(false, true, true, false));
+        assertEquals(PayPalRequestPolicy.CheckoutRoute.PAYER_PRESENT,
+                PayPalRequestPolicy.checkoutRoute(false, true, false, false));
+        assertEquals(PayPalRequestPolicy.CheckoutRoute.PAYER_PRESENT,
+                PayPalRequestPolicy.checkoutRoute(false, false, true, false));
+        assertEquals(PayPalRequestPolicy.CheckoutRoute.PAYER_PRESENT,
+                PayPalRequestPolicy.checkoutRoute(true, true, true, true));
+    }
 }

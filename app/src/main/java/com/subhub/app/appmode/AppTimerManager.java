@@ -59,6 +59,24 @@ public final class AppTimerManager {
         }
     }
 
+    /** Compact description data for the enabled apps' individual daily allowances. */
+    public static final class AllowanceSummary {
+        public final int appCount;
+        public final int minimumMinutes;
+        public final int maximumMinutes;
+
+        private AllowanceSummary(int appCount, int minimumMinutes, int maximumMinutes) {
+            this.appCount = Math.max(0, appCount);
+            this.minimumMinutes = Math.max(0, minimumMinutes);
+            this.maximumMinutes = Math.max(0, maximumMinutes);
+        }
+
+        public boolean isEmpty() { return appCount == 0; }
+        public boolean isUniform() {
+            return appCount > 0 && minimumMinutes == maximumMinutes;
+        }
+    }
+
     private final SharedPreferences settingsPreferences;
     private final SharedPreferences usagePreferences;
 
@@ -105,6 +123,18 @@ public final class AppTimerManager {
             }
         }
         return result;
+    }
+
+    public AllowanceSummary summarizeAllowances(Set<String> packages) {
+        Map<String, Integer> allowances = loadAllowances(packages);
+        if (allowances.isEmpty()) return new AllowanceSummary(0, 0, 0);
+        int minimum = Integer.MAX_VALUE;
+        int maximum = 0;
+        for (int minutes : allowances.values()) {
+            minimum = Math.min(minimum, minutes);
+            maximum = Math.max(maximum, minutes);
+        }
+        return new AllowanceSummary(allowances.size(), minimum, maximum);
     }
 
     public void saveAllowances(Set<String> selectedPackages, Map<String, Integer> allowances) {

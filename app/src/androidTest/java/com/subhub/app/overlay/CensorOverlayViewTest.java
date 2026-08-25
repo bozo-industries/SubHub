@@ -160,6 +160,34 @@ public final class CensorOverlayViewTest {
         view.release();
     }
 
+    @Test public void animatedRainbowBorderNeverEscapesItsWideTrackedRectangle() {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.setAppearance(new CensorAppearance(
+                CensorAppearance.Type.BOX, 1, 0f, true, true,
+                CensorAppearance.BorderEffect.RAINBOW, false, Color.MAGENTA,
+                List.of(), false, 100, "rectangle", "SubHub", "Blocked"));
+        view.setBorderAnimationTimeForTest(1_000L);
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        List<Detection> detections = List.of(new Detection(
+                "EXPOSED_TEST", "EXPOSED", 1f,
+                new BBox(20, 70, 200, 20), true, true));
+        List<TrackedObject> tracks = List.of();
+        for (int frame = 0; frame < 5; frame++) tracks = tracker.update(detections);
+        view.setTracks(tracks, 240, 180, null);
+        view.measure(exactly(240), exactly(180));
+        view.layout(0, 0, 240, 180);
+
+        Bitmap rendered = draw(view, 240, 180);
+
+        assertTrue("The tracked censor should still render", opaquePixels(
+                rendered, 20, 70, 220, 90) > 500);
+        assertEquals("An animated border must not rotate into a display-spanning line",
+                0, opaquePixelsOutside(rendered, 20, 70, 220, 90));
+        rendered.recycle();
+        view.release();
+    }
+
     private static CensorAppearance appearance(CensorAppearance.Type type, boolean text) {
         return new CensorAppearance(type, 82, .08f, true, false,
                 CensorAppearance.BorderEffect.CLASSIC, text, Color.MAGENTA,
@@ -212,6 +240,18 @@ public final class CensorOverlayViewTest {
                 int pixel = bitmap.getPixel(x, y);
                 if (Color.red(pixel) > 190 && Color.green(pixel) > 190
                         && Color.blue(pixel) > 190) count++;
+            }
+        }
+        return count;
+    }
+
+    private static int opaquePixelsOutside(
+            Bitmap bitmap, int left, int top, int right, int bottom) {
+        int count = 0;
+        for (int y = 0; y < bitmap.getHeight(); y++) {
+            for (int x = 0; x < bitmap.getWidth(); x++) {
+                if (x >= left && x < right && y >= top && y < bottom) continue;
+                if (Color.alpha(bitmap.getPixel(x, y)) > 0) count++;
             }
         }
         return count;

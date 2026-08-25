@@ -401,6 +401,26 @@ public final class PenanceActivity extends AppCompatActivity {
             toast(R.string.paid_pause_unavailable);
             return;
         }
+        HardcoreAutoPayManager autoPay = new HardcoreAutoPayManager(this);
+        boolean autoPayConfigured = autoPay.isConfigured();
+        boolean automaticContext = autoPay.isAutomaticContextActive();
+        boolean autoPayEligible = automaticContext && autoPay.isEligibleNow();
+        PayPalRequestPolicy.CheckoutRoute checkoutRoute = PayPalRequestPolicy.checkoutRoute(
+                paidPauseOnly, automaticContext, autoPayConfigured, autoPayEligible);
+        if (checkoutRoute == PayPalRequestPolicy.CheckoutRoute.BLOCKED) {
+            toast(R.string.paypal_auto_pay_unavailable);
+            render();
+            return;
+        }
+        if (checkoutRoute == PayPalRequestPolicy.CheckoutRoute.STORED_WALLET) {
+            checkoutBusy = true;
+            render();
+            HardcoreAutoPayEngine.run(this, () -> {
+                checkoutBusy = false;
+                if (binding != null) render();
+            });
+            return;
+        }
         boolean paypalReady = paypalCredentials.hasCredentials();
         boolean linkReady = validExternalUrl(manager.getPayPalLink());
         if (!paypalReady && !linkReady) {

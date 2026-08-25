@@ -189,6 +189,7 @@ public final class PenanceContractTest {
     @Test public void autoPayRequiresAReadyEnvironmentBoundSavedWallet() {
         PayPalCredentialStore store = new PayPalCredentialStore(context);
         assertTrue(store.save(PayPalEnvironment.SANDBOX, "client", "secret"));
+        assertTrue(store.markCredentialsVerified());
         PayPalCredentialStore.Credentials credentials = store.load();
         store.recordVaultResult(credentials, "VAULTED", "vault-1", "customer-1",
                 "payer@example.com", "PAYER-1234");
@@ -209,6 +210,30 @@ public final class PenanceContractTest {
         manager.markAutomaticSettlement(settlement.getId(), "boundary");
         assertEquals(PenanceManager.CheckoutMode.HARDCORE_AUTO,
                 manager.getActiveCheckoutMode());
+    }
+
+    @Test public void enablingAutoPayClearsAnInteractiveCheckoutRoute() {
+        long now = System.currentTimeMillis();
+        manager.configure(true, 100, 500, 2_000, 0);
+        manager.recordStrikes(1, now);
+        PenanceManager.Settlement settlement = manager.beginSettlement(now);
+        assertNotNull(settlement);
+        manager.bindOrder(settlement.getId(), "ORDER-123",
+                "https://www.paypal.com/checkoutnow?token=ORDER-123", "boundary");
+        assertEquals(PenanceManager.CheckoutMode.API_APPROVAL,
+                manager.getActiveCheckoutMode());
+
+        PayPalCredentialStore store = new PayPalCredentialStore(context);
+        assertTrue(store.save(PayPalEnvironment.SANDBOX, "client", "secret"));
+        assertTrue(store.markCredentialsVerified());
+        PayPalCredentialStore.Credentials credentials = store.load();
+        store.recordVaultResult(credentials, "VAULTED", "vault-1", "customer-1",
+                "payer@example.com", "PAYER-1234");
+
+        assertTrue(new HardcoreAutoPayManager(context).enable());
+        assertEquals(PenanceManager.CheckoutMode.NONE, manager.getActiveCheckoutMode());
+        assertTrue(manager.getActiveApprovalUrl().isEmpty());
+        assertEquals(100, manager.snapshot(now).getDueCents());
     }
 
     @Test public void settlementRequiresAnExactConfirmedAmount() {

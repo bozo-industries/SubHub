@@ -14,7 +14,7 @@
     <string name="global_features_title">ACTIVE AREAS</string>
     <string name="global_features_help">Keep only the features you use. Anything disabled leaves the bottom menu.</string>
     <string name="global_feature_censor">Censor</string>
-    <string name="global_feature_censor_help">Live filtering, censor styles, Safe Browser, and photo tools.</string>
+    <string name="global_feature_censor_help">Live filtering, censor styles, and photo tools.</string>
     <string name="global_feature_limits">App limits</string>
     <string name="global_feature_limits_help">App assignments and daily screen-time allowances.</string>
     <string name="global_feature_wallet">Wallet</string>
@@ -47,7 +47,6 @@
     <string name="hardcore_guard_window_title">SubHub Hardcore guard</string>
     <string name="censor_tools_title">CENSOR TOOLS</string>
     <string name="censor_tool_settings">Filter rules</string>
-    <string name="censor_tool_browser">Safe browser</string>
     <string name="censor_tool_export">Censor photos</string>
     <string name="censor_tool_help">Help &amp; safety</string>
     <string name="header_subtitle">Control, restraint, and accountability</string>
@@ -223,7 +222,7 @@ Maximum coverage · flagship devices</string>
     <string name="profile_loaded">Profile loaded and applied.</string>
     <string name="profile_delete_title">Delete profile?</string>
     <string name="backup_title">SETTINGS BACKUP</string>
-    <string name="backup_desc">Export a settings backup. Images, models, browser data, and secrets stay out of the file.</string>
+    <string name="backup_desc">Export a settings backup. Images, models, and secrets stay out of the file.</string>
     <string name="backup_export">EXPORT BACKUP</string>
     <string name="backup_import">IMPORT BACKUP</string>
     <string name="backup_exported">Settings backup exported.</string>
@@ -250,38 +249,6 @@ Maximum coverage · flagship devices</string>
     <string name="pack_activated">Pack activated.</string>
     <string name="pack_activation_failed">Pack could not be activated.</string>
     <string name="pack_delete_title">Delete installed pack?</string>
-    <string name="browser_title">SAFE BROWSER</string>
-    <string name="browser_back">‹</string>
-    <string name="browser_forward">›</string>
-    <string name="browser_go">GO</string>
-    <string name="browser_address_hint">Search or enter address</string>
-    <string name="browser_address_label">ADDRESS OR SEARCH</string>
-    <string name="browser_new_tab">+</string>
-    <string name="browser_private">PRIVATE</string>
-    <string name="browser_private_notice">PRIVATE* · NO SAVED HISTORY OR CACHE</string>
-    <string name="browser_private_title">PRIVATE TAB</string>
-    <string name="browser_private_explanation">This tab keeps no history, form data, cache, or site storage after it closes. Android WebView still shares first-party cookies with other SubHub tabs.</string>
-    <string name="browser_private_open">OPEN PRIVATE TAB</string>
-    <string name="browser_tab_private_title">◆ %1$s</string>
-    <string name="browser_tab_limit">Twelve tabs is the current limit.</string>
-    <string name="browser_bookmarks">BOOKMARKS</string>
-    <string name="browser_shields">SHIELDS</string>
-    <string name="browser_add_bookmark">ADD CURRENT</string>
-    <string name="browser_remove_bookmark">REMOVE…</string>
-    <string name="browser_no_bookmarks">No bookmarks yet.</string>
-    <string name="browser_image_download">IMAGE DOWNLOAD</string>
-    <string name="browser_censor_and_save">CENSOR &amp; SAVE</string>
-    <string name="browser_download_original">DOWNLOAD ORIGINAL</string>
-    <string name="browser_download_started">Download started.</string>
-    <string name="browser_censoring_download">Downloading and censoring…</string>
-    <string name="browser_censored_saved">Censored image saved to Pictures/SubHub/Browser.</string>
-    <string name="browser_download_failed">Download could not be completed.</string>
-    <string-array name="browser_shield_options">
-        <item>Hide images and video before they load</item>
-        <item>Remove CSS background images</item>
-        <item>Use extra filters on supported sites</item>
-        <item>Online search suggestions (sends typed queries to Google)</item>
-    </string-array>
     <string name="stats_blocks">LIFETIME BLOCKS</string>
     <string name="stats_session_blocks">SESSION BLOCKS</string>
     <string name="stats_time">PROTECTED</string>
@@ -313,7 +280,6 @@ Maximum coverage · flagship devices</string>
     <string name="statistics_current_streak">CURRENT STREAK</string>
     <string name="statistics_peak">PEAK SESSION</string>
     <string name="statistics_longest">LONGEST SESSION</string>
-    <string name="statistics_browser">BROWSER SESSIONS</string>
     <string name="statistics_exported">EXPORTED IMAGES</string>
     <string name="statistics_active_days">ACTIVE DAYS</string>
     <string name="statistics_trend">RECENT 30 SESSIONS</string>
@@ -350,6 +316,7 @@ Maximum coverage · flagship devices</string>
     <string name="achievements_progress_compact">%1$d / %2$d</string>
     <string name="achievements_home_title">MILESTONES</string>
     <string name="achievements_home_action">VIEW THE COLLECTION  ›</string>
+    <string name="achievements_home_progress_percent">%1$d%%</string>
     <string name="achievements_showcase_title">YOUR BADGES</string>
     <string name="achievements_next_fmt">Next: %1$s · %2$s</string>
     <string name="achievements_all_complete">Every badge is yours.</string>
@@ -361,7 +328,6 @@ Maximum coverage · flagship devices</string>
     <string name="achievement_category_streaks">STREAKS</string>
     <string name="achievement_category_custom">PERSONALISATION</string>
     <string name="achievement_category_profiles">PROFILES &amp; PACKS</string>
-    <string name="achievement_category_browser">SAFE BROWSER</string>
     <string name="achievement_category_export">PHOTO TOOLS</string>
     <string name="achievement_category_app_mode">APP MODE</string>
     <string name="achievement_category_limits">LIMITS</string>
@@ -415,8 +381,6 @@ Maximum coverage · flagship devices</string>
     <string name="achievement_phrase_library">Phrase Library</string>
     <string name="achievement_profile_creator">Profile Creator</string>
     <string name="achievement_profile_organizer">Profile Organizer</string>
-    <string name="achievement_browser_first">Browser Explorer</string>
-    <string name="achievement_browser_warrior">Browser Warrior</string>
     <string name="achievement_export_first">Exporter</string>
     <string name="achievement_export_artist">Export Artist</string>
     <string name="achievement_weekend_warrior">Weekend Warrior</string>
@@ -476,8 +440,6 @@ Maximum coverage · flagship devices</string>
     <string name="achievement_desc_phrase_library">Add 10 custom phrases</string>
     <string name="achievement_desc_profile_creator">Save your first profile</string>
     <string name="achievement_desc_profile_organizer">Save 3 profiles</string>
-    <string name="achievement_desc_browser_first">Use the in-app browser</string>
-    <string name="achievement_desc_browser_warrior">Use the browser in 25 sessions</string>
     <string name="achievement_desc_export_first">Censor your first image with Export</string>
     <string name="achievement_desc_export_artist">Censor 50 images with Export</string>
     <string name="achievement_desc_weekend_warrior">Protect on Saturday and Sunday of the same ISO week</string>
@@ -595,7 +557,6 @@ Maximum coverage · flagship devices</string>
     <string name="help_getting_started">Start Here</string>
     <string name="help_permissions">Permissions</string>
     <string name="help_app_protection">Automatic Protection</string>
-    <string name="help_browser_protection">Safe Browser</string>
     <string name="help_censored_downloads">Export &amp; Downloads</string>
     <string name="help_customisation">Looks &amp; Packs</string>
     <string name="help_popup_storm">Popup Storm Safety</string>
@@ -605,12 +566,11 @@ Maximum coverage · flagship devices</string>
     <string name="help_body_started">1. Open Filter rules and choose what to hide.\n2. Assign apps in Settings.\n3. Tap Start Protection on Home.\n4. Approve any Android permission shown.\n5. Stop from Home or the notification.</string>
     <string name="help_body_perms">Display over other apps lets SubHub place censors above other apps. Screen Capture asks for Android approval at each start. App Mode needs Accessibility enabled once.</string>
     <string name="help_body_app">App Mode is the persistent option: enable Accessibility once, assign the apps to censor, and SubHub wakes only where you told it to. Selected-app mode sleeps after you leave an assigned app. Screen Capture watches the approved screen until that session ends. Android secure windows can block either method.</string>
-    <string name="help_body_browser">Safe Browser includes tabs, bookmarks, pre-blur, ad filtering, and censored downloads. Private tabs clear their history, cache, forms, and site storage when closed, but Android WebView still shares first-party cookies between SubHub tabs.</string>
-    <string name="help_body_downloads">Export censors selected gallery images on device and saves new copies. Optional source deletion always requires a second confirmation and may trigger an additional Android provider prompt. Browser images can be downloaded normally or scanned and censored before saving.</string>
+    <string name="help_body_downloads">Export censors selected gallery images on device and saves new copies. Optional source deletion always requires a second confirmation and may trigger an additional Android provider prompt.</string>
     <string name="help_body_custom">Changes apply live. Saved Setups remember complete censor configurations; Censor Packs add themes, phrases, and images.</string>
     <string name="help_body_popup">Popup Storm can spawn moving images in rapid bursts. Read and accept the photosensitivity warning before enabling it. A separate STOP STORM control remains above every popup. Stopping the storm does not trap the device, disable Android controls, or prevent uninstalling SubHub.</string>
     <string name="help_body_troubleshooting">Use Fix Next Permission if censors do not appear. Diagnostics shows service state, detector, frame rate, latency, and recent errors. If App Mode stalls, turn SubHub off and on again in Android Accessibility.</string>
-    <string name="help_body_privacy">Detection, app assignments, statistics, setups, packs, diagnostics, and Wallet history stay on this device. Screen snapshots are analyzed locally and are not saved. PayPal credentials and saved-wallet IDs are encrypted; checkout and risk data go directly to PayPal. Browser traffic still goes to the sites you visit.</string>
+    <string name="help_body_privacy">Detection, app assignments, statistics, setups, packs, diagnostics, and Wallet history stay on this device. Screen snapshots are analyzed locally and are not saved. PayPal credentials and saved-wallet IDs are encrypted; checkout and risk data go directly to PayPal.</string>
     <string name="help_body_updates">After restart, SubHub restores the last protection state. An active protection timer always re-arms App Mode when Android allows it. Screen Capture still needs fresh Android approval.</string>
     <string name="onboarding_title">WELCOME TO SUBHUB</string>
     <string name="onboarding_body">Build the rules in Dom mode. Live by them in Sub mode.</string>
@@ -618,8 +578,6 @@ Maximum coverage · flagship devices</string>
     <string name="onboarding_dismiss">GOT IT</string>
     <string name="shortcut_start_protection">Enter Service</string>
     <string name="shortcut_start_protection_long">Enter SubHub service</string>
-    <string name="shortcut_open_browser">Open Browser</string>
-    <string name="shortcut_open_browser_long">Open the SubHub browser</string>
     <string name="commitment_title">TIMED PROTECTION</string>
     <string name="commitment_subtitle">A timer that keeps protection on.</string>
     <string name="commitment_pact_sealed">TIMER ACTIVE</string>
@@ -794,6 +752,8 @@ Maximum coverage · flagship devices</string>
     <string name="paypal_auto_pay_allow_body">While Hardcore Mode and timed protection are active, SubHub may create and capture PayPal payments from the linked wallet without another approval after correction windows expire. Daily and weekly caps still apply. PayPal may decline or require the wallet owner to approve again.</string>
     <string name="paypal_auto_pay_allow">ENABLE AUTO-PAY</string>
     <string name="paypal_auto_pay_link_first">Link the payer wallet first.</string>
+    <string name="paypal_auto_pay_paused_status">Auto-pay paused: %1$s</string>
+    <string name="paypal_auto_pay_unavailable">Auto-pay is paused. Check the saved wallet in Settings.</string>
     <string name="paypal_order_item_name">%1$s × %2$d</string>
     <string name="paypal_order_item_when">Recorded %1$s</string>
     <string name="paypal_auto_payment_processing">Automatic Wallet payment is processing.</string>
@@ -859,12 +819,22 @@ Maximum coverage · flagship devices</string>
     <string name="sub_censor_detection_images_text">explicit images + smut text</string>
     <string name="sub_limits_title">TODAY’S LIMITS</string>
     <string name="sub_limits_none">No daily app limits are active.</string>
-    <string name="sub_limits_selected">%1$d watched app(s) · %2$s</string>
+    <plurals name="sub_limits_selected">
+        <item quantity="one">%1$d watched app · %2$s</item>
+        <item quantity="other">%1$d watched apps · %2$s</item>
+    </plurals>
     <string name="sub_limits_per_app">%1$d min per app</string>
-    <string name="sub_limits_combined">%1$d min combined</string>
-    <string name="sub_limits_both">%1$d min per app · %2$d min combined</string>
+    <string name="sub_limits_individual_range">%1$d–%2$d min individual</string>
+    <string name="sub_limits_shared">%1$d min shared</string>
+    <string name="sub_limits_shared_and_individual">%1$d min shared · %2$s</string>
+    <string name="sub_limits_no_apps">No watched apps selected.</string>
     <string name="sub_limits_armed">App timing is armed.</string>
     <string name="sub_limits_sleeping">App timing is waiting.</string>
+    <string name="home_lifetime_title">LIFETIME STATS</string>
+    <string name="stats_total_blocks_short">TOTAL BLOCKS</string>
+    <string name="stats_total_protected_short">PROTECTED</string>
+    <string name="stats_streak">STREAK</string>
+    <string name="stats_streak_days">%1$d d</string>
     <string name="sub_wallet_title">TRIBUTE LEDGER</string>
     <string name="sub_wallet_active">Every costly little slip lands here.</string>
     <string name="sub_wallet_inactive">No tribute rules are active.</string>

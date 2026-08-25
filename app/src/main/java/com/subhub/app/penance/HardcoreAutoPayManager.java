@@ -11,6 +11,7 @@ import com.subhub.app.security.HardcoreModeManager;
 
 /** Explicit Dom authorization and one-shot scheduling for saved-wallet Hardcore payments. */
 public final class HardcoreAutoPayManager {
+    static final String ACTION_AUTO_PAY = "com.subhub.app.action.HARDCORE_AUTO_PAY";
     private static final String PREFS = "subhub_hardcore_auto_pay";
     private static final String KEY_ENABLED = "enabled";
     private static final String KEY_BOUNDARY = "paypal_boundary";
@@ -30,7 +31,15 @@ public final class HardcoreAutoPayManager {
     public boolean enable() {
         PayPalCredentialStore store = new PayPalCredentialStore(context);
         PayPalCredentialStore.Credentials credentials = store.load();
-        if (!credentials.isComplete() || !store.vaultState().isReady()) return false;
+        if (!credentials.isComplete() || !store.hasVerifiedCredentials()
+                || !store.vaultState().isReady()) return false;
+        PenanceManager penance = new PenanceManager(context);
+        PenanceManager.CheckoutMode checkoutMode = penance.getActiveCheckoutMode();
+        if (checkoutMode != PenanceManager.CheckoutMode.NONE
+                && checkoutMode != PenanceManager.CheckoutMode.HARDCORE_AUTO) {
+            String settlementId = penance.getActiveSettlementId();
+            if (!settlementId.isEmpty()) penance.cancelSettlement(settlementId);
+        }
         preferences.edit().putBoolean(KEY_ENABLED, true)
                 .putString(KEY_BOUNDARY, credentials.boundaryId())
                 .putString(KEY_LAST_STATUS, "READY").remove(KEY_LAST_ERROR).commit();
@@ -49,19 +58,27 @@ public final class HardcoreAutoPayManager {
         PayPalCredentialStore store = new PayPalCredentialStore(context);
         PayPalCredentialStore.Credentials credentials = store.load();
         String boundary = preferences.getString(KEY_BOUNDARY, "");
-        if (!credentials.isComplete() || !store.vaultState().isReady()
+        if (!credentials.isComplete() || !store.hasVerifiedCredentials()
+                || !store.vaultState().isReady()
                 || !credentials.boundaryId().equals(boundary)) {
-            disable();
+            pause("Saved wallet authorization is no longer ready");
             return false;
         }
         return true;
     }
 
-    public boolean isEligibleNow() {
-        return isEnabled()
-                && new HardcoreModeManager(context).isEnabled()
+    public boolean isConfigured() {
+        return preferences.getBoolean(KEY_ENABLED, false);
+    }
+
+    public boolean isAutomaticContextActive() {
+        return new HardcoreModeManager(context).isEnabled()
                 && CommitmentManager.isActive(context)
                 && new PenanceManager(context).isEnabled();
+    }
+
+    public boolean isEligibleNow() {
+        return isEnabled() && isAutomaticContextActive();
     }
 
     public String status() {
@@ -123,7 +140,7 @@ public final class HardcoreAutoPayManager {
 
     private static PendingIntent pending(Context context) {
         Intent intent = new Intent(context, HardcoreAutoPayReceiver.class)
-                .setAction("com.subhub.app.action.HARDCORE_AUTO_PAY");
+                .setAction(ACTION_AUTO_PAY);
         return PendingIntent.getBroadcast(context, REQUEST_CODE, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }

@@ -9,7 +9,7 @@ import android.widget.Toast;
 import com.subhub.app.R;
 import com.subhub.app.settings.GlobalSettingsActivity;
 
-/** Narrow browser-return boundary for payer-present PayPal Wallet authorization. */
+/** Narrow approval-return boundary for payer-present PayPal Wallet authorization. */
 public final class PayPalVaultCallbackActivity extends Activity {
     private PayPalOrdersClient paypalClient;
 

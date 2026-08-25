@@ -94,6 +94,7 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.reverseStrengthValue.setText(percent(appearance.getReverseStrength()));
         renderPaletteControls();
         renderColorButton(binding.borderColor, appearance.getBorderColor());
+        binding.borderPreview.setAppearance(appearance);
 
         DetectionPreset preset = repository.loadDetectionPreset();
         binding.presetGroup.check(radioFor(preset));
@@ -194,7 +195,10 @@ public final class SettingsActivity extends AppCompatActivity {
             }
         });
         CompoundButton.OnCheckedChangeListener changed = (button, checked) -> saveAll();
-        binding.switchBorder.setOnCheckedChangeListener(changed);
+        binding.switchBorder.setOnCheckedChangeListener((button, checked) -> {
+            saveAll();
+            syncBorderControlState();
+        });
         binding.switchText.setOnCheckedChangeListener(changed);
         binding.switchAnimateBorder.setOnCheckedChangeListener(changed);
         binding.switchReverse.setOnCheckedChangeListener(changed);
@@ -245,6 +249,7 @@ public final class SettingsActivity extends AppCompatActivity {
                             SettingsRepository.colorString(color)).apply();
                     renderColorButton(binding.borderColor, color);
                     stats.setBorderColorChanged();
+                    refreshBorderPreview();
                 }));
     }
 
@@ -264,14 +269,9 @@ public final class SettingsActivity extends AppCompatActivity {
         boolean paletteEnabled = editing
                 && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE);
         setEnabledRecursive(binding.effectPaletteGroup, paletteEnabled);
-        binding.borderColor.setEnabled(
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_BORDER_COLOR));
         binding.switchText.setEnabled(
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_TEXT));
-        binding.switchAnimateBorder.setEnabled(
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_ANIMATE_BORDER));
-        setEnabledRecursive(binding.borderEffectGroup,
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_BORDER_EFFECT));
+        syncBorderControlState();
         binding.switchReverse.setEnabled(
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_REVERSE_MODE));
         binding.reverseStrengthSeek.setEnabled(
@@ -314,6 +314,21 @@ public final class SettingsActivity extends AppCompatActivity {
         int lockCount = LockedSettings.snapshot().size();
         binding.packLockStatus.setVisibility(lockCount > 0 ? View.VISIBLE : View.GONE);
         binding.packLockStatus.setText(getString(R.string.pack_lock_status, lockCount));
+    }
+
+    private void syncBorderControlState() {
+        boolean editing = ControllerPinManager.isSessionUnlocked();
+        boolean active = binding.switchBorder.isChecked();
+        binding.borderPreview.setAlpha(active ? 1f : .55f);
+        binding.borderColor.setEnabled(active && editing
+                && !LockedSettings.isLocked(SettingsRepository.KEY_BORDER_COLOR));
+        binding.borderColorField.setAlpha(active ? 1f : .5f);
+        binding.switchAnimateBorder.setEnabled(active && editing
+                && !LockedSettings.isLocked(SettingsRepository.KEY_ANIMATE_BORDER));
+        binding.switchAnimateBorder.setAlpha(active ? 1f : .5f);
+        setEnabledRecursive(binding.borderEffectGroup, active && editing
+                && !LockedSettings.isLocked(SettingsRepository.KEY_BORDER_EFFECT));
+        binding.borderEffectGroup.setAlpha(active ? 1f : .5f);
     }
 
     private void renderPaletteControls() {
@@ -429,6 +444,10 @@ public final class SettingsActivity extends AppCompatActivity {
         button.setTextColor(isLight(color) ? Color.BLACK : Color.WHITE);
         button.setGravity(Gravity.CENTER);
         button.setBackground(swatchBackground(color));
+    }
+
+    private void refreshBorderPreview() {
+        if (binding != null) binding.borderPreview.setAppearance(repository.loadAppearance());
     }
 
     private GradientDrawable swatchBackground(int color) {
@@ -555,6 +574,7 @@ public final class SettingsActivity extends AppCompatActivity {
         stats.recordCensorStyleTried(selectedStyle);
         stats.recordBorderEffectTried(selectedBorder);
         if (!selectedStyle.equals(previousStyle)) stats.incrementCensorStyleChanges();
+        refreshBorderPreview();
     }
 
     private void saveCustomPhrases() {

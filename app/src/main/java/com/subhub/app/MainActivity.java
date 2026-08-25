@@ -28,7 +28,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import com.subhub.app.databinding.ActivityMainBinding;
-import com.subhub.app.browser.BrowserActivity;
 import com.subhub.app.appmode.AppModeActivity;
 import com.subhub.app.capture.ExportActivity;
 import com.subhub.app.commitment.CommitmentActivity;
@@ -127,8 +126,6 @@ public final class MainActivity extends AppCompatActivity {
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.HOME);
         binding.buttonCensorSettings.setOnClickListener(view ->
                 startActivity(new Intent(this, SettingsActivity.class)));
-        binding.buttonBrowser.setOnClickListener(view ->
-                startActivity(new Intent(this, BrowserActivity.class)));
         binding.buttonExport.setOnClickListener(view ->
                 startActivity(new Intent(this, ExportActivity.class)));
         binding.buttonHelp.setOnClickListener(view ->
@@ -177,11 +174,7 @@ public final class MainActivity extends AppCompatActivity {
         if (intent == null) return;
         String action = intent.getAction();
         intent.setAction(Intent.ACTION_MAIN);
-        if (AppShortcuts.ACTION_OPEN_BROWSER.equals(action)) {
-            if (!ControllerPinManager.isDomModeActive()) return;
-            AppShortcuts.reportUsed(this, "open_browser");
-            startActivity(new Intent(this, BrowserActivity.class));
-        } else if (AppShortcuts.ACTION_START_PROTECTION.equals(action)) {
+        if (AppShortcuts.ACTION_START_PROTECTION.equals(action)) {
             AppShortcuts.reportUsed(this, "start_protection");
             binding.getRoot().post(() -> toggleProtection(binding.buttonProtection));
         }
@@ -407,21 +400,33 @@ public final class MainActivity extends AppCompatActivity {
 
         if (limitsEnabled) {
             AppModeManager appMode = new AppModeManager(this);
-            AppTimerManager.Settings timer = new AppTimerManager(this).loadSettings();
+            AppTimerManager timerManager = new AppTimerManager(this);
+            AppTimerManager.Settings timer = timerManager.loadSettings();
+            Set<String> timerPackages = appMode.getTimerPackages();
+            AppTimerManager.AllowanceSummary allowances =
+                    timerManager.summarizeAllowances(timerPackages);
             String limits;
-            if (timer.perAppEnabled && timer.totalEnabled) {
-                limits = getString(R.string.sub_limits_both,
-                        timer.perAppMinutes, timer.totalMinutes);
-            } else if (timer.perAppEnabled) {
-                limits = getString(R.string.sub_limits_per_app, timer.perAppMinutes);
-            } else if (timer.totalEnabled) {
-                limits = getString(R.string.sub_limits_combined, timer.totalMinutes);
-            } else {
+            if (!timer.anyEnabled()) {
                 limits = getString(R.string.sub_limits_none);
+            } else if (allowances.isEmpty()) {
+                limits = getString(R.string.sub_limits_no_apps);
+            } else {
+                String individual = allowances.isUniform()
+                        ? getString(R.string.sub_limits_per_app, allowances.minimumMinutes)
+                        : getString(R.string.sub_limits_individual_range,
+                                allowances.minimumMinutes, allowances.maximumMinutes);
+                if (timer.totalEnabled && timer.perAppEnabled) {
+                    limits = getString(R.string.sub_limits_shared_and_individual,
+                            timer.totalMinutes, individual);
+                } else if (timer.totalEnabled) {
+                    limits = getString(R.string.sub_limits_shared, timer.totalMinutes);
+                } else {
+                    limits = individual;
+                }
             }
-            binding.subLimitsSummary.setText(timer.anyEnabled()
-                    ? getString(R.string.sub_limits_selected,
-                            appMode.getTimerPackages().size(), limits)
+            binding.subLimitsSummary.setText(timer.anyEnabled() && !allowances.isEmpty()
+                    ? getResources().getQuantityString(R.plurals.sub_limits_selected,
+                            allowances.appCount, allowances.appCount, limits)
                     : limits);
             binding.subLimitsDetail.setText(appMode.isEffectivelyArmed(now)
                     ? R.string.sub_limits_armed : R.string.sub_limits_sleeping);
@@ -518,6 +523,14 @@ public final class MainActivity extends AppCompatActivity {
         binding.statsBlocks.setText(String.valueOf(stats.getCurrentSessionBlocks()));
         binding.statsTime.setText(StatsSnapshot.formatClock(stats.getCurrentSessionSeconds()));
         binding.statsSessions.setText(String.valueOf(stats.getSessions()));
+        binding.lifetimeBlocks.setText(String.format(java.util.Locale.getDefault(), "%,d",
+                stats.getTotalBlocks()));
+        binding.lifetimeProtected.setText(
+                StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds()));
+        binding.lifetimeSessions.setText(String.format(java.util.Locale.getDefault(), "%,d",
+                stats.getSessions()));
+        binding.lifetimeStreak.setText(getString(R.string.stats_streak_days,
+                stats.getCurrentStreak()));
         renderAchievementsPreview(stats);
         renderCommitmentState();
         renderSubDashboard();
@@ -539,7 +552,8 @@ public final class MainActivity extends AppCompatActivity {
             }
         }
         String fingerprint = achievements.getUnlockedCount() + ":"
-                + (next == null ? "complete" : next.getId() + ":" + nextProgress.percent());
+                + (next == null ? "complete" : next.getId() + ":"
+                + nextProgress.getCurrent() + ":" + nextProgress.getTarget());
         if (fingerprint.equals(achievementPreviewFingerprint)) return;
         achievementPreviewFingerprint = fingerprint;
 
@@ -553,25 +567,53 @@ public final class MainActivity extends AppCompatActivity {
             if (!artwork.add(value.getBadgeArtRes())) continue;
             boolean unlocked = achievements.isUnlocked(value.getId());
             boolean concealed = value.isHidden() && !unlocked;
+            LinearLayout cell = new LinearLayout(this);
+            cell.setOrientation(LinearLayout.VERTICAL);
+            cell.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
+            cell.setBackgroundResource(R.drawable.bg_achievement_preview_cell);
+            LinearLayout.LayoutParams cellParams = new LinearLayout.LayoutParams(
+                    dp(82), LinearLayout.LayoutParams.MATCH_PARENT);
+            if (shown > 0) cellParams.leftMargin = dp(7);
+            cell.setLayoutParams(cellParams);
+
             AchievementBadgeView badge = new AchievementBadgeView(this);
             badge.bind(value.getBadgeArtRes(), unlocked, concealed,
                     concealed ? getString(R.string.achievement_hidden_name)
                             : getString(value.getName()));
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(48), dp(48));
-            if (shown > 0) params.leftMargin = dp(8);
-            badge.setLayoutParams(params);
-            binding.achievementsHomeBadges.addView(badge);
+            badge.setLayoutParams(new LinearLayout.LayoutParams(dp(68), dp(68)));
+            cell.addView(badge);
+
+            TextView label = new TextView(this);
+            label.setText(concealed ? getString(R.string.achievement_hidden_name)
+                    : getString(value.getName()));
+            label.setTextColor(getColor(unlocked ? R.color.text_primary : R.color.text_muted));
+            label.setTextSize(10);
+            label.setGravity(android.view.Gravity.CENTER);
+            label.setMaxLines(1);
+            label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            label.setIncludeFontPadding(false);
+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            labelParams.topMargin = dp(3);
+            label.setLayoutParams(labelParams);
+            cell.addView(label);
+            binding.achievementsHomeBadges.addView(cell);
             shown++;
             if (shown == 5) break;
         }
         if (next == null) {
             binding.achievementsHomeNext.setText(R.string.achievements_all_complete);
             binding.achievementsHomeProgress.setProgress(100);
+            binding.achievementsHomeProgressPercent.setText(
+                    getString(R.string.achievements_home_progress_percent, 100));
         } else {
             binding.achievementsHomeNext.setText(getString(R.string.achievements_next_fmt,
                     getString(next.getName()), nextProgress.getCurrent() + " / "
                             + nextProgress.getTarget()));
             binding.achievementsHomeProgress.setProgress(nextProgress.percent());
+            binding.achievementsHomeProgressPercent.setText(getString(
+                    R.string.achievements_home_progress_percent, nextProgress.percent()));
         }
     }
 
@@ -623,7 +665,8 @@ public final class MainActivity extends AppCompatActivity {
             WindowManager.LayoutParams attributes = window.getAttributes();
             attributes.dimAmount = 0.58f;
             window.setAttributes(attributes);
-            window.setLayout(WindowManager.LayoutParams.WRAP_CONTENT,
+            int availableWidth = getResources().getDisplayMetrics().widthPixels - dp(32);
+            window.setLayout(Math.min(availableWidth, dp(440)),
                     WindowManager.LayoutParams.WRAP_CONTENT);
         }
     }

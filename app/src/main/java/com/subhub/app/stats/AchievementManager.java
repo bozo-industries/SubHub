@@ -127,7 +127,6 @@ public final class AchievementManager {
             case "color_picker": return stats.isBorderColorChanged() ? 1 : 0;
             case "first_custom_phrase": case "phrase_library": return stats.getCustomPhrases();
             case "profile_creator": case "profile_organizer": return stats.getProfiles();
-            case "browser_first": case "browser_warrior": return stats.getBrowserSessions();
             case "export_first": case "export_artist": return stats.getExportedImages();
             case "ntr_50": case "ntr_100": case "ntr_200": case "ntr_500": return stats.getAllCategoryCensors();
             case "legend": return unlocked.size();
@@ -191,7 +190,7 @@ public final class AchievementManager {
     private static long target(String id) {
         switch (id) {
             case "first_block": case "first_session": case "first_custom_phrase": case "profile_creator":
-            case "browser_first": case "export_first": case "color_picker": return 1;
+            case "export_first": case "color_picker": return 1;
             case "blocks_10": case "sessions_10": case "phrase_library": return 10;
             case "blocks_100": case "sessions_100": return 100;
             case "blocks_1000": return 1000;
@@ -209,7 +208,6 @@ public final class AchievementManager {
             case "style_explorer": return 8;
             case "border_artist": return 4;
             case "profile_organizer": return 3;
-            case "browser_warrior": return 25;
             case "ntr_100": return 100;
             case "ntr_200": return 200;
             case "app_mode_guardian": case "limits_setter": case "limits_dual_guard":
@@ -285,8 +283,6 @@ public final class AchievementManager {
                 a("phrase_library", R.string.achievement_phrase_library, R.string.achievement_desc_phrase_library, "▤", "custom", R.drawable.achievement_badge_phrase_library, false),
                 a("profile_creator", R.string.achievement_profile_creator, R.string.achievement_desc_profile_creator, "▣", "profiles", R.drawable.achievement_badge_profile_creator, false),
                 a("profile_organizer", R.string.achievement_profile_organizer, R.string.achievement_desc_profile_organizer, "▰", "profiles", R.drawable.achievement_badge_profile_organizer, false),
-                a("browser_first", R.string.achievement_browser_first, R.string.achievement_desc_browser_first, "◎", "browser", R.drawable.achievement_badge_browser_first, false),
-                a("browser_warrior", R.string.achievement_browser_warrior, R.string.achievement_desc_browser_warrior, "⬟", "browser", R.drawable.achievement_badge_browser_warrior, false),
                 a("export_first", R.string.achievement_export_first, R.string.achievement_desc_export_first, "⇩", "export", R.drawable.achievement_badge_export_first, false),
                 a("export_artist", R.string.achievement_export_artist, R.string.achievement_desc_export_artist, "⇩", "export", R.drawable.achievement_badge_export_artist, false),
                 a("weekend_warrior", R.string.achievement_weekend_warrior, R.string.achievement_desc_weekend_warrior, "☀", "hidden", R.drawable.achievement_badge_weekend_warrior, true),

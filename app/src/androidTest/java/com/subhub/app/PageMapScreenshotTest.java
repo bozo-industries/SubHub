@@ -9,7 +9,6 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.UiDevice;
 
 import com.subhub.app.appmode.AppModeActivity;
-import com.subhub.app.browser.BrowserActivity;
 import com.subhub.app.capture.CustomImagesActivity;
 import com.subhub.app.capture.ExportActivity;
 import com.subhub.app.commitment.CommitmentActivity;
@@ -46,7 +45,6 @@ public final class PageMapScreenshotTest {
         capture("05-censor-settings", SettingsActivity.class);
         captureScrolled("05b-settings-detection-categories", SettingsActivity.class, 4);
         captureScrolled("05c-settings-phrases-and-tools", SettingsActivity.class, 7);
-        capture("06-safe-browser", BrowserActivity.class);
         capture("07-censor-photos", ExportActivity.class);
         capture("08-help-safety", HelpActivity.class);
         capture("09-statistics", StatsActivity.class);

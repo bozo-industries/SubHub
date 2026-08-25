@@ -13,7 +13,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.subhub.app.appmode.AppModeActivity;
-import com.subhub.app.browser.BrowserActivity;
 import com.subhub.app.capture.CustomImagesActivity;
 import com.subhub.app.capture.ExportActivity;
 import com.subhub.app.commitment.CommitmentActivity;
@@ -46,7 +45,6 @@ public final class VisualMenuSmokeTest {
         screens.put("home", MainActivity.class);
         screens.put("settings", SettingsActivity.class);
         screens.put("global-settings", GlobalSettingsActivity.class);
-        screens.put("browser", BrowserActivity.class);
         screens.put("help", HelpActivity.class);
         screens.put("export", ExportActivity.class);
         screens.put("app-mode", AppModeActivity.class);

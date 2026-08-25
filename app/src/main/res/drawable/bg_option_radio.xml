@@ -9,8 +9,8 @@
     </item>
     <item android:state_checked="true">
         <shape android:shape="rectangle">
-            <gradient android:angle="0" android:startColor="#3A172F"
-                android:endColor="#24162C" />
+            <gradient android:angle="0" android:startColor="#44142B"
+                android:endColor="#221522" />
             <stroke android:width="2dp" android:color="@color/outline_selected" />
             <corners android:radius="14dp" />
         </shape>
@@ -31,8 +31,8 @@
     </item>
     <item>
         <shape android:shape="rectangle">
-            <gradient android:angle="0" android:startColor="@color/surface_deep"
-                android:endColor="@color/surface_card" />
+            <gradient android:angle="0" android:startColor="#F20D0C12"
+                android:endColor="#F218151E" />
             <stroke android:width="1dp" android:color="@color/outline_subtle" />
             <corners android:radius="14dp" />
         </shape>
