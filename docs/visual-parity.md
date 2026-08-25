@@ -11,13 +11,12 @@ The licensed Beta Blocker 1.67 APK and maintained SubHub build were exercised si
 - Centered icon-over-label controls, matched vertical rhythm, and a text-only Dom/Sub lock control
 - Adaptive page and navigation margins at phone, 600 dp tablet, and 840 dp large-tablet breakpoints
 - A four-column Censor tool grid on tablets and multi-column settings choices where space permits
-- Full-screen Browser chrome with compact tab strip, address controls, shields, progress, and WebView frame
 
 The Censor page now provides safe, synthetic live previews for every effect instead of using copied vendor art or generic radio labels. Detection presets and border styles have their own iconography and selected states. Large illustrative hero art stays out of utility screens because it weakens the control hierarchy and pushes frequently used actions below the fold.
 
 ## Functional visual states
 
-The audit includes inactive and active Censor states, a ticking current-session clock, App Mode armed/waiting and recognition-active states, Settings selection feedback, Help accordions, Export controls, browser loading/content, compact detail headers, Wallet rules, and daily limits. Limits and the watched-app selector remain available in both recognition modes because app budgets are independent of censor scheduling.
+The audit includes inactive and active Censor states, a ticking current-session clock, App Mode armed/waiting and recognition-active states, Settings selection feedback, Help accordions, Export controls, compact detail headers, Wallet rules, and daily limits. Limits and the watched-app selector remain available in both recognition modes because app budgets are independent of censor scheduling.
 
 An instrumentation smoke test launches user-facing activities and writes screenshot evidence to the Android Gradle additional-output directory. The page map additionally captures scrolled Wallet and Settings states. The complete pass has been exercised at 1080×2400/420 dpi, 1600×2560/240 dpi portrait, and 2560×1600/240 dpi landscape.
 
