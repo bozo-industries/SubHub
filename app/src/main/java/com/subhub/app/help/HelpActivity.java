@@ -21,9 +21,14 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import com.subhub.app.R;
+import com.subhub.app.BuildConfig;
 import com.subhub.app.databinding.ActivityHelpBinding;
 import com.subhub.app.security.ControllerEditMode;
+import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.util.LocaleHelper;
+import com.subhub.app.update.UpdateCandidate;
+import com.subhub.app.update.UpdateStateStore;
+import com.subhub.app.update.UpdatesActivity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,13 +53,22 @@ public final class HelpActivity extends AppCompatActivity {
         binding.buttonAccessibility.setOnClickListener(view ->
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         binding.buttonLanguage.setOnClickListener(view -> showLanguageChooser());
+        binding.buttonUpdates.setOnClickListener(view ->
+                startActivity(new Intent(this, UpdatesActivity.class)));
         addSections();
-        editMode = ControllerEditMode.bind(this, binding.buttonEditLock, editing -> {
-            int actionVisibility = editing ? View.VISIBLE : View.GONE;
-            binding.buttonFixPermissions.setVisibility(actionVisibility);
-            binding.buttonAccessibility.setVisibility(actionVisibility);
-            binding.buttonLanguage.setVisibility(actionVisibility);
-        });
+        if (ControllerPinManager.isDomModeActive()) {
+            editMode = ControllerEditMode.bind(this, binding.buttonEditLock, editing -> {
+                int actionVisibility = editing ? View.VISIBLE : View.GONE;
+                binding.buttonFixPermissions.setVisibility(actionVisibility);
+                binding.buttonAccessibility.setVisibility(actionVisibility);
+                binding.buttonLanguage.setVisibility(actionVisibility);
+            });
+        } else {
+            binding.buttonEditLock.setVisibility(View.GONE);
+            binding.buttonFixPermissions.setVisibility(View.GONE);
+            binding.buttonAccessibility.setVisibility(View.GONE);
+            binding.buttonLanguage.setVisibility(View.GONE);
+        }
     }
 
     @Override protected void onResume() {
@@ -62,6 +76,7 @@ public final class HelpActivity extends AppCompatActivity {
         if (editMode != null) editMode.refresh();
         renderPermissions();
         renderLanguage();
+        renderUpdates();
     }
 
     private void addSections() {
@@ -173,6 +188,13 @@ public final class HelpActivity extends AppCompatActivity {
                 R.string.language_chinese_simplified, R.string.language_chinese_traditional,
                 R.string.language_korean, R.string.language_russian};
         binding.languageStatus.setText(labels[Math.max(0, index)]);
+    }
+
+    private void renderUpdates() {
+        UpdateCandidate candidate = new UpdateStateStore(this).candidate();
+        binding.updateSummary.setText(candidate == null
+                ? getString(R.string.update_help_current, BuildConfig.VERSION_NAME)
+                : getString(R.string.update_help_available, candidate.manifest.versionName));
     }
 
     private int dp(int value) {

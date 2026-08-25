@@ -70,6 +70,47 @@ jobs:
             cp "$apk" "dist/SubHub-${VERSION_NAME}-${abi}.apk"
           done
           sha256sum dist/*.apk > "dist/SubHub-${VERSION_NAME}-SHA256SUMS.txt"
+      - name: Compose updater manifest
+        shell: bash
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          version = os.environ["VERSION_NAME"]
+          code = int(os.environ["VERSION_CODE"])
+          repository = os.environ["GITHUB_REPOSITORY"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          dist = Path("dist")
+          assets = []
+          for abi in ("universal", "armeabi-v7a", "arm64-v8a", "x86", "x86_64"):
+              name = f"SubHub-{version}-{abi}.apk"
+              path = dist / name
+              data = path.read_bytes()
+              assets.append({
+                  "abi": abi,
+                  "name": name,
+                  "url": f"https://github.com/{repository}/releases/download/{tag}/{name}",
+                  "sha256": hashlib.sha256(data).hexdigest(),
+                  "size": len(data),
+              })
+          manifest = {
+              "schema": 1,
+              "packageName": "com.subhub.app",
+              "versionName": version,
+              "versionCode": code,
+              "minSdk": 26,
+              "tag": tag,
+              "assets": assets,
+          }
+          output = dist / f"SubHub-{version}-update.json"
+          output.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          PY
       - name: Compose release notes
         shell: bash
         env:
@@ -101,6 +142,7 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" \
             dist/*.apk \
+            dist/*-update.json \
             dist/*-SHA256SUMS.txt \
             --verify-tag \
             --notes-file dist/release-notes.md \
