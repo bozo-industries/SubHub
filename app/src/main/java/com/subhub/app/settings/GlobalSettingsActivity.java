@@ -43,6 +43,7 @@ import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.subhub.app.util.SubHubNavigation;
+import com.subhub.app.subliminal.SubliminalSettingsActivity;
 
 import java.text.Collator;
 import java.net.URI;
@@ -76,6 +77,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private boolean editingUnlocked;
     private final Set<String> censorPackages = new LinkedHashSet<>();
     private final Set<String> timerPackages = new LinkedHashSet<>();
+    private final Set<String> subliminalPackages = new LinkedHashSet<>();
     private final ExecutorService appLoader = Executors.newSingleThreadExecutor();
 
     @Override protected void onCreate(Bundle savedInstanceState) {
@@ -91,6 +93,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         autoPay = new HardcoreAutoPayManager(this);
         censorPackages.addAll(appMode.getSelectedPackages());
         timerPackages.addAll(appMode.getTimerPackages());
+        subliminalPackages.addAll(appMode.getSubliminalPackages());
         hardcoreActivation = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(), ignored -> {
                     boolean active = hardcore.finishActivation();
@@ -103,6 +106,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.switchModuleCensor.setChecked(modules.isCensorEnabled());
         binding.switchModuleLimits.setChecked(modules.isLimitsEnabled());
         binding.switchModuleWallet.setChecked(modules.isWalletEnabled());
+        binding.switchModuleSubliminal.setChecked(modules.isSubliminalEnabled());
         binding.armed.setChecked(appMode.isArmed());
         binding.modeGroup.check(appMode.getMode() == AppModePolicy.Mode.SELECTED_APPS
                 ? R.id.mode_selected : R.id.mode_always);
@@ -122,6 +126,9 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.switchModuleCensor.setOnCheckedChangeListener((button, checked) -> saveModules());
         binding.switchModuleLimits.setOnCheckedChangeListener((button, checked) -> saveModules());
         binding.switchModuleWallet.setOnCheckedChangeListener((button, checked) -> saveModules());
+        binding.switchModuleSubliminal.setOnCheckedChangeListener((button, checked) -> saveModules());
+        binding.buttonSubliminalSettings.setOnClickListener(view ->
+                startActivity(new Intent(this, SubliminalSettingsActivity.class)));
         binding.switchHardcoreMode.setOnCheckedChangeListener((button, checked) -> {
             if (!updatingHardcore) changeHardcoreMode(checked);
         });
@@ -222,6 +229,9 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.switchModuleCensor.setEnabled(editingUnlocked);
         binding.switchModuleLimits.setEnabled(editingUnlocked);
         binding.switchModuleWallet.setEnabled(editingUnlocked);
+        binding.switchModuleSubliminal.setEnabled(editingUnlocked);
+        binding.buttonSubliminalSettings.setEnabled(editingUnlocked
+                && binding.switchModuleSubliminal.isChecked());
         binding.switchHardcoreMode.setEnabled(editingUnlocked);
         binding.buttonHardcoreSystem.setEnabled(editingUnlocked);
         binding.buttonHardcoreRestricted.setEnabled(editingUnlocked);
@@ -262,7 +272,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
 
     private void saveAppAssignments() {
         if (!editingUnlocked) return;
-        appMode.saveAppSelections(censorPackages, timerPackages);
+        appMode.saveAppSelections(censorPackages, timerPackages, subliminalPackages);
         if (!censorPackages.isEmpty() && !binding.modeSelected.isChecked()) {
             updatingRecognition = true;
             binding.modeGroup.check(R.id.mode_selected);
@@ -696,9 +706,11 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private void saveModules() {
         if (!ControllerPinManager.isSessionUnlocked()) return;
         boolean censor = binding.switchModuleCensor.isChecked();
+        boolean subliminal = binding.switchModuleSubliminal.isChecked();
         modules.save(censor, binding.switchModuleLimits.isChecked(),
-                binding.switchModuleWallet.isChecked());
-        if (!censor) {
+                binding.switchModuleWallet.isChecked(), subliminal);
+        binding.buttonSubliminalSettings.setEnabled(editingUnlocked && subliminal);
+        if (!modules.hasRuntimeFeature()) {
             startService(ScreenCaptureService.stopIntent(this));
             new AppModeManager(this).setArmed(false);
         }
@@ -768,13 +780,16 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                     censorPackages.contains(entry.packageName));
             CheckBox limit = assignmentCheck(R.string.app_selection_limit,
                     timerPackages.contains(entry.packageName));
+            CheckBox subliminal = assignmentCheck(R.string.app_selection_subliminal,
+                    subliminalPackages.contains(entry.packageName));
             choices.addView(censor);
             choices.addView(limit);
+            choices.addView(subliminal);
             tile.addView(choices, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
             Runnable updateTile = () -> tile.setBackgroundResource(
-                    censor.isChecked() || limit.isChecked()
+                    censor.isChecked() || limit.isChecked() || subliminal.isChecked()
                             ? R.drawable.bg_app_picker_tile_selected
                             : R.drawable.bg_app_picker_tile);
             censor.setOnCheckedChangeListener((button, checked) -> {
@@ -789,6 +804,12 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                 updateTile.run();
                 saveAppAssignments();
             });
+            subliminal.setOnCheckedChangeListener((button, checked) -> {
+                if (checked) subliminalPackages.add(entry.packageName);
+                else subliminalPackages.remove(entry.packageName);
+                updateTile.run();
+                saveAppAssignments();
+            });
             updateTile.run();
             GridLayout.LayoutParams tileParams = new GridLayout.LayoutParams(
                     GridLayout.spec(index / columns), GridLayout.spec(index % columns, 1f));
@@ -799,6 +820,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         }
         censorPackages.retainAll(installed);
         timerPackages.retainAll(installed);
+        subliminalPackages.retainAll(installed);
         renderSelectedCount();
         applyEditState();
     }
@@ -819,7 +841,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
 
     private void renderSelectedCount() {
         if (binding != null) binding.selectedCount.setText(getString(
-                R.string.app_selection_count, censorPackages.size(), timerPackages.size()));
+                R.string.app_selection_count_three, censorPackages.size(), timerPackages.size(),
+                subliminalPackages.size()));
     }
 
     private static void setEnabledRecursive(View view, boolean enabled) {

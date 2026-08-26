@@ -153,6 +153,19 @@
                     android:text="@string/global_feature_wallet" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:text="@string/global_feature_wallet_help" />
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_module_subliminal"
+                    style="@style/Widget.SubHub.SettingsToggle"
+                    android:layout_width="match_parent"
+                    android:text="@string/global_feature_subliminal" />
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:text="@string/global_feature_subliminal_help" />
+                <TextView
+                    android:id="@+id/button_subliminal_settings"
+                    style="@style/Widget.SubHub.OutlineAction"
+                    android:layout_height="42dp"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/subliminal_open_settings" />
             </LinearLayout>
 
             <TextView

@@ -86,6 +86,7 @@ public final class HelpActivity extends AppCompatActivity {
                 {R.string.help_dom_sub, R.string.help_body_dom_sub},
                 {R.string.help_service_timers, R.string.help_body_service_timers},
                 {R.string.help_app_assignment, R.string.help_body_app_assignment},
+                {R.string.help_subliminal, R.string.help_body_subliminal},
                 {R.string.help_censoring, R.string.help_body_censoring},
                 {R.string.help_limits, R.string.help_body_limits},
                 {R.string.help_wallet, R.string.help_body_wallet},

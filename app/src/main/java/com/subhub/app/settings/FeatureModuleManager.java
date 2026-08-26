@@ -3,11 +3,12 @@ package com.subhub.app.settings;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-/** App-wide switches for the three optional product areas. Settings is always available. */
+/** App-wide switches for optional product areas. Settings is always available. */
 public final class FeatureModuleManager {
     public static final String KEY_CENSOR_ENABLED = "module_censor_enabled";
     public static final String KEY_LIMITS_ENABLED = "module_limits_enabled";
     public static final String KEY_WALLET_ENABLED = "module_wallet_enabled";
+    public static final String KEY_SUBLIMINAL_ENABLED = "module_subliminal_enabled";
 
     private final SharedPreferences preferences;
 
@@ -28,11 +29,25 @@ public final class FeatureModuleManager {
         return preferences.getBoolean(KEY_WALLET_ENABLED, true);
     }
 
-    public void save(boolean censor, boolean limits, boolean wallet) {
+    public boolean isSubliminalEnabled() {
+        return preferences.getBoolean(KEY_SUBLIMINAL_ENABLED, false);
+    }
+
+    public boolean hasRuntimeFeature() {
+        return isCensorEnabled() || isLimitsEnabled() || isSubliminalEnabled();
+    }
+
+    public void save(boolean censor, boolean limits, boolean wallet, boolean subliminal) {
         preferences.edit()
                 .putBoolean(KEY_CENSOR_ENABLED, censor)
                 .putBoolean(KEY_LIMITS_ENABLED, limits)
                 .putBoolean(KEY_WALLET_ENABLED, wallet)
+                .putBoolean(KEY_SUBLIMINAL_ENABLED, subliminal)
                 .commit();
+    }
+
+    /** Compatibility overload used by older callers; preserves the independent new module. */
+    public void save(boolean censor, boolean limits, boolean wallet) {
+        save(censor, limits, wallet, isSubliminalEnabled());
     }
 }
