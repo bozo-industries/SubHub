@@ -6,6 +6,7 @@ import org.junit.Test;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public final class GitHubReleaseRepositoryTest {
     @Test public void ignoresDraftsButKeepsPublishedPrereleases() throws Exception {
@@ -26,6 +27,22 @@ public final class GitHubReleaseRepositoryTest {
 
     @Test public void sixHourScheduleIsStable() {
         assertEquals(6L * 60L * 60L * 1000L, UpdateScheduler.INTERVAL_MILLIS);
+    }
+
+    @Test public void manifestChangelogWinsOverReleaseDownloadGuidance() throws Exception {
+        UpdateManifest manifest = UpdateManifest.parse("{\"schema\":1,"
+                + "\"packageName\":\"com.subhub.app\",\"versionName\":\"0.6.0\","
+                + "\"versionCode\":8,\"minSdk\":26,\"tag\":\"v0.6.0\","
+                + "\"releaseNotes\":\"## Fixed\\n\\n- Installer handoff\",\"assets\":[{"
+                + "\"abi\":\"universal\",\"name\":\"SubHub-0.6.0-universal.apk\","
+                + "\"url\":\"https://github.com/bozo-industries/SubHub/releases/download/"
+                + "v0.6.0/SubHub-0.6.0-universal.apk\","
+                + "\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\","
+                + "\"size\":42}]}");
+        String notes = GitHubReleaseRepository.releaseNotes(manifest,
+                "## Choose your APK\\n\\nUniversal works everywhere");
+        assertEquals("## Fixed\n\n- Installer handoff", notes);
+        assertFalse(notes.contains("Universal"));
     }
 
     private static String release(String tag, boolean draft, boolean prerelease, boolean manifest) {

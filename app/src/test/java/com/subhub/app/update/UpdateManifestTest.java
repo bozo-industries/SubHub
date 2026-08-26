@@ -20,6 +20,12 @@ public final class UpdateManifestTest {
         assertEquals("universal", manifest.selectAsset(new String[]{"x86_64"}).abi);
     }
 
+    @Test public void preservesGeneratedReleaseNotes() throws Exception {
+        UpdateManifest manifest = UpdateManifest.parse(manifest(asset("universal", "universal.apk")));
+        assertEquals("## What’s new\n\n- A useful fix", manifest.releaseNotes);
+        assertEquals(manifest.releaseNotes, UpdateManifest.parse(manifest.json()).releaseNotes);
+    }
+
     @Test public void returnsNullWithoutCompatibleAsset() throws Exception {
         UpdateManifest manifest = UpdateManifest.parse(manifest(asset("arm64-v8a", "arm64.apk")));
         assertNull(manifest.selectAsset(new String[]{"x86_64"}));
@@ -32,7 +38,8 @@ public final class UpdateManifestTest {
 
     private static String manifest(String... assets) {
         return "{\"schema\":1,\"packageName\":\"com.subhub.app\",\"versionName\":\"0.4.0\","
-                + "\"versionCode\":4,\"minSdk\":26,\"tag\":\"v0.4.0\",\"assets\":["
+                + "\"versionCode\":4,\"minSdk\":26,\"tag\":\"v0.4.0\","
+                + "\"releaseNotes\":\"## What’s new\\n\\n- A useful fix\",\"assets\":["
                 + String.join(",", assets) + "]}";
     }
 
