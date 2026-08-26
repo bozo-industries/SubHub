@@ -56,7 +56,7 @@ public final class InfractionTrackerTest {
                 track(6, new BBox(260, 120, 180, 120))), 18_000L, 5_000L, false));
     }
 
-    @Test public void tapUsesRecentCensorBoundsAndRejectsScreenSizedTargets() {
+    @Test public void tapUsesVisibleCensorBoundsAndRejectsScreenSizedTargets() {
         CensorTapTracker tracker = new CensorTapTracker();
         tracker.update(List.of(track(1, new BBox(100, 200, 100, 100))),
                 1_000, 2_000, 1_000L);
@@ -64,7 +64,7 @@ public final class InfractionTrackerTest {
                 1_000, 2_000, 1_500L));
         assertFalse(tracker.matchesClick(0, 0, 1_000, 2_000,
                 1_000, 2_000, 1_500L));
-        assertFalse(tracker.matchesClick(90, 190, 240, 340,
+        assertTrue(tracker.matchesClick(90, 190, 240, 340,
                 1_000, 2_000, 3_001L));
     }
 
@@ -90,7 +90,7 @@ public final class InfractionTrackerTest {
                 1_000, 2_000, 1_200L));
         assertFalse(tracker.matchesPoint(90f, 250f,
                 1_000, 2_000, 1_200L));
-        assertFalse(tracker.matchesPoint(150f, 250f,
+        assertTrue(tracker.matchesPoint(150f, 250f,
                 1_000, 2_000, 3_001L));
     }
 

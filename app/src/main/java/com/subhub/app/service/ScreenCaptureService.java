@@ -38,6 +38,7 @@ import com.subhub.app.diagnostics.DiagnosticsRepository;
 import com.subhub.app.overlay.OverlayController;
 import com.subhub.app.popup.PopupStormManager;
 import com.subhub.app.penance.DwellInfractionTracker;
+import com.subhub.app.penance.CensorTapTracker;
 import com.subhub.app.penance.PenanceChargeNotifier;
 import com.subhub.app.penance.PenanceInfraction;
 import com.subhub.app.penance.PenanceManager;
@@ -82,6 +83,7 @@ public final class ScreenCaptureService extends Service {
     private StatsRepository stats;
     private PenanceManager penance;
     private final DwellInfractionTracker dwellTracker = new DwellInfractionTracker();
+    private final CensorTapTracker tapTracker = CensorTapTracker.shared();
     private volatile DetectorConfig detectorConfig;
     private volatile boolean overlayNeedsSourceFrame;
     private volatile boolean explicitlyStoppedByController;
@@ -234,6 +236,7 @@ public final class ScreenCaptureService extends Service {
             }
             int width = capture.getCaptureWidth();
             int height = capture.getCaptureHeight();
+            tapTracker.update(tracks, width, height, now);
             PopupStormManager.get().updateTrackedObjects(tracks, width, height);
             DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
                     DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
@@ -336,6 +339,7 @@ public final class ScreenCaptureService extends Service {
         if (capture != null) capture.close();
         if (detector != null) detector.close();
         dwellTracker.clear();
+        tapTracker.clear();
         OverlayController activeOverlay = overlay;
         overlay = null;
         if (activeOverlay != null) activeOverlay.close();

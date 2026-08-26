@@ -133,7 +133,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private AppTimerManager timers;
     private PenanceManager penance;
     private final DwellInfractionTracker dwellTracker = new DwellInfractionTracker();
-    private final CensorTapTracker tapTracker = new CensorTapTracker();
+    private final CensorTapTracker tapTracker = CensorTapTracker.shared();
     private long lastMatchedTapMillis;
     private long foregroundSinceMillis;
     private String lastBlockedPackage = "";
@@ -985,7 +985,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void recordCensoredTap(AccessibilityEvent event, String packageName) {
-        if (!recognitionActive || !packageName.equals(foregroundPackage) || penance == null) return;
+        if ((!recognitionActive && !ScreenCaptureService.isRunning())
+                || !packageName.equals(foregroundPackage) || penance == null) return;
         long now = System.currentTimeMillis();
         if (now - lastMatchedTapMillis < 500L) return;
         android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();

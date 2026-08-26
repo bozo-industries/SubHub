@@ -18,6 +18,7 @@ public final class UpdateStateStore {
     private static final String DOWNLOAD_ID = "download_id";
     private static final String VERIFIED_PATH = "verified_path";
     private static final String VERIFIED_AT = "verified_at";
+    private static final String INSTALL_REQUESTED = "install_requested";
     private final Context context;
     private final SharedPreferences preferences;
 
@@ -38,6 +39,12 @@ public final class UpdateStateStore {
     public void setVerifiedPath(String path) {
         preferences.edit().putString(VERIFIED_PATH, path)
                 .putLong(VERIFIED_AT, path == null || path.isEmpty() ? 0L : System.currentTimeMillis()).apply();
+    }
+    public boolean installRequested() {
+        return preferences.getBoolean(INSTALL_REQUESTED, false);
+    }
+    public void setInstallRequested(boolean requested) {
+        preferences.edit().putBoolean(INSTALL_REQUESTED, requested).apply();
     }
 
     public UpdateCandidate candidate() {
@@ -71,7 +78,8 @@ public final class UpdateStateStore {
             String path = verifiedPath();
             if (!path.isEmpty()) new File(path).delete();
         }
-        preferences.edit().remove(DOWNLOAD_ID).remove(VERIFIED_PATH).remove(VERIFIED_AT).apply();
+        preferences.edit().remove(DOWNLOAD_ID).remove(VERIFIED_PATH).remove(VERIFIED_AT)
+                .remove(INSTALL_REQUESTED).apply();
     }
 
     public void cleanupInstalled(long installedVersionCode) {

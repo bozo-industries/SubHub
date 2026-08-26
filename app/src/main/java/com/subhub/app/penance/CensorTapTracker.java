@@ -6,13 +6,15 @@ import com.subhub.app.detection.TrackedObject;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Correlates recent local censor rectangles with Accessibility click-target bounds. */
+/** Correlates the currently visible censor rectangles with Accessibility click-target bounds. */
 public final class CensorTapTracker {
-    private static final long MAX_FRAME_AGE_MILLIS = 2_000L;
+    private static final CensorTapTracker SHARED = new CensorTapTracker();
     private List<BBox> boxes = List.of();
     private int frameWidth = 1;
     private int frameHeight = 1;
-    private long frameAtMillis;
+
+    /** One process-wide hit map shared by App Mode and Screen Capture. */
+    public static CensorTapTracker shared() { return SHARED; }
 
     public synchronized void update(
             List<TrackedObject> tracks, int width, int height, long nowMillis) {
@@ -25,7 +27,6 @@ public final class CensorTapTracker {
         boxes = current;
         frameWidth = Math.max(1, width);
         frameHeight = Math.max(1, height);
-        frameAtMillis = nowMillis;
     }
 
     /** Keeps tap targets in lockstep with the event-speed overlay between detector frames. */
@@ -45,7 +46,6 @@ public final class CensorTapTracker {
             }
         }
         boxes = shifted;
-        if (!boxes.isEmpty()) frameAtMillis = nowMillis;
     }
 
     public synchronized boolean matchesClick(
@@ -53,8 +53,7 @@ public final class CensorTapTracker {
             int screenWidth, int screenHeight, long nowMillis) {
         int safeScreenWidth = Math.max(1, screenWidth);
         int safeScreenHeight = Math.max(1, screenHeight);
-        if (boxes.isEmpty() || nowMillis - frameAtMillis > MAX_FRAME_AGE_MILLIS
-                || right <= left || bottom <= top) return false;
+        if (boxes.isEmpty() || right <= left || bottom <= top) return false;
         long clickArea = (long) (right - left) * (bottom - top);
         long screenArea = (long) safeScreenWidth * safeScreenHeight;
         if (clickArea * 100L >= screenArea * 65L) return false;
@@ -96,8 +95,7 @@ public final class CensorTapTracker {
             int screenWidth, int screenHeight, long nowMillis) {
         int safeScreenWidth = Math.max(1, screenWidth);
         int safeScreenHeight = Math.max(1, screenHeight);
-        if (boxes.isEmpty() || nowMillis - frameAtMillis > MAX_FRAME_AGE_MILLIS
-                || screenX < 0f || screenY < 0f
+        if (boxes.isEmpty() || screenX < 0f || screenY < 0f
                 || screenX > safeScreenWidth || screenY > safeScreenHeight) return false;
         float frameX = screenX * frameWidth / safeScreenWidth;
         float frameY = screenY * frameHeight / safeScreenHeight;
@@ -110,7 +108,6 @@ public final class CensorTapTracker {
 
     public synchronized void clear() {
         boxes = List.of();
-        frameAtMillis = 0L;
     }
 
     private static int clamp(int value, int minimum, int maximum) {
