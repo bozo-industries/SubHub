@@ -3,7 +3,6 @@ package com.subhub.app.detection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -31,6 +30,7 @@ public final class DetectionPostProcessor {
 
         float letterboxScale = (float) inputSize / Math.max(frameWidth, frameHeight);
         float frameScale = 1f / letterboxScale;
+        float[] confidenceFloors = confidenceFloors(config.getConfidenceThreshold());
         List<Detection> accepted = new ArrayList<>();
         List<ScoredBox> disabledClassBoxes = new ArrayList<>();
 
@@ -49,14 +49,13 @@ public final class DetectionPostProcessor {
                 }
             }
 
+            if (bestClass < 0 || bestScore < confidenceFloors[bestClass]
+                    || (secondScore >= 0.10f && bestScore - secondScore < 0.10f)) {
+                continue;
+            }
             String className = NudeNetClassCatalog.nameByIndex(bestClass);
             NudeNetClassCatalog.ClassInfo info = NudeNetClassCatalog.byIndex(bestClass);
             if (className == null || info == null) continue;
-
-            float confidenceFloor = confidenceFloor(className, config.getConfidenceThreshold());
-            if (bestScore < confidenceFloor || (secondScore >= 0.10f && bestScore - secondScore < 0.10f)) {
-                continue;
-            }
 
             BBox rawBox = decodeBox(
                     output[0][candidate], output[1][candidate],
@@ -136,6 +135,14 @@ public final class DetectionPostProcessor {
         }
     }
 
+    private static float[] confidenceFloors(float configured) {
+        float[] floors = new float[NudeNetClassCatalog.CLASS_COUNT];
+        for (int index = 0; index < floors.length; index++) {
+            floors[index] = confidenceFloor(NudeNetClassCatalog.nameByIndex(index), configured);
+        }
+        return floors;
+    }
+
     private static BBox decodeBox(
             float centerX,
             float centerY,
@@ -208,21 +215,21 @@ public final class DetectionPostProcessor {
         if (detections.size() <= 1) return detections;
         List<Detection> sorted = new ArrayList<>(detections);
         sorted.sort(Comparator.comparing(Detection::getConfidence).reversed());
-        Set<Integer> removed = new HashSet<>();
+        boolean[] removed = new boolean[sorted.size()];
         for (int first = 0; first < sorted.size(); first++) {
-            if (removed.contains(first)) continue;
+            if (removed[first]) continue;
             for (int second = first + 1; second < sorted.size(); second++) {
-                if (removed.contains(second)) continue;
+                if (removed[second]) continue;
                 boolean categoriesEqual = sorted.get(first).getCategory().equals(sorted.get(second).getCategory());
                 if (categoriesEqual == sameCategory
                         && sorted.get(first).getBox().intersectionOverUnion(sorted.get(second).getBox()) > threshold) {
-                    removed.add(second);
+                    removed[second] = true;
                 }
             }
         }
         List<Detection> kept = new ArrayList<>();
         for (int index = 0; index < sorted.size(); index++) {
-            if (!removed.contains(index)) kept.add(sorted.get(index));
+            if (!removed[index]) kept.add(sorted.get(index));
         }
         return kept;
     }

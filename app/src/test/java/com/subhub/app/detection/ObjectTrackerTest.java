@@ -35,6 +35,25 @@ public final class ObjectTrackerTest {
         List<TrackedObject> result = tracker.update(Collections.emptyList(), 1_300_000_000L);
 
         assertTrue(result.isEmpty());
+        assertEquals(0, tracker.retainedTrackCount());
+    }
+
+    @Test
+    public void repeatedExpiryDoesNotGrowRetainedTrackerState() {
+        DetectorConfig config = DetectorConfig.builder()
+                .trackMaxAgeSeconds(0.01f)
+                .minRemoveFrames(1)
+                .build();
+        ObjectTracker tracker = new ObjectTracker(config);
+
+        for (int cycle = 0; cycle < 100; cycle++) {
+            long seenAt = 1_000_000_000L + cycle * 100_000_000L;
+            tracker.update(Collections.singletonList(
+                    detection(new BBox(cycle, cycle, 50, 50))), seenAt);
+            tracker.update(Collections.emptyList(), seenAt + 20_000_000L);
+        }
+
+        assertEquals(0, tracker.retainedTrackCount());
     }
 
     @Test
