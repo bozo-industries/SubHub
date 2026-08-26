@@ -85,7 +85,8 @@ public final class GitHubReleaseRepository {
                 UpdateManifest manifest = UpdateManifest.parse(manifestResponse.body);
                 if (!release.tag.equals(manifest.tag) || !manifest.isCompatible(BuildConfig.VERSION_CODE)
                         || manifest.selectAsset(Build.SUPPORTED_ABIS) == null) continue;
-                available = new UpdateCandidate(manifest, release.body, release.htmlUrl);
+                String notes = releaseNotes(manifest, release.body);
+                available = new UpdateCandidate(manifest, notes, release.htmlUrl);
                 break;
             }
             state.setEtag(response.etag);
@@ -126,6 +127,11 @@ public final class GitHubReleaseRepository {
                     release.optString("html_url", ""), manifestUrl));
         }
         return parsed;
+    }
+
+    static String releaseNotes(UpdateManifest manifest, String releaseBody) {
+        return manifest.releaseNotes.isEmpty()
+                ? ReleaseNotesFormatter.changelogOnly(releaseBody) : manifest.releaseNotes;
     }
 
     static final class HttpResponse {

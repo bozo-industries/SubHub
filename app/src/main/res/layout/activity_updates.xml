@@ -137,8 +137,25 @@
             <TextView
                 android:id="@+id/release_notes"
                 style="@style/Widget.SubHub.FieldHelp"
-                android:layout_marginTop="8dp"
-                android:maxLines="12" />
+                android:layout_marginTop="8dp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/download_guide_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="@dimen/page_margin"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="14dp"
+            android:visibility="gone">
+            <TextView style="@style/Widget.SubHub.SectionHeader"
+                android:text="@string/update_download_options" />
+            <TextView
+                android:id="@+id/download_guide"
+                style="@style/Widget.SubHub.FieldHelp"
+                android:layout_marginTop="8dp" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

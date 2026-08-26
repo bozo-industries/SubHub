@@ -42,15 +42,17 @@ public final class UpdateManifest {
     public final long versionCode;
     public final int minSdk;
     public final String tag;
+    public final String releaseNotes;
     public final List<Asset> assets;
 
     private UpdateManifest(String packageName, String versionName, long versionCode,
-            int minSdk, String tag, List<Asset> assets) {
+            int minSdk, String tag, String releaseNotes, List<Asset> assets) {
         this.packageName = packageName;
         this.versionName = versionName;
         this.versionCode = versionCode;
         this.minSdk = minSdk;
         this.tag = tag;
+        this.releaseNotes = releaseNotes;
         this.assets = Collections.unmodifiableList(assets);
     }
 
@@ -63,9 +65,11 @@ public final class UpdateManifest {
         long versionCode = json.optLong("versionCode", -1);
         int minSdk = json.optInt("minSdk", -1);
         String tag = required(json, "tag");
+        String releaseNotes = json.optString("releaseNotes", "").trim();
         if (!tag.equals("v" + versionName) || versionCode < 1 || minSdk < 1) {
             throw new JSONException("Invalid release identity");
         }
+        if (releaseNotes.length() > 64 * 1024) throw new JSONException("Release notes too large");
         JSONArray values = json.optJSONArray("assets");
         if (values == null || values.length() == 0) throw new JSONException("Missing APK assets");
         List<Asset> assets = new ArrayList<>();
@@ -83,7 +87,8 @@ public final class UpdateManifest {
             }
             assets.add(new Asset(abi, name, url, digest, size));
         }
-        return new UpdateManifest(packageName, versionName, versionCode, minSdk, tag, assets);
+        return new UpdateManifest(packageName, versionName, versionCode, minSdk, tag,
+                releaseNotes, assets);
     }
 
     private static String required(JSONObject json, String key) throws JSONException {
@@ -110,6 +115,7 @@ public final class UpdateManifest {
         for (Asset asset : assets) values.put(asset.json());
         return new JSONObject().put("schema", SCHEMA).put("packageName", packageName)
                 .put("versionName", versionName).put("versionCode", versionCode)
-                .put("minSdk", minSdk).put("tag", tag).put("assets", values).toString();
+                .put("minSdk", minSdk).put("tag", tag).put("releaseNotes", releaseNotes)
+                .put("assets", values).toString();
     }
 }

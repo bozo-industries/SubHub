@@ -33,6 +33,8 @@ dist/
 .gradle/
 **/build/
 *.log
+__pycache__/
+*.py[cod]
 .jolli/
 local.properties
 payment-server/data/

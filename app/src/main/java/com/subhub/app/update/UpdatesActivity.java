@@ -130,7 +130,14 @@ public final class UpdatesActivity extends AppCompatActivity {
         binding.automaticChecks.setChecked(state.automaticChecks());
         changingAutomatic = false;
         binding.releaseNotesCard.setVisibility(candidate == null ? View.GONE : View.VISIBLE);
-        if (candidate != null) binding.releaseNotes.setText(cleanNotes(candidate.notes));
+        binding.downloadGuideCard.setVisibility(candidate == null ? View.GONE : View.VISIBLE);
+        if (candidate != null) {
+            binding.releaseNotes.setText(ReleaseNotesFormatter.forDisplay(candidate.notes,
+                    getString(R.string.update_notes_unavailable)));
+            UpdateManifest.Asset asset = candidate.manifest.selectAsset(Build.SUPPORTED_ABIS);
+            binding.downloadGuide.setText(getString(R.string.update_download_guide,
+                    asset == null ? getString(R.string.update_download_universal) : asset.name));
+        }
 
         String verifiedPath = state.verifiedPath();
         if (!verifiedPath.isEmpty() && new File(verifiedPath).isFile()) {
@@ -237,13 +244,6 @@ public final class UpdatesActivity extends AppCompatActivity {
         startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(uri,
                         "application/vnd.android.package-archive")
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
-    }
-
-    private String cleanNotes(String notes) {
-        if (notes == null || notes.trim().isEmpty()) return getString(R.string.update_available_body);
-        String clean = notes.replace("\r", "").replaceAll("(?m)^#{1,6}\\s*", "")
-                .replace("**", "").replace("`", "").trim();
-        return clean.length() > 4000 ? clean.substring(0, 4000) + "…" : clean;
     }
 
     @Override protected void onDestroy() {
