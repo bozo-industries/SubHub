@@ -9,7 +9,6 @@ import com.subhub.app.settings.SettingsRepository;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -82,7 +81,7 @@ public final class CustomImagePool implements AutoCloseable {
     }
 
     public synchronized void retainAssignments(Set<Integer> activeIds) {
-        assignments.keySet().retainAll(new HashSet<>(activeIds));
+        assignments.keySet().retainAll(activeIds);
     }
 
     @Override

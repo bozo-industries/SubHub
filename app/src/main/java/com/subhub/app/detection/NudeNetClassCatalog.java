@@ -37,6 +37,7 @@ public final class NudeNetClassCatalog {
                     "genitals_female", "genitals_male", "breasts", "buttocks", "anus")));
 
     private static final Map<String, ClassInfo> CLASSES;
+    private static final ClassInfo[] CLASS_INFO_BY_INDEX;
 
     static {
         Map<String, ClassInfo> classes = new LinkedHashMap<>();
@@ -63,6 +64,10 @@ public final class NudeNetClassCatalog {
         if (CLASS_NAMES.size() != CLASS_COUNT || !CLASSES.keySet().containsAll(CLASS_NAMES)) {
             throw new IllegalStateException("NudeNet class mapping does not match model output order");
         }
+        CLASS_INFO_BY_INDEX = new ClassInfo[CLASS_COUNT];
+        for (int index = 0; index < CLASS_COUNT; index++) {
+            CLASS_INFO_BY_INDEX[index] = CLASSES.get(CLASS_NAMES.get(index));
+        }
     }
 
     private NudeNetClassCatalog() {}
@@ -77,8 +82,8 @@ public final class NudeNetClassCatalog {
     }
 
     public static ClassInfo byIndex(int index) {
-        if (index < 0 || index >= CLASS_NAMES.size()) return null;
-        return CLASSES.get(CLASS_NAMES.get(index));
+        return index >= 0 && index < CLASS_INFO_BY_INDEX.length
+                ? CLASS_INFO_BY_INDEX[index] : null;
     }
 
     public static String nameByIndex(int index) {

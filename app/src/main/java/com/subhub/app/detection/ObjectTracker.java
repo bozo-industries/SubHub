@@ -3,9 +3,12 @@ package com.subhub.app.detection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Greedy IoU/distance tracker that keeps censor boxes stable between inference frames. */
 public final class ObjectTracker {
@@ -42,7 +45,7 @@ public final class ObjectTracker {
         candidates.sort(Comparator.comparing(MatchCandidate::getScore).reversed());
 
         boolean[] matchedDetections = new boolean[detections.size()];
-        List<Integer> matchedTracks = new ArrayList<>();
+        Set<Integer> matchedTracks = new HashSet<>();
         for (MatchCandidate candidate : candidates) {
             if (matchedDetections[candidate.detectionIndex]
                     || matchedTracks.contains(candidate.trackId)) continue;
@@ -93,7 +96,9 @@ public final class ObjectTracker {
             }
         }
 
-        for (TrackedObject track : tracks.values()) {
+        Iterator<Map.Entry<Integer, TrackedObject>> iterator = tracks.entrySet().iterator();
+        while (iterator.hasNext()) {
+            TrackedObject track = iterator.next().getValue();
             if (matchedTracks.contains(track.getId()) || track.getLastSeenNanos() == nowNanos) continue;
             BBox predicted = null;
             if (config.isMotionPrediction() && track.getFramesMissing() < 4) {
@@ -107,7 +112,7 @@ public final class ObjectTracker {
             float ageSeconds = (nowNanos - track.getLastSeenNanos()) / 1_000_000_000f;
             if (track.getFramesMissing() >= config.getMinRemoveFrames()
                     && ageSeconds > config.getTrackMaxAgeSeconds()) {
-                track.deactivate();
+                iterator.remove();
             }
         }
         return activeTracks();
@@ -136,6 +141,10 @@ public final class ObjectTracker {
 
     public synchronized void setConfig(DetectorConfig config) {
         this.config = config;
+    }
+
+    synchronized int retainedTrackCount() {
+        return tracks.size();
     }
 
     private static float matchScore(BBox detection, TrackedObject track) {
