@@ -22,6 +22,7 @@ import com.subhub.app.BuildConfig;
 import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.appmode.AppModePolicy;
 import com.subhub.app.appmode.AppTimerManager;
+import com.subhub.app.appmode.AppTimerRuntimePolicy;
 import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.DetectionEngine;
@@ -1041,7 +1042,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         long started = foregroundSinceMillis;
         foregroundSinceMillis = nowMillis;
         if (timers == null || started <= 0L || nowMillis <= started
-                || !new FeatureModuleManager(this).isLimitsEnabled()) return;
+                || !appTimerRuntimeActive(nowMillis)) return;
         AppModeManager mode = new AppModeManager(this);
         timers.recordUsage(foregroundPackage, nowMillis - started,
                 mode.getTimerPackages(), nowMillis);
@@ -1050,7 +1051,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     /** Returns true when the current foreground app was dismissed for a spent budget. */
     private boolean enforceForegroundLimit(long nowMillis) {
         if (timers == null || foregroundPackage.isEmpty()
-                || !new FeatureModuleManager(this).isLimitsEnabled()) return false;
+                || !appTimerRuntimeActive(nowMillis)) {
+            lastBlockedPackage = "";
+            lastBlockedAtMillis = 0L;
+            return false;
+        }
         AppModeManager mode = new AppModeManager(this);
         Set<String> selected = mode.getTimerPackages();
         AppTimerManager.LimitStatus status = timers.limitStatus(
@@ -1073,6 +1078,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             foregroundSinceMillis = 0L;
         }
         return true;
+    }
+
+    private boolean appTimerRuntimeActive(long nowMillis) {
+        boolean armed = new AppModeManager(this).isEffectivelyArmed(nowMillis);
+        boolean limitsEnabled = new FeatureModuleManager(this).isLimitsEnabled();
+        return AppTimerRuntimePolicy.shouldRun(armed, limitsEnabled);
     }
 
     private void reevaluateRecognition() {
