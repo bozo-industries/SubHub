@@ -1,0 +1,66 @@
+[
+  {
+    "versionName": "0.5.3",
+    "tag": "v0.5.3",
+    "notes": "## What’s new in SubHub 0.5.3\n\n### New\n\n- **Rebuild the Home dashboard** — Replace the stacked Home cards with a responsive command, arrangement, and progress hierarchy.\n- **Rebuild the Home command deck** — Home now uses a cohesive dark command deck with compact single-line arrangement cards and calmer service controls.\n\n### Faster & smoother\n\n- **Keep Ultra's hot path bounded** — Expired censor tracks now leave the tracker instead of accumulating for an entire protection session, while low-confidence model candidates are rejected before class metadata work and small per-frame collection allocations are reduced.\n\n### Build & release\n\n- **Generate meaningful release changelogs** — GitHub releases and the in-app updater now show categorized user-visible changes before separate APK guidance.\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.3",
+    "publishedAt": "2026-08-26T17:03:31+02:00",
+    "prerelease": false
+  },
+  {
+    "versionName": "0.5.2",
+    "tag": "v0.5.2",
+    "notes": "## What’s new in SubHub 0.5.2\n\n### Fixed\n\n- **Stop app limits with protection** — Gate both daily-limit usage accounting and foreground eviction on SubHub's armed protection state.\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.2",
+    "publishedAt": "2026-08-26T15:16:51+02:00",
+    "prerelease": false
+  },
+  {
+    "versionName": "0.5.1",
+    "tag": "v0.5.1",
+    "notes": "## What’s new in SubHub 0.5.1\n\n### Fixed\n\n- **Complete protected interactions and update handoff** — Start service-duration locks only after the selected capture path is available, and clear stale timed state when protection is no longer engaged.\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.1",
+    "publishedAt": "2026-08-26T13:35:44+02:00",
+    "prerelease": false
+  },
+  {
+    "versionName": "0.5.0",
+    "tag": "v0.5.0",
+    "notes": "## What’s new in SubHub 0.5.0\n\n### New\n\n- **Add on-device subliminal messaging** — Add an independent Subliminal module with Dom-only configuration, per-app assignment, safe touch-through Accessibility overlays, phrase packs, profile persistence, Sub-mode status, aggregate statistics, and four tiered achievements.\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.0",
+    "publishedAt": "2026-08-26T05:26:13+02:00",
+    "prerelease": false
+  },
+  {
+    "versionName": "0.4.0",
+    "tag": "v0.4.0",
+    "notes": "## What’s new in SubHub 0.4.0\n\n### New\n\n- **Polish core control surfaces and payment flow** — Refresh Home, achievements, and censor-style controls with stronger hierarchy, truthful per-app limit summaries, larger milestone artwork, and a confined animated border renderer.\n- **Rework Help and Wallet configuration** — Move Help & Safety to a dedicated Home card available in Dom and Sub views, place PayPal second-last in Settings, and expand the in-app guide to the current feature model.\n- **Add signed GitHub release updates** — Discover stable and preview SubHub releases every six hours and expose a Help-linked maintenance screen in both Dom and Sub modes.\n\n### Improved\n\n- **Add GNU GPL v3 license** — Added the GNU General Public License version 3 to the project.\n\n### Documentation\n\n- **Refresh the SubHub product guide** — Replace the dense README with a concise visual product page, document saved-wallet auto-pay boundaries, update the 58-badge catalog, and remove every Safe Browser reference and stale capture.\n- **Explain PayPal Wallet setup** — Add a current setup guide for Sandbox and Live REST apps, merchant eligibility, Save payment methods and Vault capabilities, payer-wallet authorization, and Germany-safe handling of PayPal's combined PayPal and Venmo label.\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.4.0",
+    "publishedAt": "2026-08-25T22:02:01+02:00",
+    "prerelease": false
+  },
+  {
+    "versionName": "0.3.0",
+    "tag": "v0.3.0",
+    "notes": "## What’s new in SubHub 0.3.0\n\n### New\n\n- **Polish protection settings and milestones**\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.3.0",
+    "publishedAt": "2026-08-24T17:33:29+02:00",
+    "prerelease": false
+  },
+  {
+    "versionName": "0.2.0",
+    "tag": "v0.2.0",
+    "notes": "## What’s new in SubHub 0.2.0\n\n### New\n\n- **Add illustrated SubHub achievement collection** — Expand the catalog from 42 to 56 state-backed milestones covering App Mode, limits, pacts, Hardcore, text filtering, packs, Wallet, PayPal vaulting, and paid pauses.\n- **Give every achievement unique tiered artwork**\n\n### Fixed\n\n- **Preserve protection state when enabling Hardcore** — Treat Device Admin as a capability grant instead of implicitly arming App Mode.\n\n### Documentation\n\n- **Give SubHub a polished visual README** — Replace the reconstruction-led presentation with a product-first story, paired device screenshots, scene-aware copy, and compact build details.\n\n### Build & release\n\n- **Make the Gradle wrapper executable** — GitHub's Linux runners could not start gradlew from a fresh checkout.\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.2.0",
+    "publishedAt": "2026-08-24T16:06:42+02:00",
+    "prerelease": false
+  },
+  {
+    "versionName": "0.1.0",
+    "tag": "v0.1.0",
+    "notes": "## What’s new in SubHub 0.1.0\n\n### New\n\n- **Establish private APK modification workflow**\n- **Add compiling source reconstruction foundation**\n- **Reconstruct detector and tracking core**\n- **Add consent-first capture and overlay pipeline**\n- **Add live censor settings and styles**\n- **Rebuild the hardened safe browser**\n- **Restore local protection statistics**\n- **Restore detector performance presets**\n- **Restore advanced censor effects**\n- **Add export and accessibility capture**\n- **Restore advanced browser workflow**\n- **Add profiles and hardened packs**\n- **Add local runtime diagnostics**\n- **Restore statistics and achievements**\n- **Restore safely constrained popup storm**\n- **Add gothic help and locale shell**\n- **Add consent-first commitment pact**\n- **Add consent-first penance ledger**\n- **Add PayPal settlement service**\n- **Add battery-aware app recognition mode**\n- **Restore visual parity and working app limits**\n- **Rebrand app as SubHub with adaptive navigation**\n- **Polish SubHub controls and capture stability**\n- **Complete controller-gated SubHub surfaces**\n- **Complete detection and interface reliability pass**\n- **Add modular capture and wallet settings**\n- **Add Dom and Sub presentation modes**\n- **Add consensual Hardcore Mode and Sub checkout**\n- **Finish SubHub control and payment pass**\n- **Add timed pacts and guarded hardcore payments**\n- **Complete SubHub home and paid pause pass**\n- **Add local smut model and Ultra OCR**\n- **Rebuild text censoring around exact OCR lines**\n- **Finish wallet authorization and copy pass**\n- **Polish the SubHub control experience** — Refresh the visual system, add live censor previews, make App Mode the new-install default, gate tribute events behind active service, and add rate-limited Hardcore tamper tributes.\n\n### Fixed\n\n- **Audit every decoded DEX tree**\n- **Validate API 35 runtime behavior**\n- **Restore persistent automatic censoring**\n- **Ignore transient system windows in app mode**\n- **Improve native text detection and alignment**\n- **Track censors during continuous scrolling**\n- **Simplify settings navigation controls**\n- **Enforce Hardcore protection boundary**\n- **Charge censor taps at live overlay bounds**\n- **Clean adaptive launcher icon**\n- **Align text censors and conceal guarded controls**\n- **Put Hardcore first and normalize Censor header**\n- **Align text bars and stabilize video linger**\n- **Anchor censor overlays to the full display**\n- **Stop censoring outside assigned apps**\n- **Enforce censor scope from live app windows**\n- **Detect censor taps and verify PayPal credentials**\n- **Fall back to standard PayPal checkout**\n- **Clarify German PayPal vault eligibility**\n- **Finalize PayPal wallet after browser fallback**\n\n### Faster & smoother\n\n- **Precompute and bound live censor rendering**\n- **Keep accessibility censors aligned while scrolling**\n- **Decouple Ultra capture from inference**\n- **Accelerate Ultra detection pipeline**\n- **Move censors with accessibility scroll events**\n- **Keep Ultra inference active while scrolling**\n- **Run text detection concurrently**\n- **Cut APK size with ABI splits and compact assets**\n\n### Improved\n\n- **Refine home sessions and detection behavior**\n\n### Documentation\n\n- **Explain patched APK signing constraints**\n- **Define full feature parity scope**\n- **Record renderer and responsive QA**\n- **Clarify Android geometry test placement**\n\n### Build & release\n\n- **Enforce monetization-free APK builds**\n- **Automate signed Android releases** — Centralize Android version metadata, build universal and per-ABI artifacts, validate signing inputs, and publish verified APKs with checksums.\n\n### Quality\n\n- **Expand end-to-end Android coverage**\n\n### Maintenance\n\n- **Ignore local Jolli integration state**\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.1.0",
+    "publishedAt": "2026-08-24T13:29:15+02:00",
+    "prerelease": false
+  }
+]

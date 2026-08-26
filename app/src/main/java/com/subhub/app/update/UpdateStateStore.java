@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import org.json.JSONException;
 
 import java.io.File;
+import java.util.Collections;
+import java.util.List;
 
 /** Durable updater state; contains no credentials. */
 public final class UpdateStateStore {
@@ -14,6 +16,7 @@ public final class UpdateStateStore {
     private static final String LAST_CHECK = "last_check";
     private static final String ETAG = "release_etag";
     private static final String CANDIDATE = "candidate";
+    private static final String RELEASE_HISTORY = "release_history";
     private static final String LAST_NOTIFIED = "last_notified";
     private static final String DOWNLOAD_ID = "download_id";
     private static final String VERIFIED_PATH = "verified_path";
@@ -65,6 +68,18 @@ public final class UpdateStateStore {
 
     public void clearCandidate() {
         preferences.edit().remove(CANDIDATE).remove(LAST_NOTIFIED).apply();
+    }
+
+    public List<ReleaseHistoryItem> releaseHistory() {
+        String value = preferences.getString(RELEASE_HISTORY, "");
+        try { return ReleaseHistoryItem.decode(value); }
+        catch (JSONException exception) { return Collections.emptyList(); }
+    }
+
+    public void setReleaseHistory(List<ReleaseHistoryItem> history) {
+        try {
+            preferences.edit().putString(RELEASE_HISTORY, ReleaseHistoryItem.encode(history)).apply();
+        } catch (JSONException ignored) { }
     }
 
     public boolean markNotified(String version) {

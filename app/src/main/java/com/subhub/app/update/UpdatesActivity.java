@@ -8,7 +8,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -23,6 +25,9 @@ import com.subhub.app.security.ControllerPinManager;
 import java.io.File;
 import java.text.DateFormat;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -38,6 +43,8 @@ public final class UpdatesActivity extends AppCompatActivity {
     private boolean installAfterPermission;
     private boolean finalizingDownload;
     private boolean installPromptQueued;
+    private String historyFingerprint = "";
+    private final Set<String> expandedHistory = new HashSet<>();
     private final Runnable poll = new Runnable() {
         @Override public void run() {
             render();
@@ -129,11 +136,12 @@ public final class UpdatesActivity extends AppCompatActivity {
         changingAutomatic = true;
         binding.automaticChecks.setChecked(state.automaticChecks());
         changingAutomatic = false;
-        binding.releaseNotesCard.setVisibility(candidate == null ? View.GONE : View.VISIBLE);
+        List<ReleaseHistoryItem> history = state.releaseHistory();
+        if (history.isEmpty()) history = ReleaseHistoryCatalog.bundled(this);
+        history = ReleaseHistoryCatalog.withCandidate(history, candidate);
+        renderReleaseHistory(history, candidate);
         binding.downloadGuideCard.setVisibility(candidate == null ? View.GONE : View.VISIBLE);
         if (candidate != null) {
-            binding.releaseNotes.setText(ReleaseNotesFormatter.forDisplay(candidate.notes,
-                    getString(R.string.update_notes_unavailable)));
             UpdateManifest.Asset asset = candidate.manifest.selectAsset(Build.SUPPORTED_ABIS);
             binding.downloadGuide.setText(getString(R.string.update_download_guide,
                     asset == null ? getString(R.string.update_download_universal) : asset.name));
@@ -189,6 +197,62 @@ public final class UpdatesActivity extends AppCompatActivity {
         binding.buttonAction.setVisibility(candidate == null ? View.GONE : View.VISIBLE);
         binding.buttonAction.setText(R.string.update_download);
         binding.buttonAction.setOnClickListener(view -> beginDownload());
+    }
+
+    private void renderReleaseHistory(List<ReleaseHistoryItem> history, UpdateCandidate candidate) {
+        binding.releaseNotesCard.setVisibility(history.isEmpty() ? View.GONE : View.VISIBLE);
+        if (history.isEmpty()) return;
+        StringBuilder fingerprint = new StringBuilder();
+        for (ReleaseHistoryItem item : history) {
+            fingerprint.append(item.tag).append(':').append(item.notes.hashCode()).append(';');
+        }
+        String value = fingerprint.toString();
+        if (value.equals(historyFingerprint)) return;
+        boolean firstRender = historyFingerprint.isEmpty();
+        historyFingerprint = value;
+        if (firstRender && candidate != null) expandedHistory.add(candidate.manifest.tag);
+        binding.releaseHistoryList.removeAllViews();
+        LayoutInflater inflater = LayoutInflater.from(this);
+        for (ReleaseHistoryItem item : history) {
+            View row = inflater.inflate(R.layout.item_release_history,
+                    binding.releaseHistoryList, false);
+            TextView version = row.findViewById(R.id.release_version);
+            TextView meta = row.findViewById(R.id.release_meta);
+            TextView details = row.findViewById(R.id.release_details);
+            TextView chevron = row.findViewById(R.id.release_chevron);
+            version.setText(getString(R.string.update_history_version, item.versionName));
+            meta.setText(historyMeta(item, candidate));
+            details.setText(ReleaseNotesFormatter.forDisplay(
+                    item.notes, getString(R.string.update_notes_unavailable)));
+            boolean expanded = expandedHistory.contains(item.tag);
+            details.setVisibility(expanded ? View.VISIBLE : View.GONE);
+            chevron.setText(expanded ? "⌄" : "›");
+            row.setContentDescription(getString(R.string.update_history_open, item.versionName));
+            row.setOnClickListener(view -> {
+                boolean show = details.getVisibility() != View.VISIBLE;
+                details.setVisibility(show ? View.VISIBLE : View.GONE);
+                chevron.setText(show ? "⌄" : "›");
+                if (show) expandedHistory.add(item.tag);
+                else expandedHistory.remove(item.tag);
+            });
+            binding.releaseHistoryList.addView(row);
+        }
+    }
+
+    private String historyMeta(ReleaseHistoryItem item, UpdateCandidate candidate) {
+        if (candidate != null && item.tag.equals(candidate.manifest.tag)) {
+            return getString(R.string.update_history_available);
+        }
+        if (item.versionName.equals(BuildConfig.VERSION_NAME)) {
+            return getString(R.string.update_history_installed);
+        }
+        String date = item.publishedAt.length() >= 10
+                ? item.publishedAt.substring(0, 10) : "";
+        if (item.prerelease && !date.isEmpty()) {
+            return getString(R.string.update_history_preview_date, date);
+        }
+        if (item.prerelease) return getString(R.string.update_history_preview);
+        return date.isEmpty() ? getString(R.string.update_history_published) : date;
     }
 
     private void finalizeDownload() {

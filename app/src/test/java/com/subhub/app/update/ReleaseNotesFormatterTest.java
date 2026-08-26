@@ -27,5 +27,8 @@ public final class ReleaseNotesFormatterTest {
         assertEquals("Fixed\n\n- Installer opens",
                 ReleaseNotesFormatter.forDisplay("### Fixed\n\n- **Installer opens**", "fallback"));
         assertEquals("fallback", ReleaseNotesFormatter.forDisplay("", "fallback"));
+        assertEquals("New\n\n- Better Home",
+                ReleaseNotesFormatter.forDisplay(
+                        "## What’s new in SubHub 0.6.0\n\n### New\n\n- Better Home", "fallback"));
     }
 }
