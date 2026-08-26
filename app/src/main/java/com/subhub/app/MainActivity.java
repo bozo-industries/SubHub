@@ -63,7 +63,6 @@ import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.security.ProtectionStopPolicy;
-import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.util.AppShortcuts;
 import com.subhub.app.util.SubHubNavigation;
 import com.subhub.app.subliminal.SubliminalSettings;
@@ -340,8 +339,8 @@ public final class MainActivity extends AppCompatActivity {
     private void pactButton(TextView button, long duration) {
         boolean selected = selectedPactDurationMs == duration;
         button.setBackgroundResource(selected
-                ? R.drawable.bg_primary_button : R.drawable.bg_outline_button);
-        button.setTextColor(getColor(selected ? R.color.text_primary : R.color.accent));
+                ? R.drawable.bg_home_duration_selected : R.drawable.bg_home_duration_idle);
+        button.setTextColor(getColor(selected ? R.color.text_primary : R.color.text_secondary));
     }
 
     private void renderCommitmentState() {
@@ -541,14 +540,10 @@ public final class MainActivity extends AppCompatActivity {
                     : armed ? R.string.sub_censor_armed : R.string.sub_censor_idle);
             SettingsRepository settings = new SettingsRepository(this);
             CensorAppearance appearance = settings.loadAppearance();
-            TextSmutConfig textSmut = settings.loadTextSmutConfig();
-            String detector = getString(textSmut.isEnabled()
-                    ? R.string.sub_censor_detection_images_text
-                    : R.string.sub_censor_detection_images);
             String capture = getString(settings.loadCaptureMethod() == CaptureMethod.APP_MODE
                     ? R.string.sub_capture_app_watch : R.string.sub_capture_screen_session);
             binding.subCensorSummary.setText(getString(R.string.sub_censor_summary,
-                    friendlyEffectName(appearance.getType()), detector + " · " + capture));
+                    friendlyEffectName(appearance.getType()), capture));
         }
 
         if (limitsEnabled) {
@@ -559,10 +554,13 @@ public final class MainActivity extends AppCompatActivity {
             AppTimerManager.AllowanceSummary allowances =
                     timerManager.summarizeAllowances(timerPackages);
             String limits;
+            String limitDetail;
             if (!timer.anyEnabled()) {
                 limits = getString(R.string.sub_limits_none);
+                limitDetail = getString(R.string.sub_limits_sleeping);
             } else if (allowances.isEmpty()) {
                 limits = getString(R.string.sub_limits_no_apps);
+                limitDetail = getString(R.string.sub_limits_sleeping);
             } else {
                 String individual = allowances.isUniform()
                         ? getString(R.string.sub_limits_per_app, allowances.minimumMinutes)
@@ -576,13 +574,12 @@ public final class MainActivity extends AppCompatActivity {
                 } else {
                     limits = individual;
                 }
+                limitDetail = limits;
+                limits = getResources().getQuantityString(R.plurals.sub_limits_selected,
+                        allowances.appCount, allowances.appCount);
             }
-            binding.subLimitsSummary.setText(timer.anyEnabled() && !allowances.isEmpty()
-                    ? getResources().getQuantityString(R.plurals.sub_limits_selected,
-                            allowances.appCount, allowances.appCount, limits)
-                    : limits);
-            binding.subLimitsDetail.setText(appMode.isEffectivelyArmed(now)
-                    ? R.string.sub_limits_armed : R.string.sub_limits_sleeping);
+            binding.subLimitsSummary.setText(limits);
+            binding.subLimitsDetail.setText(limitDetail);
         }
 
         if (walletEnabled) {
@@ -590,9 +587,7 @@ public final class MainActivity extends AppCompatActivity {
             binding.subWalletVoice.setText(wallet.isEnabled()
                     ? R.string.sub_wallet_active : R.string.sub_wallet_inactive);
             binding.subWalletSummary.setText(getString(R.string.sub_wallet_summary,
-                    PenanceManager.formatMoney(wallet.getDueCents()),
-                    PenanceManager.formatMoney(wallet.getMercyCents()),
-                    PenanceManager.formatMoney(wallet.getPaidCents())));
+                    PenanceManager.formatMoney(wallet.getDueCents())));
             boolean checkout = wallet.getCheckoutCents() > 0;
             binding.subWalletPay.setVisibility(wallet.getDueCents() > 0 || checkout
                     ? View.VISIBLE : View.GONE);
