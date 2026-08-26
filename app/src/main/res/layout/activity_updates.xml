@@ -135,9 +135,14 @@
             <TextView style="@style/Widget.SubHub.SectionHeader"
                 android:text="@string/update_release_notes" />
             <TextView
-                android:id="@+id/release_notes"
                 style="@style/Widget.SubHub.FieldHelp"
-                android:layout_marginTop="8dp" />
+                android:layout_marginTop="3dp"
+                android:text="@string/update_history_help" />
+            <LinearLayout
+                android:id="@+id/release_history_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
         </LinearLayout>
 
         <LinearLayout

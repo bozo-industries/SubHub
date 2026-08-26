@@ -21,6 +21,7 @@ import java.util.List;
 public final class GitHubReleaseRepository {
     static final String RELEASES_URL = "https://api.github.com/repos/bozo-industries/SubHub/releases?per_page=30";
     private static final int MAX_RESPONSE = 2 * 1024 * 1024;
+    private final Context context;
     private final UpdateStateStore state;
 
     public enum Failure { OFFLINE, RATE_LIMITED, SERVER, INVALID_RELEASE }
@@ -45,17 +46,23 @@ public final class GitHubReleaseRepository {
         final String body;
         final String htmlUrl;
         final String manifestUrl;
-        Release(SemanticVersion version, String tag, String body, String htmlUrl, String manifestUrl) {
+        final String publishedAt;
+        final boolean prerelease;
+        Release(SemanticVersion version, String tag, String body, String htmlUrl,
+                String manifestUrl, String publishedAt, boolean prerelease) {
             this.version = version;
             this.tag = tag;
             this.body = body;
             this.htmlUrl = htmlUrl;
             this.manifestUrl = manifestUrl;
+            this.publishedAt = publishedAt;
+            this.prerelease = prerelease;
         }
     }
 
     public GitHubReleaseRepository(Context context) {
-        state = new UpdateStateStore(context);
+        this.context = context.getApplicationContext();
+        state = new UpdateStateStore(this.context);
     }
 
     public Result check() {
@@ -76,6 +83,9 @@ public final class GitHubReleaseRepository {
             JSONArray releases = new JSONArray(response.body);
             List<Release> candidates = parseReleases(releases);
             candidates.sort(Comparator.comparing((Release value) -> value.version).reversed());
+            List<ReleaseHistoryItem> history = ReleaseHistoryCatalog.merge(
+                    ReleaseHistoryCatalog.fromReleases(candidates),
+                    ReleaseHistoryCatalog.bundled(context));
             SemanticVersion installed = SemanticVersion.parse(BuildConfig.VERSION_NAME);
             UpdateCandidate available = null;
             for (Release release : candidates) {
@@ -89,8 +99,10 @@ public final class GitHubReleaseRepository {
                 available = new UpdateCandidate(manifest, notes, release.htmlUrl);
                 break;
             }
+            history = ReleaseHistoryCatalog.withCandidate(history, available);
             state.setEtag(response.etag);
             state.setLastCheck(System.currentTimeMillis());
+            state.setReleaseHistory(history);
             if (available != null) state.setCandidate(available);
             else {
                 state.clearCandidate();
@@ -124,7 +136,9 @@ public final class GitHubReleaseRepository {
                 }
             }
             parsed.add(new Release(version, tag, release.optString("body", ""),
-                    release.optString("html_url", ""), manifestUrl));
+                    release.optString("html_url", ""), manifestUrl,
+                    release.optString("published_at", ""),
+                    release.optBoolean("prerelease", false)));
         }
         return parsed;
     }

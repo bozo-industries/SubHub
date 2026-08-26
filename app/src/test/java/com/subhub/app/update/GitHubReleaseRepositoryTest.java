@@ -18,6 +18,8 @@ public final class GitHubReleaseRepositoryTest {
                 GitHubReleaseRepository.parseReleases(releases);
         assertEquals(1, parsed.size());
         assertEquals("v0.5.0-beta.1", parsed.get(0).tag);
+        assertEquals("2026-08-26T12:00:00Z", parsed.get(0).publishedAt);
+        assertEquals(true, parsed.get(0).prerelease);
     }
 
     @Test public void releaseWithoutUpdaterManifestCannotInstall() throws Exception {
@@ -51,6 +53,7 @@ public final class GitHubReleaseRepositoryTest {
                 + "-update.json\",\"browser_download_url\":\"https://github.com/manifest\"}]" : "[]";
         return "{\"tag_name\":\"" + tag + "\",\"draft\":" + draft
                 + ",\"prerelease\":" + prerelease + ",\"body\":\"notes\","
+                + "\"published_at\":\"2026-08-26T12:00:00Z\","
                 + "\"html_url\":\"https://github.com/release\",\"assets\":" + assets + "}";
     }
 }

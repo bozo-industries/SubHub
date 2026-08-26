@@ -39,6 +39,7 @@ final class ReleaseNotesFormatter {
         String source = notes == null ? "" : notes.trim();
         if (source.isEmpty()) return fallback;
         String clean = source.replace("\r", "")
+                .replaceFirst("(?i)^#{1,6}\\s*what(?:'|’)?s new(?: in subhub [^\\n]+)?\\n+", "")
                 .replaceAll("(?m)^#{1,6}\\s*", "")
                 .replaceAll("\\[([^]]+)]\\([^)]+\\)", "$1")
                 .replace("**", "").replace("`", "").trim();

@@ -11,6 +11,7 @@ detail.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 from dataclasses import dataclass
@@ -56,6 +57,14 @@ class Entry:
     detail: str
 
 
+@dataclass(frozen=True)
+class ReleaseRecord:
+    version: str
+    tag: str
+    notes: str
+    published_at: str
+
+
 def run_git(arguments: Sequence[str]) -> str:
     completed = subprocess.run(
         ["git", *arguments], check=True, stdout=subprocess.PIPE,
@@ -76,9 +85,10 @@ def previous_tag(tag: str) -> str | None:
 def read_commits(tag: str, base_tag: str | None = None) -> list[Commit]:
     revision = f"{base_tag}..{tag}" if base_tag else tag
     raw = run_git(["log", "--no-merges", "--reverse", "--format=%H%x00%s%x00%b%x00", revision])
+    raw = raw.rstrip("\r\n")
+    if raw.endswith("\0"):
+        raw = raw[:-1]
     fields = raw.split("\0")
-    while fields and not fields[-1].strip():
-        fields.pop()
     if len(fields) % 3:
         raise ValueError("Unexpected git log record shape")
     return [Commit(*fields[index:index + 3]) for index in range(0, len(fields), 3)]
@@ -103,7 +113,7 @@ def _first_sentence(text: str, limit: int = 240) -> str:
     if not text:
         return ""
     match = re.search(r"(?<=[.!?])\s", text)
-    sentence = text[:match.start() + 1] if match else text
+    sentence = text[:match.start()] if match else text
     if len(sentence) <= limit:
         return sentence
     clipped = sentence[:limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:-")
@@ -117,10 +127,18 @@ def entries(commits: Iterable[Commit], strict: bool = True) -> list[Entry]:
         match = SUBJECT.fullmatch(commit.subject.strip())
         if not match:
             invalid.append(f"{commit.hash[:8]} {commit.subject}")
+            if not strict:
+                legacy = re.match(
+                    r"^(feat|fix|perf|refactor|docs|test|build|ci|chore|revert):\s*(.+)$",
+                    commit.subject.strip(), re.IGNORECASE,
+                )
+                kind = legacy.group(1).lower() if legacy else "refactor"
+                title = (legacy.group(2) if legacy else commit.subject).strip().rstrip(".")
+                result.append(Entry(kind, title, _first_sentence(_plain_body(commit.body))))
             continue
         kind = match.group(1).lower()
         title = match.group(2).strip().rstrip(".")
-        if kind == "chore" and RELEASE_HOUSEKEEPING.match(title):
+        if kind in {"build", "chore"} and RELEASE_HOUSEKEEPING.match(title):
             continue
         detail = _first_sentence(_plain_body(commit.body))
         normalized_title = re.sub(r"\W+", " ", title).strip().lower()
@@ -175,12 +193,60 @@ def release_markdown(version: str, changelog: str, repository: str,
     return "\n".join(lines).rstrip() + "\n"
 
 
+def release_history(through_tag: str) -> list[ReleaseRecord]:
+    tags = [value.strip() for value in run_git(
+        ["tag", "--list", "v[0-9]*", "--sort=version:refname"]
+    ).splitlines() if SEMVER_TAG.fullmatch(value.strip())]
+    if through_tag not in tags:
+        raise ValueError(f"History tag is not present: {through_tag}")
+    records: list[ReleaseRecord] = []
+    base: str | None = None
+    for tag in tags:
+        values = entries(read_commits(tag, base), strict=False)
+        version = tag[1:]
+        # Dereference annotated release tags so the app receives only the
+        # release commit timestamp, not the tag header/message.
+        published = run_git(["log", "-1", "--format=%cI", f"{tag}^{{}}"] ).strip()
+        records.append(ReleaseRecord(
+            version, tag, changelog_markdown(version, values), published,
+        ))
+        base = tag
+        if tag == through_tag:
+            break
+    return list(reversed(records))
+
+
+def history_markdown(records: Sequence[ReleaseRecord]) -> str:
+    lines = ["# SubHub changelog", "",
+             "User-facing changes from every tagged SubHub release.", ""]
+    for index, record in enumerate(records):
+        opened = " open" if index == 0 else ""
+        lines.extend((f"<details{opened}>",
+                      f"<summary><strong>SubHub {record.version}</strong></summary>", "",
+                      record.notes.rstrip(), "", "</details>", ""))
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def history_json(records: Sequence[ReleaseRecord], repository: str) -> str:
+    payload = [{
+        "versionName": record.version,
+        "tag": record.tag,
+        "notes": record.notes,
+        "htmlUrl": f"https://github.com/{repository}/releases/tag/{record.tag}",
+        "publishedAt": record.published_at,
+        "prerelease": "-" in record.version,
+    } for record in records]
+    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", required=True)
     parser.add_argument("--repository")
     parser.add_argument("--changelog-output", type=Path)
     parser.add_argument("--release-output", type=Path)
+    parser.add_argument("--history-output", type=Path)
+    parser.add_argument("--history-json-output", type=Path)
     parser.add_argument("--base-tag")
     parser.add_argument("--allow-untyped", action="store_true")
     parser.add_argument("--check-only", action="store_true")
@@ -205,6 +271,16 @@ def main() -> int:
     args.changelog_output.write_text(changelog, encoding="utf-8")
     args.release_output.parent.mkdir(parents=True, exist_ok=True)
     args.release_output.write_text(release, encoding="utf-8")
+    if args.history_output is not None or args.history_json_output is not None:
+        history = release_history(args.tag)
+        if args.history_output is not None:
+            args.history_output.parent.mkdir(parents=True, exist_ok=True)
+            args.history_output.write_text(history_markdown(history), encoding="utf-8")
+        if args.history_json_output is not None:
+            args.history_json_output.parent.mkdir(parents=True, exist_ok=True)
+            args.history_json_output.write_text(
+                history_json(history, args.repository), encoding="utf-8",
+            )
     return 0
 
 

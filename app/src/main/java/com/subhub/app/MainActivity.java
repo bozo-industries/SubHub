@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
@@ -33,6 +34,7 @@ import com.subhub.app.capture.ExportActivity;
 import com.subhub.app.commitment.CommitmentActivity;
 import com.subhub.app.commitment.CommitmentManager;
 import com.subhub.app.penance.PenanceActivity;
+import com.subhub.app.penance.PenanceInfraction;
 import com.subhub.app.penance.PenanceManager;
 import com.subhub.app.penance.PaidPauseManager;
 import com.subhub.app.penance.PenanceSnapshot;
@@ -42,7 +44,10 @@ import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.appmode.AppTimerManager;
+import com.subhub.app.detection.DetectorConfig;
+import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.diagnostics.DiagnosticsRepository;
+import com.subhub.app.overlay.CensorPhrases;
 import com.subhub.app.settings.SettingsActivity;
 import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.stats.StatsSnapshot;
@@ -69,6 +74,8 @@ import com.subhub.app.subliminal.SubliminalSettings;
 import com.subhub.app.subliminal.SubliminalSettingsRepository;
 import com.google.android.material.snackbar.Snackbar;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -196,6 +203,14 @@ public final class MainActivity extends AppCompatActivity {
         binding.subWalletPay.setOnClickListener(view ->
                 startActivity(new Intent(this, PenanceActivity.class)));
         binding.subWalletPause.setOnClickListener(view -> beginPaidPause());
+        binding.subCensorCard.setOnClickListener(view -> showArrangementDetails(
+                R.string.sub_censor_title, censorArrangementDetails()));
+        binding.subLimitsCard.setOnClickListener(view -> showArrangementDetails(
+                R.string.sub_limits_title, limitsArrangementDetails()));
+        binding.subWalletCard.setOnClickListener(view -> showArrangementDetails(
+                R.string.sub_wallet_title, walletArrangementDetails()));
+        binding.subSubliminalCard.setOnClickListener(view -> showArrangementDetails(
+                R.string.sub_subliminal_title, subliminalArrangementDetails()));
         boolean seen = getSharedPreferences(SettingsRepository.PREFERENCES_NAME, MODE_PRIVATE)
                 .getBoolean("has_seen_onboarding", false);
         binding.onboardingCard.setVisibility(seen ? View.GONE : View.VISIBLE);
@@ -629,6 +644,241 @@ public final class MainActivity extends AppCompatActivity {
         }
         startActivity(new Intent(this, PenanceActivity.class)
                 .putExtra(PenanceActivity.EXTRA_BEGIN_PAID_PAUSE, true));
+    }
+
+    private void showArrangementDetails(int title, String details) {
+        Dialog dialog = new Dialog(this);
+        View content = LayoutInflater.from(this).inflate(
+                R.layout.dialog_arrangement_details, null, false);
+        ((TextView) content.findViewById(R.id.arrangement_detail_title)).setText(title);
+        TextView body = content.findViewById(R.id.arrangement_detail_body);
+        body.setText(details);
+        body.setMaxHeight(Math.round(getResources().getDisplayMetrics().heightPixels * 0.58f));
+        body.setMovementMethod(android.text.method.ScrollingMovementMethod.getInstance());
+        content.findViewById(R.id.arrangement_detail_close)
+                .setOnClickListener(view -> dialog.dismiss());
+        dialog.setContentView(content);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT);
+        }
+        dialog.setOnShowListener(ignored -> {
+            Window shown = dialog.getWindow();
+            if (shown != null) shown.setLayout(
+                    Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(560)),
+                    WindowManager.LayoutParams.WRAP_CONTENT);
+        });
+        dialog.show();
+    }
+
+    private String censorArrangementDetails() {
+        SettingsRepository repository = new SettingsRepository(this);
+        DetectorConfig detector = repository.loadDetectorConfig();
+        TextSmutConfig text = repository.loadTextSmutConfig();
+        CensorAppearance appearance = repository.loadAppearance();
+        AppModeManager appMode = new AppModeManager(this);
+        List<String> lines = new ArrayList<>();
+        lines.add(detailLine(R.string.arrangement_censor_look,
+                getString(R.string.arrangement_censor_look_value,
+                        friendlyEffectName(appearance.getType()),
+                        appearance.isShowBorder()
+                                ? appearance.getBorderEffect().name().toLowerCase(java.util.Locale.ROOT)
+                                : getString(R.string.arrangement_no_border))));
+        lines.add(detailLine(R.string.arrangement_censor_quality,
+                repository.loadDetectionPreset().getDisplayName()));
+        lines.add(detailLine(R.string.arrangement_censor_capture,
+                getString(repository.loadCaptureMethod() == CaptureMethod.APP_MODE
+                        ? R.string.capture_method_app_mode : R.string.capture_method_recording)));
+        lines.add(detailLine(R.string.arrangement_censor_images,
+                friendlyCategories(detector.getEnabledCategories())));
+        lines.add(detailLine(R.string.arrangement_censor_text,
+                text.isEnabled() ? friendlyTextFilter(text) : getString(R.string.popup_off)));
+        Set<String> phraseGroups = repository.preferences().getStringSet(
+                SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES, CensorPhrases.DEFAULT_ENABLED);
+        lines.add(detailLine(R.string.arrangement_censor_phrases,
+                appearance.isShowText() ? friendlyNames(phraseGroups)
+                        : getString(R.string.popup_off)));
+        lines.add(detailLine(R.string.arrangement_apps,
+                appMode.getMode() == com.subhub.app.appmode.AppModePolicy.Mode.ALWAYS
+                        ? getString(R.string.arrangement_all_apps)
+                        : appLabels(appMode.getSelectedPackages())));
+        return joinDetails(lines);
+    }
+
+    private String limitsArrangementDetails() {
+        AppModeManager appMode = new AppModeManager(this);
+        AppTimerManager timers = new AppTimerManager(this);
+        AppTimerManager.Settings settings = timers.loadSettings();
+        List<String> lines = new ArrayList<>();
+        lines.add(detailLine(R.string.arrangement_limits_shared,
+                settings.totalEnabled
+                        ? getString(R.string.arrangement_minutes, settings.totalMinutes)
+                        : getString(R.string.popup_off)));
+        Set<String> packages = appMode.getTimerPackages();
+        if (settings.perAppEnabled && !packages.isEmpty()) {
+            List<String> allowances = new ArrayList<>();
+            for (String packageName : packages) {
+                allowances.add(getString(R.string.arrangement_app_allowance,
+                        appLabel(packageName), timers.allowanceMinutes(packageName)));
+            }
+            Collections.sort(allowances, String.CASE_INSENSITIVE_ORDER);
+            lines.add(detailLine(R.string.arrangement_limits_individual,
+                    android.text.TextUtils.join("\n", allowances)));
+        } else {
+            lines.add(detailLine(R.string.arrangement_limits_individual,
+                    getString(R.string.popup_off)));
+        }
+        return joinDetails(lines);
+    }
+
+    private String walletArrangementDetails() {
+        PenanceManager wallet = new PenanceManager(this);
+        PenanceSnapshot snapshot = wallet.snapshot(System.currentTimeMillis());
+        List<String> rules = new ArrayList<>();
+        for (PenanceInfraction infraction : PenanceInfraction.values()) {
+            if (infraction == PenanceInfraction.PAID_PAUSE
+                    || !wallet.isInfractionEnabled(infraction)) continue;
+            String trigger = friendlyInfraction(infraction);
+            if (infraction == PenanceInfraction.NEW_DETECTION) {
+                trigger = getString(R.string.arrangement_detection_every,
+                        trigger, wallet.getDetectionBatch());
+            } else if (infraction == PenanceInfraction.CENSORED_DWELL) {
+                trigger = getString(R.string.arrangement_linger_after,
+                        trigger, wallet.getDwellSeconds());
+            }
+            rules.add(getString(R.string.arrangement_tribute_rule,
+                    trigger,
+                    PenanceManager.formatMoney(wallet.getInfractionCents(infraction))));
+        }
+        List<String> lines = new ArrayList<>();
+        lines.add(detailLine(R.string.arrangement_wallet_balance,
+                PenanceManager.formatMoney(snapshot.getDueCents())));
+        lines.add(detailLine(R.string.arrangement_wallet_rules,
+                rules.isEmpty() ? getString(R.string.arrangement_none_selected)
+                        : android.text.TextUtils.join("\n", rules)));
+        lines.add(detailLine(R.string.arrangement_wallet_caps,
+                getString(R.string.arrangement_wallet_cap_values,
+                        PenanceManager.formatMoney(wallet.getDailyCapCents()),
+                        PenanceManager.formatMoney(wallet.getWeeklyCapCents()))));
+        return joinDetails(lines);
+    }
+
+    private String subliminalArrangementDetails() {
+        AppModeManager appMode = new AppModeManager(this);
+        SubliminalSettings settings = new SubliminalSettingsRepository(this).load();
+        List<String> voices = new ArrayList<>();
+        for (String pack : settings.getEnabledPacks()) voices.add(friendlySubliminalPack(pack));
+        Collections.sort(voices, String.CASE_INSENSITIVE_ORDER);
+        List<String> lines = new ArrayList<>();
+        lines.add(detailLine(R.string.arrangement_subliminal_voice,
+                voices.isEmpty() ? getString(R.string.arrangement_none_selected)
+                        : android.text.TextUtils.join(", ", voices)));
+        lines.add(detailLine(R.string.arrangement_subliminal_intensity,
+                friendlyPreset(settings.getPreset())));
+        lines.add(detailLine(R.string.arrangement_apps,
+                appLabels(appMode.getSubliminalPackages())));
+        return joinDetails(lines);
+    }
+
+    private String detailLine(int label, String value) {
+        return getString(R.string.arrangement_detail_line, getString(label), value);
+    }
+
+    private String joinDetails(List<String> lines) {
+        return android.text.TextUtils.join("\n\n", lines);
+    }
+
+    private String appLabels(Set<String> packages) {
+        if (packages == null || packages.isEmpty()) return getString(R.string.arrangement_no_apps);
+        List<String> labels = new ArrayList<>();
+        for (String packageName : packages) labels.add(appLabel(packageName));
+        Collections.sort(labels, String.CASE_INSENSITIVE_ORDER);
+        return android.text.TextUtils.join(", ", labels);
+    }
+
+    private String appLabel(String packageName) {
+        try {
+            ApplicationInfo info = getPackageManager().getApplicationInfo(packageName, 0);
+            CharSequence label = getPackageManager().getApplicationLabel(info);
+            return label == null ? packageName : label.toString();
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return packageName;
+        }
+    }
+
+    private String friendlyCategories(Set<String> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return getString(R.string.arrangement_none_selected);
+        }
+        List<String> labels = new ArrayList<>();
+        for (String category : categories) {
+            labels.add(category.replace("genitals_female", "Vulva")
+                    .replace("genitals_male", "Penis")
+                    .replace("genitals_covered", "Covered intimate areas")
+                    .replace("breasts_covered", "Covered breasts")
+                    .replace("buttocks_covered", "Covered ass")
+                    .replace("anus_covered", "Covered anus")
+                    .replace("male_chest", "Chest")
+                    .replace("buttocks", "Ass")
+                    .replace('_', ' '));
+        }
+        Collections.sort(labels, String.CASE_INSENSITIVE_ORDER);
+        return android.text.TextUtils.join(", ", labels);
+    }
+
+    private String friendlyNames(Set<String> values) {
+        if (values == null || values.isEmpty()) return getString(R.string.arrangement_none_selected);
+        List<String> labels = new ArrayList<>();
+        for (String value : values) {
+            String clean = value == null ? "" : value.replace('_', ' ').trim();
+            if (!clean.isEmpty()) labels.add(clean.substring(0, 1).toUpperCase(
+                    java.util.Locale.ROOT) + clean.substring(1));
+        }
+        Collections.sort(labels, String.CASE_INSENSITIVE_ORDER);
+        return labels.isEmpty() ? getString(R.string.arrangement_none_selected)
+                : android.text.TextUtils.join(", ", labels);
+    }
+
+    private String friendlyTextFilter(TextSmutConfig config) {
+        int sensitivity = config.getSensitivity();
+        String level = sensitivity == TextSmutConfig.SENSITIVITY_STRICT ? "Focused"
+                : sensitivity == TextSmutConfig.SENSITIVITY_BROAD ? "Wide" : "Balanced";
+        return getString(R.string.arrangement_text_value,
+                level, friendlyNames(config.getEnabledCategories()));
+    }
+
+    private String friendlyInfraction(PenanceInfraction infraction) {
+        switch (infraction) {
+            case NEW_DETECTION: return getString(R.string.penance_rule_detection_title);
+            case CENSORED_DWELL: return getString(R.string.penance_rule_dwell_title);
+            case CENSORED_TAP: return getString(R.string.penance_rule_tap_title);
+            case WATCHED_APP_OPEN: return getString(R.string.penance_rule_app_open_title);
+            case TAMPER_ATTEMPT: return getString(R.string.penance_rule_tamper_title);
+            default: return infraction.name();
+        }
+    }
+
+    private String friendlySubliminalPack(String pack) {
+        if (SubliminalSettingsRepository.PACK_OBEDIENCE.equals(pack)) {
+            return getString(R.string.subliminal_pack_summary_obedience);
+        }
+        if (SubliminalSettingsRepository.PACK_FOCUS.equals(pack)) {
+            return getString(R.string.subliminal_pack_summary_focus);
+        }
+        if (SubliminalSettingsRepository.PACK_BETA.equals(pack)) {
+            return getString(R.string.subliminal_pack_summary_beta);
+        }
+        if (SubliminalSettingsRepository.PACK_FINDOM.equals(pack)) {
+            return getString(R.string.subliminal_pack_summary_findom);
+        }
+        return getString(R.string.subliminal_pack_summary_custom);
+    }
+
+    private String friendlyPreset(SubliminalSettings.Preset preset) {
+        String raw = (preset == null ? SubliminalSettings.Preset.NORMAL : preset).name();
+        return raw.substring(0, 1) + raw.substring(1).toLowerCase(java.util.Locale.ROOT);
     }
 
     private String friendlyEffectName(CensorAppearance.Type type) {
