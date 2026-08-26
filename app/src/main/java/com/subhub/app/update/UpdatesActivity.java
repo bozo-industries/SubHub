@@ -36,6 +36,8 @@ public final class UpdatesActivity extends AppCompatActivity {
     private boolean checking;
     private boolean changingAutomatic;
     private boolean installAfterPermission;
+    private boolean finalizingDownload;
+    private boolean installPromptQueued;
     private final Runnable poll = new Runnable() {
         @Override public void run() {
             render();
@@ -138,6 +140,14 @@ public final class UpdatesActivity extends AppCompatActivity {
             binding.buttonAction.setOnClickListener(view -> installVerified());
             binding.buttonCancel.setVisibility(View.GONE);
             if (!checking) binding.updateStatus.setText(R.string.update_ready_body);
+            if (state.installRequested() && !installAfterPermission && !installPromptQueued) {
+                state.setInstallRequested(false);
+                installPromptQueued = true;
+                main.post(() -> {
+                    installPromptQueued = false;
+                    installVerified();
+                });
+            }
             return;
         }
         UpdateDownloadCoordinator.Status download = downloads.status();
@@ -154,6 +164,15 @@ public final class UpdatesActivity extends AppCompatActivity {
             if (!checking) binding.updateStatus.setText(getString(R.string.update_downloading, percent));
             return;
         }
+        if (download != null && download.state == DownloadManager.STATUS_SUCCESSFUL) {
+            binding.downloadProgress.setVisibility(View.VISIBLE);
+            binding.downloadProgress.setIndeterminate(true);
+            binding.buttonAction.setVisibility(View.GONE);
+            binding.buttonCancel.setVisibility(View.GONE);
+            if (!checking) binding.updateStatus.setText(R.string.update_verifying);
+            finalizeDownload();
+            return;
+        }
         if (download != null && download.state == DownloadManager.STATUS_FAILED) {
             downloads.cancel();
             if (!checking) binding.updateStatus.setText(R.string.update_download_failed);
@@ -163,6 +182,24 @@ public final class UpdatesActivity extends AppCompatActivity {
         binding.buttonAction.setVisibility(candidate == null ? View.GONE : View.VISIBLE);
         binding.buttonAction.setText(R.string.update_download);
         binding.buttonAction.setOnClickListener(view -> beginDownload());
+    }
+
+    private void finalizeDownload() {
+        if (finalizingDownload) return;
+        long id = state.downloadId();
+        if (id < 0) return;
+        finalizingDownload = true;
+        network.execute(() -> {
+            UpdateDownloadFinalizer.Result result = UpdateDownloadFinalizer.finish(this, id);
+            main.post(() -> {
+                if (binding == null) return;
+                finalizingDownload = false;
+                if (result == UpdateDownloadFinalizer.Result.FAILED && !checking) {
+                    binding.updateStatus.setText(R.string.update_verification_failed);
+                }
+                render();
+            });
+        });
     }
 
     private void beginDownload() {

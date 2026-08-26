@@ -102,6 +102,10 @@ public final class MainActivity extends AppCompatActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        // Persist the approved start before rendering the lock. The foreground
+                        // service begins asynchronously, so its static running flag can lag this
+                        // callback by one UI frame.
+                        new AppModeManager(this).setArmed(true);
                         Intent service = ScreenCaptureService.startIntent(
                                 this, result.getResultCode(), result.getData());
                         ContextCompat.startForegroundService(this, service);
@@ -226,13 +230,15 @@ public final class MainActivity extends AppCompatActivity {
         }
         if (!featureModules.isCensorEnabled()
                 || new SettingsRepository(this).loadCaptureMethod() == CaptureMethod.APP_MODE) {
-            appMode.setArmed(true);
-            startSelectedPact();
-            ResumeNotificationManager.show(this);
             if (!appMode.isAccessibilityEnabled()) {
                 showStatus(R.string.capture_method_enable_accessibility);
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                updateProtectionButton(false);
+                return;
             }
+            appMode.setArmed(true);
+            startSelectedPact();
+            ResumeNotificationManager.show(this);
             updateProtectionButton(false);
             return;
         }
@@ -297,6 +303,15 @@ public final class MainActivity extends AppCompatActivity {
     private void renderCommitmentState() {
         if (binding == null) return;
         boolean active = CommitmentManager.isActive(this);
+        AppModeManager appMode = new AppModeManager(this);
+        CaptureMethod method = new SettingsRepository(this).loadCaptureMethod();
+        boolean protectionAvailable = ScreenCaptureService.isRunning()
+                || (appMode.isArmed() && (method == CaptureMethod.SCREEN_RECORDING
+                        || appMode.isAccessibilityEnabled()));
+        if (active && !protectionAvailable) {
+            CommitmentManager.emergencyRelease(this);
+            active = false;
+        }
         binding.commitmentCard.setVisibility(View.VISIBLE);
         binding.commitmentStartPanel.setVisibility(!active ? View.VISIBLE : View.GONE);
         binding.commitmentActivePanel.setVisibility(active ? View.VISIBLE : View.GONE);

@@ -885,6 +885,7 @@ Maximum coverage · flagship devices</string>
     <string name="update_checking">CHECKING GITHUB…</string>
     <string name="update_download">DOWNLOAD UPDATE</string>
     <string name="update_downloading">DOWNLOADING · %1$d%%</string>
+    <string name="update_verifying">VERIFYING SIGNED UPDATE…</string>
     <string name="update_download_title">SubHub %1$s</string>
     <string name="update_download_body">Downloading the signed update</string>
     <string name="update_cancel_download">CANCEL DOWNLOAD</string>

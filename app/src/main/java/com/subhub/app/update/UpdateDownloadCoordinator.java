@@ -50,6 +50,7 @@ public final class UpdateDownloadCoordinator {
         long id = downloads.enqueue(request);
         state.setDownloadId(id);
         state.setVerifiedPath("");
+        state.setInstallRequested(true);
         return id;
     }
 
