@@ -4,21 +4,30 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing immutable release tag to build"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+  group: release-${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -26,7 +35,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Verify tag and version metadata
         id: version
-        run: python3 scripts/release_version.py --tag "${GITHUB_REF_NAME}" --github-output "${GITHUB_OUTPUT}"
+        run: python3 scripts/release_version.py --tag "${RELEASE_TAG}" --github-output "${GITHUB_OUTPUT}"
       - name: Test release-note generation
         run: python3 -m unittest scripts.test_generate_release_notes
       - name: Restore release signing key
@@ -77,7 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/generate_release_notes.py \
-            --tag "${GITHUB_REF_NAME}" \
+            --tag "${RELEASE_TAG}" \
             --repository "${GITHUB_REPOSITORY}" \
             --changelog-output dist/changelog.md \
             --release-output dist/release-notes.md
@@ -96,7 +105,7 @@ jobs:
           version = os.environ["VERSION_NAME"]
           code = int(os.environ["VERSION_CODE"])
           repository = os.environ["GITHUB_REPOSITORY"]
-          tag = os.environ["GITHUB_REF_NAME"]
+          tag = os.environ["RELEASE_TAG"]
           dist = Path("dist")
           assets = []
           for abi in ("universal", "armeabi-v7a", "arm64-v8a", "x86", "x86_64"):
@@ -128,7 +137,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
+          gh release create "${RELEASE_TAG}" \
             dist/*.apk \
             dist/*-update.json \
             dist/*-SHA256SUMS.txt \
