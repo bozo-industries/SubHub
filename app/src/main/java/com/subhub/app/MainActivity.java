@@ -37,6 +37,7 @@ import com.subhub.app.penance.PenanceManager;
 import com.subhub.app.penance.PaidPauseManager;
 import com.subhub.app.penance.PenanceSnapshot;
 import com.subhub.app.penance.TamperTributeReporter;
+import com.subhub.app.permissions.HomePermissionPolicy;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.subhub.app.appmode.AppModeManager;
@@ -60,6 +61,7 @@ import com.subhub.app.appmode.ResumeNotificationManager;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.ControllerEditMode;
+import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.security.ProtectionStopPolicy;
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.util.AppShortcuts;
@@ -68,7 +70,9 @@ import com.subhub.app.subliminal.SubliminalSettings;
 import com.subhub.app.subliminal.SubliminalSettingsRepository;
 import com.google.android.material.snackbar.Snackbar;
 
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 /** Main source UI and explicit permission flow for starting on-device protection. */
@@ -79,7 +83,13 @@ public final class MainActivity extends AppCompatActivity {
     private MediaProjectionManager projectionManager;
     private ActivityResultLauncher<Intent> projectionPermission;
     private ActivityResultLauncher<Intent> overlayPermission;
+    private ActivityResultLauncher<Intent> accessibilityPermission;
+    private ActivityResultLauncher<Intent> deviceAdminPermission;
     private ActivityResultLauncher<String> notificationPermission;
+    private boolean startFlowAwaitingOverlay;
+    private boolean startFlowAwaitingNotification;
+    private final EnumSet<HomePermissionPolicy.Requirement> attemptedPermissions =
+            EnumSet.noneOf(HomePermissionPolicy.Requirement.class);
     private long selectedPactDurationMs = PACT_UNTIL_RELEASED;
     private String achievementPreviewFingerprint = "";
     private final Handler uiTimer = new Handler(Looper.getMainLooper());
@@ -118,14 +128,38 @@ public final class MainActivity extends AppCompatActivity {
         overlayPermission = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 ignored -> {
-                    if (Settings.canDrawOverlays(this)) requestProjection();
-                    else showStatus(R.string.overlay_permission_needed);
+                    if (startFlowAwaitingOverlay) {
+                        startFlowAwaitingOverlay = false;
+                        if (Settings.canDrawOverlays(this)) requestProjection();
+                        else showStatus(R.string.overlay_permission_needed);
+                    } else {
+                        continuePermissionReadinessFlow();
+                    }
+                });
+        accessibilityPermission = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                ignored -> continuePermissionReadinessFlow());
+        deviceAdminPermission = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                ignored -> {
+                    HardcoreModeManager hardcore = new HardcoreModeManager(this);
+                    if (hardcore.isAdminActive()) hardcore.finishActivation();
+                    continuePermissionReadinessFlow();
                 });
         notificationPermission = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
-                ignored -> continueStartFlow());
+                ignored -> {
+                    if (startFlowAwaitingNotification) {
+                        startFlowAwaitingNotification = false;
+                        continueStartFlow();
+                    } else {
+                        continuePermissionReadinessFlow();
+                    }
+                });
 
         binding.buttonProtection.setOnClickListener(this::toggleProtection);
+        binding.permissionCard.setOnClickListener(view -> beginPermissionReadinessFlow(true));
+        binding.permissionAction.setOnClickListener(view -> beginPermissionReadinessFlow(true));
         editLockButton.setOnClickListener(view -> toggleEditSession());
         binding.buttonAccessibilityCapture.setOnClickListener(view ->
                 startActivity(new Intent(this, SettingsActivity.class)));
@@ -167,7 +201,15 @@ public final class MainActivity extends AppCompatActivity {
                 .getBoolean("has_seen_onboarding", false);
         binding.onboardingCard.setVisibility(seen ? View.GONE : View.VISIBLE);
         AppShortcuts.install(this);
-        ControllerPinGate.ensureConfigured(this, () -> handleShortcutIntent(getIntent()));
+        ControllerPinGate.ensureConfigured(this, () -> {
+            boolean shortcutStartsProtection = getIntent() != null
+                    && AppShortcuts.ACTION_START_PROTECTION.equals(getIntent().getAction());
+            handleShortcutIntent(getIntent());
+            if (!shortcutStartsProtection) {
+                binding.getRoot().postDelayed(
+                        () -> beginPermissionReadinessFlow(false), 350L);
+            }
+        });
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -245,6 +287,7 @@ public final class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
+            startFlowAwaitingNotification = true;
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS);
         } else {
             continueStartFlow();
@@ -254,6 +297,7 @@ public final class MainActivity extends AppCompatActivity {
     private void continueStartFlow() {
         if (!Settings.canDrawOverlays(this)) {
             showStatus(R.string.overlay_permission_needed);
+            startFlowAwaitingOverlay = true;
             overlayPermission.launch(new Intent(
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + getPackageName())));
@@ -354,6 +398,92 @@ public final class MainActivity extends AppCompatActivity {
             renderAchievementsPreview(new StatsRepository(this).load());
             renderEditState();
             renderSubDashboard();
+            renderPermissionReadiness();
+        }
+    }
+
+    private void beginPermissionReadinessFlow(boolean restart) {
+        if (restart) attemptedPermissions.clear();
+        continuePermissionReadinessFlow();
+    }
+
+    private void continuePermissionReadinessFlow() {
+        if (binding == null || isFinishing()) return;
+        renderPermissionReadiness();
+        for (HomePermissionPolicy.Requirement requirement : missingPermissions()) {
+            if (!attemptedPermissions.add(requirement)) continue;
+            switch (requirement) {
+                case ACCESSIBILITY:
+                    accessibilityPermission.launch(
+                            new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                    return;
+                case OVERLAY:
+                    overlayPermission.launch(new Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + getPackageName())));
+                    return;
+                case NOTIFICATIONS:
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS);
+                    return;
+                case DEVICE_ADMIN:
+                    deviceAdminPermission.launch(
+                            new HardcoreModeManager(this).activationIntent());
+                    return;
+                default:
+                    return;
+            }
+        }
+    }
+
+    private List<HomePermissionPolicy.Requirement> missingPermissions() {
+        FeatureModuleManager modules = new FeatureModuleManager(this);
+        boolean runtimeFeature = modules.hasRuntimeFeature();
+        boolean screenRecordingCensor = modules.isCensorEnabled()
+                && new SettingsRepository(this).loadCaptureMethod()
+                == CaptureMethod.SCREEN_RECORDING;
+        boolean notificationPermissionApplies =
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU;
+        boolean notificationsReady = !notificationPermissionApplies
+                || ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED;
+        HardcoreModeManager hardcore = new HardcoreModeManager(this);
+        return HomePermissionPolicy.missing(
+                runtimeFeature,
+                screenRecordingCensor,
+                notificationPermissionApplies,
+                new AppModeManager(this).isAccessibilityEnabled(),
+                Settings.canDrawOverlays(this),
+                notificationsReady,
+                hardcore.isRequested(),
+                hardcore.isAdminActive());
+    }
+
+    private void renderPermissionReadiness() {
+        if (binding == null) return;
+        List<HomePermissionPolicy.Requirement> missing = missingPermissions();
+        binding.permissionCard.setVisibility(missing.isEmpty() ? View.GONE : View.VISIBLE);
+        if (missing.isEmpty()) return;
+        StringBuilder names = new StringBuilder();
+        for (int index = 0; index < missing.size(); index++) {
+            if (index > 0) names.append(index == missing.size() - 1 ? " and " : ", ");
+            names.append(getString(permissionName(missing.get(index))));
+        }
+        binding.permissionSummary.setText(
+                getString(R.string.home_permission_missing, names.toString()));
+    }
+
+    private int permissionName(HomePermissionPolicy.Requirement requirement) {
+        switch (requirement) {
+            case ACCESSIBILITY:
+                return R.string.permission_accessibility_name;
+            case OVERLAY:
+                return R.string.permission_overlay_name;
+            case NOTIFICATIONS:
+                return R.string.permission_notifications_name;
+            case DEVICE_ADMIN:
+                return R.string.permission_device_admin_name;
+            default:
+                return R.string.home_permission_title;
         }
     }
 
@@ -629,15 +759,15 @@ public final class MainActivity extends AppCompatActivity {
             cell.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
             cell.setBackgroundResource(R.drawable.bg_achievement_preview_cell);
             LinearLayout.LayoutParams cellParams = new LinearLayout.LayoutParams(
-                    dp(82), LinearLayout.LayoutParams.MATCH_PARENT);
-            if (shown > 0) cellParams.leftMargin = dp(7);
+                    dp(92), LinearLayout.LayoutParams.MATCH_PARENT);
+            if (shown > 0) cellParams.leftMargin = dp(8);
             cell.setLayoutParams(cellParams);
 
             AchievementBadgeView badge = new AchievementBadgeView(this);
             badge.bind(value.getBadgeArtRes(), unlocked, concealed,
                     concealed ? getString(R.string.achievement_hidden_name)
                             : getString(value.getName()));
-            badge.setLayoutParams(new LinearLayout.LayoutParams(dp(68), dp(68)));
+            badge.setLayoutParams(new LinearLayout.LayoutParams(dp(76), dp(76)));
             cell.addView(badge);
 
             TextView label = new TextView(this);
@@ -657,7 +787,7 @@ public final class MainActivity extends AppCompatActivity {
             cell.addView(label);
             binding.achievementsHomeBadges.addView(cell);
             shown++;
-            if (shown == 5) break;
+            if (shown == 4) break;
         }
         if (next == null) {
             binding.achievementsHomeNext.setText(R.string.achievements_all_complete);
