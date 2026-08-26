@@ -28,6 +28,8 @@ public final class StatsSnapshot {
     private final Set<String> activeDates;
     private final long allCategoryCensors;
     private final long currentSessionSeconds;
+    private final long subliminalImpressions;
+    private final long currentSessionSubliminals;
 
     StatsSnapshot(long totalBlocks, long totalSessionSeconds, int sessions, int currentStreak,
             String lastSessionDate, long totalProtectedSeconds, int currentSessionBlocks,
@@ -35,7 +37,8 @@ public final class StatsSnapshot {
             int browserPages, long exportedImages, int profiles, int customPhrases,
             int censorStyleChanges, boolean borderColorChanged, Set<String> censorStylesTried,
             Set<String> borderEffectsTried, Set<String> activeDates, long allCategoryCensors,
-            long currentSessionSeconds) {
+            long currentSessionSeconds, long subliminalImpressions,
+            long currentSessionSubliminals) {
         this.totalBlocks = totalBlocks;
         this.totalSessionSeconds = totalSessionSeconds;
         this.sessions = sessions;
@@ -57,6 +60,8 @@ public final class StatsSnapshot {
         this.activeDates = immutable(activeDates);
         this.allCategoryCensors = allCategoryCensors;
         this.currentSessionSeconds = Math.max(0, currentSessionSeconds);
+        this.subliminalImpressions = Math.max(0, subliminalImpressions);
+        this.currentSessionSubliminals = Math.max(0, currentSessionSubliminals);
     }
 
     public long getTotalBlocks() { return totalBlocks; }
@@ -82,6 +87,8 @@ public final class StatsSnapshot {
 
     /** Elapsed time for the currently active protection session, or zero while idle. */
     public long getCurrentSessionSeconds() { return currentSessionSeconds; }
+    public long getSubliminalImpressions() { return subliminalImpressions; }
+    public long getCurrentSessionSubliminals() { return currentSessionSubliminals; }
 
     public static String formatDuration(long totalSeconds) {
         long hours = totalSeconds / 3600;

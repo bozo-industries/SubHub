@@ -1,0 +1,4 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><shape android:shape="oval"><gradient android:startColor="#241139" android:endColor="#B02E8E" android:angle="45"/><stroke android:width="5dp" android:color="#E26AD5"/></shape></item>
+    <item android:width="124dp" android:height="124dp" android:gravity="center" android:drawable="@drawable/ic_subliminal_whisper_2"/>
+</layer-list>

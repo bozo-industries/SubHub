@@ -8,6 +8,7 @@ import android.view.accessibility.AccessibilityManager;
 
 import com.subhub.app.settings.SettingsRepository;
 import com.subhub.app.settings.FeatureModuleManager;
+import com.subhub.app.settings.CaptureMethod;
 import com.subhub.app.stats.StatsRepository;
 
 import java.util.Collections;
@@ -21,6 +22,7 @@ public final class AppModeManager {
     public static final String KEY_MODE_EXPLICIT = "app_mode_kind_explicit_v2";
     public static final String KEY_SELECTED_PACKAGES = "app_mode_selected_packages";
     public static final String KEY_TIMER_PACKAGES = "app_timer_selected_packages";
+    public static final String KEY_SUBLIMINAL_PACKAGES = "subliminal_selected_packages";
     private static final String MODE_ALWAYS = "always";
     private static final String MODE_SELECTED = "selected";
 
@@ -70,17 +72,31 @@ public final class AppModeManager {
         return stored == null ? getSelectedPackages() : AppModePolicy.sanitizePackages(stored);
     }
 
-    public void saveAppSelections(Set<String> censorPackages, Set<String> timerPackages) {
+    public Set<String> getSubliminalPackages() {
+        Set<String> stored = preferences.getStringSet(KEY_SUBLIMINAL_PACKAGES,
+                Collections.emptySet());
+        return AppModePolicy.sanitizePackages(stored);
+    }
+
+    public void saveAppSelections(Set<String> censorPackages, Set<String> timerPackages,
+            Set<String> subliminalPackages) {
         Set<String> cleanCensorPackages = AppModePolicy.sanitizePackages(censorPackages);
         SharedPreferences.Editor editor = preferences.edit()
                 .putStringSet(KEY_SELECTED_PACKAGES,
                         new LinkedHashSet<>(cleanCensorPackages))
                 .putStringSet(KEY_TIMER_PACKAGES,
-                        new LinkedHashSet<>(AppModePolicy.sanitizePackages(timerPackages)));
+                        new LinkedHashSet<>(AppModePolicy.sanitizePackages(timerPackages)))
+                .putStringSet(KEY_SUBLIMINAL_PACKAGES,
+                        new LinkedHashSet<>(AppModePolicy.sanitizePackages(subliminalPackages)));
         if (!cleanCensorPackages.isEmpty()) {
             editor.putString(KEY_MODE, MODE_SELECTED).putBoolean(KEY_MODE_EXPLICIT, true);
         }
         editor.commit();
+    }
+
+    /** Compatibility overload for tests and older integrations. */
+    public void saveAppSelections(Set<String> censorPackages, Set<String> timerPackages) {
+        saveAppSelections(censorPackages, timerPackages, getSubliminalPackages());
     }
 
     public void save(boolean armed, AppModePolicy.Mode mode, Set<String> selectedPackages) {
@@ -98,8 +114,18 @@ public final class AppModeManager {
 
     public boolean shouldRecognize(String foregroundPackage) {
         if (!new FeatureModuleManager(context).isCensorEnabled()) return false;
+        if (new SettingsRepository(context).loadCaptureMethod() != CaptureMethod.APP_MODE) {
+            return false;
+        }
         return AppModePolicy.shouldRecognize(isEffectivelyArmed(System.currentTimeMillis()),
                 getMode(), getSelectedPackages(),
+                foregroundPackage, context.getPackageName(), inputMethodPackage());
+    }
+
+    public boolean shouldShowSubliminal(String foregroundPackage) {
+        if (!new FeatureModuleManager(context).isSubliminalEnabled()) return false;
+        return AppModePolicy.shouldRecognize(isEffectivelyArmed(System.currentTimeMillis()),
+                AppModePolicy.Mode.SELECTED_APPS, getSubliminalPackages(),
                 foregroundPackage, context.getPackageName(), inputMethodPackage());
     }
 

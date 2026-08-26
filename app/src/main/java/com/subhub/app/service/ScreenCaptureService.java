@@ -26,6 +26,7 @@ import androidx.core.app.NotificationCompat;
 import com.subhub.app.MainActivity;
 import com.subhub.app.R;
 import com.subhub.app.appmode.ProtectionSessionManager;
+import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.appmode.ResumeNotificationManager;
 import com.subhub.app.capture.ScreenCaptureManager;
 import com.subhub.app.detection.Detection;
@@ -117,6 +118,7 @@ public final class ScreenCaptureService extends Service {
                     != ProtectionStopPolicy.Decision.ALLOW) return START_STICKY;
             explicitlyStoppedByController = true;
             ProtectionSessionManager.markMediaProjectionExplicitlyStopped(this);
+            new AppModeManager(this).setArmed(false);
             ResumeNotificationManager.cancel(this);
             stopSelf();
             return START_NOT_STICKY;
@@ -147,6 +149,7 @@ public final class ScreenCaptureService extends Service {
 
         running = true;
         ProtectionSessionManager.markMediaProjectionStarted(this);
+        new AppModeManager(this).setArmed(true);
         stats.startSession();
         overlay = new OverlayController(this);
         CensorAppearance appearance = settings.loadAppearance();
@@ -323,6 +326,7 @@ public final class ScreenCaptureService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        new AppModeManager(this).setArmed(false);
         DiagnosticsRepository.stop(DIAGNOSTICS_MODE);
         if (stats != null) stats.endSession();
         if (settings != null) {

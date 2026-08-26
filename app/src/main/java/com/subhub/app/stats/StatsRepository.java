@@ -40,6 +40,8 @@ public final class StatsRepository {
     private static final String KEY_TOTAL_BLOCKS = "total_blocks_all_time";
     private static final String KEY_TOTAL_PROTECTED_TIME = "total_protected_time";
     private static final String KEY_TOTAL_SESSION_TIME = "total_session_time";
+    private static final String KEY_SUBLIMINAL_IMPRESSIONS = "subliminal_impressions";
+    private static final String KEY_ACTIVE_SESSION_SUBLIMINALS = "active_session_subliminals";
     private static final int SESSION_HISTORY_MAX = 30;
     private static final Object SESSION_LOCK = new Object();
     private static final Set<Integer> SEEN_TRACK_IDS = new HashSet<>();
@@ -67,6 +69,7 @@ public final class StatsRepository {
             preferences.edit()
                     .putLong(KEY_ACTIVE_SESSION_START, sessionStartMs)
                     .putInt(KEY_ACTIVE_SESSION_BLOCKS, 0)
+                    .putLong(KEY_ACTIVE_SESSION_SUBLIMINALS, 0L)
                     .putInt(KEY_SESSIONS_COUNT, preferences.getInt(KEY_SESSIONS_COUNT, 0) + 1)
                     .apply();
             updateStreak();
@@ -132,7 +135,8 @@ public final class StatsRepository {
             edit.apply();
             appendSessionHistory(started, durationSeconds, sessionBlocks);
             preferences.edit().remove(KEY_ACTIVE_SESSION_START)
-                    .remove(KEY_ACTIVE_SESSION_BLOCKS).apply();
+                    .remove(KEY_ACTIVE_SESSION_BLOCKS)
+                    .remove(KEY_ACTIVE_SESSION_SUBLIMINALS).apply();
             sessionStartMs = 0;
             sessionBlocks = 0;
             SEEN_TRACK_IDS.clear();
@@ -167,7 +171,9 @@ public final class StatsRepository {
                     mutableSet(KEY_CENSOR_STYLES_TRIED), mutableSet(KEY_BORDER_EFFECTS_TRIED),
                     mutableSet(KEY_ACTIVE_DATES),
                     preferences.getLong(KEY_ALL_CATEGORIES_CENSORS, 0),
-                    currentSessionSeconds);
+                    currentSessionSeconds,
+                    preferences.getLong(KEY_SUBLIMINAL_IMPRESSIONS, 0L),
+                    preferences.getLong(KEY_ACTIVE_SESSION_SUBLIMINALS, 0L));
         }
     }
 
@@ -226,6 +232,18 @@ public final class StatsRepository {
         if (count <= 0) return;
         preferences.edit().putLong(KEY_EXPORTED_IMAGES,
                 getLongCompat(KEY_EXPORTED_IMAGES) + count).apply();
+    }
+    public void recordSubliminalImpression() {
+        synchronized (SESSION_LOCK) {
+            restoreActiveSession();
+            if (sessionStartMs == 0) return;
+            preferences.edit()
+                    .putLong(KEY_SUBLIMINAL_IMPRESSIONS,
+                            preferences.getLong(KEY_SUBLIMINAL_IMPRESSIONS, 0L) + 1L)
+                    .putLong(KEY_ACTIVE_SESSION_SUBLIMINALS,
+                            preferences.getLong(KEY_ACTIVE_SESSION_SUBLIMINALS, 0L) + 1L)
+                    .apply();
+        }
     }
     private void updateStreak() {
         String today = today();

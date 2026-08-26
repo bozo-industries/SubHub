@@ -334,6 +334,7 @@ public final class AchievementsActivity extends AppCompatActivity {
             case "censor": return R.string.achievement_category_text_filter;
             case "control": return R.string.achievement_category_control;
             case "wallet": return R.string.achievement_category_wallet;
+            case "subliminal": return R.string.achievement_category_subliminal;
             case "hidden": return R.string.achievement_category_hidden;
             case "special": return R.string.achievement_category_special;
             default: return R.string.achievements_title;

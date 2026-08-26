@@ -9,7 +9,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Android-8.0%2B-b64bd2?style=flat-square&logo=android&logoColor=white" alt="Android 8.0+" />
-  <img src="https://img.shields.io/badge/release-v0.3.0-68339b?style=flat-square" alt="v0.3.0" />
+  <img src="https://img.shields.io/badge/release-v0.5.0-68339b?style=flat-square" alt="v0.5.0" />
   <img src="https://img.shields.io/badge/detection-on--device-e32b90?style=flat-square" alt="On-device detection" />
 </p>
 
@@ -46,7 +46,11 @@ A session begins when service starts—not when SubHub opens—and persists unti
   </tr>
 </table>
 
-Each module is independent. Disable one and it leaves the navigation and stops participating in service.
+### Subliminal Messaging
+
+Faint randomized phrases can follow service through separately assigned apps. Obedience, focus, beta/cuck, findom, and custom phrase packs run through one touch-through Accessibility overlay—without waking the image detector. Presence, timing, text size, and voice are configured in Dom mode; Sub mode sees only the active summary.
+
+Each module is independent. Disable one and it stops participating in service. Subliminal Messaging has its own per-app assignment and does not require Censor, Limits, or Wallet.
 
 <p align="center">
   <img src="docs/screenshots/ui-map/page-map/02-limits.png" alt="Daily app limits" width="42%" />
@@ -92,7 +96,7 @@ The Dom sets prices, batching, grace, correction time, and daily or weekly caps.
 
 ## Milestones
 
-SubHub includes 58 original illustrated achievements across censoring, protected time, sessions, streaks, customisation, App Mode, limits, service locks, Hardcore Mode, and confirmed Wallet payments. Related tiers keep one visual family and grow richer as the target rises.
+SubHub includes original illustrated achievements across censoring, protected time, sessions, streaks, customisation, App Mode, limits, service locks, Hardcore Mode, confirmed Wallet payments, and subliminal impressions. Related tiers keep one visual family and grow richer as the target rises.
 
 <details>
 <summary><strong>Open the complete badge collection</strong></summary>
@@ -130,6 +134,7 @@ Editable source lives under `app/src/main/java/com/subhub/app/`. Versioned tags 
 - [Visual audit](docs/visual-parity.md)
 - [PayPal setup](docs/paypal-setup.md)
 - [PayPal settlement](docs/paypal-penance.md)
+- [Client-only roadmap](docs/client-only-roadmap.md)
 
 </details>
 

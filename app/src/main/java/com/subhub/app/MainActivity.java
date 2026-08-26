@@ -64,6 +64,8 @@ import com.subhub.app.security.ProtectionStopPolicy;
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.util.AppShortcuts;
 import com.subhub.app.util.SubHubNavigation;
+import com.subhub.app.subliminal.SubliminalSettings;
+import com.subhub.app.subliminal.SubliminalSettingsRepository;
 import com.google.android.material.snackbar.Snackbar;
 
 import java.util.LinkedHashSet;
@@ -191,7 +193,8 @@ public final class MainActivity extends AppCompatActivity {
             showStatus(R.string.paid_pause_active_protection);
             return;
         }
-        if (!new FeatureModuleManager(this).isCensorEnabled()) {
+        FeatureModuleManager featureModules = new FeatureModuleManager(this);
+        if (!featureModules.hasRuntimeFeature()) {
             startActivity(new Intent(this, GlobalSettingsActivity.class));
             return;
         }
@@ -221,7 +224,8 @@ public final class MainActivity extends AppCompatActivity {
             updateProtectionButton(false);
             return;
         }
-        if (new SettingsRepository(this).loadCaptureMethod() == CaptureMethod.APP_MODE) {
+        if (!featureModules.isCensorEnabled()
+                || new SettingsRepository(this).loadCaptureMethod() == CaptureMethod.APP_MODE) {
             appMode.setArmed(true);
             startSelectedPact();
             ResumeNotificationManager.show(this);
@@ -369,12 +373,16 @@ public final class MainActivity extends AppCompatActivity {
         boolean censorEnabled = modules.isCensorEnabled();
         boolean limitsEnabled = modules.isLimitsEnabled();
         boolean walletEnabled = modules.isWalletEnabled();
+        boolean subliminalEnabled = modules.isSubliminalEnabled();
         binding.subCensorCard.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
         binding.subLimitsCard.setVisibility(limitsEnabled ? View.VISIBLE : View.GONE);
         binding.subWalletCard.setVisibility(walletEnabled ? View.VISIBLE : View.GONE);
+        binding.subSubliminalCard.setVisibility(subliminalEnabled ? View.VISIBLE : View.GONE);
         binding.subModulesEmpty.setVisibility(!censorEnabled && !limitsEnabled && !walletEnabled
+                && !subliminalEnabled
                 ? View.VISIBLE : View.GONE);
-        binding.buttonProtection.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
+        binding.buttonProtection.setVisibility(modules.hasRuntimeFeature()
+                ? View.VISIBLE : View.GONE);
         binding.protectionStatusRow.setVisibility(View.GONE);
         binding.runtimeStatus.setVisibility(View.GONE);
         binding.modeHint.setVisibility(View.GONE);
@@ -457,6 +465,20 @@ public final class MainActivity extends AppCompatActivity {
                     : getString(R.string.paid_pause_buy, paidPause.getDurationMinutes(),
                             PenanceManager.formatMoney(paidPause.getPriceCents())));
         }
+
+        if (subliminalEnabled) {
+            AppModeManager appMode = new AppModeManager(this);
+            SubliminalSettings subliminal = new SubliminalSettingsRepository(this).load();
+            int stateText = !appMode.isAccessibilityEnabled()
+                    ? R.string.sub_subliminal_setup
+                    : appMode.isEffectivelyArmed(now)
+                    ? R.string.sub_subliminal_active : R.string.sub_subliminal_idle;
+            binding.subSubliminalVoice.setText(stateText);
+            StatsSnapshot stats = new StatsRepository(this).load();
+            binding.subSubliminalSummary.setText(getString(R.string.sub_subliminal_summary,
+                    friendlySubliminalVoice(subliminal), appMode.getSubliminalPackages().size(),
+                    stats.getCurrentSessionSubliminals()));
+        }
     }
 
     private void beginPaidPause() {
@@ -473,6 +495,26 @@ public final class MainActivity extends AppCompatActivity {
         String raw = type == null ? "BOX" : type.name();
         String spaced = raw.replace('_', ' ').toLowerCase(java.util.Locale.ROOT);
         return Character.toUpperCase(spaced.charAt(0)) + spaced.substring(1);
+    }
+
+    private String friendlySubliminalVoice(SubliminalSettings settings) {
+        Set<String> packs = settings.getEnabledPacks();
+        if (packs.isEmpty()) return getString(R.string.subliminal_pack_summary_none);
+        if (packs.size() != 1) return getString(R.string.subliminal_pack_summary_mixed);
+        String pack = packs.iterator().next();
+        if (SubliminalSettingsRepository.PACK_OBEDIENCE.equals(pack)) {
+            return getString(R.string.subliminal_pack_summary_obedience);
+        }
+        if (SubliminalSettingsRepository.PACK_FOCUS.equals(pack)) {
+            return getString(R.string.subliminal_pack_summary_focus);
+        }
+        if (SubliminalSettingsRepository.PACK_BETA.equals(pack)) {
+            return getString(R.string.subliminal_pack_summary_beta);
+        }
+        if (SubliminalSettingsRepository.PACK_FINDOM.equals(pack)) {
+            return getString(R.string.subliminal_pack_summary_findom);
+        }
+        return getString(R.string.subliminal_pack_summary_custom);
     }
 
     private int dp(int value) {

@@ -6,6 +6,7 @@ import android.content.SharedPreferences;
 import com.subhub.app.settings.SettingsRepository;
 import com.subhub.app.settings.FeatureModuleManager;
 import com.subhub.app.stats.StatsRepository;
+import com.subhub.app.subliminal.SubliminalSettingsRepository;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -31,7 +32,9 @@ public final class ProfileManager {
             SettingsRepository.KEY_TEXT_SMUT_ENABLED,
             FeatureModuleManager.KEY_CENSOR_ENABLED,
             FeatureModuleManager.KEY_LIMITS_ENABLED,
-            FeatureModuleManager.KEY_WALLET_ENABLED);
+            FeatureModuleManager.KEY_WALLET_ENABLED,
+            FeatureModuleManager.KEY_SUBLIMINAL_ENABLED,
+            SubliminalSettingsRepository.KEY_ADVANCED);
     private static final List<String> STRING_KEYS = new ArrayList<>(Arrays.asList(
             SettingsRepository.KEY_DETECTION_PRESET,
             SettingsRepository.KEY_CENSOR_TYPE,
@@ -40,22 +43,31 @@ public final class ProfileManager {
             SettingsRepository.KEY_BORDER_COLOR,
             SettingsRepository.KEY_REVERSE_CUTOUT_SHAPE,
             SettingsRepository.KEY_ERROR_TITLE,
-            SettingsRepository.KEY_ERROR_TEXT));
+            SettingsRepository.KEY_ERROR_TEXT,
+            SubliminalSettingsRepository.KEY_PRESET,
+            SubliminalSettingsRepository.KEY_CUSTOM));
     static {
         STRING_KEYS.addAll(SettingsRepository.palettePreferenceKeys());
     }
     private static final List<String> INT_KEYS = Arrays.asList(
             SettingsRepository.KEY_CENSOR_INTENSITY,
             SettingsRepository.KEY_CONFIDENCE,
-            SettingsRepository.KEY_TEXT_SMUT_SENSITIVITY);
+            SettingsRepository.KEY_TEXT_SMUT_SENSITIVITY,
+            SubliminalSettingsRepository.KEY_OPACITY,
+            SubliminalSettingsRepository.KEY_TEXT_SIZE);
     private static final List<String> FLOAT_KEYS = Arrays.asList(
             SettingsRepository.KEY_CENSOR_SIZE_PADDING,
             SettingsRepository.KEY_REVERSE_STRENGTH);
+    private static final List<String> LONG_KEYS = Arrays.asList(
+            SubliminalSettingsRepository.KEY_VISIBLE_MS,
+            SubliminalSettingsRepository.KEY_MIN_INTERVAL_MS,
+            SubliminalSettingsRepository.KEY_MAX_INTERVAL_MS);
     private static final List<String> STRING_SET_KEYS = Arrays.asList(
             SettingsRepository.KEY_ENABLED_CATEGORIES,
             SettingsRepository.KEY_TEXT_SMUT_CATEGORIES,
             SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES,
-            SettingsRepository.KEY_CUSTOM_PHRASES);
+            SettingsRepository.KEY_CUSTOM_PHRASES,
+            SubliminalSettingsRepository.KEY_PACKS);
 
     private final Context context;
     private final SharedPreferences profiles;
@@ -114,6 +126,7 @@ public final class ProfileManager {
             for (String key : STRING_KEYS) if (source.contains(key)) result.put(key, source.getString(key, ""));
             for (String key : INT_KEYS) if (source.contains(key)) result.put(key, source.getInt(key, 0));
             for (String key : FLOAT_KEYS) if (source.contains(key)) result.put(key, source.getFloat(key, 0f));
+            for (String key : LONG_KEYS) if (source.contains(key)) result.put(key, source.getLong(key, 0L));
             for (String key : STRING_SET_KEYS) {
                 Set<String> values = source.getStringSet(key, null);
                 if (values != null) result.put(key, new JSONArray(values));
@@ -131,6 +144,7 @@ public final class ProfileManager {
             for (String key : STRING_KEYS) if (snapshot.has(key)) edit.putString(key, snapshot.optString(key));
             for (String key : INT_KEYS) if (snapshot.has(key)) edit.putInt(key, snapshot.optInt(key));
             for (String key : FLOAT_KEYS) if (snapshot.has(key)) edit.putFloat(key, (float) snapshot.optDouble(key));
+            for (String key : LONG_KEYS) if (snapshot.has(key)) edit.putLong(key, snapshot.optLong(key));
             for (String key : STRING_SET_KEYS) {
                 JSONArray values = snapshot.optJSONArray(key);
                 if (values == null) continue;

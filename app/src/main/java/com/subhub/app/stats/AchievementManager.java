@@ -183,6 +183,8 @@ public final class AchievementManager {
             case "wallet_paid_10": case "wallet_paid_100":
             case "wallet_paid_500": case "wallet_paid_1000":
                 return new PenanceManager(context).getTotalPaidCents();
+            case "subliminal_1": case "subliminal_100": case "subliminal_1000":
+            case "subliminal_10000": return stats.getSubliminalImpressions();
             default: return isUnlocked(id) ? 1 : 0;
         }
     }
@@ -221,6 +223,10 @@ public final class AchievementManager {
             case "wallet_paid_100": return 10_000;
             case "wallet_paid_500": return 50_000;
             case "wallet_paid_1000": return 100_000;
+            case "subliminal_1": return 1;
+            case "subliminal_100": return 100;
+            case "subliminal_1000": return 1_000;
+            case "subliminal_10000": return 10_000;
             default: return 0;
         }
     }
@@ -308,6 +314,10 @@ public final class AchievementManager {
                 a("wallet_paid_100", R.string.achievement_wallet_paid_100, R.string.achievement_desc_wallet_paid_100, "◆", "wallet", R.drawable.achievement_badge_wallet_paid_100, false),
                 a("wallet_paid_500", R.string.achievement_wallet_paid_500, R.string.achievement_desc_wallet_paid_500, "◆", "wallet", R.drawable.achievement_badge_wallet_paid_500, false),
                 a("wallet_paid_1000", R.string.achievement_wallet_paid_1000, R.string.achievement_desc_wallet_paid_1000, "◆", "wallet", R.drawable.achievement_badge_wallet_paid_1000, false),
+                a("subliminal_1", R.string.achievement_subliminal_1, R.string.achievement_desc_subliminal_1, "◉", "subliminal", R.drawable.achievement_badge_subliminal_1, false),
+                a("subliminal_100", R.string.achievement_subliminal_100, R.string.achievement_desc_subliminal_100, "◉", "subliminal", R.drawable.achievement_badge_subliminal_100, false),
+                a("subliminal_1000", R.string.achievement_subliminal_1000, R.string.achievement_desc_subliminal_1000, "◉", "subliminal", R.drawable.achievement_badge_subliminal_1000, false),
+                a("subliminal_10000", R.string.achievement_subliminal_10000, R.string.achievement_desc_subliminal_10000, "◉", "subliminal", R.drawable.achievement_badge_subliminal_10000, false),
                 a("legend", R.string.achievement_legend, R.string.achievement_desc_legend, "★", "special", R.drawable.achievement_badge_legend, false));
         return Collections.unmodifiableList(values);
     }

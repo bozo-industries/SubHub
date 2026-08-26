@@ -47,6 +47,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".subliminal.SubliminalSettingsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".capture.CustomImagesActivity"
             android:exported="false" />
 

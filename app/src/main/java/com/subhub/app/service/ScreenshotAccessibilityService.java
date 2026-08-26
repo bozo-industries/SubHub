@@ -50,6 +50,7 @@ import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.security.HardcoreSettingsGuard;
 import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.stats.AchievementManager;
+import com.subhub.app.subliminal.SubliminalOverlayController;
 
 import java.util.Collections;
 import java.util.ArrayList;
@@ -139,6 +140,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private long lastBlockedAtMillis;
     private HardcoreSettingsGuard hardcoreSettingsGuard;
     private ScrollFrameMotionEstimator motionEstimator;
+    private SubliminalOverlayController subliminalOverlay;
     private final Runnable settledHardcoreGuardRefresh = () -> {
         hardcoreGuardRefreshQueued.set(false);
         refreshHardcoreSettingsGuard();
@@ -152,6 +154,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (!foregroundChanged) accountForegroundUsage(now);
             enforceForegroundLimit(now);
             reevaluateRecognition();
+            reevaluateSubliminals();
             refreshHardcoreSettingsGuard();
             main.postDelayed(this, 1_000L);
         }
@@ -176,6 +179,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         accessibilityText = new AccessibilityTextSmutDetector(smutTextClassifier);
         screenshotText = new OcrTextSmutDetector(smutTextClassifier);
         hardcoreSettingsGuard = new HardcoreSettingsGuard(this);
+        subliminalOverlay = new SubliminalOverlayController(this);
         motionEstimator = new ScrollFrameMotionEstimator();
         settings.preferences().registerOnSharedPreferenceChangeListener(listener);
         running = true;
@@ -187,6 +191,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         ocrWorker = Executors.newSingleThreadExecutor();
         worker.execute(this::initializePipeline);
         main.post(this::reevaluateRecognition);
+        main.post(this::reevaluateSubliminals);
         main.post(timerTick);
     }
 
@@ -798,7 +803,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
         PopupStormManager.get().reloadSettings(this);
-        main.post(this::reevaluateRecognition);
+        main.post(() -> {
+            if (subliminalOverlay != null) subliminalOverlay.updateSettings();
+            reevaluateRecognition();
+            reevaluateSubliminals();
+        });
     }
 
     private void warmTextModels(DetectorConfig config) {
@@ -963,6 +972,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             });
         }
         if (overlay != null) overlay.clear();
+        reevaluateSubliminals();
         PopupStormManager.get().updateDetections(Collections.emptyList());
         if (enforceForegroundLimit(System.currentTimeMillis())) return;
         reevaluateRecognition();
@@ -1072,6 +1082,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 && new AppModeManager(this).shouldRecognize(foregroundPackage);
         if (shouldRun && !recognitionActive) activateRecognition();
         else if (!shouldRun && recognitionActive) deactivateRecognition();
+    }
+
+    private void reevaluateSubliminals() {
+        if (!running || subliminalOverlay == null) return;
+        boolean shouldRun = !HardcoreSettingsGuard.isSettingsPackage(foregroundPackage)
+                && new AppModeManager(this).shouldShowSubliminal(foregroundPackage);
+        subliminalOverlay.setEligible(shouldRun);
     }
 
     private void refreshHardcoreSettingsGuard() {
@@ -1298,6 +1315,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         motionEstimator = null;
         if (hardcoreSettingsGuard != null) hardcoreSettingsGuard.clear();
         hardcoreSettingsGuard = null;
+        if (subliminalOverlay != null) subliminalOverlay.close();
+        subliminalOverlay = null;
         main.removeCallbacks(settledHardcoreGuardRefresh);
         hardcoreGuardRefreshQueued.set(false);
         main.removeCallbacks(settledTextRefresh);
