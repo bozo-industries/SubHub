@@ -29,6 +29,8 @@ public final class HardcoreSettingsGuardTest {
         assertTrue(HardcoreSettingsGuard.isTargetControl(null, "Daten löschen", null));
         assertTrue(HardcoreSettingsGuard.isTargetControl(null, "Borrar datos", null));
         assertFalse(HardcoreSettingsGuard.isTargetControl(
+                "com.android.settings:id/button2", "Clear cache", null));
+        assertFalse(HardcoreSettingsGuard.isTargetControl(
                 "com.android.settings:id/force_stop_button", "Force stop", null));
     }
 
