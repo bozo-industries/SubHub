@@ -3,6 +3,17 @@
 User-facing changes from every tagged SubHub release.
 
 <details open>
+<summary><strong>SubHub 0.5.8</strong></summary>
+
+## What’s new in SubHub 0.5.8
+
+### Fixed
+
+- **Refine arrangement labels** — Replace the remaining Ass and Anus category copy with Butt / Cheeks and Anal, and render ordinary censor, detection, and text-filter values in Title Case instead of arbitrary all-caps text.
+
+</details>
+
+<details>
 <summary><strong>SubHub 0.5.7</strong></summary>
 
 ## What’s new in SubHub 0.5.7
