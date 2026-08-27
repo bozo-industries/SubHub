@@ -69,6 +69,7 @@ import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.security.ProtectionStopPolicy;
 import com.subhub.app.util.AppShortcuts;
+import com.subhub.app.util.PremiumMotion;
 import com.subhub.app.util.SubHubNavigation;
 import com.subhub.app.subliminal.SubliminalSettings;
 import com.subhub.app.subliminal.SubliminalSettingsRepository;
@@ -554,11 +555,14 @@ public final class MainActivity extends AppCompatActivity {
             binding.subCensorVoice.setText(active ? R.string.sub_censor_active
                     : armed ? R.string.sub_censor_armed : R.string.sub_censor_idle);
             SettingsRepository settings = new SettingsRepository(this);
-            CensorAppearance appearance = settings.loadAppearance();
-            String capture = getString(settings.loadCaptureMethod() == CaptureMethod.APP_MODE
-                    ? R.string.sub_capture_app_watch : R.string.sub_capture_screen_session);
+            DetectorConfig detector = settings.loadDetectorConfig();
+            TextSmutConfig text = settings.loadTextSmutConfig();
+            String imageState = getString(detector.getEnabledCategories().isEmpty()
+                    ? R.string.sub_censor_images_off : R.string.sub_censor_images_on);
+            String textState = getString(text.isEnabled()
+                    ? R.string.sub_censor_text_on : R.string.sub_censor_text_off);
             binding.subCensorSummary.setText(getString(R.string.sub_censor_summary,
-                    friendlyEffectName(appearance.getType()), capture));
+                    imageState, textState));
         }
 
         if (limitsEnabled) {
@@ -598,9 +602,19 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         if (walletEnabled) {
-            PenanceSnapshot wallet = new PenanceManager(this).snapshot(now);
+            PenanceManager walletManager = new PenanceManager(this);
+            PenanceSnapshot wallet = walletManager.snapshot(now);
+            int activeRules = 0;
+            if (wallet.isEnabled()) {
+                for (PenanceInfraction infraction : PenanceInfraction.values()) {
+                    if (infraction != PenanceInfraction.PAID_PAUSE
+                            && walletManager.isInfractionEnabled(infraction)) activeRules++;
+                }
+            }
             binding.subWalletVoice.setText(wallet.isEnabled()
-                    ? R.string.sub_wallet_active : R.string.sub_wallet_inactive);
+                    ? getResources().getQuantityString(R.plurals.sub_wallet_active,
+                            activeRules, activeRules)
+                    : getString(R.string.sub_wallet_inactive));
             binding.subWalletSummary.setText(getString(R.string.sub_wallet_summary,
                     PenanceManager.formatMoney(wallet.getDueCents())));
             boolean checkout = wallet.getCheckoutCents() > 0;
@@ -670,6 +684,7 @@ public final class MainActivity extends AppCompatActivity {
                     Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(560)),
                     WindowManager.LayoutParams.WRAP_CONTENT);
         });
+        PremiumMotion.styleDialog(dialog);
         dialog.show();
     }
 
@@ -813,19 +828,30 @@ public final class MainActivity extends AppCompatActivity {
             return getString(R.string.arrangement_none_selected);
         }
         List<String> labels = new ArrayList<>();
-        for (String category : categories) {
-            labels.add(category.replace("genitals_female", "Vulva")
-                    .replace("genitals_male", "Penis")
-                    .replace("genitals_covered", "Covered intimate areas")
-                    .replace("breasts_covered", "Covered breasts")
-                    .replace("buttocks_covered", "Covered ass")
-                    .replace("anus_covered", "Covered anus")
-                    .replace("male_chest", "Chest")
-                    .replace("buttocks", "Ass")
-                    .replace('_', ' '));
-        }
-        Collections.sort(labels, String.CASE_INSENSITIVE_ORDER);
+        addCategoryLabel(labels, categories, "genitals_female", R.string.category_genitals_female);
+        addCategoryLabel(labels, categories, "genitals_male", R.string.category_genitals_male);
+        addCategoryLabel(labels, categories, "breasts", R.string.category_breasts);
+        addCategoryLabel(labels, categories, "buttocks", R.string.category_buttocks);
+        addCategoryLabel(labels, categories, "anus", R.string.category_anus);
+        addCategoryLabel(labels, categories, "face", R.string.category_faces);
+        addCategoryLabel(labels, categories, "male_chest", R.string.category_male_chest);
+        addCategoryLabel(labels, categories, "belly", R.string.category_belly);
+        addCategoryLabel(labels, categories, "feet", R.string.category_feet);
+        addCategoryLabel(labels, categories, "armpits", R.string.category_armpits);
+        if (containsCoveredCategory(categories)) labels.add(getString(R.string.category_covered));
         return android.text.TextUtils.join(", ", labels);
+    }
+
+    private void addCategoryLabel(List<String> labels, Set<String> categories,
+            String category, int label) {
+        if (categories.contains(category)) labels.add(getString(label));
+    }
+
+    private static boolean containsCoveredCategory(Set<String> categories) {
+        for (String category : categories) {
+            if (category != null && category.endsWith("_covered")) return true;
+        }
+        return false;
     }
 
     private String friendlyNames(Set<String> values) {
@@ -1101,6 +1127,7 @@ public final class MainActivity extends AppCompatActivity {
             window.setLayout(Math.min(availableWidth, dp(440)),
                     WindowManager.LayoutParams.WRAP_CONTENT);
         }
+        PremiumMotion.styleDialog(dialog);
     }
 
     @Override
