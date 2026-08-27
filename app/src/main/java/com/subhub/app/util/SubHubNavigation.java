@@ -62,7 +62,8 @@ public final class SubHubNavigation {
         activity.startActivity(new Intent(activity, target)
                 .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
         activity.finish();
-        activity.overridePendingTransition(0, 0);
+        activity.overridePendingTransition(R.anim.subhub_page_pop_enter,
+                R.anim.subhub_page_pop_exit);
         return true;
     }
 
@@ -86,7 +87,10 @@ public final class SubHubNavigation {
             if (selected) return;
             activity.startActivity(new Intent(activity, target)
                     .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
-            activity.overridePendingTransition(0, 0);
+            boolean movingForward = destination.ordinal() > active.ordinal();
+            activity.overridePendingTransition(
+                    movingForward ? R.anim.subhub_page_enter : R.anim.subhub_page_pop_enter,
+                    movingForward ? R.anim.subhub_page_exit : R.anim.subhub_page_pop_exit);
         });
     }
 }

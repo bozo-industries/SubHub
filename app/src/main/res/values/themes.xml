@@ -14,7 +14,28 @@
         <item name="android:colorControlActivated">@color/accent</item>
         <item name="android:colorControlHighlight">@color/accent_glow</item>
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowAnimationStyle">@style/Animation.SubHub.Activity</item>
+        <item name="alertDialogTheme">@style/ThemeOverlay.SubHub.AlertDialog</item>
         <item name="android:buttonStyle">@style/Widget.SubHub.DefaultButton</item>
+    </style>
+
+    <style name="Animation.SubHub.Activity" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/subhub_page_enter</item>
+        <item name="android:activityOpenExitAnimation">@anim/subhub_page_exit</item>
+        <item name="android:activityCloseEnterAnimation">@anim/subhub_page_pop_enter</item>
+        <item name="android:activityCloseExitAnimation">@anim/subhub_page_pop_exit</item>
+    </style>
+
+    <style name="Animation.SubHub.Dialog" parent="@android:style/Animation.Dialog">
+        <item name="android:windowEnterAnimation">@anim/subhub_dialog_enter</item>
+        <item name="android:windowExitAnimation">@anim/subhub_dialog_exit</item>
+    </style>
+
+    <style name="ThemeOverlay.SubHub.AlertDialog"
+        parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
+        <item name="android:windowAnimationStyle">@style/Animation.SubHub.Dialog</item>
+        <item name="colorSurface">@color/surface_card_raised</item>
+        <item name="colorOnSurface">@color/text_primary</item>
     </style>
 
     <style name="Widget.SubHub.Tab" parent="">

@@ -92,6 +92,7 @@ public final class ControllerEditMode {
         activity.startActivity(new Intent(activity, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
         activity.finish();
-        activity.overridePendingTransition(0, 0);
+        activity.overridePendingTransition(R.anim.subhub_page_pop_enter,
+                R.anim.subhub_page_pop_exit);
     }
 }
