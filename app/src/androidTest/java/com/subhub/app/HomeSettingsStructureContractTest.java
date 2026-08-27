@@ -7,14 +7,21 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
+import android.content.Context;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.subhub.app.detection.text.TextSmutConfig;
+import com.subhub.app.settings.SettingsRepository;
 import com.subhub.app.settings.GlobalSettingsActivity;
+
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -41,6 +48,44 @@ public final class HomeSettingsStructureContractTest {
                 assertTrue(value.contains(" · Text filter "));
                 assertFalse(value.contains("Box"));
                 assertFalse(value.contains("Assigned app"));
+            });
+        }
+    }
+
+    @Test public void filterArrangementUsesCanonicalDomLabels() {
+        Context context = ApplicationProvider.getApplicationContext();
+        SettingsRepository repository = new SettingsRepository(context);
+        repository.preferences().edit()
+                .putString(SettingsRepository.KEY_CENSOR_TYPE, "box")
+                .putBoolean(SettingsRepository.KEY_SHOW_BORDER, true)
+                .putString(SettingsRepository.KEY_BORDER_EFFECT, "classic")
+                .putString(SettingsRepository.KEY_DETECTION_PRESET, "ultra")
+                .putBoolean(SettingsRepository.KEY_SHOW_TEXT, true)
+                .putStringSet(SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES,
+                        new LinkedHashSet<>(Arrays.asList(
+                                "short", "denial", "humiliation", "findom")))
+                .putBoolean(SettingsRepository.KEY_TEXT_SMUT_ENABLED, true)
+                .putInt(SettingsRepository.KEY_TEXT_SMUT_SENSITIVITY,
+                        TextSmutConfig.SENSITIVITY_BALANCED)
+                .putStringSet(SettingsRepository.KEY_TEXT_SMUT_CATEGORIES,
+                        new LinkedHashSet<>(Arrays.asList(
+                                TextSmutConfig.CATEGORY_EXPLICIT,
+                                TextSmutConfig.CATEGORY_FETISH,
+                                TextSmutConfig.CATEGORY_SOLICITATION)))
+                .commit();
+
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(activity -> {
+                String details = activity.censorArrangementDetails();
+                assertTrue(details.contains("BLACKOUT · Classic border"));
+                assertTrue(details.contains("ULTRA · MAXIMUM COVERAGE"));
+                assertTrue(details.contains(
+                        "CONTEXT · Sexual words, Kink / fetish talk, Sexual invitations"));
+                assertTrue(details.contains("Beta / cuck, Denial, Findom, Plain"));
+                assertFalse(details.contains("Balanced"));
+                assertFalse(details.contains("Explicit language"));
+                assertFalse(details.contains("Humiliation"));
+                assertFalse(details.contains("Short"));
             });
         }
     }

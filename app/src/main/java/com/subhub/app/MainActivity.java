@@ -45,6 +45,7 @@ import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.appmode.AppTimerManager;
 import com.subhub.app.detection.DetectorConfig;
+import com.subhub.app.detection.DetectionPreset;
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.diagnostics.DiagnosticsRepository;
 import com.subhub.app.overlay.CensorPhrases;
@@ -688,7 +689,7 @@ public final class MainActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    private String censorArrangementDetails() {
+    String censorArrangementDetails() {
         SettingsRepository repository = new SettingsRepository(this);
         DetectorConfig detector = repository.loadDetectorConfig();
         TextSmutConfig text = repository.loadTextSmutConfig();
@@ -699,10 +700,10 @@ public final class MainActivity extends AppCompatActivity {
                 getString(R.string.arrangement_censor_look_value,
                         friendlyEffectName(appearance.getType()),
                         appearance.isShowBorder()
-                                ? appearance.getBorderEffect().name().toLowerCase(java.util.Locale.ROOT)
+                                ? friendlyBorderName(appearance.getBorderEffect())
                                 : getString(R.string.arrangement_no_border))));
         lines.add(detailLine(R.string.arrangement_censor_quality,
-                repository.loadDetectionPreset().getDisplayName()));
+                friendlyDetectionPreset(repository.loadDetectionPreset())));
         lines.add(detailLine(R.string.arrangement_censor_capture,
                 getString(repository.loadCaptureMethod() == CaptureMethod.APP_MODE
                         ? R.string.capture_method_app_mode : R.string.capture_method_recording)));
@@ -713,7 +714,7 @@ public final class MainActivity extends AppCompatActivity {
         Set<String> phraseGroups = repository.preferences().getStringSet(
                 SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES, CensorPhrases.DEFAULT_ENABLED);
         lines.add(detailLine(R.string.arrangement_censor_phrases,
-                appearance.isShowText() ? friendlyNames(phraseGroups)
+                appearance.isShowText() ? friendlyPhraseNames(phraseGroups)
                         : getString(R.string.popup_off)));
         lines.add(detailLine(R.string.arrangement_apps,
                 appMode.getMode() == com.subhub.app.appmode.AppModePolicy.Mode.ALWAYS
@@ -854,13 +855,25 @@ public final class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    private String friendlyNames(Set<String> values) {
+    private String friendlyPhraseNames(Set<String> values) {
         if (values == null || values.isEmpty()) return getString(R.string.arrangement_none_selected);
         List<String> labels = new ArrayList<>();
         for (String value : values) {
-            String clean = value == null ? "" : value.replace('_', ' ').trim();
-            if (!clean.isEmpty()) labels.add(clean.substring(0, 1).toUpperCase(
-                    java.util.Locale.ROOT) + clean.substring(1));
+            if (value == null) continue;
+            switch (value) {
+                case "short": labels.add(getString(R.string.phrase_short)); break;
+                case "denial": labels.add(getString(R.string.phrase_denial)); break;
+                case "humiliation": labels.add(getString(R.string.phrase_humiliation)); break;
+                case "edge": labels.add(getString(R.string.phrase_edge)); break;
+                case "findom": labels.add(getString(R.string.phrase_findom)); break;
+                case "ntr": labels.add(getString(R.string.phrase_ntr)); break;
+                case "gooner": labels.add(getString(R.string.phrase_gooner)); break;
+                default:
+                    String clean = value.replace('_', ' ').trim();
+                    if (!clean.isEmpty()) labels.add(clean.substring(0, 1).toUpperCase(
+                            java.util.Locale.ROOT) + clean.substring(1));
+                    break;
+            }
         }
         Collections.sort(labels, String.CASE_INSENSITIVE_ORDER);
         return labels.isEmpty() ? getString(R.string.arrangement_none_selected)
@@ -869,10 +882,30 @@ public final class MainActivity extends AppCompatActivity {
 
     private String friendlyTextFilter(TextSmutConfig config) {
         int sensitivity = config.getSensitivity();
-        String level = sensitivity == TextSmutConfig.SENSITIVITY_STRICT ? "Focused"
-                : sensitivity == TextSmutConfig.SENSITIVITY_BROAD ? "Wide" : "Balanced";
+        String level = getString(sensitivity == TextSmutConfig.SENSITIVITY_STRICT
+                ? R.string.text_smut_strict
+                : sensitivity == TextSmutConfig.SENSITIVITY_BROAD
+                        ? R.string.text_smut_broad : R.string.text_smut_balanced);
         return getString(R.string.arrangement_text_value,
-                level, friendlyNames(config.getEnabledCategories()));
+                level, friendlyTextCategoryNames(config.getEnabledCategories()));
+    }
+
+    private String friendlyTextCategoryNames(Set<String> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return getString(R.string.arrangement_none_selected);
+        }
+        List<String> labels = new ArrayList<>();
+        if (categories.contains(TextSmutConfig.CATEGORY_EXPLICIT)) {
+            labels.add(getString(R.string.text_smut_explicit));
+        }
+        if (categories.contains(TextSmutConfig.CATEGORY_FETISH)) {
+            labels.add(getString(R.string.text_smut_fetish));
+        }
+        if (categories.contains(TextSmutConfig.CATEGORY_SOLICITATION)) {
+            labels.add(getString(R.string.text_smut_solicitation));
+        }
+        return labels.isEmpty() ? getString(R.string.arrangement_none_selected)
+                : android.text.TextUtils.join(", ", labels);
     }
 
     private String friendlyInfraction(PenanceInfraction infraction) {
@@ -908,9 +941,41 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private String friendlyEffectName(CensorAppearance.Type type) {
-        String raw = type == null ? "BOX" : type.name();
-        String spaced = raw.replace('_', ' ').toLowerCase(java.util.Locale.ROOT);
-        return Character.toUpperCase(spaced.charAt(0)) + spaced.substring(1);
+        CensorAppearance.Type resolved = type == null ? CensorAppearance.Type.BOX : type;
+        switch (resolved) {
+            case PIXELATE: return getString(R.string.style_pixelate);
+            case BLUR: return getString(R.string.style_blur);
+            case CUSTOM: return getString(R.string.style_custom);
+            case STATIC: return getString(R.string.style_static);
+            case GLITCH: return getString(R.string.style_glitch);
+            case TAPE: return getString(R.string.style_tape);
+            case ERROR_POPUP: return getString(R.string.style_error);
+            case BOX:
+            default: return getString(R.string.style_box);
+        }
+    }
+
+    private String friendlyBorderName(CensorAppearance.BorderEffect effect) {
+        CensorAppearance.BorderEffect resolved = effect == null
+                ? CensorAppearance.BorderEffect.CLASSIC : effect;
+        switch (resolved) {
+            case GLOW: return getString(R.string.border_glow);
+            case GRADIENT: return getString(R.string.border_gradient);
+            case RAINBOW: return getString(R.string.border_rainbow);
+            case CLASSIC:
+            default: return getString(R.string.border_classic);
+        }
+    }
+
+    private String friendlyDetectionPreset(DetectionPreset preset) {
+        DetectionPreset resolved = preset == null ? DetectionPreset.MEDIUM : preset;
+        switch (resolved) {
+            case LOW: return getString(R.string.preset_low);
+            case HIGH: return getString(R.string.preset_high);
+            case ULTRA: return getString(R.string.preset_ultra);
+            case MEDIUM:
+            default: return getString(R.string.preset_medium);
+        }
     }
 
     private String friendlySubliminalVoice(SubliminalSettings settings) {
