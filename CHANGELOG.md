@@ -3,6 +3,22 @@
 User-facing changes from every tagged SubHub release.
 
 <details open>
+<summary><strong>SubHub 0.5.4</strong></summary>
+
+## What’s new in SubHub 0.5.4
+
+### New
+
+- **Add browsable release and arrangement details** — Make every tagged changelog available as compact expandable update cards and let Home arrangement cards reveal their full active selections without exposing edit controls.
+- **Give SubHub a new launcher identity** — Replace the fragile horned shield with an approved demonic-heart lock mark that remains legible inside Android's adaptive safe zone.
+
+### Build & release
+
+- **Add release-run recovery** — Allow an existing immutable tag to be rebuilt through a manual workflow dispatch when GitHub leaves the original tag event stuck before job creation.
+
+</details>
+
+<details>
 <summary><strong>SubHub 0.5.3</strong></summary>
 
 ## What’s new in SubHub 0.5.3
