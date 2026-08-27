@@ -25,7 +25,7 @@ public final class AppShortcuts {
         ShortcutInfo start = new ShortcutInfo.Builder(context, "start_protection")
                 .setShortLabel(context.getString(R.string.shortcut_start_protection))
                 .setLongLabel(context.getString(R.string.shortcut_start_protection_long))
-                .setIcon(Icon.createWithResource(context, R.drawable.ic_launcher_monochrome))
+                .setIcon(Icon.createWithResource(context, R.drawable.ic_launcher_foreground))
                 .setIntent(protection)
                 .build();
         manager.setDynamicShortcuts(Arrays.asList(start));
