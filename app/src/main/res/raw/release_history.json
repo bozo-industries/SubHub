@@ -1,10 +1,18 @@
 [
   {
+    "versionName": "0.5.8",
+    "tag": "v0.5.8",
+    "notes": "## What’s new in SubHub 0.5.8\n\n### Fixed\n\n- **Refine arrangement labels** — Replace the remaining Ass and Anus category copy with Butt / Cheeks and Anal, and render ordinary censor, detection, and text-filter values in Title Case instead of arbitrary all-caps text.\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.8",
+    "publishedAt": "2026-08-27T14:34:10+02:00",
+    "prerelease": false
+  },
+  {
     "versionName": "0.5.7",
     "tag": "v0.5.7",
     "notes": "## What’s new in SubHub 0.5.7\n\n### Fixed\n\n- **State active filters on the Home card** — Label the compact Beta Filter summary explicitly as Image filter on/off and Text filter on/off.\n- **Reuse Dom labels in arrangement details** — Render censor style, border, detection, text-filter, and phrase values from the same string resources used by Dom settings so the Sub-space summary cannot drift into alternate names.\n- **Capitalize arrangement option labels** — Use consistent Title Case for body-area, text-filter, capture, phrase, and arrangement labels in both Dom settings and the Home detail sheets.\n",
     "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.7",
-    "publishedAt": "2026-08-27T11:18:03+02:00",
+    "publishedAt": "2026-08-27T11:20:02+02:00",
     "prerelease": false
   },
   {
