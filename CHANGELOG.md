@@ -3,6 +3,19 @@
 User-facing changes from every tagged SubHub release.
 
 <details open>
+<summary><strong>SubHub 0.5.7</strong></summary>
+
+## What’s new in SubHub 0.5.7
+
+### Fixed
+
+- **State active filters on the Home card** — Label the compact Beta Filter summary explicitly as Image filter on/off and Text filter on/off.
+- **Reuse Dom labels in arrangement details** — Render censor style, border, detection, text-filter, and phrase values from the same string resources used by Dom settings so the Sub-space summary cannot drift into alternate names.
+- **Capitalize arrangement option labels** — Use consistent Title Case for body-area, text-filter, capture, phrase, and arrangement labels in both Dom settings and the Home detail sheets.
+
+</details>
+
+<details>
 <summary><strong>SubHub 0.5.6</strong></summary>
 
 ## What’s new in SubHub 0.5.6
