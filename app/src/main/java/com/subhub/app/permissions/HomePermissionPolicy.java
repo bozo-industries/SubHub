@@ -25,7 +25,10 @@ public final class HomePermissionPolicy {
             boolean hardcoreRequested,
             boolean deviceAdminReady) {
         List<Requirement> result = new ArrayList<>();
-        if (runtimeFeatureEnabled && !accessibilityReady) {
+        // Hardcore's App Info guard is implemented by the accessibility service even when
+        // censoring, limits and subliminals are all disabled. Device Admin only supplies
+        // Android's native uninstall friction; it cannot guard Clear Storage by itself.
+        if ((runtimeFeatureEnabled || hardcoreRequested) && !accessibilityReady) {
             result.add(Requirement.ACCESSIBILITY);
         }
         if (screenRecordingCensorEnabled && !overlayReady) {

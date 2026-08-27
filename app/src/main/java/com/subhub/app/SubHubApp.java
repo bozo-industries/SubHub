@@ -15,6 +15,7 @@ import com.subhub.app.pack.PackManager;
 import com.subhub.app.util.LocaleHelper;
 import com.subhub.app.update.UpdateScheduler;
 import com.subhub.app.update.UpdateStateStore;
+import com.subhub.app.security.HardcoreReadinessNotificationManager;
 
 /** Application root for the source-level SubHub reconstruction. */
 public final class SubHubApp extends Application {
@@ -56,5 +57,6 @@ public final class SubHubApp extends Application {
         new PackManager(this);
         new UpdateStateStore(this).cleanupInstalled(BuildConfig.VERSION_CODE);
         UpdateScheduler.synchronize(this);
+        HardcoreReadinessNotificationManager.refresh(this);
     }
 }

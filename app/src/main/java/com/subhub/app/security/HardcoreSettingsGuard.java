@@ -268,6 +268,7 @@ public final class HardcoreSettingsGuard {
         badge.setBackground(new ColorDrawable(0xFF211E24));
         badge.setOnTouchListener((view, event) -> {
             if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+                Log.i(TAG, "Blocked protected App Info action at " + bounds);
                 TamperTributeReporter.record(service);
                 Toast.makeText(service, R.string.hardcore_settings_blocked,
                         Toast.LENGTH_SHORT).show();

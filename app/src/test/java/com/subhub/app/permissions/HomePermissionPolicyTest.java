@@ -33,11 +33,19 @@ public final class HomePermissionPolicyTest {
                 HomePermissionPolicy.Requirement.NOTIFICATIONS), missing);
     }
 
-    @Test public void requestedHardcoreNeedsDeviceAdmin() {
+    @Test public void requestedHardcoreNeedsAccessibilityAndDeviceAdmin() {
         List<HomePermissionPolicy.Requirement> missing = HomePermissionPolicy.missing(
-                false, false, false, true, true, true, true, false);
-        assertEquals(Collections.singletonList(
+                false, false, false, false, true, true, true, false);
+        assertEquals(Arrays.asList(
+                HomePermissionPolicy.Requirement.ACCESSIBILITY,
                 HomePermissionPolicy.Requirement.DEVICE_ADMIN), missing);
+    }
+
+    @Test public void requestedHardcoreStillNeedsAccessibilityWhenAdminIsAlreadyActive() {
+        List<HomePermissionPolicy.Requirement> missing = HomePermissionPolicy.missing(
+                false, false, false, false, true, true, true, true);
+        assertEquals(Collections.singletonList(
+                HomePermissionPolicy.Requirement.ACCESSIBILITY), missing);
     }
 
     @Test public void readyConfigurationHasNoMissingRequirements() {

@@ -68,6 +68,7 @@ import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.HardcoreModeManager;
+import com.subhub.app.security.HardcoreReadinessNotificationManager;
 import com.subhub.app.security.ProtectionStopPolicy;
 import com.subhub.app.util.AppShortcuts;
 import com.subhub.app.util.PremiumMotion;
@@ -415,6 +416,7 @@ public final class MainActivity extends AppCompatActivity {
             renderEditState();
             renderSubDashboard();
             renderPermissionReadiness();
+            HardcoreReadinessNotificationManager.refresh(this);
         }
     }
 
