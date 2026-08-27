@@ -1,5 +1,13 @@
 [
   {
+    "versionName": "0.5.4",
+    "tag": "v0.5.4",
+    "notes": "## What’s new in SubHub 0.5.4\n\n### New\n\n- **Add browsable release and arrangement details** — Make every tagged changelog available as compact expandable update cards and let Home arrangement cards reveal their full active selections without exposing edit controls.\n- **Give SubHub a new launcher identity** — Replace the fragile horned shield with an approved demonic-heart lock mark that remains legible inside Android's adaptive safe zone.\n\n### Build & release\n\n- **Add release-run recovery** — Allow an existing immutable tag to be rebuilt through a manual workflow dispatch when GitHub leaves the original tag event stuck before job creation.\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.4",
+    "publishedAt": "2026-08-27T04:56:22+02:00",
+    "prerelease": false
+  },
+  {
     "versionName": "0.5.3",
     "tag": "v0.5.3",
     "notes": "## What’s new in SubHub 0.5.3\n\n### New\n\n- **Rebuild the Home dashboard** — Replace the stacked Home cards with a responsive command, arrangement, and progress hierarchy.\n- **Rebuild the Home command deck** — Home now uses a cohesive dark command deck with compact single-line arrangement cards and calmer service controls.\n\n### Faster & smoother\n\n- **Keep Ultra's hot path bounded** — Expired censor tracks now leave the tracker instead of accumulating for an entire protection session, while low-confidence model candidates are rejected before class metadata work and small per-frame collection allocations are reduced.\n\n### Build & release\n\n- **Generate meaningful release changelogs** — GitHub releases and the in-app updater now show categorized user-visible changes before separate APK guidance.\n",
