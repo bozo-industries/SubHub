@@ -3,6 +3,17 @@
 User-facing changes from every tagged SubHub release.
 
 <details open>
+<summary><strong>SubHub 0.5.9</strong></summary>
+
+## What’s new in SubHub 0.5.9
+
+### Fixed
+
+- **Guard Clear Storage in Hardcore mode** — Resolve the real Android application window while the accessibility concealment overlay is present, so navigating from App info to Storage cannot make the guard inspect its own overlay and clear itself.
+
+</details>
+
+<details>
 <summary><strong>SubHub 0.5.8</strong></summary>
 
 ## What’s new in SubHub 0.5.8
