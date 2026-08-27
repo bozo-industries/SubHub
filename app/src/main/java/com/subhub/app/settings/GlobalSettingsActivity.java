@@ -39,6 +39,8 @@ import com.subhub.app.profiles.ProfilesActivity;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.pack.SubHubPackLocks;
+import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.security.HardcoreReadinessNotificationManager;
 import com.subhub.app.service.ScreenCaptureService;
@@ -240,10 +242,12 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         if (binding == null) return;
         editingUnlocked = ControllerPinManager.isSessionUnlocked();
         ControllerEditMode.renderButton(this, binding.buttonEditLock);
-        binding.switchModuleCensor.setEnabled(editingUnlocked);
-        binding.switchModuleLimits.setEnabled(editingUnlocked);
-        binding.switchModuleWallet.setEnabled(editingUnlocked);
-        binding.switchModuleSubliminal.setEnabled(editingUnlocked);
+        boolean modulesEditable = editingUnlocked
+                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.MODULES);
+        binding.switchModuleCensor.setEnabled(modulesEditable);
+        binding.switchModuleLimits.setEnabled(modulesEditable);
+        binding.switchModuleWallet.setEnabled(modulesEditable);
+        binding.switchModuleSubliminal.setEnabled(modulesEditable);
         binding.buttonSubliminalSettings.setEnabled(editingUnlocked
                 && binding.switchModuleSubliminal.isChecked());
         binding.switchHardcoreMode.setEnabled(editingUnlocked);

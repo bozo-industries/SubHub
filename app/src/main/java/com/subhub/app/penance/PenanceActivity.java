@@ -21,6 +21,8 @@ import com.subhub.app.R;
 import com.subhub.app.databinding.ActivityPenanceBinding;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.pack.SubHubPackLocks;
+import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.util.SubHubNavigation;
 
@@ -122,7 +124,8 @@ public final class PenanceActivity extends AppCompatActivity {
 
     private void applyEditState() {
         if (binding == null) return;
-        boolean editing = ControllerPinManager.isDomModeActive();
+        boolean editing = ControllerPinManager.isDomModeActive()
+                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.WALLET);
         ControllerEditMode.renderButton(this, binding.buttonEditLock);
         binding.buttonEditLock.setVisibility(editing ? View.VISIBLE : View.GONE);
         binding.buttonBack.setVisibility(View.GONE);

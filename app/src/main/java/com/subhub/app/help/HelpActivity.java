@@ -94,6 +94,7 @@ public final class HelpActivity extends AppCompatActivity {
                 {R.string.help_hardcore, R.string.help_body_hardcore},
                 {R.string.help_troubleshooting, R.string.help_body_troubleshooting},
                 {R.string.help_privacy, R.string.help_body_privacy},
+                {R.string.help_studio, R.string.help_body_studio},
                 {R.string.help_updates, R.string.help_body_updates}
         };
         for (int[] section : sections) addSection(section[0], section[1]);

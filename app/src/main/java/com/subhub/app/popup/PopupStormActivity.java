@@ -29,6 +29,8 @@ import com.subhub.app.R;
 import com.subhub.app.databinding.ActivityPopupStormBinding;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.pack.SubHubPackLocks;
+import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.google.android.material.switchmaterial.SwitchMaterial;
@@ -237,7 +239,8 @@ public final class PopupStormActivity extends AppCompatActivity {
 
     private void applyEditState() {
         if (binding == null) return;
-        boolean editing = ControllerPinManager.isSessionUnlocked();
+        boolean editing = ControllerPinManager.isSessionUnlocked()
+                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.POPUP);
         binding.switchEnabled.setEnabled(editing);
         binding.buttonPreview.setEnabled(editing);
         binding.buttonAddFolder.setEnabled(editing);
@@ -277,7 +280,8 @@ public final class PopupStormActivity extends AppCompatActivity {
         toggle.setText(title);
         toggle.setTextColor(getColor(R.color.text_primary));
         toggle.setMinHeight(dp(50));
-        toggle.setEnabled(ControllerPinManager.isSessionUnlocked());
+        toggle.setEnabled(ControllerPinManager.isSessionUnlocked()
+                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.POPUP));
         toggle.setChecked(preferences.getBoolean(key, defaultValue));
         toggle.setOnCheckedChangeListener((button, checked) -> {
             preferences.edit().putBoolean(key, checked).apply();
@@ -295,7 +299,8 @@ public final class PopupStormActivity extends AppCompatActivity {
         SeekBar slider = new SeekBar(this);
         slider.setMax(maximum - minimum);
         slider.setProgress(stored - minimum);
-        slider.setEnabled(ControllerPinManager.isSessionUnlocked());
+        slider.setEnabled(ControllerPinManager.isSessionUnlocked()
+                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.POPUP));
         slider.setOnSeekBarChangeListener(new SimpleSeekListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int actual = minimum + progress;

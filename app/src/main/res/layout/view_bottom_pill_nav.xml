@@ -73,6 +73,21 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/nav_studio"
+        style="@style/Widget.SubHub.BottomTab"
+        android:contentDescription="@string/nav_studio">
+        <ImageView
+            android:id="@+id/nav_studio_icon"
+            style="@style/Widget.SubHub.BottomTabIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_nav_studio" />
+        <TextView
+            android:id="@+id/nav_studio_label"
+            style="@style/Widget.SubHub.BottomTabLabel"
+            android:text="@string/nav_studio" />
+    </LinearLayout>
+
+    <LinearLayout
         android:id="@+id/nav_settings"
         style="@style/Widget.SubHub.BottomTab"
         android:contentDescription="@string/nav_settings">

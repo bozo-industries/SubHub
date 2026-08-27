@@ -9,7 +9,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Android-8.0%2B-b64bd2?style=flat-square&logo=android&logoColor=white" alt="Android 8.0+" />
-  <img src="https://img.shields.io/badge/release-v0.5.0-68339b?style=flat-square" alt="v0.5.0" />
+  <img src="https://img.shields.io/badge/release-v0.6.0-68339b?style=flat-square" alt="v0.6.0" />
   <img src="https://img.shields.io/badge/detection-on--device-e32b90?style=flat-square" alt="On-device detection" />
 </p>
 
@@ -57,6 +57,22 @@ Each module is independent. Disable one and it stops participating in service. S
   &nbsp;&nbsp;
   <img src="docs/screenshots/ui-map/page-map/03-wallet.png" alt="Tribute wallet" width="42%" />
 </p>
+
+<p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
+
+## Studio
+
+Studio is the portable arrangement creator built into SubHub. It is always present in the bottom pill: Dom Space sees it beside the enabled feature areas and Settings; Sub Space keeps only Home and Studio.
+
+- Start with a blank draft, capture the current setup, or duplicate an existing arrangement.
+- Mix feature modules, Censor and smut settings, generic Limits, tribute rules and caps, Subliminal Messaging, Popup Storm settings, and embedded private images.
+- Autosave drafts, preview the result, import or export `.subhubpack` files, and share them through Android’s standard share sheet.
+- Review selected sections and a before/after summary before activation. Previous values are backed up locally and restored when the arrangement is deactivated or replaced.
+- Optionally lock stable feature groups. One lock-bearing arrangement can be active at a time, and only Dom Space can activate, replace, or deactivate it.
+
+Security and duration fields are recommendations, never commands. Arrangements cannot contain PayPal credentials or saved payer IDs, controller PINs, Android permissions, Device Admin state, app package assignments, active service state, history, statistics, achievements, or updater state. Legacy `.bbpack` files remain supported as import-only censor packs.
+
+See the [SubHub pack format](docs/subhubpack-format.md) for the schema and privacy boundary.
 
 <p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
 
@@ -135,6 +151,7 @@ Editable source lives under `app/src/main/java/com/subhub/app/`. Versioned tags 
 - [PayPal setup](docs/paypal-setup.md)
 - [PayPal settlement](docs/paypal-penance.md)
 - [Client-only roadmap](docs/client-only-roadmap.md)
+- [SubHub pack format](docs/subhubpack-format.md)
 
 </details>
 

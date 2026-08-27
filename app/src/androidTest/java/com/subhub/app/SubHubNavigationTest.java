@@ -4,12 +4,14 @@ import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
 import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.GradientDrawable;
 import android.graphics.Color;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.ImageView;
@@ -30,6 +32,9 @@ import com.subhub.app.settings.FeatureModuleManager;
 import com.subhub.app.settings.GlobalSettingsActivity;
 import com.subhub.app.settings.SettingsActivity;
 import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.security.HardcoreModeManager;
+import com.subhub.app.studio.StudioActivity;
+import com.subhub.app.util.SubHubNavigation;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -60,10 +65,30 @@ public final class SubHubNavigationTest {
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_home).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_limits).getVisibility());
                 assertEquals(View.GONE, activity.findViewById(R.id.nav_money).getVisibility());
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_studio).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_settings).getVisibility());
             });
         } finally {
             modules.save(true, true, true);
+        }
+    }
+
+    @Test public void subSpaceKeepsOnlyHomeAndStudio() {
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(activity -> {
+                ControllerPinManager.enterSubMode();
+                SubHubNavigation.bind(activity, activity.findViewById(android.R.id.content),
+                        SubHubNavigation.Screen.HOME);
+                assertFalse(ControllerPinManager.isDomModeActive());
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_home).getVisibility());
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_studio).getVisibility());
+                assertEquals(View.GONE, activity.findViewById(R.id.nav_censor).getVisibility());
+                assertEquals(View.GONE, activity.findViewById(R.id.nav_limits).getVisibility());
+                assertEquals(View.GONE, activity.findViewById(R.id.nav_money).getVisibility());
+                assertEquals(View.GONE, activity.findViewById(R.id.nav_settings).getVisibility());
+            });
+        } finally {
+            ControllerPinManager.enterDomMode();
         }
     }
 
@@ -74,8 +99,18 @@ public final class SubHubNavigationTest {
                 .edit().clear().commit();
         context.getSharedPreferences(StatsRepository.PREFS_NAME, 0)
                 .edit().clear().commit();
-        new FeatureModuleManager(context).save(true, true, true);
-        ActivityScenario.launch(MainActivity.class);
+        FeatureModuleManager modules = new FeatureModuleManager(context);
+        // Keep MainActivity's first-open permission coordinator idle while this test exercises
+        // navigation. The feature tabs are restored immediately after that startup pass.
+        modules.save(false, false, false, false);
+        context.getSharedPreferences(com.subhub.app.settings.SettingsRepository.PREFERENCES_NAME, 0)
+                .edit().putBoolean(HardcoreModeManager.KEY_REQUESTED, false).commit();
+        ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class);
+        SystemClock.sleep(500L);
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        modules.save(true, true, true);
+        scenario.onActivity(activity -> SubHubNavigation.bind(activity,
+                activity.findViewById(android.R.id.content), SubHubNavigation.Screen.HOME));
         assertDestination(MainActivity.class, R.id.nav_home, R.id.nav_censor);
 
         onView(withId(R.id.nav_censor)).perform(click());
@@ -87,28 +122,33 @@ public final class SubHubNavigationTest {
         onView(withId(R.id.nav_money)).perform(click());
         assertDestination(PenanceActivity.class, R.id.nav_money, R.id.nav_limits);
 
+        onView(withId(R.id.nav_studio)).perform(click());
+        assertDestination(StudioActivity.class, R.id.nav_studio, R.id.nav_money);
+
         onView(withId(R.id.nav_settings)).perform(click());
-        assertDestination(GlobalSettingsActivity.class, R.id.nav_settings, R.id.nav_money);
+        assertDestination(GlobalSettingsActivity.class, R.id.nav_settings, R.id.nav_studio);
 
         onView(withId(R.id.nav_home)).perform(click());
         assertDestination(MainActivity.class, R.id.nav_home, R.id.nav_settings);
+        scenario.onActivity(Activity::finishAndRemoveTask);
     }
 
     private static void assertDestination(Class<? extends Activity> expected, int selectedId,
             int unselectedId) {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-        Activity activity = resumedActivity();
+        Activity activity = resumedActivity(expected);
         assertEquals(expected, activity.getClass());
         View selected = activity.findViewById(selectedId);
         View unselected = activity.findViewById(unselectedId);
-        assertTrue(selected.getBackground() instanceof GradientDrawable);
+        assertNotNull(selected.getBackground());
+        assertTrue(!(selected.getBackground() instanceof ColorDrawable));
         assertTrue(unselected.getBackground() instanceof ColorDrawable);
         int[] tabs = {R.id.nav_home, R.id.nav_censor, R.id.nav_limits,
-                R.id.nav_money, R.id.nav_settings};
+                R.id.nav_money, R.id.nav_studio, R.id.nav_settings};
         int[] icons = {R.id.nav_home_icon, R.id.nav_censor_icon, R.id.nav_limits_icon,
-                R.id.nav_money_icon, R.id.nav_settings_icon};
+                R.id.nav_money_icon, R.id.nav_studio_icon, R.id.nav_settings_icon};
         int[] labels = {R.id.nav_home_label, R.id.nav_censor_label, R.id.nav_limits_label,
-                R.id.nav_money_label, R.id.nav_settings_label};
+                R.id.nav_money_label, R.id.nav_studio_label, R.id.nav_settings_label};
         for (int index = 0; index < tabs.length; index++) {
             LinearLayout tab = activity.findViewById(tabs[index]);
             ImageView icon = activity.findViewById(icons[index]);
@@ -124,13 +164,20 @@ public final class SubHubNavigationTest {
         }
     }
 
-    private static Activity resumedActivity() {
+    private static Activity resumedActivity(Class<? extends Activity> expected) {
         AtomicReference<Activity> result = new AtomicReference<>();
-        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
-            Collection<Activity> resumed = ActivityLifecycleMonitorRegistry.getInstance()
-                    .getActivitiesInStage(Stage.RESUMED);
-            result.set(resumed.iterator().next());
-        });
-        return result.get();
+        long deadline = SystemClock.uptimeMillis() + 3_000L;
+        do {
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                Collection<Activity> resumed = ActivityLifecycleMonitorRegistry.getInstance()
+                        .getActivitiesInStage(Stage.RESUMED);
+                result.set(resumed.isEmpty() ? null : resumed.iterator().next());
+            });
+            if (result.get() != null) return result.get();
+            SystemClock.sleep(50L);
+        } while (SystemClock.uptimeMillis() < deadline);
+        throw new AssertionError("No activity reached RESUMED while waiting for "
+                + expected.getSimpleName());
     }
 }

@@ -17,23 +17,25 @@ import com.subhub.app.settings.FeatureModuleManager;
 import com.subhub.app.settings.GlobalSettingsActivity;
 import com.subhub.app.settings.SettingsActivity;
 import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.studio.StudioActivity;
 
-/** Feature-aware product navigation with Settings always available. */
+/** Feature-aware product navigation with Studio available in both Dom and Sub spaces. */
 public final class SubHubNavigation {
-    public enum Screen { HOME, CENSOR, LIMITS, MONEY, SETTINGS }
+    public enum Screen { HOME, CENSOR, LIMITS, MONEY, STUDIO, SETTINGS }
 
     private SubHubNavigation() {}
 
     public static void bind(Activity activity, View root, Screen active) {
         View navigation = root.findViewById(R.id.bottom_navigation);
         boolean domMode = ControllerPinManager.isDomModeActive();
-        setVisible(navigation, domMode);
-        if (!domMode) return;
+        setVisible(navigation, true);
         FeatureModuleManager modules = new FeatureModuleManager(activity);
         setVisible(root.findViewById(R.id.nav_home), true);
-        setVisible(root.findViewById(R.id.nav_censor), modules.isCensorEnabled());
-        setVisible(root.findViewById(R.id.nav_limits), modules.isLimitsEnabled());
-        setVisible(root.findViewById(R.id.nav_money), modules.isWalletEnabled());
+        setVisible(root.findViewById(R.id.nav_censor), domMode && modules.isCensorEnabled());
+        setVisible(root.findViewById(R.id.nav_limits), domMode && modules.isLimitsEnabled());
+        setVisible(root.findViewById(R.id.nav_money), domMode && modules.isWalletEnabled());
+        setVisible(root.findViewById(R.id.nav_studio), true);
+        setVisible(root.findViewById(R.id.nav_settings), domMode);
         bindTab(activity, root.findViewById(R.id.nav_home),
                 root.findViewById(R.id.nav_home_icon), root.findViewById(R.id.nav_home_label),
                 active, Screen.HOME, MainActivity.class);
@@ -46,6 +48,9 @@ public final class SubHubNavigation {
         bindTab(activity, root.findViewById(R.id.nav_money),
                 root.findViewById(R.id.nav_money_icon), root.findViewById(R.id.nav_money_label),
                 active, Screen.MONEY, PenanceActivity.class);
+        bindTab(activity, root.findViewById(R.id.nav_studio),
+                root.findViewById(R.id.nav_studio_icon), root.findViewById(R.id.nav_studio_label),
+                active, Screen.STUDIO, StudioActivity.class);
         bindTab(activity, root.findViewById(R.id.nav_settings),
                 root.findViewById(R.id.nav_settings_icon), root.findViewById(R.id.nav_settings_label),
                 active, Screen.SETTINGS, GlobalSettingsActivity.class);
@@ -53,7 +58,8 @@ public final class SubHubNavigation {
 
     public static boolean redirectIfDisabled(Activity activity, Screen current) {
         FeatureModuleManager modules = new FeatureModuleManager(activity);
-        boolean enabled = current == Screen.HOME || current == Screen.SETTINGS
+        boolean enabled = current == Screen.HOME || current == Screen.STUDIO
+                || current == Screen.SETTINGS
                 || current == Screen.CENSOR && modules.isCensorEnabled()
                 || current == Screen.LIMITS && modules.isLimitsEnabled()
                 || current == Screen.MONEY && modules.isWalletEnabled();

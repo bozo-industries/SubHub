@@ -14,6 +14,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.subhub.app.R;
 import com.subhub.app.databinding.ActivitySubliminalSettingsBinding;
 import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.pack.SubHubPackLocks;
+import com.subhub.app.pack.SubHubPackSchema;
 
 import java.security.SecureRandom;
 import java.util.LinkedHashSet;
@@ -45,6 +47,20 @@ public final class SubliminalSettingsActivity extends AppCompatActivity {
         binding.buttonBack.setOnClickListener(view -> finish());
         bindListeners();
         render(repository.load());
+        if (SubHubPackLocks.isLocked(this, SubHubPackSchema.SUBLIMINAL)) {
+            setEnabledRecursive(binding.getRoot(), false);
+            binding.buttonBack.setEnabled(true);
+        }
+    }
+
+    private static void setEnabledRecursive(android.view.View view, boolean enabled) {
+        view.setEnabled(enabled);
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int index = 0; index < group.getChildCount(); index++) {
+                setEnabledRecursive(group.getChildAt(index), enabled);
+            }
+        }
     }
 
     private void bindListeners() {
