@@ -14,6 +14,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -55,14 +57,37 @@ public final class StatsAndAchievementsTest {
 
         AchievementManager achievements = new AchievementManager(context);
         assertFalse(achievements.isUnlocked("first_block"));
+        long beforeUnlock = System.currentTimeMillis();
         assertFalse(achievements.checkAchievements(repository.load()).isEmpty());
-        assertTrue(new AchievementManager(context).isUnlocked("first_block"));
+        AchievementManager reopenedAchievements = new AchievementManager(context);
+        assertTrue(reopenedAchievements.isUnlocked("first_block"));
+        assertTrue(reopenedAchievements.getUnlockedAt("first_block") >= beforeUnlock);
+        assertTrue(reopenedAchievements.getUnlockedAt("first_block")
+                <= System.currentTimeMillis());
 
         MilestoneManager.Result milestone = MilestoneManager.takeUnseen(context, 10);
         assertNotNull(milestone);
         assertEquals(10, milestone.getValue());
         assertTrue(milestone.isMajor());
         assertEquals(15, MilestoneManager.next(10));
+    }
+
+    @Test
+    public void legacyAchievementDatesAreBackfilledOnceToUpdateDay() {
+        Context context = ApplicationProvider.getApplicationContext();
+        context.getSharedPreferences("betablocker_achievements", Context.MODE_PRIVATE)
+                .edit().clear().putStringSet("unlocked",
+                        new LinkedHashSet<>(Arrays.asList("first_block"))).commit();
+
+        AchievementManager manager = new AchievementManager(context);
+        long expected = LocalDate.of(2026, 8, 27).atStartOfDay(ZoneId.systemDefault())
+                .toInstant().toEpochMilli();
+        assertEquals(expected, manager.getUnlockedAt("first_block"));
+
+        context.getSharedPreferences("betablocker_achievements", Context.MODE_PRIVATE)
+                .edit().putLong("unlocked_at.first_block", expected + 1234L).commit();
+        assertEquals(expected + 1234L,
+                new AchievementManager(context).getUnlockedAt("first_block"));
     }
 
     @Test
