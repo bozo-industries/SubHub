@@ -40,6 +40,7 @@ import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.HardcoreModeManager;
+import com.subhub.app.security.HardcoreReadinessNotificationManager;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.subhub.app.util.SubHubNavigation;
@@ -67,6 +68,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private PayPalOrdersClient paypalClient;
     private HardcoreAutoPayManager autoPay;
     private ActivityResultLauncher<Intent> hardcoreActivation;
+    private ActivityResultLauncher<Intent> hardcoreAccessibility;
     private boolean updatingHardcore;
     private boolean updatingRecognition;
     private boolean updatingPaypalEnvironment;
@@ -102,6 +104,17 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                         Toast.makeText(this, R.string.hardcore_status_accessibility,
                                 Toast.LENGTH_LONG).show();
                     }
+                });
+        hardcoreAccessibility = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(), ignored -> {
+                    if (appMode.isAccessibilityEnabled()) {
+                        hardcoreActivation.launch(hardcore.activationIntent());
+                    } else {
+                        hardcore.cancelPendingActivation();
+                        Toast.makeText(this, R.string.hardcore_accessibility_cancelled,
+                                Toast.LENGTH_LONG).show();
+                    }
+                    refreshHardcoreState();
                 });
         binding.switchModuleCensor.setChecked(modules.isCensorEnabled());
         binding.switchModuleLimits.setChecked(modules.isLimitsEnabled());
@@ -213,6 +226,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         applyEditState();
         refreshHardcoreState();
         refreshAccessState();
+        HardcoreReadinessNotificationManager.refresh(this);
         reconcilePendingPayPalWallet(false, returnedFromPayPal);
     }
 
@@ -654,7 +668,12 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                     .setPositiveButton(R.string.hardcore_consent_enable, (dialog, which) -> {
                         hardcore.beginActivation();
                         refreshHardcoreState();
-                        hardcoreActivation.launch(hardcore.activationIntent());
+                        if (appMode.isAccessibilityEnabled()) {
+                            hardcoreActivation.launch(hardcore.activationIntent());
+                        } else {
+                            hardcoreAccessibility.launch(
+                                    new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                        }
                     })
                     .show();
         } else {
@@ -675,14 +694,15 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         if (binding == null || hardcore == null) return;
         updatingHardcore = true;
         boolean active = hardcore.isEnabled();
-        boolean accessibilityMissing = active && !new AppModeManager(this).isAccessibilityEnabled();
+        boolean accessibilityMissing = hardcore.isRequested()
+                && !new AppModeManager(this).isAccessibilityEnabled();
         binding.switchHardcoreMode.setChecked(active || hardcore.isRequested());
         binding.buttonHardcoreRestricted.setVisibility(
                 accessibilityMissing ? View.VISIBLE : View.GONE);
         if (accessibilityMissing) {
             binding.hardcoreStatus.setText(R.string.hardcore_status_accessibility);
             binding.buttonHardcoreSystem.setText(R.string.hardcore_open_accessibility);
-        } else if (active) {
+        } else if (hardcore.isGuardReady()) {
             binding.hardcoreStatus.setText(R.string.hardcore_status_active);
             binding.buttonHardcoreSystem.setText(R.string.hardcore_open_admin);
         } else if (hardcore.isRequested()) {
@@ -696,7 +716,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     }
 
     private void openHardcoreSystemPage() {
-        if (hardcore.isEnabled() && !new AppModeManager(this).isAccessibilityEnabled()) {
+        if (hardcore.isRequested() && !new AppModeManager(this).isAccessibilityEnabled()) {
             startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
         } else {
             startActivity(hardcore.adminSettingsIntent());

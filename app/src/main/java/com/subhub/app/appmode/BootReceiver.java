@@ -7,6 +7,7 @@ import android.content.Intent;
 import com.subhub.app.commitment.CommitmentManager;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.HardcoreModeManager;
+import com.subhub.app.security.HardcoreReadinessNotificationManager;
 import com.subhub.app.security.ProtectionStopPolicy;
 import com.subhub.app.penance.HardcoreAutoPayManager;
 import com.subhub.app.penance.PaidPauseManager;
@@ -45,5 +46,6 @@ public final class BootReceiver extends BroadcastReceiver {
         if (!new PaidPauseManager(context).isActive()) {
             ResumeNotificationManager.show(context);
         }
+        HardcoreReadinessNotificationManager.refresh(context);
     }
 }

@@ -54,6 +54,11 @@ public final class HardcoreModeManager {
         return isRequested() && isAdminActive();
     }
 
+    /** True only when both halves of the protected App Info guard are available. */
+    public boolean isGuardReady() {
+        return isEnabled() && new AppModeManager(context).isAccessibilityEnabled();
+    }
+
     public Intent activationIntent() {
         return new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
                 .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin)
@@ -76,6 +81,7 @@ public final class HardcoreModeManager {
             refreshExistingAutomaticMode();
             HardcoreAutoPayManager.schedule(context);
         }
+        HardcoreReadinessNotificationManager.refresh(context);
         return active;
     }
 
@@ -89,12 +95,14 @@ public final class HardcoreModeManager {
         if (policies != null && policies.isAdminActive(admin)) {
             policies.removeActiveAdmin(admin);
         }
+        HardcoreReadinessNotificationManager.refresh(context);
     }
 
     public void onAdminEnabled() {
         preferences.edit().putBoolean(KEY_REQUESTED, true).commit();
         refreshExistingAutomaticMode();
         HardcoreAutoPayManager.schedule(context);
+        HardcoreReadinessNotificationManager.refresh(context);
     }
 
     public void onAdminDisabled() {
@@ -103,6 +111,7 @@ public final class HardcoreModeManager {
         if (isRequested()) TamperTributeReporter.record(context);
         HardcoreAutoPayManager.cancel(context);
         preferences.edit().putBoolean(KEY_REQUESTED, false).commit();
+        HardcoreReadinessNotificationManager.refresh(context);
     }
 
     /**
