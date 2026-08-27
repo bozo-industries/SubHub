@@ -1,10 +1,18 @@
 [
   {
+    "versionName": "0.5.9",
+    "tag": "v0.5.9",
+    "notes": "## What’s new in SubHub 0.5.9\n\n### Fixed\n\n- **Guard Clear Storage in Hardcore mode** — Resolve the real Android application window while the accessibility concealment overlay is present, so navigating from App info to Storage cannot make the guard inspect its own overlay and clear itself.\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.9",
+    "publishedAt": "2026-08-27T14:50:43+02:00",
+    "prerelease": false
+  },
+  {
     "versionName": "0.5.8",
     "tag": "v0.5.8",
     "notes": "## What’s new in SubHub 0.5.8\n\n### Fixed\n\n- **Refine arrangement labels** — Replace the remaining Ass and Anus category copy with Butt / Cheeks and Anal, and render ordinary censor, detection, and text-filter values in Title Case instead of arbitrary all-caps text.\n",
     "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.8",
-    "publishedAt": "2026-08-27T14:34:10+02:00",
+    "publishedAt": "2026-08-27T14:35:12+02:00",
     "prerelease": false
   },
   {
