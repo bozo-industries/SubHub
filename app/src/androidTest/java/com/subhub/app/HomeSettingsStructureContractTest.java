@@ -1,12 +1,15 @@
 package com.subhub.app;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -25,6 +28,19 @@ public final class HomeSettingsStructureContractTest {
                 View domContent = activity.findViewById(R.id.dom_content);
                 assertNotNull(help);
                 assertSame(domContent.getParent(), help.getParent());
+            });
+        }
+    }
+
+    @Test public void filterCardSummarizesOnlyImageAndTextState() {
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(activity -> {
+                TextView summary = activity.findViewById(R.id.sub_censor_summary);
+                String value = summary.getText().toString();
+                assertTrue(value.startsWith("Image filter "));
+                assertTrue(value.contains(" · Text filter "));
+                assertFalse(value.contains("Box"));
+                assertFalse(value.contains("Assigned app"));
             });
         }
     }

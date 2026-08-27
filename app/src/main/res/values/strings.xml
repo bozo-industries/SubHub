@@ -830,10 +830,10 @@ Maximum coverage · flagship devices</string>
     <string name="sub_censor_armed">Censor armed.</string>
     <string name="sub_censor_active">Censor active.</string>
     <string name="sub_censor_summary">%1$s · %2$s</string>
-    <string name="sub_censor_images_on">Images on</string>
-    <string name="sub_censor_images_off">Images off</string>
-    <string name="sub_censor_text_on">Text on</string>
-    <string name="sub_censor_text_off">Text off</string>
+    <string name="sub_censor_images_on">Image filter on</string>
+    <string name="sub_censor_images_off">Image filter off</string>
+    <string name="sub_censor_text_on">Text filter on</string>
+    <string name="sub_censor_text_off">Text filter off</string>
     <string name="sub_capture_app_watch">Assigned apps</string>
     <string name="sub_capture_screen_session">Shared screen</string>
     <string name="sub_censor_detection_images">explicit images</string>
