@@ -3,6 +3,23 @@
 User-facing changes from every tagged SubHub release.
 
 <details open>
+<summary><strong>SubHub 0.5.5</strong></summary>
+
+## What’s new in SubHub 0.5.5
+
+### New
+
+- **Add premium motion and frosted plum surfaces** — Give tab changes, back navigation, and dialogs restrained directional motion while layering translucent plum surfaces and supported Android 12 blur for a calmer premium finish.
+- **Add dated achievement detail cards** — Make every visible achievement tappable for a larger badge, description, progress, and unlock-date view, persist future unlock timestamps, and backfill existing unlocks to the 2026-08-27 update date.
+- **Clarify Home arrangement and progress summaries** — Home now uses exact Dom labels, reports image/text state and enabled tribute-rule counts, shows SubHub's app icon with SUB SPACE or DOM SPACE, and puts the statistics button below session metrics.
+
+### Documentation
+
+- **Clarify cumulative release-note generation** — Document the distinction between the single-release changelog output and the cumulative history output so local release preparation cannot replace older changelog entries.
+
+</details>
+
+<details>
 <summary><strong>SubHub 0.5.4</strong></summary>
 
 ## What’s new in SubHub 0.5.4
