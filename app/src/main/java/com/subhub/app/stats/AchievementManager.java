@@ -20,6 +20,7 @@ import com.subhub.app.settings.SettingsRepository;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +36,8 @@ public final class AchievementManager {
     private static final String PREFS_NAME = "betablocker_achievements";
     private static final String KEY_UNLOCKED = "unlocked";
     private static final String KEY_PENDING = "pending_notifications";
+    private static final String KEY_UNLOCKED_AT_PREFIX = "unlocked_at.";
+    private static final LocalDate LEGACY_UNLOCK_DATE = LocalDate.of(2026, 8, 27);
     private static final List<Achievement> ACHIEVEMENTS = achievements();
     private final Context context;
     private final SharedPreferences preferences;
@@ -45,10 +48,15 @@ public final class AchievementManager {
         preferences = this.context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         Set<String> stored = preferences.getStringSet(KEY_UNLOCKED, Collections.emptySet());
         unlocked = new LinkedHashSet<>(stored == null ? Collections.emptySet() : stored);
+        backfillLegacyUnlockDates();
     }
 
     public List<Achievement> all() { return ACHIEVEMENTS; }
     public boolean isUnlocked(String id) { return unlocked.contains(id); }
+    public long getUnlockedAt(String id) {
+        if (!isUnlocked(id)) return 0L;
+        return preferences.getLong(KEY_UNLOCKED_AT_PREFIX + id, legacyUnlockTimestamp());
+    }
     public int getUnlockedCount() { return unlocked.size(); }
     public int getTotalCount() { return ACHIEVEMENTS.size(); }
 
@@ -69,11 +77,34 @@ public final class AchievementManager {
             Set<String> pending = preferences.getStringSet(KEY_PENDING, Collections.emptySet());
             Set<String> updatedPending = new LinkedHashSet<>(
                     pending == null ? Collections.emptySet() : pending);
-            for (Achievement value : newlyUnlocked) updatedPending.add(value.id);
-            preferences.edit().putStringSet(KEY_UNLOCKED, new LinkedHashSet<>(unlocked))
-                    .putStringSet(KEY_PENDING, updatedPending).apply();
+            long unlockedAt = System.currentTimeMillis();
+            SharedPreferences.Editor editor = preferences.edit()
+                    .putStringSet(KEY_UNLOCKED, new LinkedHashSet<>(unlocked));
+            for (Achievement value : newlyUnlocked) {
+                updatedPending.add(value.id);
+                editor.putLong(KEY_UNLOCKED_AT_PREFIX + value.id, unlockedAt);
+            }
+            editor.putStringSet(KEY_PENDING, updatedPending).apply();
         }
         return newlyUnlocked;
+    }
+
+    private void backfillLegacyUnlockDates() {
+        if (unlocked.isEmpty()) return;
+        SharedPreferences.Editor editor = null;
+        long timestamp = legacyUnlockTimestamp();
+        for (String id : unlocked) {
+            String key = KEY_UNLOCKED_AT_PREFIX + id;
+            if (preferences.contains(key)) continue;
+            if (editor == null) editor = preferences.edit();
+            editor.putLong(key, timestamp);
+        }
+        if (editor != null) editor.apply();
+    }
+
+    static long legacyUnlockTimestamp() {
+        return LEGACY_UNLOCK_DATE.atStartOfDay(ZoneId.systemDefault())
+                .toInstant().toEpochMilli();
     }
 
     public List<Achievement> takePendingNotifications() {

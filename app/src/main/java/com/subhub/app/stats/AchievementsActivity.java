@@ -1,10 +1,16 @@
 package com.subhub.app.stats;
 
+import android.app.Dialog;
 import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -14,8 +20,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.card.MaterialCardView;
 import com.subhub.app.R;
 import com.subhub.app.databinding.ActivityAchievementsBinding;
+import com.subhub.app.util.PremiumMotion;
 
+import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -98,6 +107,9 @@ public final class AchievementsActivity extends AppCompatActivity {
             if (index > 0) cellParams.leftMargin = dp(6);
             cell.setLayoutParams(cellParams);
             cell.setBackgroundResource(R.drawable.bg_achievement_preview_cell);
+            cell.setClickable(true);
+            cell.setFocusable(true);
+            cell.setOnClickListener(view -> showAchievementDetails(achievement));
 
             AchievementBadgeView badge = badge(achievement, unlocked, concealed, 72);
             cell.addView(badge);
@@ -231,6 +243,18 @@ public final class AchievementsActivity extends AppCompatActivity {
         description.setLayoutParams(descriptionParams);
         content.addView(description);
 
+        if (unlocked) {
+            TextView date = text(getString(R.string.achievement_unlocked_on,
+                    formatUnlockDate(manager.getUnlockedAt(achievement.getId()))), 10,
+                    R.color.text_muted, false);
+            LinearLayout.LayoutParams dateParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            dateParams.topMargin = dp(6);
+            date.setLayoutParams(dateParams);
+            content.addView(date);
+        }
+
         LinearLayout progressRow = new LinearLayout(this);
         progressRow.setOrientation(LinearLayout.HORIZONTAL);
         progressRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -266,7 +290,67 @@ public final class AchievementsActivity extends AppCompatActivity {
         }
         content.addView(progressRow);
         row.addView(content);
+        card.setClickable(true);
+        card.setFocusable(true);
+        card.setOnClickListener(view -> showAchievementDetails(achievement));
         binding.achievementList.addView(card);
+    }
+
+    private void showAchievementDetails(AchievementManager.Achievement achievement) {
+        boolean unlocked = manager.isUnlocked(achievement.getId());
+        boolean concealed = achievement.isHidden() && !unlocked;
+        AchievementManager.Progress progress = manager.progress(achievement, stats);
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        View content = LayoutInflater.from(this).inflate(
+                R.layout.dialog_achievement_details, null, false);
+        AchievementBadgeView badge = content.findViewById(R.id.achievement_detail_badge);
+        CharSequence name = concealed ? getString(R.string.achievement_hidden_name)
+                : getString(achievement.getName());
+        badge.bind(achievement.getBadgeArtRes(), unlocked, concealed, name);
+        ((TextView) content.findViewById(R.id.achievement_detail_status)).setText(
+                concealed ? R.string.achievement_secret
+                        : unlocked ? R.string.achievement_unlocked_tag
+                        : R.string.achievement_locked);
+        ((TextView) content.findViewById(R.id.achievement_detail_name)).setText(name);
+        ((TextView) content.findViewById(R.id.achievement_detail_description)).setText(
+                concealed ? getString(R.string.achievement_hidden_desc)
+                        : getString(achievement.getDescription()));
+        TextView progressView = content.findViewById(R.id.achievement_detail_progress);
+        progressView.setText(concealed || !progress.isCountable()
+                ? getString(concealed ? R.string.achievement_secret
+                        : unlocked ? R.string.achievement_unlocked_tag
+                        : R.string.achievement_locked)
+                : getString(R.string.achievement_progress_detail,
+                        formatProgress(achievement, progress)));
+        TextView dateView = content.findViewById(R.id.achievement_detail_date);
+        if (unlocked) {
+            dateView.setText(getString(R.string.achievement_unlocked_on,
+                    formatUnlockDate(manager.getUnlockedAt(achievement.getId()))));
+        } else {
+            dateView.setVisibility(View.GONE);
+        }
+        content.findViewById(R.id.achievement_detail_close)
+                .setOnClickListener(view -> dialog.dismiss());
+        dialog.setContentView(content);
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            WindowManager.LayoutParams attributes = window.getAttributes();
+            attributes.dimAmount = 0.6f;
+            window.setAttributes(attributes);
+            window.setLayout(Math.min(getResources().getDisplayMetrics().widthPixels - dp(32),
+                    dp(440)), WindowManager.LayoutParams.WRAP_CONTENT);
+        }
+        PremiumMotion.styleDialog(dialog);
+    }
+
+    private String formatUnlockDate(long timestamp) {
+        return DateFormat.getDateInstance(DateFormat.MEDIUM, Locale.getDefault())
+                .format(new Date(timestamp));
     }
 
     private AchievementBadgeView badge(AchievementManager.Achievement achievement,

@@ -50,8 +50,8 @@
     <string name="censor_tool_export">Censor photos</string>
     <string name="censor_tool_help">Help &amp; safety</string>
     <string name="header_subtitle">Control, restraint, and accountability</string>
-    <string name="header_subtitle_sub">SUB MODE · YOUR ACTIVE RULES</string>
-    <string name="header_subtitle_dom">DOM MODE · FULL CONTROL</string>
+    <string name="header_subtitle_sub">SUB SPACE</string>
+    <string name="header_subtitle_dom">DOM SPACE</string>
     <string name="start_protection">ENTER SERVICE</string>
     <string name="stop_protection">LEAVE SERVICE</string>
     <string name="app_mode_saved_button">SAVED · READY</string>
@@ -343,6 +343,8 @@ Maximum coverage · flagship devices</string>
     <string name="achievement_unlocked_tag">UNLOCKED</string>
     <string name="achievement_locked">LOCKED</string>
     <string name="achievement_unlocked_title">ACHIEVEMENT UNLOCKED</string>
+    <string name="achievement_unlocked_on">Unlocked %1$s</string>
+    <string name="achievement_progress_detail">Progress · %1$s</string>
     <string name="achievement_more_unlocked">%1$d more achievements unlocked.</string>
     <string name="achievement_save_badge">SAVE BADGE</string>
     <string name="badge_saved">Badge saved to Pictures/SubHub.</string>
@@ -828,6 +830,10 @@ Maximum coverage · flagship devices</string>
     <string name="sub_censor_armed">Censor armed.</string>
     <string name="sub_censor_active">Censor active.</string>
     <string name="sub_censor_summary">%1$s · %2$s</string>
+    <string name="sub_censor_images_on">Images on</string>
+    <string name="sub_censor_images_off">Images off</string>
+    <string name="sub_censor_text_on">Text on</string>
+    <string name="sub_censor_text_off">Text off</string>
     <string name="sub_capture_app_watch">Assigned apps</string>
     <string name="sub_capture_screen_session">Shared screen</string>
     <string name="sub_censor_detection_images">explicit images</string>
@@ -851,7 +857,10 @@ Maximum coverage · flagship devices</string>
     <string name="stats_streak">STREAK</string>
     <string name="stats_streak_days">%1$d d</string>
     <string name="sub_wallet_title">TRIBUTE LEDGER</string>
-    <string name="sub_wallet_active">Tribute rules active.</string>
+    <plurals name="sub_wallet_active">
+        <item quantity="one">%1$d tribute rule active.</item>
+        <item quantity="other">%1$d tribute rules active.</item>
+    </plurals>
     <string name="sub_wallet_inactive">No tribute rules.</string>
     <string name="sub_wallet_summary">%1$s due</string>
     <string name="sub_wallet_pay">REVIEW TRIBUTE</string>
@@ -990,7 +999,7 @@ Maximum coverage · flagship devices</string>
     <string name="arrangement_no_border">no</string>
     <string name="arrangement_censor_quality">Detection quality</string>
     <string name="arrangement_censor_capture">Capture</string>
-    <string name="arrangement_censor_images">Image filters</string>
+    <string name="arrangement_censor_images">Body areas</string>
     <string name="arrangement_censor_text">Text filter</string>
     <string name="arrangement_censor_phrases">Censor phrases</string>
     <string name="arrangement_text_value">%1$s · %2$s</string>
@@ -1009,7 +1018,6 @@ Maximum coverage · flagship devices</string>
     <string name="arrangement_subliminal_intensity">Whisper intensity</string>
     <string name="close">CLOSE</string>
     <string name="home_journey_title">YOUR PROGRESS</string>
-    <string name="home_session_title">THIS SERVICE</string>
     <string name="home_permission_title">DEVICE SETUP</string>
     <string name="home_permission_action">FIX</string>
     <string name="home_permission_missing">Finish %1$s to use every selected feature.</string>
