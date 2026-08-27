@@ -34,6 +34,9 @@ The universal APK is `app/build/outputs/apk/debug/app-universal-debug.apk`. It i
 ## Release procedure
 
 1. Complete the version bump and release notes in reviewable commits.
+   When refreshing both release outputs locally, write the single-release fragment to a temporary
+   `--changelog-output` path and use `--history-output CHANGELOG.md` for the cumulative changelog;
+   `--changelog-output CHANGELOG.md` replaces the history with only the current release.
 2. Verify the command above and review the staged diff for secrets or unrelated files.
 3. Push the tested commit to `master`.
 4. Create and push the exact version tag, for example `git tag -a v0.2.0 -m "SubHub 0.2.0"` followed by `git push origin v0.2.0`.
