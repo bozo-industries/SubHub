@@ -1,10 +1,10 @@
 [
   {
-    "versionName": "0.5.5",
-    "tag": "v0.5.5",
-    "notes": "## What’s new in SubHub 0.5.5\n\n### New\n\n- **Add premium motion and frosted plum surfaces** — Give tab changes, back navigation, and dialogs restrained directional motion while layering translucent plum surfaces and supported Android 12 blur for a calmer premium finish.\n- **Add dated achievement detail cards** — Make every visible achievement tappable for a larger badge, description, progress, and unlock-date view, persist future unlock timestamps, and backfill existing unlocks to the 2026-08-27 update date.\n- **Clarify Home arrangement and progress summaries** — Home now uses exact Dom labels, reports image/text state and enabled tribute-rule counts, shows SubHub's app icon with SUB SPACE or DOM SPACE, and puts the statistics button below session metrics.\n\n### Documentation\n\n- **Clarify cumulative release-note generation** — Document the distinction between the single-release changelog output and the cumulative history output so local release preparation cannot replace older changelog entries.\n",
-    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.5",
-    "publishedAt": "2026-08-27T05:44:35+02:00",
+    "versionName": "0.5.6",
+    "tag": "v0.5.6",
+    "notes": "## What’s new in SubHub 0.5.6\n\n### New\n\n- **Add premium motion and frosted plum surfaces** — Give tab changes, back navigation, and dialogs restrained directional motion while layering translucent plum surfaces and supported Android 12 blur for a calmer premium finish.\n- **Add dated achievement detail cards** — Make every visible achievement tappable for a larger badge, description, progress, and unlock-date view, persist future unlock timestamps, and backfill existing unlocks to the 2026-08-27 update date.\n- **Clarify Home arrangement and progress summaries** — Home now uses exact Dom labels, reports image/text state and enabled tribute-rule counts, shows SubHub's app icon with SUB SPACE or DOM SPACE, and puts the statistics button below session metrics.\n\n### Documentation\n\n- **Clarify cumulative release-note generation** — Document the distinction between the single-release changelog output and the cumulative history output so local release preparation cannot replace older changelog entries.\n\n### Build & release\n\n- **Bundle SubHub 0.5.5 release history** — Embed the complete collapsible 0.5.5 changelog in both repository Markdown and the in-app release history.\n- **Stage immutable releases before publication** — Upload verified release assets one at a time to a reusable draft, compare the complete remote asset set with local build outputs, and only then publish the immutable release.\n- **Publish SubHub 0.5.6** — Roll the complete tested 0.5.5 feature set forward after GitHub's immutable-release policy permanently consumed the unpublished v0.5.5 tag.\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.5.6",
+    "publishedAt": "2026-08-27T06:00:01+02:00",
     "prerelease": false
   },
   {

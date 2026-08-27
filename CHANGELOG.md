@@ -3,9 +3,9 @@
 User-facing changes from every tagged SubHub release.
 
 <details open>
-<summary><strong>SubHub 0.5.5</strong></summary>
+<summary><strong>SubHub 0.5.6</strong></summary>
 
-## What’s new in SubHub 0.5.5
+## What’s new in SubHub 0.5.6
 
 ### New
 
@@ -16,6 +16,12 @@ User-facing changes from every tagged SubHub release.
 ### Documentation
 
 - **Clarify cumulative release-note generation** — Document the distinction between the single-release changelog output and the cumulative history output so local release preparation cannot replace older changelog entries.
+
+### Build & release
+
+- **Bundle SubHub 0.5.5 release history** — Embed the complete collapsible 0.5.5 changelog in both repository Markdown and the in-app release history.
+- **Stage immutable releases before publication** — Upload verified release assets one at a time to a reusable draft, compare the complete remote asset set with local build outputs, and only then publish the immutable release.
+- **Publish SubHub 0.5.6** — Roll the complete tested 0.5.5 feature set forward after GitHub's immutable-release policy permanently consumed the unpublished v0.5.5 tag.
 
 </details>
 
