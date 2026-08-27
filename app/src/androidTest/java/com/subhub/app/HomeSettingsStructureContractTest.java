@@ -81,14 +81,18 @@ public final class HomeSettingsStructureContractTest {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
                 String details = activity.censorArrangementDetails();
-                assertTrue(details.contains("BLACKOUT · Classic Border"));
-                assertTrue(details.contains("ULTRA · MAXIMUM COVERAGE"));
+                assertTrue(details.contains("Blackout · Classic Border"));
+                assertTrue(details.contains("Ultra · Maximum Coverage"));
                 assertTrue(details.contains(
-                        "Vulva / Vagina, Penis / Balls, Breasts / Nipples, Ass, Anus, "
+                        "Vulva / Vagina, Penis / Balls, Breasts / Nipples, Butt / Cheeks, Anal, "
                                 + "Male Chest / Pecs, Stomach / Midriff"));
                 assertTrue(details.contains(
-                        "CONTEXT · Sexual Words, Kink / Fetish Talk, Sexual Invitations"));
+                        "Context · Sexual Words, Kink / Fetish Talk, Sexual Invitations"));
                 assertTrue(details.contains("Beta / Cuck, Denial, Findom, Plain"));
+                assertFalse(details.contains(", Ass,"));
+                assertFalse(details.contains(", Anus,"));
+                assertFalse(details.contains("BLACKOUT"));
+                assertFalse(details.contains("ULTRA · MAXIMUM COVERAGE"));
                 assertFalse(details.contains("Balanced"));
                 assertFalse(details.contains("Explicit language"));
                 assertFalse(details.contains("Humiliation"));

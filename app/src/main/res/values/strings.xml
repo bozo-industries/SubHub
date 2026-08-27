@@ -90,14 +90,14 @@
     <string name="back">BACK</string>
     <string name="appearance_title">APPEARANCE</string>
     <string name="appearance_help">Preview each censor style before you save it. Your choice updates live protection immediately.</string>
-    <string name="style_box">BLACKOUT</string>
-    <string name="style_pixelate">PIXELATE</string>
-    <string name="style_blur">BLUR</string>
-    <string name="style_custom">CUSTOM IMAGE</string>
-    <string name="style_static">TV STATIC</string>
-    <string name="style_glitch">GLITCH</string>
-    <string name="style_tape">PRIVACY TAPE</string>
-    <string name="style_error">ERROR POPUP</string>
+    <string name="style_box">Blackout</string>
+    <string name="style_pixelate">Pixelate</string>
+    <string name="style_blur">Blur</string>
+    <string name="style_custom">Custom Image</string>
+    <string name="style_static">TV Static</string>
+    <string name="style_glitch">Glitch</string>
+    <string name="style_tape">Privacy Tape</string>
+    <string name="style_error">Error Popup</string>
     <string name="style_preview_help">Each tile is a safe sample; live censoring uses the detected region underneath.</string>
     <string name="effect_colors_title">EFFECT COLORS</string>
     <string name="effect_colors_help">Color controls change with the selected censor style.</string>
@@ -136,24 +136,24 @@
     <string name="confidence">CONFIDENCE</string>
     <string name="performance_preset">DETECTION LEVEL</string>
     <string name="performance_preset_help">Higher levels inspect more often and can use more battery.</string>
-    <string name="preset_low">LIGHT · BATTERY SAVER</string>
-    <string name="preset_medium">BALANCED · RECOMMENDED</string>
-    <string name="preset_high">HIGH · THOROUGH</string>
-    <string name="preset_ultra">ULTRA · MAXIMUM COVERAGE</string>
-    <string name="preset_low_card">LIGHT
+    <string name="preset_low">Light · Battery Saver</string>
+    <string name="preset_medium">Balanced · Recommended</string>
+    <string name="preset_high">High · Thorough</string>
+    <string name="preset_ultra">Ultra · Maximum Coverage</string>
+    <string name="preset_low_card">Light
 Fastest · battery saver</string>
-    <string name="preset_medium_card">BALANCED
+    <string name="preset_medium_card">Balanced
 Recommended everyday coverage</string>
-    <string name="preset_high_card">HIGH
+    <string name="preset_high_card">High
 More small-region coverage</string>
-    <string name="preset_ultra_card">ULTRA
+    <string name="preset_ultra_card">Ultra
 Maximum coverage · flagship devices</string>
     <string name="categories_title">BODY AREAS TO HIDE</string>
     <string name="category_genitals_female">Vulva / Vagina</string>
     <string name="category_genitals_male">Penis / Balls</string>
     <string name="category_breasts">Breasts / Nipples</string>
-    <string name="category_buttocks">Ass</string>
-    <string name="category_anus">Anus</string>
+    <string name="category_buttocks">Butt / Cheeks</string>
+    <string name="category_anus">Anal</string>
     <string name="category_faces">Faces</string>
     <string name="category_male_chest">Male Chest / Pecs</string>
     <string name="category_belly">Stomach / Midriff</string>
@@ -166,9 +166,9 @@ Maximum coverage · flagship devices</string>
     <string name="text_smut_enable">Hide sexual text</string>
     <string name="text_smut_sensitivity">TEXT COVERAGE</string>
     <string name="text_smut_sensitivity_help">Explicit catches clear sexual words. Context also catches strongly sexual phrasing. Suggestive catches the widest range, with more false positives.</string>
-    <string name="text_smut_strict">EXPLICIT</string>
-    <string name="text_smut_balanced">CONTEXT</string>
-    <string name="text_smut_broad">SUGGESTIVE</string>
+    <string name="text_smut_strict">Explicit</string>
+    <string name="text_smut_balanced">Context</string>
+    <string name="text_smut_broad">Suggestive</string>
     <string name="text_smut_categories">WHAT COUNTS AS SMUT</string>
     <string name="text_smut_explicit">Sexual Words</string>
     <string name="text_smut_fetish">Kink / Fetish Talk</string>
