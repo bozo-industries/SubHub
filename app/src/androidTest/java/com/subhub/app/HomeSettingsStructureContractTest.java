@@ -60,6 +60,10 @@ public final class HomeSettingsStructureContractTest {
                 .putBoolean(SettingsRepository.KEY_SHOW_BORDER, true)
                 .putString(SettingsRepository.KEY_BORDER_EFFECT, "classic")
                 .putString(SettingsRepository.KEY_DETECTION_PRESET, "ultra")
+                .putStringSet(SettingsRepository.KEY_ENABLED_CATEGORIES,
+                        new LinkedHashSet<>(Arrays.asList(
+                                "genitals_female", "genitals_male", "breasts", "buttocks",
+                                "anus", "male_chest", "belly")))
                 .putBoolean(SettingsRepository.KEY_SHOW_TEXT, true)
                 .putStringSet(SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES,
                         new LinkedHashSet<>(Arrays.asList(
@@ -77,11 +81,14 @@ public final class HomeSettingsStructureContractTest {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
                 String details = activity.censorArrangementDetails();
-                assertTrue(details.contains("BLACKOUT · Classic border"));
+                assertTrue(details.contains("BLACKOUT · Classic Border"));
                 assertTrue(details.contains("ULTRA · MAXIMUM COVERAGE"));
                 assertTrue(details.contains(
-                        "CONTEXT · Sexual words, Kink / fetish talk, Sexual invitations"));
-                assertTrue(details.contains("Beta / cuck, Denial, Findom, Plain"));
+                        "Vulva / Vagina, Penis / Balls, Breasts / Nipples, Ass, Anus, "
+                                + "Male Chest / Pecs, Stomach / Midriff"));
+                assertTrue(details.contains(
+                        "CONTEXT · Sexual Words, Kink / Fetish Talk, Sexual Invitations"));
+                assertTrue(details.contains("Beta / Cuck, Denial, Findom, Plain"));
                 assertFalse(details.contains("Balanced"));
                 assertFalse(details.contains("Explicit language"));
                 assertFalse(details.contains("Humiliation"));
