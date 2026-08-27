@@ -67,6 +67,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".studio.StudioActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".diagnostics.DiagnosticsActivity"
             android:exported="false" />
 

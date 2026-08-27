@@ -39,6 +39,7 @@ public final class PopupStormSettings {
     public static final String K_MAX_SIZE = "popup_storm_max_size_px";
     public static final String K_MIN_SIZE = "popup_storm_min_size_px";
     public static final String K_POSITION_MODE = "popup_storm_position_mode";
+    public static final String K_PACK_DIR = "popup_storm_pack_dir";
     public static final String K_PRESET = "popup_storm_active_preset";
     public static final String K_RANDOM_ROT = "popup_storm_random_rotation";
     public static final String K_ROT_MAX = "popup_storm_rotation_max_deg";
@@ -85,7 +86,8 @@ public final class PopupStormSettings {
         Set<String> stored = preferences.getStringSet(K_FOLDERS, Collections.emptySet());
         folders = Collections.unmodifiableList(new ArrayList<>(stored == null
                 ? Collections.emptySet() : new LinkedHashSet<>(stored)));
-        packImageDir = preferences.getString(CustomImageManager.PACK_DIR_KEY, "");
+        packImageDir = preferences.getString(K_PACK_DIR,
+                preferences.getString(CustomImageManager.PACK_DIR_KEY, ""));
         spawnRate = clamp(preferences.getFloat(K_SPAWN_RATE, 2f), 0f, MAX_SPAWN_RATE);
         displayDuration = clamp(preferences.getFloat(K_DISPLAY_DURATION, 1f), .2f, 8f);
         maxSimultaneous = clamp(preferences.getInt(K_MAX_SIMULTANEOUS, 8), 1, MAX_SIMULTANEOUS);

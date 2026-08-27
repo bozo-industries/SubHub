@@ -12,6 +12,7 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.subhub.app.pack.PackManager;
+import com.subhub.app.pack.SubHubPackManager;
 import com.subhub.app.util.LocaleHelper;
 import com.subhub.app.update.UpdateScheduler;
 import com.subhub.app.update.UpdateStateStore;
@@ -55,6 +56,7 @@ public final class SubHubApp extends Application {
         });
         LocaleHelper.applySaved(this);
         new PackManager(this);
+        new SubHubPackManager(this);
         new UpdateStateStore(this).cleanupInstalled(BuildConfig.VERSION_CODE);
         UpdateScheduler.synchronize(this);
         HardcoreReadinessNotificationManager.refresh(this);

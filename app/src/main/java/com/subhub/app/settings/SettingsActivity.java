@@ -28,11 +28,13 @@ import com.subhub.app.detection.DetectorConfig;
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.overlay.CensorPhrases;
 import com.subhub.app.pack.LockedSettings;
+import com.subhub.app.pack.SubHubPackLocks;
+import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.pack.PackManager;
-import com.subhub.app.pack.PacksActivity;
+import com.subhub.app.studio.StudioActivity;
 import com.subhub.app.popup.PopupStormActivity;
 import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.util.SubHubNavigation;
@@ -235,7 +237,7 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.buttonCustomImages.setOnClickListener(view ->
                 startActivity(new Intent(this, CustomImagesActivity.class)));
         binding.buttonPacks.setOnClickListener(view ->
-                startActivity(new Intent(this, PacksActivity.class)));
+                startActivity(new Intent(this, StudioActivity.class)));
         binding.buttonPopupStorm.setOnClickListener(view ->
                 startActivity(new Intent(this, PopupStormActivity.class)));
         binding.paletteColorOne.setOnClickListener(view -> pickEffectColor(1));
@@ -254,7 +256,8 @@ public final class SettingsActivity extends AppCompatActivity {
     }
 
     private void applyLockState() {
-        boolean editing = ControllerPinManager.isSessionUnlocked();
+        boolean editing = ControllerPinManager.isSessionUnlocked()
+                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.CENSOR);
         ControllerEditMode.renderButton(this, binding.buttonEditLock);
         setEnabledRecursive(binding.styleGroup,
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE));
@@ -317,7 +320,8 @@ public final class SettingsActivity extends AppCompatActivity {
     }
 
     private void syncBorderControlState() {
-        boolean editing = ControllerPinManager.isSessionUnlocked();
+        boolean editing = ControllerPinManager.isSessionUnlocked()
+                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.CENSOR);
         boolean active = binding.switchBorder.isChecked();
         binding.borderPreview.setAlpha(active ? 1f : .55f);
         binding.borderColor.setEnabled(active && editing

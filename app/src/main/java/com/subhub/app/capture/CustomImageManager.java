@@ -155,6 +155,22 @@ public final class CustomImageManager {
         return decode(fileFor(id), maximumDimension);
     }
 
+    /** Private image files eligible for explicit embedding in a portable SubHub pack. */
+    public List<File> enabledFilesForPackExport() {
+        List<File> result = new ArrayList<>();
+        File packDirectory = activePackDirectory();
+        File[] packFiles = packDirectory == null ? null : packDirectory.listFiles();
+        if (packFiles != null) for (File file : packFiles) {
+            if (isImageFile(file)) result.add(file);
+        }
+        if (!result.isEmpty()) return Collections.unmodifiableList(result);
+        for (Entry entry : listEntries()) if (entry.enabled) {
+            File file = fileFor(entry.id);
+            if (file.isFile()) result.add(file);
+        }
+        return Collections.unmodifiableList(result);
+    }
+
     File fileFor(String id) {
         return new File(storeDirectory, id + ".bin");
     }
