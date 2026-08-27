@@ -1113,9 +1113,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         String expectedPackage = guardForegroundPackage;
         // Window-state events can be coalesced while Settings restores a Compose page. In
-        // Hardcore/Sub mode, confirm against the live root once per guard tick instead of
-        // trusting a stale package cache and silently leaving destructive controls uncovered.
-        AccessibilityNodeInfo root = getRootInActiveWindow();
+        // Hardcore/Sub mode, resolve the actual application window instead of trusting
+        // getRootInActiveWindow(): once our concealment overlay is attached, some Android builds
+        // report that overlay as the active root while navigating from App info to Storage.
+        AccessibilityNodeInfo root = resolveHardcoreGuardApplicationRoot();
+        if (root == null) root = getRootInActiveWindow();
         try {
             String activePackage = root != null && root.getPackageName() != null
                     ? root.getPackageName().toString() : expectedPackage;
@@ -1123,6 +1125,34 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         } finally {
             if (root != null) root.recycle();
         }
+    }
+
+    private AccessibilityNodeInfo resolveHardcoreGuardApplicationRoot() {
+        List<AccessibilityWindowInfo> available = getWindows();
+        if (available == null || available.isEmpty()) return null;
+        AccessibilityNodeInfo bestRoot = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (AccessibilityWindowInfo window : available) {
+            if (window == null || window.getType() != AccessibilityWindowInfo.TYPE_APPLICATION) {
+                continue;
+            }
+            AccessibilityNodeInfo candidate = window.getRoot();
+            if (candidate == null) continue;
+            String packageName = candidate.getPackageName() == null
+                    ? "" : candidate.getPackageName().toString();
+            int score = (window.isActive() ? 1_000 : 0)
+                    + (window.isFocused() ? 500 : 0)
+                    + (HardcoreSettingsGuard.isSettingsPackage(packageName) ? 100 : 0)
+                    + window.getLayer();
+            if (score > bestScore) {
+                if (bestRoot != null) bestRoot.recycle();
+                bestRoot = candidate;
+                bestScore = score;
+            } else {
+                candidate.recycle();
+            }
+        }
+        return bestRoot;
     }
 
     private void queueHardcoreSettingsGuardRefresh(long delayMillis) {

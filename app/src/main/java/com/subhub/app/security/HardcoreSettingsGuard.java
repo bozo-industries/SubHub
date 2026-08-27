@@ -33,6 +33,7 @@ public final class HardcoreSettingsGuard {
     static final String SETTINGS_PACKAGE = "com.android.settings";
     private static final int MAX_NODES = 500;
     private static final int MAX_BADGES = 4;
+    private static final int MAX_CLICKABLE_ANCESTOR_DEPTH = 8;
 
     private final AccessibilityService service;
     private final Context overlayContext;
@@ -209,13 +210,14 @@ public final class HardcoreSettingsGuard {
     private Rect clickableBounds(AccessibilityNodeInfo node) {
         Rect best = new Rect();
         node.getBoundsInScreen(best);
+        if (node.isClickable() && isReasonableControlBounds(best)) return best;
         AccessibilityNodeInfo cursor = null;
         try {
             cursor = node.getParent();
-            for (int depth = 0; cursor != null && depth < 3; depth++) {
+            for (int depth = 0; cursor != null && depth < MAX_CLICKABLE_ANCESTOR_DEPTH; depth++) {
                 Rect candidate = new Rect();
                 cursor.getBoundsInScreen(candidate);
-                if (cursor.isClickable() && candidate.width() > 0 && candidate.height() > 0) {
+                if (cursor.isClickable() && isReasonableControlBounds(candidate)) {
                     best.set(candidate);
                     break;
                 }
@@ -226,7 +228,24 @@ public final class HardcoreSettingsGuard {
         } finally {
             if (cursor != null) cursor.recycle();
         }
+        expandToMinimumTouchTarget(best);
         return best;
+    }
+
+    private boolean isReasonableControlBounds(Rect bounds) {
+        android.util.DisplayMetrics display = service.getResources().getDisplayMetrics();
+        return bounds.width() > 0 && bounds.height() > 0
+                && bounds.width() <= display.widthPixels
+                && bounds.height() <= dp(240);
+    }
+
+    private void expandToMinimumTouchTarget(Rect bounds) {
+        int minimum = dp(48);
+        int horizontal = Math.max(0, minimum - bounds.width());
+        int vertical = Math.max(0, minimum - bounds.height());
+        bounds.inset(-horizontal / 2, -vertical / 2);
+        bounds.right += horizontal % 2;
+        bounds.bottom += vertical % 2;
     }
 
     private void addUnique(List<Rect> controls, Rect candidate) {
