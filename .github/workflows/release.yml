@@ -137,10 +137,48 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
         run: |
-          gh release create "${RELEASE_TAG}" \
+          set -euo pipefail
+
+          if gh release view "${RELEASE_TAG}" --json isDraft --jq '.isDraft' > release-draft.txt 2>/dev/null; then
+            test "$(cat release-draft.txt)" = "true"
+            gh release edit "${RELEASE_TAG}" \
+              --notes-file dist/release-notes.md \
+              --title "SubHub ${VERSION_NAME}"
+          else
+            gh release create "${RELEASE_TAG}" \
+              --draft \
+              --verify-tag \
+              --notes-file dist/release-notes.md \
+              --title "SubHub ${VERSION_NAME}"
+          fi
+
+          for asset in \
             dist/*.apk \
             dist/*-update.json \
-            dist/*-SHA256SUMS.txt \
-            --verify-tag \
-            --notes-file dist/release-notes.md \
-            --title "SubHub ${VERSION_NAME}"
+            dist/*-SHA256SUMS.txt; do
+            gh release upload "${RELEASE_TAG}" "$asset" --clobber
+          done
+
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          expected = {
+              path.name: path.stat().st_size
+              for path in Path("dist").iterdir()
+              if path.suffix == ".apk"
+              or path.name.endswith("-update.json")
+              or path.name.endswith("-SHA256SUMS.txt")
+          }
+          release = json.loads(subprocess.check_output([
+              "gh", "release", "view", os.environ["RELEASE_TAG"],
+              "--json", "assets",
+          ], text=True))
+          actual = {asset["name"]: asset["size"] for asset in release["assets"]}
+          if actual != expected:
+              raise SystemExit(f"Release asset mismatch: expected {expected}, got {actual}")
+          PY
+
+          gh release edit "${RELEASE_TAG}" --draft=false
