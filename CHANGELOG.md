@@ -3,6 +3,28 @@
 User-facing changes from every tagged SubHub release.
 
 <details open>
+<summary><strong>SubHub 0.6.0</strong></summary>
+
+## What’s new in SubHub 0.6.0
+
+### New
+
+- **Add portable SubHub Studio arrangements** — Introduce the always-available Studio surface and bounded .subhubpack format with drafts, previews, embedded art, role-aware sharing, reviewed section merges, reversible backups, optional locks, and legacy .bbpack import.
+
+</details>
+
+<details>
+<summary><strong>SubHub 0.5.10</strong></summary>
+
+## What’s new in SubHub 0.5.10
+
+### Fixed
+
+- **Restore the full Hardcore guard** — Require both Accessibility and Device Admin before Hardcore protection is considered ready, surface persistent repair guidance after revocation or updates, and keep the Clear Storage target blocked while leaving Clear Cache usable.
+
+</details>
+
+<details>
 <summary><strong>SubHub 0.5.9</strong></summary>
 
 ## What’s new in SubHub 0.5.9
