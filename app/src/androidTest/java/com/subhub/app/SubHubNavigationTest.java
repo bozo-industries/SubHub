@@ -110,8 +110,39 @@ public final class SubHubNavigationTest {
                         activity.findViewById(R.id.app_settings_card).getVisibility());
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.button_profiles).getVisibility());
-                assertEquals(View.GONE,
+                assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.button_diagnostics).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.button_help).getVisibility());
+            });
+        } finally {
+            ControllerPinManager.enterDomMode();
+        }
+    }
+
+    @Test public void settingsRebindsNavigationWhenResumedAfterEnteringSubSpace() {
+        FeatureModuleManager modules = new FeatureModuleManager(
+                ApplicationProvider.getApplicationContext());
+        modules.save(true, true, true);
+        try (ActivityScenario<GlobalSettingsActivity> scenario =
+                     ActivityScenario.launch(GlobalSettingsActivity.class)) {
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED);
+            ControllerPinManager.enterSubMode();
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED);
+            scenario.onActivity(activity -> {
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.nav_home).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.nav_censor).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.nav_limits).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.nav_money).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.nav_atmosphere).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.nav_settings).getVisibility());
+                assertNotNull(activity.findViewById(R.id.nav_settings).getBackground());
             });
         } finally {
             ControllerPinManager.enterDomMode();

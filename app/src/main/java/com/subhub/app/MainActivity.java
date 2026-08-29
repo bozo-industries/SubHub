@@ -50,6 +50,7 @@ import com.subhub.app.detection.DetectorConfig;
 import com.subhub.app.detection.DetectionPreset;
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.diagnostics.DiagnosticsRepository;
+import com.subhub.app.help.HelpActivity;
 import com.subhub.app.overlay.CensorPhrases;
 import com.subhub.app.settings.SettingsActivity;
 import com.subhub.app.stats.StatsRepository;
@@ -59,7 +60,6 @@ import com.subhub.app.stats.AchievementManager;
 import com.subhub.app.stats.AchievementBadgeView;
 import com.subhub.app.stats.AchievementsActivity;
 import com.subhub.app.stats.MilestoneManager;
-import com.subhub.app.help.HelpActivity;
 import com.subhub.app.settings.SettingsRepository;
 import com.subhub.app.settings.CaptureMethod;
 import com.subhub.app.settings.CensorAppearance;
@@ -182,8 +182,6 @@ public final class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(this, SettingsActivity.class)));
         binding.buttonExport.setOnClickListener(view ->
                 startActivity(new Intent(this, ExportActivity.class)));
-        binding.buttonHelp.setOnClickListener(view ->
-                startActivity(new Intent(this, HelpActivity.class)));
         binding.buttonStatistics.setOnClickListener(view ->
                 startActivity(new Intent(this, StatsActivity.class)));
         binding.achievementsHomeCard.setOnClickListener(view ->

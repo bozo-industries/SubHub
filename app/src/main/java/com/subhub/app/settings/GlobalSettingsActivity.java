@@ -30,6 +30,7 @@ import com.subhub.app.appmode.AppModePolicy;
 import com.subhub.app.appmode.ResumeNotificationManager;
 import com.subhub.app.commitment.CommitmentActivity;
 import com.subhub.app.diagnostics.DiagnosticsActivity;
+import com.subhub.app.help.HelpActivity;
 import com.subhub.app.penance.PenanceManager;
 import com.subhub.app.penance.HardcoreAutoPayManager;
 import com.subhub.app.penance.PayPalCredentialStore;
@@ -133,6 +134,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
         binding.buttonProfiles.setOnClickListener(view ->
                 startActivity(new Intent(this, StudioActivity.class)));
+        binding.buttonHelp.setOnClickListener(view ->
+                startActivity(new Intent(this, HelpActivity.class)));
         binding.buttonDiagnostics.setOnClickListener(view ->
                 startActivity(new Intent(this, DiagnosticsActivity.class)));
         binding.buttonCommitment.setVisibility(View.GONE);
@@ -266,6 +269,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         for (int index = 0; index < binding.appList.getChildCount(); index++) {
             setEnabledRecursive(binding.appList.getChildAt(index), editingUnlocked);
         }
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.SETTINGS);
         refreshHardcoreState();
         refreshAccessState();
         refreshPayPalSandboxState();
@@ -282,7 +286,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.recognitionCard.setVisibility(domVisibility);
         binding.appListCard.setVisibility(domVisibility);
         binding.paypalCard.setVisibility(domVisibility);
-        binding.buttonDiagnostics.setVisibility(domVisibility);
+        binding.buttonHelp.setVisibility(View.VISIBLE);
+        binding.buttonDiagnostics.setVisibility(View.VISIBLE);
         binding.buttonCommitment.setVisibility(View.GONE);
         binding.settingsGroupServices.setVisibility(View.VISIBLE);
         binding.appSettingsCard.setVisibility(View.VISIBLE);
