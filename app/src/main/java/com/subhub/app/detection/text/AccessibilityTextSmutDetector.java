@@ -10,6 +10,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 /** Bounded extraction of visible native app text from a user-enabled Accessibility session. */
 public final class AccessibilityTextSmutDetector {
@@ -49,12 +50,26 @@ public final class AccessibilityTextSmutDetector {
             int height,
             boolean semanticEnabled,
             boolean exactGeometryPreferred) {
+        return detect(root, config, width, height, semanticEnabled,
+                exactGeometryPreferred, () -> false);
+    }
+
+    /** Traverses visible text while allowing a newly started scroll to cancel obsolete work. */
+    public List<Detection> detect(
+            AccessibilityNodeInfo root,
+            TextSmutConfig config,
+            int width,
+            int height,
+            boolean semanticEnabled,
+            boolean exactGeometryPreferred,
+            BooleanSupplier cancelled) {
         if (root == null || config == null || !config.isEnabled()) return Collections.emptyList();
         List<Detection> result = new ArrayList<>();
         ArrayDeque<AccessibilityNodeInfo> pending = new ArrayDeque<>();
         pending.add(root);
         int visited = 0;
         while (!pending.isEmpty() && visited++ < MAX_NODES) {
+            if (cancelled != null && cancelled.getAsBoolean()) break;
             AccessibilityNodeInfo node = pending.removeFirst();
             boolean ownsNode = node != root;
             try {
@@ -96,7 +111,10 @@ public final class AccessibilityTextSmutDetector {
                 if (ownsNode) node.recycle();
             }
         }
-        while (!pending.isEmpty()) pending.removeFirst().recycle();
+        while (!pending.isEmpty()) {
+            AccessibilityNodeInfo abandoned = pending.removeFirst();
+            if (abandoned != root) abandoned.recycle();
+        }
         return Collections.unmodifiableList(
                 DetectionFusion.merge(Collections.emptyList(), result));
     }

@@ -87,6 +87,22 @@ public final class AccessibilityTextSmutDetectorTest {
         }
     }
 
+    @Test public void cancelledTraversalDoesNotPublishPartialText() {
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        try {
+            node.setVisibleToUser(true);
+            node.setText("send nudes");
+            node.setBoundsInScreen(new Rect(70, 700, 1010, 810));
+
+            List<Detection> detections = new AccessibilityTextSmutDetector().detect(
+                    node, balanced(), 1080, 2400, true, false, () -> true);
+
+            assertTrue(detections.isEmpty());
+        } finally {
+            node.recycle();
+        }
+    }
+
     private static TextSmutConfig balanced() {
         return new TextSmutConfig(true, TextSmutConfig.SENSITIVITY_BALANCED,
                 TextSmutConfig.DEFAULT_CATEGORIES);

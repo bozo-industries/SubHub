@@ -853,7 +853,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 List<Detection> screenDetections = accessibilityText.detect(
                         root, config, screen.width(), screen.height(),
                         usesSemanticTextModel(detectorConfig),
-                        usesScreenshotOcr(detectorConfig));
+                        usesScreenshotOcr(detectorConfig),
+                        () -> !isCurrentCapture(epoch)
+                                || motionGeneration.get() != scanMotionGeneration);
                 List<Detection> mapped = TextDetectionCoordinateMapper.screenToCapture(
                         screenDetections, screen.width(), screen.height(),
                         captureWidth, captureHeight);
