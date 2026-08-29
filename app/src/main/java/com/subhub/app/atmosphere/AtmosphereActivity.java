@@ -16,6 +16,7 @@ import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.databinding.ActivityAtmosphereBinding;
 import com.subhub.app.popup.IntensityPresets;
 import com.subhub.app.popup.PopupStormActivity;
+import com.subhub.app.popup.PopupStormActivationPolicy;
 import com.subhub.app.popup.PopupStormManager;
 import com.subhub.app.popup.PopupStormSettings;
 import com.subhub.app.pack.SubHubPackLocks;
@@ -176,7 +177,9 @@ public final class AtmosphereActivity extends AppCompatActivity {
         PopupStormSettings.preferences(this).edit()
                 .putBoolean(PopupStormSettings.K_ENABLED, true).apply();
         PopupStormManager.get().reloadSettings(this);
-        if (ScreenCaptureService.isRunning() || ScreenshotAccessibilityService.isRunning()) {
+        if (PopupStormActivationPolicy.shouldStart(
+                ScreenCaptureService.isRunning(),
+                ScreenshotAccessibilityService.isRecognitionActive())) {
             PopupStormManager.get().start(this);
         }
         render();

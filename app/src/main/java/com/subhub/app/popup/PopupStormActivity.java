@@ -135,7 +135,9 @@ public final class PopupStormActivity extends AppCompatActivity {
     private void completeEnable() {
         preferences.edit().putBoolean(PopupStormSettings.K_ENABLED, true).apply();
         PopupStormManager.get().reloadSettings(this);
-        if (ScreenCaptureService.isRunning() || ScreenshotAccessibilityService.isRunning()) {
+        if (PopupStormActivationPolicy.shouldStart(
+                ScreenCaptureService.isRunning(),
+                ScreenshotAccessibilityService.isRecognitionActive())) {
             PopupStormManager.get().start(this);
         }
         refreshStatus();
