@@ -1,7 +1,7 @@
 package com.subhub.app.service;
 
 /**
- * Rejects isolated direction reversals and implausibly large jumps in Accessibility scroll data.
+ * Rejects isolated direction reversals without discarding valid Accessibility scroll distance.
  *
  * <p>Some RecyclerView producers emit correction records whose sign is opposite to the visible
  * gesture. Applying each record literally makes an otherwise fast overlay bounce. Initial motion
@@ -31,8 +31,12 @@ final class ScrollDeltaStabilizer {
             y.startSession();
         }
         lastSampleUptime = nowUptime;
-        int dx = x.filter(rawDx, Math.max(32, Math.max(1, viewportWidth) / 2));
-        int dy = y.filter(rawDy, Math.max(32, Math.max(1, viewportHeight) / 2));
+        // The resolver already bounds producer deltas to two viewports. Applying a second,
+        // half-viewport clamp here permanently discarded most of each fast Chrome scroll event
+        // (for example 5,984px reported versus 1,496px applied on the Pixel 8 Pro). That made
+        // every track trail the page even after Android delivered the authoritative displacement.
+        int dx = x.filter(rawDx, displacementLimit(viewportWidth));
+        int dy = y.filter(rawDy, displacementLimit(viewportHeight));
         return new Result(rawDx, rawDy, dx, dy,
                 x.wasRapidReversalOutput() || y.wasRapidReversalOutput());
     }
@@ -168,5 +172,10 @@ final class ScrollDeltaStabilizer {
 
     private static int clamp(int value, int minimum, int maximum) {
         return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    private static int displacementLimit(int viewportSize) {
+        long doubled = Math.max(1L, viewportSize) * 2L;
+        return (int) Math.min(Integer.MAX_VALUE, Math.max(32L, doubled));
     }
 }

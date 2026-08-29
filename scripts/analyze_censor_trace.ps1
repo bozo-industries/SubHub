@@ -112,16 +112,17 @@ foreach ($requestedPath in $Path) {
             })
             continue
         }
-        if ($line -match 'SCROLL_EVENT id=(\d+) source=(\S+) gapMs=(\d+) rawDx=(-?\d+) rawDy=(-?\d+) dx=(-?\d+) dy=(-?\d+)') {
-            $rawX = [int] $Matches[4]
-            $rawY = [int] $Matches[5]
-            $appliedX = [int] $Matches[6]
-            $appliedY = [int] $Matches[7]
+        if ($line -match 'SCROLL_EVENT id=(\d+) source=(\S+) gapMs=(\d+)(?: eventAgeMs=(\d+))? rawDx=(-?\d+) rawDy=(-?\d+) dx=(-?\d+) dy=(-?\d+)') {
+            $rawX = [int] $Matches[5]
+            $rawY = [int] $Matches[6]
+            $appliedX = [int] $Matches[7]
+            $appliedY = [int] $Matches[8]
             $scrolls.Add([pscustomobject]@{
                 time = $time
                 id = [int] $Matches[1]
                 source = $Matches[2]
                 gap = [int] $Matches[3]
+                eventAge = if ($Matches[4]) { [int] $Matches[4] } else { $null }
                 rawX = $rawX
                 rawY = $rawY
                 appliedX = $appliedX
@@ -218,6 +219,7 @@ foreach ($requestedPath in $Path) {
             sessions = @($scrolls.id | Sort-Object -Unique).Count
             events = $scrolls.Count
             sources = Get-GroupCounts @($scrolls) 'source'
+            eventAgeMs = Get-Distribution @($scrolls.eventAge)
             rawAbs = $rawAbs
             appliedAbs = $appliedAbs
             appliedToRawRatio = if ($rawAbs) { [math]::Round($appliedAbs / $rawAbs, 4) } else { 0 }

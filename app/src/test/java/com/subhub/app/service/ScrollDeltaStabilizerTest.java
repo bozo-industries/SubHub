@@ -58,13 +58,13 @@ public final class ScrollDeltaStabilizerTest {
     }
 
     @Test
-    public void pathologicalProducerJumpIsBoundedToHalfAViewport() {
+    public void producerJumpPreservesResolverBoundOfTwoViewports() {
         ScrollDeltaStabilizer filter = new ScrollDeltaStabilizer();
         filter.filter(5000, -9000, 100L, 1000, 2000);
         ScrollDeltaStabilizer.Result result =
                 filter.filter(5000, -9000, 180L, 1000, 2000);
-        assertEquals(500, result.dx);
-        assertEquals(-1000, result.dy);
+        assertEquals(2000, result.dx);
+        assertEquals(-4000, result.dy);
     }
 
     @Test

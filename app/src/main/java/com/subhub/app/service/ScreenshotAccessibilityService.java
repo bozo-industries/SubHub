@@ -862,6 +862,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void traceScrollEvent(
             long nowUptime,
+            long eventAgeMs,
             int rawDx,
             int rawDy,
             int dx,
@@ -877,6 +878,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         lastScrollTraceEventUptime = nowUptime;
         Log.i(TAG, "SCROLL_EVENT id=" + scrollTraceId + " source=" + source
                 + " gapMs=" + (gap == Long.MAX_VALUE ? 0L : gap)
+                + " eventAgeMs=" + eventAgeMs
                 + " rawDx=" + rawDx + " rawDy=" + rawDy
                 + " dx=" + dx + " dy=" + dy);
         main.removeCallbacks(settledScrollTrace);
@@ -1867,14 +1869,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 AccessibilityScrollMotionResolver.Motion rawMotion = scrollMotionResolver.resolve(
                         event, viewportWidth, viewportHeight);
                 long scrollNow = SystemClock.uptimeMillis();
+                long sourceTime = event.getEventTime();
+                if (sourceTime <= 0L || sourceTime > scrollNow) sourceTime = scrollNow;
+                long eventAgeMs = Math.max(0L, scrollNow - sourceTime);
                 ScrollDeltaStabilizer.Result motion = scrollDeltaStabilizer.filter(
-                        rawMotion.dx, rawMotion.dy, scrollNow, viewportWidth, viewportHeight);
+                        rawMotion.dx, rawMotion.dy, sourceTime, viewportWidth, viewportHeight);
                 if (BuildConfig.DEBUG && scrollNow - lastScrollDiagnosticUptime >= 250L) {
                     lastScrollDiagnosticUptime = scrollNow;
                     Log.d(TAG, "Scroll event screen motion raw=" + rawMotion.dx + ','
                             + rawMotion.dy + " filtered=" + motion.dx + ',' + motion.dy);
                 }
-                traceScrollEvent(scrollNow, rawMotion.dx, rawMotion.dy,
+                traceScrollEvent(scrollNow, eventAgeMs, rawMotion.dx, rawMotion.dy,
                         motion.dx, motion.dy,
                         motion.rapidReversal ? "rapid-reversal"
                                 : rawMotion.moved() && !motion.moved()
@@ -1939,8 +1944,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         AppModeManager mode = new AppModeManager(this);
         if (!AppModePolicy.shouldAcceptForegroundEvent(packageName, className, getPackageName(),
                 mode.inputMethodPackage())) return;
-        if (packageName.equals(foregroundPackage)) return;
-        acceptForegroundPackage(packageName, System.currentTimeMillis());
+        ForegroundWindowResolver.Candidate liveWindow = resolveLiveApplicationWindow();
+        String confirmedPackage = liveWindow == null || liveWindow.packageName.isEmpty()
+                ? packageName : liveWindow.packageName;
+        if (confirmedPackage.equals(foregroundPackage)) {
+            if (!packageName.equals(confirmedPackage)) {
+                Log.i(TAG, "FOREGROUND_HOLD eventPackage=" + packageName
+                        + " protectedPackage=" + confirmedPackage);
+            }
+            return;
+        }
+        acceptForegroundPackage(confirmedPackage, System.currentTimeMillis());
     }
 
     static boolean isTextRelevantContentChange(int changeTypes) {
@@ -1984,7 +1998,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         AppModeManager mode = new AppModeManager(this);
         ForegroundWindowResolver.Candidate selected = ForegroundWindowResolver.select(
-                candidates, mode.inputMethodPackage());
+                candidates, mode.inputMethodPackage(),
+                recognitionActive ? foregroundPackage : "");
         if (selected != null) return selected;
 
         // Some OEMs briefly omit the interactive-window list during transitions. Keep the old

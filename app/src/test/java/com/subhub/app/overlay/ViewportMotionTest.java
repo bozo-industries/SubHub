@@ -16,11 +16,14 @@ public final class ViewportMotionTest {
 
         motion.addDelta(0f, -20f, 32L);
         float eventPosition = motion.position(32L).y;
-        float betweenEvents = motion.position(40L).y;
+        float betweenEvents = motion.position(36L).y;
         assertTrue(eventPosition < 0f);
         assertTrue(betweenEvents < eventPosition);
         assertTrue(betweenEvents >= -40f);
-        assertTrue(motion.isAnimating(40L));
+        assertTrue(motion.isAnimating(36L));
+
+        assertEquals(-40f, motion.position(40L).y, 0.001f);
+        assertFalse(motion.isAnimating(40L));
 
         float stopped = motion.position(200L).y;
         assertTrue(stopped <= betweenEvents);
@@ -48,8 +51,8 @@ public final class ViewportMotionTest {
         motion.addDelta(0f, -500f, 16L);
 
         assertEquals(0f, motion.position(16L).y, 0.001f);
-        float partial = motion.position(32L).y;
+        float partial = motion.position(24L).y;
         assertTrue(partial < 0f && partial > -500f);
-        assertEquals(-500f, motion.position(100L).y, 0.001f);
+        assertEquals(-500f, motion.position(32L).y, 0.001f);
     }
 }

@@ -3,8 +3,10 @@ package com.subhub.app.overlay;
 /** Monotonic, bounded interpolation fed by stabilized Accessibility scroll deltas. */
 final class ViewportMotion {
     private static final long MAX_SAMPLE_GAP_MS = 250L;
-    private static final long MIN_INTERPOLATION_MS = 24L;
-    private static final long MAX_INTERPOLATION_MS = 56L;
+    // Accessibility reports where the viewport already moved. Keep just enough interpolation to
+    // avoid a torn display frame, but never add multiple frames of visible censor lag.
+    private static final long MIN_INTERPOLATION_MS = 8L;
+    private static final long MAX_INTERPOLATION_MS = 16L;
 
     private final Axis x = new Axis();
     private final Axis y = new Axis();
@@ -54,7 +56,7 @@ final class ViewportMotion {
                 interpolationDuration = lastEventTime <= 0L || gap > MAX_SAMPLE_GAP_MS
                         ? MAX_INTERPOLATION_MS
                         : Math.max(MIN_INTERPOLATION_MS,
-                                Math.min(MAX_INTERPOLATION_MS, Math.round(gap * 0.55f)));
+                                Math.min(MAX_INTERPOLATION_MS, Math.round(gap * 0.15f)));
             }
             anchorTime = nowMillis;
             lastEventTime = nowMillis;
