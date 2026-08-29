@@ -25,6 +25,11 @@ public final class DiagnosticsRepositoryTest {
         assertEquals(3, snapshot.getTotalDetections());
         assertTrue(DiagnosticsRepository.overlayText(snapshot).contains("NNAPI"));
 
+        DiagnosticsRepository.recordPublishDelay("Test capture", 87L);
+        snapshot = DiagnosticsRepository.snapshot();
+        assertEquals(87L, snapshot.getLastPublishDelayMs());
+        assertTrue(DiagnosticsRepository.overlayText(snapshot).contains("UI 87 ms"));
+
         DiagnosticsRepository.fail("Test capture",
                 new IllegalStateException("private path must not be retained"));
         snapshot = DiagnosticsRepository.snapshot();

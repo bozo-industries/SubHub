@@ -297,6 +297,8 @@ public final class ScreenCaptureService extends Service {
                         overlay.updatePooledFrame(
                                 tracks, width, height, overlayFrame, overlayFrameRelease);
                     }
+                    DiagnosticsRepository.recordPublishDelay(DIAGNOSTICS_MODE,
+                            SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis);
                 }
                 else if (overlayFrameRelease != null) overlayFrameRelease.run();
                 else if (overlayFrame != null) overlayFrame.recycle();

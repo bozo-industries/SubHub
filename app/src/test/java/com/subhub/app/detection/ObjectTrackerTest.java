@@ -112,44 +112,72 @@ public final class ObjectTrackerTest {
         ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
                 .trackingSmoothing(0.1f).build());
         Detection estimate = textDetection(new BBox(60, 240, 500, 42));
-        int id = tracker.update(Collections.singletonList(estimate), 1_000_000_000L)
+        tracker.update(Collections.singletonList(estimate), 1_000_000_000L);
+        int id = tracker.update(Collections.singletonList(
+                textDetection(new BBox(60, 240, 500, 42))), 1_050_000_000L)
                 .get(0).getId();
         Detection precise = textDetection(new BBox(76, 190, 470, 42));
 
         List<TrackedObject> result = tracker.update(
-                Collections.singletonList(precise), 1_100_000_000L);
+                Collections.singletonList(precise), 1_150_000_000L);
 
         assertEquals(id, result.get(0).getId());
         assertEquals(precise.getBox(), result.get(0).getBox());
     }
 
     @Test
-    public void borderlineDetectionRequiresASecondConsistentObservation() {
+    public void visualDetectionIsVisibleOnItsFirstQualifiedObservation() {
         ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
                 .confidenceThreshold(0.30f)
                 .build());
         Detection first = detection(0.40f, new BBox(30, 40, 80, 90));
 
-        assertTrue(tracker.update(Collections.singletonList(first), 1_000_000_000L).isEmpty());
-        Detection repeated = detection(0.42f, new BBox(32, 41, 80, 90));
         List<TrackedObject> visible = tracker.update(
-                Collections.singletonList(repeated), 1_050_000_000L);
+                Collections.singletonList(first), 1_000_000_000L);
 
         assertEquals(1, visible.size());
-        assertEquals(first.getTrackId(), repeated.getTrackId());
         assertTrue(visible.get(0).isVisible());
     }
 
     @Test
-    public void oneFrameBorderlineDetectionNeverBecomesVisible() {
+    public void oneFrameTextDetectionNeverBecomesVisible() {
         ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
                 .confidenceThreshold(0.30f)
                 .build());
 
         assertTrue(tracker.update(Collections.singletonList(
-                detection(0.40f, new BBox(30, 40, 80, 90))), 1_000_000_000L).isEmpty());
+                textDetection(new BBox(30, 40, 80, 90))), 1_000_000_000L).isEmpty());
         assertTrue(tracker.update(Collections.emptyList(), 1_050_000_000L).isEmpty());
         assertEquals(0, tracker.retainedTrackCount());
+    }
+
+    @Test
+    public void textDetectionAppearsAfterSecondConsistentObservation() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        Detection first = textDetection(new BBox(30, 40, 80, 24));
+
+        assertTrue(tracker.update(Collections.singletonList(first), 1_000_000_000L).isEmpty());
+        Detection repeated = textDetection(new BBox(31, 40, 80, 24));
+        List<TrackedObject> visible = tracker.update(
+                Collections.singletonList(repeated), 1_050_000_000L);
+
+        assertEquals(1, visible.size());
+        assertEquals(first.getTrackId(), repeated.getTrackId());
+    }
+
+    @Test
+    public void stabilizedAnchoredTextIsVisibleWithoutAThirdObservation() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        Detection stabilized = textDetection(new BBox(30, 40, 180, 24)).withObservation(
+                Detection.ObservationSource.ACCESSIBILITY,
+                Detection.GeometryQuality.EXACT,
+                "feed:post-42:line-1");
+
+        List<TrackedObject> visible = tracker.update(
+                Collections.singletonList(stabilized), 1_000_000_000L);
+
+        assertEquals(1, visible.size());
+        assertTrue(visible.get(0).isVisible());
     }
 
     @Test

@@ -27,4 +27,13 @@ public final class RenderTrackSnapshotTest {
         assertEquals(snapshot.box(), snapshot.predict(100f, 180f));
         assertFalse(snapshot.isMoving());
     }
+
+    @Test
+    public void textGeometryNeverDriftsFromClassifierVelocityNoise() {
+        RenderTrackSnapshot snapshot = new RenderTrackSnapshot(
+                1, "text_smut", new BBox(10, 20, 300, 40), 0.8f, -0.5f);
+
+        assertEquals(snapshot.box(), snapshot.predict(100f, 180f));
+        assertFalse(snapshot.isMoving());
+    }
 }

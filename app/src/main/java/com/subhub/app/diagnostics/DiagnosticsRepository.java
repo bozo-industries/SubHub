@@ -27,6 +27,7 @@ public final class DiagnosticsRepository {
     private static long lastRuntimeMs;
     private static long lastPostprocessMs;
     private static long lastFrameAgeMs;
+    private static long lastPublishDelayMs;
     private static long droppedFrames;
     private static String lastFailure = "None";
 
@@ -52,6 +53,7 @@ public final class DiagnosticsRepository {
         lastRuntimeMs = 0;
         lastPostprocessMs = 0;
         lastFrameAgeMs = 0;
+        lastPublishDelayMs = 0;
         droppedFrames = 0;
         lastFailure = "None";
     }
@@ -104,6 +106,11 @@ public final class DiagnosticsRepository {
         lastFailure = error == null ? "Unknown failure" : error.getClass().getSimpleName();
     }
 
+    public static synchronized void recordPublishDelay(String captureMode, long publishDelayMs) {
+        if (!running || !mode.equals(captureMode)) return;
+        lastPublishDelayMs = Math.max(0L, publishDelayMs);
+    }
+
     public static synchronized void failCode(String captureMode, String family, int code) {
         if (!mode.equals(captureMode)) return;
         lastFailure = safeLabel(family, "Failure") + " " + code;
@@ -120,17 +127,19 @@ public final class DiagnosticsRepository {
         return new Snapshot(mode, running, ready, provider, model, resolution, uptime, frames,
                 totalDetections, totalInferenceMs, lastInferenceMs, peakInferenceMs,
                 lastDetections, frameWidth, frameHeight, lastPreprocessMs, lastRuntimeMs,
-                lastPostprocessMs, lastFrameAgeMs, droppedFrames, lastFailure);
+                lastPostprocessMs, lastFrameAgeMs, lastPublishDelayMs,
+                droppedFrames, lastFailure);
     }
 
     public static String overlayText(Snapshot value) {
         if (value == null || !value.isRunning()) return "";
         if (!value.isReady()) return value.getMode() + " • INITIALIZING";
         return String.format(Locale.ROOT,
-                "%s • %d ms (avg %d)\nP/R/O %d/%d/%d • age %d ms\n%d regions • %d dropped",
+                "%s • %d ms (avg %d)\nP/R/O %d/%d/%d • age %d / UI %d ms\n%d regions • %d dropped",
                 value.getProvider(), value.getLastInferenceMs(), value.getAverageInferenceMs(),
                 value.getLastPreprocessMs(), value.getLastRuntimeMs(), value.getLastPostprocessMs(),
-                value.getLastFrameAgeMs(), value.getLastDetections(), value.getDroppedFrames());
+                value.getLastFrameAgeMs(), value.getLastPublishDelayMs(),
+                value.getLastDetections(), value.getDroppedFrames());
     }
 
     private static String filenameOnly(String value) {
@@ -166,6 +175,7 @@ public final class DiagnosticsRepository {
         private final long lastRuntimeMs;
         private final long lastPostprocessMs;
         private final long lastFrameAgeMs;
+        private final long lastPublishDelayMs;
         private final long droppedFrames;
         private final String lastFailure;
 
@@ -174,7 +184,8 @@ public final class DiagnosticsRepository {
                 long totalInferenceMs, long lastInferenceMs, long peakInferenceMs,
                 int lastDetections, int frameWidth, int frameHeight,
                 long lastPreprocessMs, long lastRuntimeMs, long lastPostprocessMs,
-                long lastFrameAgeMs, long droppedFrames, String lastFailure) {
+                long lastFrameAgeMs, long lastPublishDelayMs,
+                long droppedFrames, String lastFailure) {
             this.mode = mode;
             this.running = running;
             this.ready = ready;
@@ -194,6 +205,7 @@ public final class DiagnosticsRepository {
             this.lastRuntimeMs = lastRuntimeMs;
             this.lastPostprocessMs = lastPostprocessMs;
             this.lastFrameAgeMs = lastFrameAgeMs;
+            this.lastPublishDelayMs = lastPublishDelayMs;
             this.droppedFrames = droppedFrames;
             this.lastFailure = lastFailure;
         }
@@ -216,6 +228,7 @@ public final class DiagnosticsRepository {
         public long getLastRuntimeMs() { return lastRuntimeMs; }
         public long getLastPostprocessMs() { return lastPostprocessMs; }
         public long getLastFrameAgeMs() { return lastFrameAgeMs; }
+        public long getLastPublishDelayMs() { return lastPublishDelayMs; }
         public long getDroppedFrames() { return droppedFrames; }
         public String getLastFailure() { return lastFailure; }
         public long getAverageInferenceMs() {

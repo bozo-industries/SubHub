@@ -14,8 +14,6 @@ import java.util.Set;
 public final class ObjectTracker {
     private static final float IOU_THRESHOLD = 0.20f;
     private static final float MAX_VELOCITY_PER_MS = 3f;
-    private static final float MIN_IMMEDIATE_CONFIDENCE = 0.55f;
-    private static final float IMMEDIATE_CONFIDENCE_MARGIN = 0.20f;
 
     private final Map<Integer, TrackedObject> tracks = new LinkedHashMap<>();
     private DetectorConfig config;
@@ -96,12 +94,15 @@ public final class ObjectTracker {
                     continue;
                 }
                 int id = nextId++;
-                float immediateThreshold = Math.min(0.95f, Math.max(
-                        MIN_IMMEDIATE_CONFIDENCE,
-                        config.getConfidenceThreshold() + IMMEDIATE_CONFIDENCE_MARGIN));
+                // Visual model results have already passed class-specific confidence and
+                // ambiguity filters, so hiding them until the next expensive screenshot adds a
+                // complete capture interval of latency. Anchored accessibility text has also
+                // already survived TextDetectionStabilizer's two independent classifier scans.
+                // Only unanchored text keeps the tracker's own second-observation gate.
+                boolean visibleImmediately = !"text_smut".equals(detection.getCategory())
+                        || detection.getAnchorKey() != null;
                 TrackedObject track = new TrackedObject(
-                        id, detection, nowNanos,
-                        detection.getConfidence() >= immediateThreshold);
+                        id, detection, nowNanos, visibleImmediately);
                 tracks.put(id, track);
                 detection.setTrackId(id);
             }

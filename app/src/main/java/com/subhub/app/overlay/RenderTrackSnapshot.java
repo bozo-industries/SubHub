@@ -40,6 +40,9 @@ final class RenderTrackSnapshot {
     float velocityYPerMs() { return velocityYPerMs; }
 
     BBox predict(float ageMs, float maxExtrapolationMs) {
+        // Accessibility/OCR rectangles already follow content through the viewport transform.
+        // Extrapolating classifier geometry turns tiny line-bound changes into visible drift.
+        if ("text_smut".equals(category)) return box;
         float predictionMs = Math.max(0f, Math.min(ageMs, maxExtrapolationMs));
         return new BBox(
                 Math.max(0, Math.round(box.getX() + velocityXPerMs * predictionMs)),
@@ -49,6 +52,8 @@ final class RenderTrackSnapshot {
     }
 
     boolean isMoving() {
-        return Math.abs(velocityXPerMs) >= 0.005f || Math.abs(velocityYPerMs) >= 0.005f;
+        return !"text_smut".equals(category)
+                && (Math.abs(velocityXPerMs) >= 0.005f
+                || Math.abs(velocityYPerMs) >= 0.005f);
     }
 }

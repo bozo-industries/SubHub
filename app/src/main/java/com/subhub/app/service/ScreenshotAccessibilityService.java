@@ -35,6 +35,7 @@ import com.subhub.app.detection.text.OcrTextSmutDetector;
 import com.subhub.app.detection.text.SmutTextClassifier;
 import com.subhub.app.detection.text.TextDetectionCoordinateMapper;
 import com.subhub.app.detection.text.TextSmutConfig;
+import com.subhub.app.detection.text.TextDetectionStabilizer;
 import com.subhub.app.diagnostics.DiagnosticsRepository;
 import com.subhub.app.overlay.OverlayController;
 import com.subhub.app.popup.PopupStormManager;
@@ -72,10 +73,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final String DIAGNOSTICS_MODE = "Accessibility screenshot";
     private static volatile boolean running;
     private static volatile boolean recognitionActive;
-    private static final long MIN_TEXT_REFRESH_MS = 300L;
+    private static final long MIN_TEXT_REFRESH_MS = 120L;
     private static final long SETTLED_SCROLL_REFRESH_MS = 140L;
     private static final long MOTION_SETTLE_MS = 130L;
-    private static final long ACCESSIBILITY_SCREENSHOT_INTERVAL_MS = 350L;
+    // AOSP enforces a strict >333 ms per-window request interval. Schedule at the first safe
+    // millisecond instead of leaving an extra 16 ms idle on every capture.
+    private static final long ACCESSIBILITY_SCREENSHOT_INTERVAL_MS = 334L;
     private static final long OCR_INTERVAL_MS = 350L;
     private static final int OCR_MAX_DIMENSION = 1_600;
 
@@ -116,6 +119,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private SmutTextClassifier smutTextClassifier;
     private AccessibilityTextSmutDetector accessibilityText;
     private OcrTextSmutDetector screenshotText;
+    private final TextDetectionStabilizer accessibilityTextStabilizer =
+            new TextDetectionStabilizer();
+    private final TextDetectionStabilizer ocrTextStabilizer = new TextDetectionStabilizer();
     private OverlayController overlay;
     private volatile DetectorConfig detectorConfig;
     private volatile TextSmutConfig textSmutConfig;
@@ -273,7 +279,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         TakeScreenshotCallback callback = new TakeScreenshotCallback() {
             @Override
             public void onSuccess(ScreenshotResult result) {
-                process(result, requestedEpoch, requestedScrollX, requestedScrollY);
+                process(result, requestedEpoch, requestedScrollX, requestedScrollY,
+                        requestUptime);
             }
 
             @Override
@@ -302,8 +309,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             ScreenshotResult result,
             long requestedEpoch,
             long requestedScrollX,
-            long requestedScrollY) {
-        long capturedAtUptimeMillis = SystemClock.uptimeMillis();
+            long requestedScrollY,
+            long requestedAtUptimeMillis) {
         Bitmap wrapped = null;
         Bitmap frame = null;
         HardwareBuffer buffer = result.getHardwareBuffer();
@@ -352,7 +359,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     requestedScrollY, inferenceMotionGeneration,
                     prepared.sourceWidth, prepared.sourceHeight,
                     prepared.retainedSourceFrame, continuousMotionInference,
-                    capturedAtUptimeMillis));
+                    requestedAtUptimeMillis));
             frame = null;
         } catch (Exception error) {
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
@@ -497,6 +504,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     overlay.update(tracks, width, height, overlayFrame,
                             liveMotion.dx, liveMotion.dy,
                             sourceFrameMotion.dx, sourceFrameMotion.dy);
+                    DiagnosticsRepository.recordPublishDelay(DIAGNOSTICS_MODE,
+                            SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis);
                 }
                 else if (overlayFrame != null) overlayFrame.recycle();
             });
@@ -685,9 +694,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         screenDetections, screen.width(), screen.height(),
                         captureWidth, captureHeight);
                 if (!isCurrentCapture(epoch)) return;
+                List<Detection> stable = accessibilityTextStabilizer.update(mapped);
                 cachedAccessibilityText = new TextDetectionSnapshot(
-                        mapped, captureWidth, captureHeight, scrollX, scrollY);
+                        stable, captureWidth, captureHeight, scrollX, scrollY);
                 lastTextRefreshMillis = System.currentTimeMillis();
+                if (stable.size() < mapped.size()) {
+                    textRefreshRequested.set(true);
+                    main.postDelayed(settledTextRefresh, MIN_TEXT_REFRESH_MS);
+                }
             } finally {
                 if (root != null) root.recycle();
                 textRefreshRunning.set(false);
@@ -737,7 +751,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             shifted.add(new Detection(detection.getClassName(), detection.getCategory(),
                     detection.getConfidence(),
                     new BBox(left, top, Math.max(1, right - left), Math.max(1, bottom - top)),
-                    detection.isNsfw(), detection.isExposed()));
+                    detection.isNsfw(), detection.isExposed(), detection.getSource(),
+                    detection.getGeometryQuality(), detection.getAnchorKey()));
         }
         return shifted;
     }
@@ -775,7 +790,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                         || !usesScreenshotOcr(detectorConfig)
                                         || currentTextConfig != textSmutConfig) return;
                                 cachedOcrText = new TextDetectionSnapshot(
-                                        detections, prepared.sourceWidth, prepared.sourceHeight,
+                                        ocrTextStabilizer.update(detections),
+                                        prepared.sourceWidth, prepared.sourceHeight,
                                         scrollX, scrollY);
                             } finally {
                                 releaseOcrBitmap(ocrBitmap);
@@ -1017,6 +1033,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void resetTextSnapshots() {
         cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
         cachedOcrText = TextDetectionSnapshot.EMPTY;
+        accessibilityTextStabilizer.clear();
+        ocrTextStabilizer.clear();
         textRefreshRequested.set(true);
     }
 
@@ -1255,6 +1273,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
         cachedOcrText = TextDetectionSnapshot.EMPTY;
+        accessibilityTextStabilizer.clear();
+        ocrTextStabilizer.clear();
         settledInferenceNeeded.set(false);
         discardPendingInference();
         motionGeneration.incrementAndGet();

@@ -9,7 +9,9 @@ package com.subhub.app.overlay;
 final class ViewportMotion {
     private static final float VELOCITY_SMOOTHING = 0.72f;
     private static final float MAX_VELOCITY_PER_MS = 4f;
-    private static final float EVENT_CORRECTION_RETAINED = 0.30f;
+    // An Accessibility scroll delta is authoritative. Delaying 30% of every event made censors
+    // visibly trail the content; prediction should only fill the gap after the exact event lands.
+    private static final float EVENT_CORRECTION_RETAINED = 0f;
     private static final long COAST_MILLIS = 32L;
     private static final long SETTLE_MILLIS = 96L;
 

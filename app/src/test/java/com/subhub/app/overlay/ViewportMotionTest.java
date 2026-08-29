@@ -17,7 +17,7 @@ public final class ViewportMotionTest {
         motion.addDelta(0f, -20f, 32L);
         float eventPosition = motion.position(32L).y;
         float betweenEvents = motion.position(40L).y;
-        assertTrue(eventPosition < -30f);
+        assertEquals(-40f, eventPosition, 0.001f);
         assertTrue(betweenEvents < eventPosition);
         assertTrue(motion.isAnimating(40L));
 
