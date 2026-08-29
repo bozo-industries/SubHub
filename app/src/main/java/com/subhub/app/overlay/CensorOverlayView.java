@@ -89,9 +89,6 @@ final class CensorOverlayView extends View {
     private float sourceFrameOffsetY;
     private float textContentOffsetX;
     private float textContentOffsetY;
-    private float touchPredictionX;
-    private float touchPredictionY;
-    private boolean touchPredictionActive;
     private long motionSequence;
     private long motionInputUptime;
     private long lastMotionTraceInputUptime;
@@ -249,20 +246,6 @@ final class CensorOverlayView extends View {
         scheduleNextFrame(SystemClock.uptimeMillis());
     }
 
-    void setTouchPrediction(float deltaX, float deltaY, boolean active) {
-        if (tracks.isEmpty() && textTracks.isEmpty()) return;
-        boolean changed = Math.abs(deltaX - touchPredictionX) >= 0.25f
-                || Math.abs(deltaY - touchPredictionY) >= 0.25f
-                || active != touchPredictionActive;
-        if (!changed) return;
-        touchPredictionX = active ? deltaX : 0f;
-        touchPredictionY = active ? deltaY : 0f;
-        touchPredictionActive = active;
-        noteMotionInput("touch", touchPredictionX, touchPredictionY, !active);
-        postInvalidateOnAnimation();
-        scheduleNextFrame(SystemClock.uptimeMillis());
-    }
-
     /** Hide all censor pixels without treating an empty track list as reverse-mode content. */
     void clearContent() {
         tracks.clear();
@@ -272,9 +255,6 @@ final class CensorOverlayView extends View {
         contentOffsetY = 0;
         textContentOffsetX = 0;
         textContentOffsetY = 0;
-        touchPredictionX = 0;
-        touchPredictionY = 0;
-        touchPredictionActive = false;
         viewportMotion.reset(0f, 0f, SystemClock.uptimeMillis());
         sourceFrameOffsetX = 0;
         sourceFrameOffsetY = 0;
@@ -324,8 +304,8 @@ final class CensorOverlayView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         ViewportMotion.Position viewport = viewportMotion.position(renderTimeMillis());
-        renderContentOffsetX = viewport.x + touchPredictionX;
-        renderContentOffsetY = viewport.y + touchPredictionY;
+        renderContentOffsetX = viewport.x;
+        renderContentOffsetY = viewport.y;
         if (appearance.isReverseMode()) drawReverse(canvas);
         else drawNormal(canvas);
         drawDiagnostics(canvas);
@@ -392,8 +372,8 @@ final class CensorOverlayView extends View {
         if (textTracks.isEmpty()) return;
         float savedOffsetX = renderContentOffsetX;
         float savedOffsetY = renderContentOffsetY;
-        renderContentOffsetX = textContentOffsetX + touchPredictionX;
-        renderContentOffsetY = textContentOffsetY + touchPredictionY;
+        renderContentOffsetX = textContentOffsetX;
+        renderContentOffsetY = textContentOffsetY;
         float scaleX = (float) getWidth() / textCaptureWidth;
         float scaleY = (float) getHeight() / textCaptureHeight;
         activePredictionX = 0f;
@@ -449,8 +429,8 @@ final class CensorOverlayView extends View {
         if (textTracks.isEmpty()) return;
         float savedOffsetX = renderContentOffsetX;
         float savedOffsetY = renderContentOffsetY;
-        renderContentOffsetX = textContentOffsetX + touchPredictionX;
-        renderContentOffsetY = textContentOffsetY + touchPredictionY;
+        renderContentOffsetX = textContentOffsetX;
+        renderContentOffsetY = textContentOffsetY;
         float scaleX = (float) getWidth() / textCaptureWidth;
         float scaleY = (float) getHeight() / textCaptureHeight;
         for (RenderTrackSnapshot track : textTracks) {
@@ -522,8 +502,8 @@ final class CensorOverlayView extends View {
         if (!textTracks.isEmpty()) {
             float savedOffsetX = renderContentOffsetX;
             float savedOffsetY = renderContentOffsetY;
-            renderContentOffsetX = textContentOffsetX + touchPredictionX;
-            renderContentOffsetY = textContentOffsetY + touchPredictionY;
+            renderContentOffsetX = textContentOffsetX;
+            renderContentOffsetY = textContentOffsetY;
             float textScaleX = (float) getWidth() / textCaptureWidth;
             float textScaleY = (float) getHeight() / textCaptureHeight;
             for (RenderTrackSnapshot track : textTracks) {
@@ -1043,8 +1023,8 @@ final class CensorOverlayView extends View {
             Log.i(MOTION_TAG, "DRAW seq=" + motionSequence + " inputToDrawMs="
                     + Math.max(0L, now - motionInputUptime) + " visual="
                     + Math.round(renderContentOffsetX) + ',' + Math.round(renderContentOffsetY)
-                    + " text=" + Math.round(textContentOffsetX + touchPredictionX) + ','
-                    + Math.round(textContentOffsetY + touchPredictionY));
+                    + " text=" + Math.round(textContentOffsetX) + ','
+                    + Math.round(textContentOffsetY));
         }
     }
 

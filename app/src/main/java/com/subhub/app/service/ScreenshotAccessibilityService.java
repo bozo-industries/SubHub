@@ -10,8 +10,6 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.Display;
-import android.view.InputDevice;
-import android.view.MotionEvent;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -114,7 +112,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final CaptureEpoch captureEpoch = new CaptureEpoch();
     private final AccessibilityScrollMotionResolver scrollMotionResolver =
             new AccessibilityScrollMotionResolver();
-    private final TouchScrollPredictor touchScrollPredictor = new TouchScrollPredictor();
     private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
             (preferences, key) -> reloadSettings();
@@ -1132,29 +1129,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
     }
 
-    @Override
-    public void onMotionEvent(MotionEvent event) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE
-                || event == null
-                || (event.getSource() & InputDevice.SOURCE_TOUCHSCREEN)
-                        != InputDevice.SOURCE_TOUCHSCREEN) {
-            super.onMotionEvent(event);
-            return;
-        }
-        TouchScrollPredictor.Prediction prediction =
-                touchScrollPredictor.onMotionEvent(event);
-        if (recognitionActive && overlay != null) {
-            overlay.setTouchPrediction(prediction.dx, prediction.dy, prediction.active);
-        }
-        int action = event.getActionMasked();
-        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP
-                || action == MotionEvent.ACTION_CANCEL) {
-            Log.i(TAG, "TOUCH action=" + MotionEvent.actionToString(action)
-                    + " x=" + Math.round(event.getX()) + " y=" + Math.round(event.getY()));
-        }
-        super.onMotionEvent(event);
-    }
-
     private void handleAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
         String packageName = event.getPackageName() == null
@@ -1191,8 +1165,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 }
                 if (motion.moved()) {
                     traceScrollEvent(scrollNow, motion.dx, motion.dy, "accessibility");
-                    touchScrollPredictor.onAuthoritativeScroll();
-                    if (overlay != null) overlay.setTouchPrediction(0f, 0f, false);
                     applyEventMotion(motion.dx, motion.dy);
                 } else {
                     traceScrollEvent(scrollNow, 0, 0, "metadata-missing");
@@ -1573,7 +1545,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         lastOcrCompletionUptime = 0L;
         if (motionEstimator != null) motionEstimator.reset();
         scrollMotionResolver.reset();
-        touchScrollPredictor.reset();
         main.removeCallbacks(settledScrollTrace);
         lastScrollTraceEventUptime = 0L;
         textRefreshRequested.set(true);
@@ -1587,11 +1558,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         info.notificationTimeout = ultra ? 0L : 16L;
         if (ultra) info.flags |= AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
         else info.flags &= ~AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // API 34 can observe ordinary touchscreen MotionEvents without touch exploration or
-            // intercepting input. Those samples fill the visual gaps between sparse scroll events.
-            info.setMotionEventSources(InputDevice.SOURCE_TOUCHSCREEN);
-        }
         setServiceInfo(info);
     }
 

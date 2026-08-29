@@ -126,10 +126,6 @@ public final class OverlayController implements AutoCloseable {
     }
 
     /** Applies renderer-only finger motion between authoritative Accessibility scroll events. */
-    public void setTouchPrediction(float deltaX, float deltaY, boolean active) {
-        view.setTouchPrediction(deltaX, deltaY, active);
-    }
-
     /** Immediately removes rendered content while keeping the lightweight window ready. */
     public void clear() {
         view.clearContent();
