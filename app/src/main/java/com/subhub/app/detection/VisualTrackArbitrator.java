@@ -21,7 +21,8 @@ public final class VisualTrackArbitrator {
             }
         }
         candidates.sort(Comparator
-                .comparing(TrackedObject::isConfirmed).reversed()
+                .comparing(TrackedObject::isQualityOnly)
+                .thenComparing(TrackedObject::isConfirmed, Comparator.reverseOrder())
                 .thenComparingInt(TrackedObject::getFramesMissing)
                 .thenComparing(TrackedObject::getFramesTracked, Comparator.reverseOrder())
                 .thenComparing(TrackedObject::getConfidence, Comparator.reverseOrder())
@@ -32,7 +33,9 @@ public final class VisualTrackArbitrator {
         for (TrackedObject candidate : candidates) {
             boolean duplicate = false;
             for (TrackedObject existing : selected) {
-                if (nearDuplicate(candidate.getBox(), existing.getBox())) {
+                boolean crossSourceDuplicate = candidate.isQualityOnly() != existing.isQualityOnly()
+                        && VisualIdentityReconciler.likelySameIdentity(candidate, existing);
+                if (crossSourceDuplicate || nearDuplicate(candidate.getBox(), existing.getBox())) {
                     duplicate = true;
                     break;
                 }

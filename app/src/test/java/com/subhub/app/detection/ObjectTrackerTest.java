@@ -259,6 +259,56 @@ public final class ObjectTrackerTest {
     }
 
     @Test
+    public void qualityIdentityHintCannotSpawnOffsetDuplicate() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .trackingSmoothing(1f)
+                .motionPrediction(false)
+                .velocitySmoothing(0f)
+                .maxExtrapolationMs(0f)
+                .build());
+        BBox original = new BBox(100, 100, 180, 180);
+        int id = tracker.update(Collections.singletonList(
+                new Detection("FACE_FEMALE", "face", 0.9f,
+                        original, false, true)), 1_000_000_000L).get(0).getId();
+        Detection quality = new Detection("FACE_FEMALE", "face", 0.95f,
+                new BBox(60, 70, 270, 250), false, true,
+                Detection.ObservationSource.QUALITY_VISUAL,
+                Detection.GeometryQuality.MODEL, null);
+        quality.setTrackId(id);
+
+        List<TrackedObject> tracks = tracker.update(
+                Collections.singletonList(quality), 1_100_000_000L);
+
+        assertEquals(1, tracks.size());
+        assertEquals(id, tracks.get(0).getId());
+        assertEquals(original, tracks.get(0).getBox());
+        assertFalse(tracks.get(0).isQualityOnly());
+    }
+
+    @Test
+    public void duplicateSupportForConsumedHintDoesNotCreateSecondTrack() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        Detection original = new Detection("FACE_FEMALE", "face", 0.9f,
+                new BBox(100, 100, 180, 180), false, true);
+        int id = tracker.update(Collections.singletonList(original), 1_000_000_000L)
+                .get(0).getId();
+        Detection realtime = new Detection("FACE_FEMALE", "face", 0.9f,
+                new BBox(104, 102, 180, 180), false, true);
+        realtime.setTrackId(id);
+        Detection support = new Detection("FACE_FEMALE", "face", 0.95f,
+                new BBox(72, 78, 245, 235), false, true,
+                Detection.ObservationSource.QUALITY_VISUAL,
+                Detection.GeometryQuality.MODEL, null);
+        support.setTrackId(id);
+
+        List<TrackedObject> tracks = tracker.update(
+                java.util.Arrays.asList(realtime, support), 1_100_000_000L);
+
+        assertEquals(1, tracks.size());
+        assertEquals(id, support.getTrackId());
+    }
+
+    @Test
     public void semanticAnchorRetainsIdentityAcrossALargeGeometryCorrection() {
         ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
                 .trackingSmoothing(1f)

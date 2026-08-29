@@ -19,6 +19,8 @@ public final class TrackedObject {
     private boolean confirmed;
     private BBox predictionOriginBox;
     private String anchorKey;
+    private Detection.ObservationSource observationSource;
+    private boolean qualityOnly;
 
     TrackedObject(int id, Detection detection, long nowNanos) {
         this(id, detection, nowNanos, true);
@@ -36,6 +38,8 @@ public final class TrackedObject {
         framesTracked = 1;
         visible = visibleImmediately;
         anchorKey = detection.getAnchorKey();
+        observationSource = detection.getSource();
+        qualityOnly = observationSource == Detection.ObservationSource.QUALITY_VISUAL;
     }
 
     private TrackedObject(TrackedObject source) {
@@ -55,6 +59,8 @@ public final class TrackedObject {
         confirmed = source.confirmed;
         predictionOriginBox = source.predictionOriginBox;
         anchorKey = source.anchorKey;
+        observationSource = source.observationSource;
+        qualityOnly = source.qualityOnly;
     }
 
     public int getId() { return id; }
@@ -72,6 +78,8 @@ public final class TrackedObject {
     public boolean isVisible() { return visible; }
     public boolean isConfirmed() { return confirmed; }
     public String getAnchorKey() { return anchorKey; }
+    public Detection.ObservationSource getObservationSource() { return observationSource; }
+    public boolean isQualityOnly() { return qualityOnly; }
 
     /** Immutable-by-convention renderer handoff detached from subsequent tracker mutation. */
     public TrackedObject snapshot() { return new TrackedObject(this); }
@@ -89,6 +97,8 @@ public final class TrackedObject {
         velocityX = dx;
         velocityY = dy;
         if (detection.getAnchorKey() != null) anchorKey = detection.getAnchorKey();
+        observationSource = detection.getSource();
+        if (observationSource != Detection.ObservationSource.QUALITY_VISUAL) qualityOnly = false;
         if (framesTracked >= 5) confirmed = true;
     }
 

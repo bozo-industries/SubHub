@@ -54,7 +54,7 @@ public final class DetectionFusion {
     private static Detection metadataWithAuthoritativeBox(
             Detection authoritative,
             Detection supporting) {
-        return new Detection(
+        Detection merged = new Detection(
                 authoritative.getClassName(),
                 authoritative.getCategory(),
                 Math.max(authoritative.getConfidence(), supporting.getConfidence()),
@@ -64,6 +64,10 @@ public final class DetectionFusion {
                 authoritative.getSource(),
                 authoritative.getGeometryQuality(),
                 authoritative.getAnchorKey());
+        int trackId = authoritative.getTrackId() >= 0
+                ? authoritative.getTrackId() : supporting.getTrackId();
+        if (trackId >= 0) merged.setTrackId(trackId);
+        return merged;
     }
 
     private static void addOrFuse(List<Detection> merged, Detection candidate) {

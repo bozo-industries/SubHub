@@ -74,7 +74,7 @@ foreach ($requestedPath in $Path) {
             $lastTime = $time
         }
 
-        if ($line -match 'OVERLAY_PUBLISH pass=(\S+) scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) tracks=(\d+) rawVisual=(\d+) cachedQuality=(\d+) qualityOnly=(\d+) geometryMatched=(\d+) geometryChanged=(\d+) maxCenterDeltaPx=(\d+) maxSizeDeltaPx=(\d+) dropped=(\d+)(?: duplicatesSuppressed=(\d+))?') {
+        if ($line -match 'OVERLAY_PUBLISH pass=(\S+) scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) tracks=(\d+) rawVisual=(\d+) cachedQuality=(\d+) qualityOnly=(\d+)(?: identityRealtimeLinked=(\d+) identityQualityLinked=(\d+) identityFused=(\d+) identityCarriedQuality=(\d+) identityUnlinkedQuality=(\d+))? geometryMatched=(\d+) geometryChanged=(\d+) maxCenterDeltaPx=(\d+) maxSizeDeltaPx=(\d+) dropped=(\d+)(?: duplicatesSuppressed=(\d+))?(?: qualityOnlyTracks=(\d+) renderTracks=(\d+))?') {
             $item = [pscustomobject]@{
                 time = $time
                 pass = $Matches[1]
@@ -89,12 +89,19 @@ foreach ($requestedPath in $Path) {
                 rawVisual = [int] $Matches[10]
                 cachedQuality = [int] $Matches[11]
                 qualityOnly = [int] $Matches[12]
-                geometryMatched = [int] $Matches[13]
-                geometryChanged = [int] $Matches[14]
-                maxCenterDelta = [int] $Matches[15]
-                maxSizeDelta = [int] $Matches[16]
-                dropped = [int] $Matches[17]
-                duplicatesSuppressed = if ($Matches[18]) { [int] $Matches[18] } else { 0 }
+                identityRealtimeLinked = if ($Matches[13]) { [int] $Matches[13] } else { 0 }
+                identityQualityLinked = if ($Matches[14]) { [int] $Matches[14] } else { 0 }
+                identityFused = if ($Matches[15]) { [int] $Matches[15] } else { 0 }
+                identityCarriedQuality = if ($Matches[16]) { [int] $Matches[16] } else { 0 }
+                identityUnlinkedQuality = if ($Matches[17]) { [int] $Matches[17] } else { 0 }
+                geometryMatched = [int] $Matches[18]
+                geometryChanged = [int] $Matches[19]
+                maxCenterDelta = [int] $Matches[20]
+                maxSizeDelta = [int] $Matches[21]
+                dropped = [int] $Matches[22]
+                duplicatesSuppressed = if ($Matches[23]) { [int] $Matches[23] } else { 0 }
+                qualityOnlyTracks = if ($Matches[24]) { [int] $Matches[24] } else { 0 }
+                renderTracks = if ($Matches[25]) { [int] $Matches[25] } else { [int] $Matches[9] }
             }
             $publishes.Add($item)
             if ($item.pass -eq 'fast' -and $null -ne $time) { $fastPublishTimes.Add($time) }
@@ -117,7 +124,7 @@ foreach ($requestedPath in $Path) {
             })
             continue
         }
-        if ($line -match 'QUALITY_CACHE scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+)') {
+        if ($line -match 'QUALITY_CACHE scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+)(?: identityLinked=(\d+) identityUnlinked=(\d+))?') {
             $quality.Add([pscustomobject]@{
                 time = $time
                 scrollId = [int] $Matches[1]
@@ -129,6 +136,8 @@ foreach ($requestedPath in $Path) {
                 afterMotion = [int] $Matches[7]
                 rawVisual = [int] $Matches[8]
                 stableVisual = [int] $Matches[9]
+                identityLinked = if ($Matches[10]) { [int] $Matches[10] } else { 0 }
+                identityUnlinked = if ($Matches[11]) { [int] $Matches[11] } else { 0 }
             })
             continue
         }
@@ -216,6 +225,14 @@ foreach ($requestedPath in $Path) {
             centerJumpsAtLeast100px = $geometryJumps
             duplicateSuppressions = ($fast | Measure-Object -Property duplicatesSuppressed -Sum).Sum
             duplicateSuppressionPublishes = @($fast | Where-Object duplicatesSuppressed -gt 0).Count
+            qualityOnlyObservations = ($fast | Measure-Object -Property qualityOnly -Sum).Sum
+            identityRealtimeLinked = ($fast | Measure-Object -Property identityRealtimeLinked -Sum).Sum
+            identityQualityLinked = ($fast | Measure-Object -Property identityQualityLinked -Sum).Sum
+            identityFused = ($fast | Measure-Object -Property identityFused -Sum).Sum
+            identityCarriedQuality = ($fast | Measure-Object -Property identityCarriedQuality -Sum).Sum
+            identityUnlinkedQuality = ($fast | Measure-Object -Property identityUnlinkedQuality -Sum).Sum
+            qualityOnlyTracks = Get-Distribution @($fast.qualityOnlyTracks)
+            renderTracks = Get-Distribution @($fast.renderTracks)
         }
         activeScrollFast = [ordered]@{
             publishes = $activeFast.Count
@@ -236,6 +253,12 @@ foreach ($requestedPath in $Path) {
             runtimeMs = Get-Distribution @($quality.runtime)
             skipFastPending = @($lines | Where-Object { $_ -match 'QUALITY_SKIP reason=fast-pending|fast-arrived-' }).Count
             sourceFrameFallbacks = @($lines | Where-Object { $_ -match 'SOURCE_FRAME_PUBLISH' }).Count
+            identityLinked = ($quality | Measure-Object -Property identityLinked -Sum).Sum
+            identityUnlinked = ($quality | Measure-Object -Property identityUnlinked -Sum).Sum
+            cacheInvalidationsOnMotion = @($lines | Where-Object {
+                    $_ -match 'QUALITY_CACHE_INVALIDATED reason=motion' }).Count
+            cacheGenerationRejections = @($lines | Where-Object {
+                    $_ -match 'QUALITY_CACHE_REJECTED reason=motion-generation' }).Count
         }
         scroll = [ordered]@{
             sessions = @($scrolls.id | Sort-Object -Unique).Count

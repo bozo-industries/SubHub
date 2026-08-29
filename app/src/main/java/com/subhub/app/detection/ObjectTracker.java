@@ -37,7 +37,8 @@ public final class ObjectTracker {
                 // Spatial continuity owns the identity so one stable image cannot create a new
                 // censor (and a new ledger event) merely because its label changed for one frame.
                 if (!track.isActive()) continue;
-                float score = matchScore(detection, track, nowNanos,
+                boolean identityHint = detection.getTrackId() == track.getId();
+                float score = identityHint ? 3f : matchScore(detection, track, nowNanos,
                         config.getMaxExtrapolationMs());
                 if (score >= IOU_THRESHOLD) {
                     candidates.add(new MatchCandidate(detectionIndex, track.getId(), score));
@@ -100,6 +101,13 @@ public final class ObjectTracker {
             Detection detection = detections.get(index);
             if (!matchedDetections[index]
                     && detection.getConfidence() >= config.getConfidenceThreshold()) {
+                TrackedObject hinted = tracks.get(detection.getTrackId());
+                if (hinted != null && hinted.isActive()) {
+                    // A second observation linked to an identity already consumed this update is
+                    // supporting evidence, never permission to create a parallel censor.
+                    detection.setTrackId(hinted.getId());
+                    continue;
+                }
                 TrackedObject covering = coveringTrack(detection.getBox());
                 if (covering != null) {
                     // Effects such as blur, mosaic, labels, and static can produce several nested

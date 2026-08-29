@@ -244,4 +244,10 @@ public final class CaptureEpochTest {
         assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
                 20_000L, 0L, 0L, false, true, 0L, true));
     }
+
+    @Test public void qualityCacheCannotCrossAMotionGeneration() {
+        assertTrue(ScreenshotAccessibilityService.isQualityCacheGenerationCurrent(12L, 12L));
+        assertFalse(ScreenshotAccessibilityService.isQualityCacheGenerationCurrent(12L, 13L));
+        assertFalse(ScreenshotAccessibilityService.isQualityCacheGenerationCurrent(13L, 12L));
+    }
 }

@@ -44,9 +44,33 @@ public final class VisualTrackArbitratorTest {
         assertEquals(0, result.suppressed());
     }
 
+    @Test
+    public void offsetQualityOnlyTrackCannotRenderBesideFastIdentity() {
+        TrackedObject fast = tracked(1, new BBox(100, 200, 180, 180), 5);
+        TrackedObject quality = qualityTracked(2, new BBox(72, 176, 240, 230), 3);
+
+        VisualTrackArbitrator.Result result = VisualTrackArbitrator.arbitrate(
+                List.of(quality, fast));
+
+        assertEquals(1, result.tracks().size());
+        assertEquals(fast.getId(), result.tracks().get(0).getId());
+        assertEquals(1, result.suppressed());
+    }
+
     private static TrackedObject tracked(int id, BBox box, int observations) {
         Detection detection = new Detection("FACE_FEMALE", "face", 0.90f,
                 box, true, true);
+        TrackedObject track = new TrackedObject(id, detection, 0L);
+        for (int index = 1; index < observations; index++) {
+            track.update(detection, box, 0f, 0f, index * 10_000_000L);
+        }
+        return track;
+    }
+
+    private static TrackedObject qualityTracked(int id, BBox box, int observations) {
+        Detection detection = new Detection("FACE_FEMALE", "face", 0.95f,
+                box, true, true, Detection.ObservationSource.QUALITY_VISUAL,
+                Detection.GeometryQuality.MODEL, null);
         TrackedObject track = new TrackedObject(id, detection, 0L);
         for (int index = 1; index < observations; index++) {
             track.update(detection, box, 0f, 0f, index * 10_000_000L);
