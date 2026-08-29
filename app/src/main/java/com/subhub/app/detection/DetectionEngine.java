@@ -15,10 +15,14 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OnnxValue;
@@ -32,6 +36,12 @@ public final class DetectionEngine implements AutoCloseable {
     private static final String TAG = "DetectionEngine";
     private static final String PROVIDER_PREFS = "detector_provider_cache";
     private static final float INV_255 = 1f / 255f;
+    private static final ExecutorService PREPROCESS_EXECUTOR =
+            Executors.newFixedThreadPool(3, runnable -> {
+                Thread thread = new Thread(runnable, "SubHub-model-input");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     private final Context context;
     private final OrtEnvironment environment;
@@ -45,6 +55,7 @@ public final class DetectionEngine implements AutoCloseable {
     private Bitmap letterbox;
     private Canvas letterboxCanvas;
     private int[] pixels;
+    private float[] inputValues;
     private FloatBuffer directInput;
     private OnnxTensor inputTensor;
     private Map<String, OnnxTensor> inferenceInputs;
@@ -121,26 +132,29 @@ public final class DetectionEngine implements AutoCloseable {
         performanceHints.begin(config.getDetectionIntervalMs());
         int size = config.getInferenceResolution();
         float scale = (float) size / Math.max(sourceWidth, sourceHeight);
-        letterbox.eraseColor(Color.BLACK);
-        letterboxCanvas.drawBitmap(
-                frame,
-                null,
-                new RectF(0f, 0f, sourceWidth * scale, sourceHeight * scale),
-                null);
-        letterbox.getPixels(pixels, 0, size, 0, 0, size, size);
+        int expectedWidth = Math.max(1, Math.round(sourceWidth * scale));
+        int expectedHeight = Math.max(1, Math.round(sourceHeight * scale));
+        if (frame.getWidth() == expectedWidth && frame.getHeight() == expectedHeight
+                && expectedWidth <= size && expectedHeight <= size) {
+            // Accessibility already paid for a hardware-accelerated downscale before readback.
+            // Write that compact bitmap directly into the letterboxed pixel stride instead of
+            // software-scaling/copying it through a second Canvas on every inference pass.
+            Arrays.fill(pixels, Color.BLACK);
+            frame.getPixels(pixels, 0, size, 0, 0, expectedWidth, expectedHeight);
+        } else {
+            letterbox.eraseColor(Color.BLACK);
+            letterboxCanvas.drawBitmap(
+                    frame,
+                    null,
+                    new RectF(0f, 0f, sourceWidth * scale, sourceHeight * scale),
+                    null);
+            letterbox.getPixels(pixels, 0, size, 0, 0, size, size);
+        }
 
         int plane = size * size;
+        populateInputValues(plane);
         directInput.clear();
-        for (int index = 0; index < plane; index++) {
-            int pixel = pixels[index];
-            directInput.put(((pixel >>> 16) & 0xff) * INV_255);
-        }
-        for (int index = 0; index < plane; index++) {
-            directInput.put(((pixels[index] >>> 8) & 0xff) * INV_255);
-        }
-        for (int index = 0; index < plane; index++) {
-            directInput.put((pixels[index] & 0xff) * INV_255);
-        }
+        directInput.put(inputValues, 0, plane * 3);
         directInput.flip();
 
         ensureInputTensor(size);
@@ -290,11 +304,41 @@ public final class DetectionEngine implements AutoCloseable {
     private void allocateBuffers(int size) {
         closeInputTensor();
         pixels = new int[size * size];
+        inputValues = new float[size * size * 3];
         directInput = ByteBuffer.allocateDirect(size * size * 3 * Float.BYTES)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
         if (letterbox != null) letterbox.recycle();
         letterbox = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         letterboxCanvas = new Canvas(letterbox);
+    }
+
+    private void populateInputValues(int plane) {
+        CountDownLatch finished = new CountDownLatch(3);
+        PREPROCESS_EXECUTOR.execute(() -> fillChannel(plane, 0, 16, finished));
+        PREPROCESS_EXECUTOR.execute(() -> fillChannel(plane, plane, 8, finished));
+        PREPROCESS_EXECUTOR.execute(() -> fillChannel(plane, plane * 2, 0, finished));
+        boolean interrupted = false;
+        while (true) {
+            try {
+                finished.await();
+                break;
+            } catch (InterruptedException ignored) {
+                // Complete the shared-buffer write before returning. Restore interruption after
+                // all three disjoint channel workers have finished.
+                interrupted = true;
+            }
+        }
+        if (interrupted) Thread.currentThread().interrupt();
+    }
+
+    private void fillChannel(int plane, int outputOffset, int shift, CountDownLatch finished) {
+        try {
+            for (int index = 0; index < plane; index++) {
+                inputValues[outputOffset + index] = ((pixels[index] >>> shift) & 0xff) * INV_255;
+            }
+        } finally {
+            finished.countDown();
+        }
     }
 
     /** Keeps the native-backed tensor alive across frames instead of reallocating JNI storage. */
@@ -346,6 +390,7 @@ public final class DetectionEngine implements AutoCloseable {
         performanceHints.close();
         closeSession();
         directInput = null;
+        inputValues = null;
         if (letterbox != null) letterbox.recycle();
         letterbox = null;
         letterboxCanvas = null;

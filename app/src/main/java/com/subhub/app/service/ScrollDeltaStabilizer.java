@@ -4,8 +4,9 @@ package com.subhub.app.service;
  * Rejects isolated direction reversals and implausibly large jumps in Accessibility scroll data.
  *
  * <p>Some RecyclerView producers emit correction records whose sign is opposite to the visible
- * gesture. Applying each record literally makes an otherwise fast overlay bounce. A genuine
- * reversal is still accepted after two consecutive meaningful samples. Direction persists across
+ * gesture. Applying each record literally makes an otherwise fast overlay bounce. Initial motion
+ * is accepted immediately; a genuine reversal is accepted after two consecutive meaningful
+ * samples without replaying the held sample as one oversized jump. Direction persists across
  * gesture gaps so repeated scrolling in the same direction remains immediate.</p>
  */
 final class ScrollDeltaStabilizer {
@@ -41,7 +42,6 @@ final class ScrollDeltaStabilizer {
     private static final class Axis {
         private int direction;
         private int oppositeCount;
-        private long oppositeTotal;
 
         int filter(int raw, int limit) {
             int clamped = clamp(raw, -limit, limit);
@@ -51,36 +51,32 @@ final class ScrollDeltaStabilizer {
                         || Integer.signum(clamped) == direction) ? clamped : 0;
             }
             int sign = Integer.signum(clamped);
-            if (direction != 0 && sign == direction) {
+            if (direction == 0) {
+                direction = sign;
                 oppositeCount = 0;
-                oppositeTotal = 0L;
                 return clamped;
             }
-            if (direction == 0 && oppositeCount > 0
-                    && Long.signum(oppositeTotal) != sign) {
+            if (direction != 0 && sign == direction) {
                 oppositeCount = 0;
-                oppositeTotal = 0L;
+                return clamped;
             }
             oppositeCount++;
-            oppositeTotal += clamped;
             if (oppositeCount < 2) return 0;
 
             direction = sign;
-            int accepted = saturatingClamp(oppositeTotal, limit);
             oppositeCount = 0;
-            oppositeTotal = 0L;
-            return accepted;
+            // The first opposite sample was held only as evidence. Replaying it now would turn
+            // two normally spaced scroll records into one visible double-sized jump.
+            return clamped;
         }
 
         void startSession() {
             oppositeCount = 0;
-            oppositeTotal = 0L;
         }
 
         void reset() {
             direction = 0;
             oppositeCount = 0;
-            oppositeTotal = 0L;
         }
     }
 
@@ -99,12 +95,6 @@ final class ScrollDeltaStabilizer {
 
         boolean moved() { return dx != 0 || dy != 0; }
         boolean changed() { return rawDx != dx || rawDy != dy; }
-    }
-
-    private static int saturatingClamp(long value, int limit) {
-        if (value > limit) return limit;
-        if (value < -limit) return -limit;
-        return (int) value;
     }
 
     private static int clamp(int value, int minimum, int maximum) {

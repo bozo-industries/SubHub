@@ -28,24 +28,31 @@ public final class DetectionEngineUltraAndroidTest {
                 .applyTo(DetectorConfig.builder()).build();
         DetectorConfig fastConfig = qualityConfig.toBuilder()
                 .inferenceResolution(320).detectionIntervalMs(0L).build();
-        Bitmap frame = Bitmap.createBitmap(230, 512, Bitmap.Config.ARGB_8888);
-        new Canvas(frame).drawColor(Color.rgb(74, 20, 95));
+        Bitmap qualityFrame = Bitmap.createBitmap(230, 512, Bitmap.Config.ARGB_8888);
+        Bitmap fastFrame = Bitmap.createBitmap(144, 320, Bitmap.Config.ARGB_8888);
+        new Canvas(qualityFrame).drawColor(Color.rgb(74, 20, 95));
+        new Canvas(fastFrame).drawColor(Color.rgb(74, 20, 95));
         try {
             try (DetectionEngine quality = new DetectionEngine(context, qualityConfig);
                  DetectionEngine fast = new DetectionEngine(context, fastConfig)) {
                 quality.initialize();
                 fast.initialize();
-                long qualityMedian = medianNanos(quality, frame);
-                long fastMedian = medianNanos(fast, frame);
+                long qualityMedian = medianNanos(quality, qualityFrame);
+                long fastMedian = medianNanos(fast, fastFrame);
                 Log.i(TAG, "quality=" + qualityConfig.getInferenceResolution() + "@"
                         + quality.getActiveProvider() + ':' + qualityMedian / 1_000_000f
+                        + " ms(pre=" + quality.getLastPreprocessMs()
+                        + ", runtime=" + quality.getLastRuntimeMs() + ')'
                         + " ms, fast=" + fastConfig.getInferenceResolution() + "@"
-                        + fast.getActiveProvider() + ':' + fastMedian / 1_000_000f + " ms");
+                        + fast.getActiveProvider() + ':' + fastMedian / 1_000_000f
+                        + " ms(pre=" + fast.getLastPreprocessMs()
+                        + ", runtime=" + fast.getLastRuntimeMs() + ")");
                 assertTrue("320px real-time lane must beat 512px quality refinement",
                         fastMedian < qualityMedian);
             }
         } finally {
-            frame.recycle();
+            qualityFrame.recycle();
+            fastFrame.recycle();
         }
     }
 

@@ -366,10 +366,19 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             DetectorConfig currentConfig = detectorConfig;
             boolean continuousMotionInference = usesContinuousMotionInference(currentConfig);
             long sampledGeneration = motionGeneration.get();
+            long motionSampledAt = SystemClock.uptimeMillis();
+            boolean estimateFrameMotion = shouldEstimateFrameMotion(
+                    currentConfig, motionSampledAt, lastScrollTraceEventUptime);
             ScrollFrameMotionEstimator.Motion motion = motionEstimator == null
+                    || !estimateFrameMotion
                     ? ScrollFrameMotionEstimator.Motion.NONE : motionEstimator.update(wrapped);
+            if (!estimateFrameMotion && motionEstimator != null) motionEstimator.reset();
             if (motion.moved()) {
                 boolean applied = applyFrameMotion(motion.dx, motion.dy, sampledGeneration);
+                Log.i(TAG, "FRAME_MOTION dx=" + motion.dx + " dy=" + motion.dy
+                        + " applied=" + applied
+                        + " afterAccessibilityMs=" + (lastScrollTraceEventUptime <= 0L
+                                ? 0L : motionSampledAt - lastScrollTraceEventUptime));
                 if (!continuousMotionInference) return;
                 // Screenshot-estimated motion happened before this frame was captured, so the
                 // frame itself already represents the newly updated scroll position.
@@ -634,6 +643,19 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     static boolean usesContinuousMotionInference(DetectorConfig config) {
         return config != null && config.getInferenceThreads() >= 4;
+    }
+
+    static boolean shouldEstimateFrameMotion(
+            DetectorConfig config,
+            long nowUptime,
+            long lastAccessibilityScrollUptime) {
+        // Ultra continuously classifies each accepted Accessibility frame. A second global-motion
+        // estimator can only double-apply movement already represented by scroll events and the
+        // next detector frame. Retain the estimator solely as a conservative fallback for slower
+        // presets/apps that expose no usable Accessibility scroll events.
+        if (usesContinuousMotionInference(config)) return false;
+        return lastAccessibilityScrollUptime <= 0L
+                || nowUptime - lastAccessibilityScrollUptime >= 750L;
     }
 
     static boolean usesSemanticTextModel(DetectorConfig config) {

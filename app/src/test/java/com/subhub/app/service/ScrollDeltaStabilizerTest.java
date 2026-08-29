@@ -9,8 +9,8 @@ public final class ScrollDeltaStabilizerTest {
     @Test
     public void isolatedOppositeCorrectionNeverBouncesTheOverlay() {
         ScrollDeltaStabilizer filter = new ScrollDeltaStabilizer();
-        assertEquals(0, filter.filter(0, 261, 100L, 1080, 2400).dy);
-        assertEquals(531, filter.filter(0, 270, 200L, 1080, 2400).dy);
+        assertEquals(261, filter.filter(0, 261, 100L, 1080, 2400).dy);
+        assertEquals(270, filter.filter(0, 270, 200L, 1080, 2400).dy);
 
         ScrollDeltaStabilizer.Result correction =
                 filter.filter(0, -485, 300L, 1080, 2400);
@@ -25,7 +25,7 @@ public final class ScrollDeltaStabilizerTest {
         filter.filter(0, 200, 100L, 1080, 2400);
         filter.filter(0, 180, 160L, 1080, 2400);
         assertEquals(0, filter.filter(0, -100, 220L, 1080, 2400).dy);
-        assertEquals(-220, filter.filter(0, -120, 280L, 1080, 2400).dy);
+        assertEquals(-120, filter.filter(0, -120, 280L, 1080, 2400).dy);
         assertEquals(-80, filter.filter(0, -80, 340L, 1080, 2400).dy);
     }
 
@@ -35,7 +35,7 @@ public final class ScrollDeltaStabilizerTest {
         filter.filter(0, 200, 100L, 1080, 2400);
         filter.filter(0, 200, 180L, 1080, 2400);
         assertEquals(0, filter.filter(0, -180, 500L, 1080, 2400).dy);
-        assertEquals(-340, filter.filter(0, -160, 580L, 1080, 2400).dy);
+        assertEquals(-160, filter.filter(0, -160, 580L, 1080, 2400).dy);
     }
 
     @Test

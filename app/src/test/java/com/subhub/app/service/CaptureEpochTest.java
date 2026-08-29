@@ -60,6 +60,26 @@ public final class CaptureEpochTest {
         assertTrue(ScreenshotAccessibilityService.usesContinuousMotionInference(ultra));
     }
 
+    @Test public void ultraNeverRunsCompetingScreenshotMotion() {
+        DetectorConfig ultra = DetectorConfig.builder().inferenceThreads(4).build();
+
+        assertFalse(ScreenshotAccessibilityService.shouldEstimateFrameMotion(
+                ultra, 10_000L, 0L));
+        assertFalse(ScreenshotAccessibilityService.shouldEstimateFrameMotion(
+                ultra, 10_000L, 9_000L));
+    }
+
+    @Test public void slowerPresetUsesFrameMotionOnlyWithoutRecentAccessibilitySignal() {
+        DetectorConfig balanced = DetectorConfig.builder().inferenceThreads(3).build();
+
+        assertTrue(ScreenshotAccessibilityService.shouldEstimateFrameMotion(
+                balanced, 10_000L, 0L));
+        assertFalse(ScreenshotAccessibilityService.shouldEstimateFrameMotion(
+                balanced, 10_000L, 9_500L));
+        assertTrue(ScreenshotAccessibilityService.shouldEstimateFrameMotion(
+                balanced, 10_000L, 9_000L));
+    }
+
     @Test public void semanticTextAndOcrAreGatedByPresetCost() {
         DetectorConfig medium = DetectorConfig.builder().inferenceThreads(2).build();
         DetectorConfig high = DetectorConfig.builder().inferenceThreads(3).build();
