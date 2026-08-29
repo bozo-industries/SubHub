@@ -112,7 +112,7 @@ public final class SettingsRepository {
     public CensorAppearance loadAppearance() {
         int borderColor;
         try {
-            borderColor = Color.parseColor(preferences.getString(KEY_BORDER_COLOR, "#FF0080"));
+            borderColor = Color.parseColor(preferences.getString(KEY_BORDER_COLOR, "#9860BE"));
         } catch (IllegalArgumentException error) {
             borderColor = Color.rgb(255, 0, 128);
         }

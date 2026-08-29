@@ -10,7 +10,7 @@
     <item android:state_pressed="true">
         <shape android:shape="rectangle">
             <gradient android:angle="0" android:startColor="@color/surface_pressed"
-                android:endColor="#FF54204D" />
+                android:endColor="#FF472958" />
             <stroke android:width="1dp" android:color="@color/accent_hot" />
             <corners android:radius="16dp" />
         </shape>
@@ -25,7 +25,7 @@
     <item>
         <shape android:shape="rectangle">
             <gradient android:angle="0" android:startColor="@color/surface_card"
-                android:endColor="#F225162F" />
+                android:endColor="#F222192C" />
             <stroke android:width="1dp" android:color="@color/outline_default" />
             <corners android:radius="16dp" />
         </shape>
