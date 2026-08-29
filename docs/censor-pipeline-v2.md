@@ -73,6 +73,20 @@ Exercise the same result grid in this order while collecting one uninterrupted d
 6. Continue mixed browsing for at least 60 seconds to expose warm-device and sustained-load
    behavior.
 
+The physical Pixel 8 Pro gesture sequence is stored at
+`scripts/replays/emiru_google_images_pixel_8_pro.json`. With the matching Google Images grid
+already open, it can be replayed without another manual gesture pass:
+
+```powershell
+.\scripts\replay_touch_trace.ps1 `
+    -Path .\scripts\replays\emiru_google_images_pixel_8_pro.json `
+    -Serial <adb-serial> -Replay
+```
+
+The replay validates the 1344x2992 display before injecting input and preserves the recorded
+gesture start schedule. It replaces repetitive motion input, not the required human visual
+verdict.
+
 Repeat the visual pass for every censor appearance. This includes compositor-only appearances and
 source-frame appearances such as blur, pixelation, TV static, and glitch; a smooth solid overlay
 does not prove that a source-frame effect is smooth.
