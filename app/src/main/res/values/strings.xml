@@ -863,6 +863,7 @@ Maximum coverage · flagship devices</string>
     <string name="stats_streak_days">%1$d d</string>
     <string name="stats_service_time">Service</string>
     <string name="stats_services">Services</string>
+    <string name="stats_activity">Activity</string>
     <string name="stats_censors">Censors</string>
     <string name="stats_limited_app_time">Limited Apps</string>
     <string name="stats_limit_stops">Limit Stops</string>

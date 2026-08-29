@@ -79,6 +79,7 @@ import com.subhub.app.subliminal.SubliminalSettingsRepository;
 import com.google.android.material.snackbar.Snackbar;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
@@ -1060,67 +1061,28 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void renderStats(StatsSnapshot stats) {
-        FeatureModuleManager modules = new FeatureModuleManager(this);
-        List<Metric> service = new ArrayList<>();
-        service.add(new Metric(R.string.stats_service_time,
-                StatsSnapshot.formatClock(stats.getCurrentSessionSeconds())));
-        if (modules.isCensorEnabled()) {
-            service.add(new Metric(R.string.stats_censors,
-                    formatCount(stats.getCurrentSessionBlocks())));
-        }
-        if (modules.isLimitsEnabled()) {
-            service.add(new Metric(R.string.stats_limited_app_time,
-                    formatMillis(stats.getCurrentSessionLimitedAppMillis())));
-            service.add(new Metric(R.string.stats_limit_stops,
-                    formatCount(stats.getCurrentSessionLimitInterventions())));
-        }
-        if (modules.isWalletEnabled()) {
-            service.add(new Metric(R.string.stats_tributes,
-                    formatCount(stats.getCurrentSessionTributeEvents())));
-            service.add(new Metric(R.string.stats_tribute_value,
-                    PenanceManager.formatMoney((int) Math.min(Integer.MAX_VALUE,
-                            stats.getCurrentSessionTributeCents()))));
-        }
-        if (modules.isSubliminalEnabled()) {
-            service.add(new Metric(R.string.stats_whispers,
-                    formatCount(stats.getCurrentSessionSubliminals())));
-        }
-        if (stats.getCurrentSessionPopupImpressions() > 0) {
-            service.add(new Metric(R.string.stats_popups,
-                    formatCount(stats.getCurrentSessionPopupImpressions())));
-        }
+        List<Metric> service = Arrays.asList(
+                new Metric(R.string.stats_service_time,
+                        StatsSnapshot.formatClock(stats.getCurrentSessionSeconds())),
+                new Metric(R.string.stats_activity,
+                        formatCount(stats.getCurrentSessionActivityEvents())),
+                new Metric(R.string.stats_tribute_value,
+                        PenanceManager.formatMoney((int) Math.min(Integer.MAX_VALUE,
+                                stats.getCurrentSessionTributeCents()))));
         renderMetricRows(binding.homeSessionMetrics, service, 3);
 
-        List<Metric> lifetime = new ArrayList<>();
-        lifetime.add(new Metric(R.string.stats_services, formatCount(stats.getSessions())));
-        lifetime.add(new Metric(R.string.stats_total_protected_short,
-                StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds())));
-        lifetime.add(new Metric(R.string.stats_streak,
-                getString(R.string.stats_streak_days, stats.getCurrentStreak())));
-        if (modules.isCensorEnabled() || stats.getTotalBlocks() > 0) {
-            lifetime.add(new Metric(R.string.stats_censors, formatCount(stats.getTotalBlocks())));
-        }
-        if (modules.isLimitsEnabled() || stats.getLimitedAppMillis() > 0) {
-            lifetime.add(new Metric(R.string.stats_limited_app_time,
-                    formatMillis(stats.getLimitedAppMillis())));
-            lifetime.add(new Metric(R.string.stats_limit_stops,
-                    formatCount(stats.getLimitInterventions())));
-        }
-        if (modules.isWalletEnabled() || stats.getTributeEvents() > 0) {
-            lifetime.add(new Metric(R.string.stats_tributes,
-                    formatCount(stats.getTributeEvents())));
-            lifetime.add(new Metric(R.string.stats_paid,
-                    PenanceManager.formatMoney((int) Math.min(Integer.MAX_VALUE,
-                            new PenanceManager(this).getTotalPaidCents()))));
-        }
-        if (modules.isSubliminalEnabled() || stats.getSubliminalImpressions() > 0) {
-            lifetime.add(new Metric(R.string.stats_whispers,
-                    formatCount(stats.getSubliminalImpressions())));
-        }
-        if (stats.getPopupImpressions() > 0) {
-            lifetime.add(new Metric(R.string.stats_popups,
-                    formatCount(stats.getPopupImpressions())));
-        }
+        List<Metric> lifetime = Arrays.asList(
+                new Metric(R.string.stats_services, formatCount(stats.getSessions())),
+                new Metric(R.string.stats_total_protected_short,
+                        StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds())),
+                new Metric(R.string.stats_streak,
+                        getString(R.string.stats_streak_days, stats.getCurrentStreak())),
+                new Metric(R.string.stats_censors, formatCount(stats.getTotalBlocks())),
+                new Metric(R.string.stats_limited_app_time,
+                        formatMillis(stats.getLimitedAppMillis())),
+                new Metric(R.string.stats_paid,
+                        PenanceManager.formatMoney((int) Math.min(Integer.MAX_VALUE,
+                                new PenanceManager(this).getTotalPaidCents()))));
         renderMetricRows(binding.homeLifetimeMetrics, lifetime, 3);
     }
 

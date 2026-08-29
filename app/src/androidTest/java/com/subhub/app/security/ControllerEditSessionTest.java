@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.view.View;
+import android.view.ViewGroup;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -59,6 +60,10 @@ public final class ControllerEditSessionTest {
                         activity.findViewById(R.id.commitment_card).getVisibility());
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.home_session_metrics).getVisibility());
+                assertEquals(1, ((ViewGroup) activity.findViewById(
+                        R.id.home_session_metrics)).getChildCount());
+                assertEquals(2, ((ViewGroup) activity.findViewById(
+                        R.id.home_lifetime_metrics)).getChildCount());
             });
         }
     }
