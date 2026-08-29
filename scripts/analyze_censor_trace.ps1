@@ -64,6 +64,8 @@ foreach ($requestedPath in $Path) {
     $textPublishes = [Collections.Generic.List[object]]::new()
     $textConfirms = [Collections.Generic.List[object]]::new()
     $fastPublishTimes = [Collections.Generic.List[datetime]]::new()
+    $motionDraws = [Collections.Generic.List[object]]::new()
+    $motionSettles = [Collections.Generic.List[object]]::new()
 
     foreach ($line in $lines) {
         $time = Get-TraceTime $line
@@ -72,7 +74,7 @@ foreach ($requestedPath in $Path) {
             $lastTime = $time
         }
 
-        if ($line -match 'OVERLAY_PUBLISH pass=(\S+) scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) tracks=(\d+) rawVisual=(\d+) cachedQuality=(\d+) qualityOnly=(\d+) geometryMatched=(\d+) geometryChanged=(\d+) maxCenterDeltaPx=(\d+) maxSizeDeltaPx=(\d+) dropped=(\d+)') {
+        if ($line -match 'OVERLAY_PUBLISH pass=(\S+) scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) tracks=(\d+) rawVisual=(\d+) cachedQuality=(\d+) qualityOnly=(\d+) geometryMatched=(\d+) geometryChanged=(\d+) maxCenterDeltaPx=(\d+) maxSizeDeltaPx=(\d+) dropped=(\d+)(?: duplicatesSuppressed=(\d+))?') {
             $item = [pscustomobject]@{
                 time = $time
                 pass = $Matches[1]
@@ -92,9 +94,27 @@ foreach ($requestedPath in $Path) {
                 maxCenterDelta = [int] $Matches[15]
                 maxSizeDelta = [int] $Matches[16]
                 dropped = [int] $Matches[17]
+                duplicatesSuppressed = if ($Matches[18]) { [int] $Matches[18] } else { 0 }
             }
             $publishes.Add($item)
             if ($item.pass -eq 'fast' -and $null -ne $time) { $fastPublishTimes.Add($time) }
+            continue
+        }
+        if ($line -match 'CensorMotion: DRAW .*inputToDrawMs=(\d+).*?(?:viewportLead=(-?\d+),(-?\d+))?$') {
+            $leadX = if ($Matches[2]) { [int] $Matches[2] } else { 0 }
+            $leadY = if ($Matches[3]) { [int] $Matches[3] } else { 0 }
+            $motionDraws.Add([pscustomobject]@{
+                time = $time
+                inputToDraw = [int] $Matches[1]
+                leadAbs = [math]::Abs($leadX) + [math]::Abs($leadY)
+            })
+            continue
+        }
+        if ($line -match 'CensorMotion: SETTLED .*inputToSettledMs=(\d+)') {
+            $motionSettles.Add([pscustomobject]@{
+                time = $time
+                inputToSettled = [int] $Matches[1]
+            })
             continue
         }
         if ($line -match 'QUALITY_CACHE scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+)') {
@@ -194,6 +214,8 @@ foreach ($requestedPath in $Path) {
             nonzeroDropPublishes = $dropNonzero
             geometryChangedPublishes = @($fast | Where-Object geometryChanged -gt 0).Count
             centerJumpsAtLeast100px = $geometryJumps
+            duplicateSuppressions = ($fast | Measure-Object -Property duplicatesSuppressed -Sum).Sum
+            duplicateSuppressionPublishes = @($fast | Where-Object duplicatesSuppressed -gt 0).Count
         }
         activeScrollFast = [ordered]@{
             publishes = $activeFast.Count
@@ -227,6 +249,13 @@ foreach ($requestedPath in $Path) {
             appliedNet = @($appliedNetX, $appliedNetY)
             amplifiedEvents = $amplified
             amplifiedBySource = $amplifiedBySource
+        }
+        displayMotion = [ordered]@{
+            draws = $motionDraws.Count
+            inputToDrawMs = Get-Distribution @($motionDraws.inputToDraw)
+            viewportLeadAbsPx = Get-Distribution @($motionDraws.leadAbs)
+            settles = $motionSettles.Count
+            inputToSettledMs = Get-Distribution @($motionSettles.inputToSettled)
         }
         text = [ordered]@{
             scans = $textScans.Count

@@ -22,8 +22,9 @@ public final class ViewportMotionTest {
         assertTrue(betweenEvents >= -40f);
         assertTrue(motion.isAnimating(36L));
 
-        assertEquals(-40f, motion.position(40L).y, 0.001f);
-        assertFalse(motion.isAnimating(40L));
+        assertTrue(motion.position(40L).y < -40f);
+        assertEquals(-40f, motion.position(96L).y, 0.001f);
+        assertFalse(motion.isAnimating(96L));
 
         float stopped = motion.position(200L).y;
         assertTrue(stopped <= betweenEvents);
@@ -54,5 +55,31 @@ public final class ViewportMotionTest {
         float partial = motion.position(24L).y;
         assertTrue(partial < 0f && partial > -500f);
         assertEquals(-500f, motion.position(32L).y, 0.001f);
+    }
+
+    @Test
+    public void steadySparseEventsAdvanceBetweenSamplesAndReturnToExactIfScrollingStops() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -100f, 10L);
+        motion.addDelta(0f, -100f, 110L);
+
+        assertEquals(-100f, motion.position(110L).y, 0.001f);
+        float betweenEvents = motion.position(210L).y;
+        assertTrue(betweenEvents < -225f);
+        assertTrue(betweenEvents > -235f);
+        assertTrue(motion.isAnimating(210L));
+        assertEquals(-200f, motion.position(310L).y, 0.001f);
+        assertFalse(motion.isAnimating(310L));
+    }
+
+    @Test
+    public void deceleratingFinalSampleDoesNotPredictAnOvershoot() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -100f, 10L);
+        motion.addDelta(0f, -40f, 110L);
+
+        assertEquals(-140f, motion.position(210L).y, 0.001f);
     }
 }

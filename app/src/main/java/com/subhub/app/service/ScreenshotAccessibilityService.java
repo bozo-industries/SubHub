@@ -31,6 +31,7 @@ import com.subhub.app.detection.FastVisualGate;
 import com.subhub.app.detection.ObjectTracker;
 import com.subhub.app.detection.TrackedObject;
 import com.subhub.app.detection.VisualDetectionStabilizer;
+import com.subhub.app.detection.VisualTrackArbitrator;
 import com.subhub.app.detection.text.AccessibilityTextSmutDetector;
 import com.subhub.app.detection.text.DetectionFusion;
 import com.subhub.app.detection.text.OcrTextSmutDetector;
@@ -541,7 +542,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!candidate.retainedSourceFrame) return;
         Bitmap sourceFrame = candidate.detachFrame();
         if (sourceFrame == null) return;
-        List<TrackedObject> currentTracks = visualRenderTracks(tracker.activeTracks());
+        List<TrackedObject> currentTracks = visualRenderTracks(
+                tracker.activeTracks()).tracks();
         ScrollPosition current = currentScrollPosition();
         InferenceScrollReprojector.ScreenMotion sourceMotion =
                 InferenceScrollReprojector.screenMotion(
@@ -631,7 +633,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             Bitmap qualityOverlayFrame = candidate.retainedSourceFrame
                     ? candidate.detachFrame() : null;
             if (qualityOverlayFrame != null) {
-                List<TrackedObject> currentTracks = visualRenderTracks(tracker.activeTracks());
+                List<TrackedObject> currentTracks = visualRenderTracks(
+                        tracker.activeTracks()).tracks();
                 ScrollPosition current = currentScrollPosition();
                 InferenceScrollReprojector.ScreenMotion sourceMotion =
                         InferenceScrollReprojector.screenMotion(
@@ -672,7 +675,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     alignment.scrollX, alignment.scrollY);
         }
         List<TrackedObject> tracks = tracker.update(detections);
-        List<TrackedObject> renderTracks = visualRenderTracks(tracks);
+        VisualTrackArbitrator.Result renderArbitration = visualRenderTracks(tracks);
+        List<TrackedObject> renderTracks = renderArbitration.tracks();
         DetectorConfig currentConfig = detectorConfig;
         int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
                 ? null : currentConfig.getEnabledCategories());
@@ -748,7 +752,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + " geometryChanged=" + geometry.changed
                         + " maxCenterDeltaPx=" + geometry.maxCenterDeltaPx
                         + " maxSizeDeltaPx=" + geometry.maxSizeDeltaPx
-                        + " dropped=" + droppedInferenceFrames.get());
+                        + " dropped=" + droppedInferenceFrames.get()
+                        + " duplicatesSuppressed=" + renderArbitration.suppressed());
             } else if (overlayFrame != null) {
                 overlayFrame.recycle();
             }
@@ -1498,15 +1503,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return String.join(";", parts);
     }
 
-    private static List<TrackedObject> visualRenderTracks(List<TrackedObject> tracks) {
-        if (tracks == null || tracks.isEmpty()) return Collections.emptyList();
-        List<TrackedObject> visual = new ArrayList<>(tracks.size());
-        for (TrackedObject track : tracks) {
-            if (track != null && !"text_smut".equals(track.getCategory())) {
-                visual.add(track.snapshot());
-            }
-        }
-        return visual;
+    private static VisualTrackArbitrator.Result visualRenderTracks(
+            List<TrackedObject> tracks) {
+        return VisualTrackArbitrator.arbitrate(tracks);
     }
 
     private synchronized VisualGeometryDelta recordVisualGeometry(
