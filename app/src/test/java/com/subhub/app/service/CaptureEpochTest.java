@@ -6,10 +6,16 @@ import static org.junit.Assert.assertTrue;
 
 import android.view.accessibility.AccessibilityEvent;
 
+import com.subhub.app.detection.BBox;
+import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.DetectionPreset;
 import com.subhub.app.detection.DetectorConfig;
 
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 public final class CaptureEpochTest {
     @Test public void foregroundTransitionRejectsAnInFlightFrame() {
@@ -249,5 +255,37 @@ public final class CaptureEpochTest {
         assertTrue(ScreenshotAccessibilityService.isQualityCacheGenerationCurrent(12L, 12L));
         assertFalse(ScreenshotAccessibilityService.isQualityCacheGenerationCurrent(12L, 13L));
         assertFalse(ScreenshotAccessibilityService.isQualityCacheGenerationCurrent(13L, 12L));
+    }
+
+    @Test public void qualityConfirmationBurstStillRespectsMotionAndFastWork() {
+        assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                11_249L, 10_000L, 11_000L, true, false, 0L, false, true));
+        assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                11_250L, 10_000L, 11_000L, true, false, 0L, false, true));
+        assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                10_849L, 10_000L, 10_000L, true, false, 0L, false, true));
+        assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                11_500L, 10_000L, 11_000L, true, false, 0L, true, true));
+    }
+
+    @Test public void pendingQualitySceneDefersOnlyUnlinkedCoverageAtomically() {
+        Detection linked = detection(10, 20, 100, 100);
+        linked.setTrackId(42);
+        Detection unlinkedA = detection(200, 20, 100, 100);
+        Detection unlinkedB = detection(340, 20, 100, 100);
+        List<Detection> quality = Arrays.asList(linked, unlinkedA, unlinkedB);
+
+        List<Detection> pending = ScreenshotAccessibilityService
+                .transactionalQualityCoverage(quality, 2);
+        List<Detection> confirmed = ScreenshotAccessibilityService
+                .transactionalQualityCoverage(quality, 0);
+
+        assertEquals(Collections.singletonList(linked), pending);
+        assertEquals(quality, confirmed);
+    }
+
+    private static Detection detection(int x, int y, int width, int height) {
+        return new Detection("FACE_FEMALE", "face_female", 0.9f,
+                new BBox(x, y, width, height), true, false);
     }
 }

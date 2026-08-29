@@ -19,9 +19,16 @@ public final class VisualDetectionStabilizer {
     public synchronized List<Detection> update(
             List<Detection> detections,
             DetectorConfig config) {
+        return updateWithMetrics(detections, config).stableDetections();
+    }
+
+    public synchronized UpdateResult updateWithMetrics(
+            List<Detection> detections,
+            DetectorConfig config) {
         generation++;
         List<Detection> stable = new ArrayList<>();
         Set<Integer> matched = new HashSet<>();
+        int pending = 0;
         if (detections != null) {
             for (Detection detection : detections) {
                 if (detection == null || "text_smut".equals(detection.getCategory())) continue;
@@ -52,6 +59,7 @@ public final class VisualDetectionStabilizer {
                 }
                 matched.add(best.id);
                 if (confirmed) stable.add(detection);
+                else pending++;
             }
         }
 
@@ -63,13 +71,26 @@ public final class VisualDetectionStabilizer {
             if (observation.confirmed && missed == 1) stable.add(observation.detection);
             if (missed > 1 || !observation.confirmed) iterator.remove();
         }
-        return stable;
+        return new UpdateResult(stable, pending);
     }
 
     public synchronized void clear() {
         observations.clear();
         generation = 0L;
         nextId = 0;
+    }
+
+    public static final class UpdateResult {
+        private final List<Detection> stableDetections;
+        private final int pendingCandidates;
+
+        UpdateResult(List<Detection> stableDetections, int pendingCandidates) {
+            this.stableDetections = stableDetections;
+            this.pendingCandidates = pendingCandidates;
+        }
+
+        public List<Detection> stableDetections() { return stableDetections; }
+        public int pendingCandidates() { return pendingCandidates; }
     }
 
     private static final class Observation {

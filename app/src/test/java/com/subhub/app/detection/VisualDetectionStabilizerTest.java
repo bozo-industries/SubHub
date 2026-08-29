@@ -22,9 +22,24 @@ public final class VisualDetectionStabilizerTest {
     @Test
     public void marginalSingleFrameCandidateNeverFlashes() {
         VisualDetectionStabilizer stabilizer = new VisualDetectionStabilizer();
-        assertTrue(stabilizer.update(Collections.singletonList(
-                detection(0.25f, 10)), config).isEmpty());
+        VisualDetectionStabilizer.UpdateResult first = stabilizer.updateWithMetrics(
+                Collections.singletonList(detection(0.25f, 10)), config);
+        assertTrue(first.stableDetections().isEmpty());
+        assertEquals(1, first.pendingCandidates());
         assertTrue(stabilizer.update(Collections.emptyList(), config).isEmpty());
+    }
+
+    @Test
+    public void confirmationClearsPendingCandidateCount() {
+        VisualDetectionStabilizer stabilizer = new VisualDetectionStabilizer();
+        stabilizer.updateWithMetrics(
+                Collections.singletonList(detection(0.25f, 10)), config);
+
+        VisualDetectionStabilizer.UpdateResult confirmed = stabilizer.updateWithMetrics(
+                Collections.singletonList(detection(0.26f, 12)), config);
+
+        assertEquals(1, confirmed.stableDetections().size());
+        assertEquals(0, confirmed.pendingCandidates());
     }
 
     @Test

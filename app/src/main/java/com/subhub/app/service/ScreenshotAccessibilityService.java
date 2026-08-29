@@ -107,10 +107,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final long QUALITY_SLOW_RUNTIME_MS = 180L;
     private static final long QUALITY_MOTION_SETTLE_MS = 850L;
     private static final long QUALITY_RESULT_TTL_MS = 2_500L;
+    private static final long QUALITY_CONFIRMATION_INTERVAL_MS = 250L;
 
     private final AtomicBoolean processing = new AtomicBoolean();
     private final AtomicBoolean inferenceDraining = new AtomicBoolean();
     private final AtomicBoolean settledInferenceNeeded = new AtomicBoolean();
+    private final AtomicBoolean qualityConfirmationRequested = new AtomicBoolean();
+    private final AtomicBoolean qualityConfirmationBurstUsed = new AtomicBoolean();
     private final AtomicReference<InferenceFrame> pendingInference = new AtomicReference<>();
     private final AtomicLong droppedInferenceFrames = new AtomicLong();
     private final AtomicLong cumulativeScrollX = new AtomicLong();
@@ -433,12 +436,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             lastInferenceUptime = nowUptime;
             boolean motionSettled = lastMotionUptime <= 0L
                     || nowUptime - lastMotionUptime >= MOTION_SETTLE_MS;
+            boolean qualityConfirmation = qualityConfirmationRequested.get();
             boolean qualityRefine = shouldRunQualityRefinement(
                     nowUptime, lastMotionUptime, lastQualityInferenceUptime,
                     firstFrameReported.get(),
                     cachedQualityVisual == VisualDetectionSnapshot.EMPTY,
                     detector == null ? 0L : detector.getLastRuntimeMs(),
-                    pendingInference.get() != null);
+                    pendingInference.get() != null,
+                    qualityConfirmation);
             long inferenceMotionGeneration = motionGeneration.get();
             if (!isCurrentCapture(requestedEpoch)) return;
             int inferenceResolution = currentConfig == null
@@ -456,6 +461,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     requestedScrollY, inferenceMotionGeneration,
                     prepared.sourceWidth, prepared.sourceHeight,
                     prepared.retainedSourceFrame, continuousMotionInference, qualityRefine,
+                    qualityRefine && qualityConfirmation,
                     requestedAtUptimeMillis));
             frame = null;
             maybeRequestOcr(wrapped, requestedEpoch, requestedScrollX, requestedScrollY,
@@ -533,6 +539,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     + detector.getLastRuntimeMs());
             publishRetainedSourceFrame(candidate, "fast-pending");
             return;
+        }
+        if (candidate.qualityConfirmation) {
+            qualityConfirmationRequested.compareAndSet(true, false);
+            Log.i(TAG, "QUALITY_CONFIRMATION_RUN generation=" + candidate.motionGeneration
+                    + " afterQualityMs=" + Math.max(0L,
+                    SystemClock.uptimeMillis() - lastQualityInferenceUptime));
         }
         lastQualityInferenceUptime = SystemClock.uptimeMillis();
         runInferencePass(candidate, detector, false, true);
@@ -615,14 +627,30 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 }
             }
         } else {
-            visualDetections = qualityVisualStabilizer.update(
-                    visualDetections, detectorConfig);
+            VisualDetectionStabilizer.UpdateResult stabilizedQuality =
+                    qualityVisualStabilizer.updateWithMetrics(
+                            visualDetections, detectorConfig);
+            visualDetections = stabilizedQuality.stableDetections();
             if (!isCurrentCapture(requestedEpoch)
                     || inferenceMotionGeneration != motionGeneration.get()) return;
             List<Detection> qualityCoverage = markQualityCoverage(visualDetections);
             VisualIdentityReconciler.Result identity = VisualIdentityReconciler.reconcile(
                     Collections.emptyList(), qualityCoverage, tracker.activeTracks());
             qualityCoverage = identity.detections();
+            int reconciledCoverageCount = qualityCoverage.size();
+            qualityCoverage = transactionalQualityCoverage(
+                    qualityCoverage, stabilizedQuality.pendingCandidates());
+            int deferredUnlinked = reconciledCoverageCount - qualityCoverage.size();
+            boolean confirmationRequested = false;
+            if (stabilizedQuality.pendingCandidates() > 0) {
+                if (qualityConfirmationBurstUsed.compareAndSet(false, true)) {
+                    qualityConfirmationRequested.set(true);
+                    confirmationRequested = true;
+                }
+            } else {
+                qualityConfirmationRequested.set(false);
+                qualityConfirmationBurstUsed.set(false);
+            }
             cachedQualityVisual = new VisualDetectionSnapshot(
                     qualityCoverage, width, height, requestedScrollX, requestedScrollY,
                     SystemClock.uptimeMillis(), inferenceMotionGeneration);
@@ -644,6 +672,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     + " stableVisual=" + cachedQualityCount
                     + " identityLinked=" + identity.qualityLinked()
                     + " identityUnlinked=" + identity.unlinkedQuality()
+                    + " pendingVisual=" + stabilizedQuality.pendingCandidates()
+                    + " deferredUnlinked=" + deferredUnlinked
+                    + " confirmationRequested=" + confirmationRequested
                     + " cacheGeneration=" + inferenceMotionGeneration);
             // Quality is a background geometry cache. Publishing it as a second authority made
             // a still box alternate between fast and quality rectangles every refresh. The next
@@ -831,7 +862,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             boolean firstFrameReported,
             boolean qualityCacheEmpty) {
         return shouldRunQualityRefinement(nowUptime, lastMotionUptime, lastQualityUptime,
-                firstFrameReported, qualityCacheEmpty, 0L, false);
+                firstFrameReported, qualityCacheEmpty, 0L, false, false);
     }
 
     static boolean shouldRunQualityRefinement(
@@ -842,13 +873,46 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             boolean qualityCacheEmpty,
             long lastQualityRuntimeMs,
             boolean fastFramePending) {
+        return shouldRunQualityRefinement(nowUptime, lastMotionUptime, lastQualityUptime,
+                firstFrameReported, qualityCacheEmpty, lastQualityRuntimeMs,
+                fastFramePending, false);
+    }
+
+    static boolean shouldRunQualityRefinement(
+            long nowUptime,
+            long lastMotionUptime,
+            long lastQualityUptime,
+            boolean firstFrameReported,
+            boolean qualityCacheEmpty,
+            long lastQualityRuntimeMs,
+            boolean fastFramePending,
+            boolean confirmationRequested) {
         if (fastFramePending) return false;
         if (lastMotionUptime > 0L
                 && nowUptime - lastMotionUptime < QUALITY_MOTION_SETTLE_MS) return false;
+        if (confirmationRequested) {
+            return nowUptime - lastQualityUptime >= QUALITY_CONFIRMATION_INTERVAL_MS;
+        }
         if (!firstFrameReported || (qualityCacheEmpty && lastQualityUptime <= 0L)) return true;
         long interval = lastQualityRuntimeMs >= QUALITY_SLOW_RUNTIME_MS
                 ? QUALITY_SLOW_REFRESH_INTERVAL_MS : QUALITY_REFRESH_INTERVAL_MS;
         return nowUptime - lastQualityUptime >= interval;
+    }
+
+    static List<Detection> transactionalQualityCoverage(
+            List<Detection> qualityCoverage,
+            int pendingCandidates) {
+        if (qualityCoverage == null || qualityCoverage.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (pendingCandidates <= 0) return qualityCoverage;
+        List<Detection> linkedCoverage = new ArrayList<>();
+        for (Detection detection : qualityCoverage) {
+            if (detection != null && detection.getTrackId() >= 0) {
+                linkedCoverage.add(detection);
+            }
+        }
+        return linkedCoverage;
     }
 
     static boolean usesContinuousMotionInference(DetectorConfig config) {
@@ -928,6 +992,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void applyScrollMotion(int dx, int dy, boolean alreadyOnMainThread) {
         if (dx == 0 && dy == 0) return;
         qualityVisualStabilizer.clear();
+        qualityConfirmationRequested.set(false);
+        qualityConfirmationBurstUsed.set(false);
         VisualDetectionSnapshot invalidatedQuality = cachedQualityVisual;
         cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
         if (invalidatedQuality != VisualDetectionSnapshot.EMPTY
@@ -2125,6 +2191,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         clearCachedOcr();
         cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
         qualityVisualStabilizer.clear();
+        qualityConfirmationRequested.set(false);
+        qualityConfirmationBurstUsed.set(false);
         accessibilityTextStabilizer.clear();
         accessibilityCandidateScans.set(0);
         lastPublishedTextFingerprint = "";
@@ -2376,6 +2444,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         clearCachedOcr();
         cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
         qualityVisualStabilizer.clear();
+        qualityConfirmationRequested.set(false);
+        qualityConfirmationBurstUsed.set(false);
         accessibilityTextStabilizer.clear();
         accessibilityCandidateScans.set(0);
         lastPublishedTextFingerprint = "";
@@ -2435,6 +2505,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private final boolean retainedSourceFrame;
         private final boolean continuousMotionInference;
         private final boolean qualityRefine;
+        private final boolean qualityConfirmation;
         private final long capturedAtUptimeMillis;
 
         private InferenceFrame(
@@ -2448,6 +2519,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 boolean retainedSourceFrame,
                 boolean continuousMotionInference,
                 boolean qualityRefine,
+                boolean qualityConfirmation,
                 long capturedAtUptimeMillis) {
             this.frame = frame;
             this.epoch = epoch;
@@ -2459,6 +2531,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             this.retainedSourceFrame = retainedSourceFrame;
             this.continuousMotionInference = continuousMotionInference;
             this.qualityRefine = qualityRefine;
+            this.qualityConfirmation = qualityConfirmation;
             this.capturedAtUptimeMillis = capturedAtUptimeMillis;
         }
 

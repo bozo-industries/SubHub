@@ -124,7 +124,7 @@ foreach ($requestedPath in $Path) {
             })
             continue
         }
-        if ($line -match 'QUALITY_CACHE scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+)(?: identityLinked=(\d+) identityUnlinked=(\d+))?') {
+        if ($line -match 'QUALITY_CACHE scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+)(?: identityLinked=(\d+) identityUnlinked=(\d+))?(?: pendingVisual=(\d+) deferredUnlinked=(\d+) confirmationRequested=(true|false))?') {
             $quality.Add([pscustomobject]@{
                 time = $time
                 scrollId = [int] $Matches[1]
@@ -138,6 +138,9 @@ foreach ($requestedPath in $Path) {
                 stableVisual = [int] $Matches[9]
                 identityLinked = if ($Matches[10]) { [int] $Matches[10] } else { 0 }
                 identityUnlinked = if ($Matches[11]) { [int] $Matches[11] } else { 0 }
+                pendingVisual = if ($Matches[12]) { [int] $Matches[12] } else { 0 }
+                deferredUnlinked = if ($Matches[13]) { [int] $Matches[13] } else { 0 }
+                confirmationRequested = $Matches[14] -eq 'true'
             })
             continue
         }
@@ -255,6 +258,11 @@ foreach ($requestedPath in $Path) {
             sourceFrameFallbacks = @($lines | Where-Object { $_ -match 'SOURCE_FRAME_PUBLISH' }).Count
             identityLinked = ($quality | Measure-Object -Property identityLinked -Sum).Sum
             identityUnlinked = ($quality | Measure-Object -Property identityUnlinked -Sum).Sum
+            pendingVisualCandidates = ($quality | Measure-Object -Property pendingVisual -Sum).Sum
+            deferredUnlinkedCoverage = ($quality | Measure-Object -Property deferredUnlinked -Sum).Sum
+            confirmationRequests = @($quality | Where-Object confirmationRequested).Count
+            confirmationRuns = @($lines | Where-Object {
+                    $_ -match 'QUALITY_CONFIRMATION_RUN' }).Count
             cacheInvalidationsOnMotion = @($lines | Where-Object {
                     $_ -match 'QUALITY_CACHE_INVALIDATED reason=motion' }).Count
             cacheGenerationRejections = @($lines | Where-Object {
