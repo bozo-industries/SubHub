@@ -138,15 +138,17 @@ public final class CaptureEpochTest {
 
     @Test public void accessibilityTextExpiresOnlyAfterANewerViewportInvalidatesIt() {
         assertTrue(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
-                5_000L, 1_000L, 0L, 0L));
+                5_000L, 1_000L, 0L));
         assertTrue(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
-                5_000L, 4_500L, 4_800L, 0L));
+                5_000L, 4_500L, 4_800L));
+        assertTrue(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
+                5_800L, 4_500L, 4_800L));
         assertFalse(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
-                5_501L, 4_500L, 4_800L, 0L));
+                5_801L, 4_500L, 4_800L));
         assertFalse(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
-                5_000L, 1_000L, 0L, 4_500L));
+                5_000L, 1_000L, 3_999L));
         assertFalse(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
-                500L, 1_000L, 0L, 0L));
+                500L, 1_000L, 0L));
     }
 
     @Test public void semanticTextAndOcrAreGatedByPresetCost() {

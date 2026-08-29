@@ -37,7 +37,7 @@ import ai.onnxruntime.providers.NNAPIFlags;
 public final class DetectionEngine implements AutoCloseable {
     private static final String TAG = "DetectionEngine";
     private static final String PROVIDER_PREFS = "detector_provider_cache";
-    private static final String PROVIDER_CONFIG_REVISION = "ep-v2";
+    private static final String PROVIDER_CONFIG_REVISION = "ep-v3";
     private static final float INV_255 = 1f / 255f;
     private static final ExecutorService PREPROCESS_EXECUTOR =
             Executors.newFixedThreadPool(3, runnable -> {
@@ -50,6 +50,7 @@ public final class DetectionEngine implements AutoCloseable {
     private final OrtEnvironment environment;
     private final DetectionPostProcessor postProcessor = new DetectionPostProcessor();
     private final InferencePerformanceHints performanceHints;
+    private final boolean latencyPriority;
     private DetectorConfig config;
     private OrtSession session;
     private String inputName = "images";
@@ -68,8 +69,14 @@ public final class DetectionEngine implements AutoCloseable {
     private long lastPostprocessMs;
 
     public DetectionEngine(Context context, DetectorConfig config) {
+        this(context, config, true);
+    }
+
+    public DetectionEngine(
+            Context context, DetectorConfig config, boolean latencyPriority) {
         this.context = context.getApplicationContext();
         this.config = config;
+        this.latencyPriority = latencyPriority;
         this.environment = OrtEnvironment.getEnvironment();
         performanceHints = new InferencePerformanceHints(this.context);
         allocateBuffers(config.getInferenceResolution());
@@ -108,7 +115,8 @@ public final class DetectionEngine implements AutoCloseable {
                 activeModel = model;
                 Log.i(TAG, "Loaded " + model + " using fastest provider "
                         + fastest.provider + " (" + fastest.benchmarkNanos / 1_000_000f
-                        + " ms" + (cachedProvider == null ? "" : ", cached") + ")");
+                        + " ms" + (cachedProvider == null ? "" : ", cached")
+                        + ", profile=" + (latencyPriority ? "realtime" : "quality") + ")");
                 providerPrefs.edit().putString(cacheKey, fastest.provider).apply();
                 return;
             }
@@ -132,7 +140,9 @@ public final class DetectionEngine implements AutoCloseable {
         sourceWidth = Math.max(1, sourceWidth);
         sourceHeight = Math.max(1, sourceHeight);
         long started = SystemClock.elapsedRealtimeNanos();
-        performanceHints.begin(config.getDetectionIntervalMs());
+        performanceHints.begin(latencyPriority
+                ? config.getDetectionIntervalMs()
+                : Math.max(200L, config.getDetectionIntervalMs()));
         int size = config.getInferenceResolution();
         float scale = (float) size / Math.max(sourceWidth, sourceHeight);
         int expectedWidth = Math.max(1, Math.round(sourceWidth * scale));
@@ -221,13 +231,14 @@ public final class DetectionEngine implements AutoCloseable {
         options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
         options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL);
         options.setInterOpNumThreads(1);
-        // These sessions run every 334 ms. Sleeping between runs prevents the fast and quality
-        // pools from burning CPU or contending with Accessibility text work while no kernel runs.
-        options.addConfigEntry("session.intra_op.allow_spinning", "0");
+        // The real-time lane deliberately keeps its CPU workers hot between 334 ms captures; the
+        // optional quality lane sleeps so it cannot consume the latency budget while idle.
         options.addConfigEntry("session.inter_op.allow_spinning", "0");
         int threads = Math.max(1, Math.min(config.getInferenceThreads(),
                 Runtime.getRuntime().availableProcessors()));
         if ("NNAPI".equals(provider)) {
+            options.addConfigEntry("session.intra_op.allow_spinning",
+                    latencyPriority ? "1" : "0");
             options.setIntraOpNumThreads(threads);
             // NNAPI's reference CPU device is often slower than ORT's optimized CPU kernels.
             // Unsupported accelerator nodes still fall back to ORT without changing precision.
@@ -235,10 +246,13 @@ public final class DetectionEngine implements AutoCloseable {
         } else if ("XNNPACK".equals(provider)) {
             // XNNPACK owns a separate intra-op pool. A second multi-threaded ORT pool competes
             // with it and can make mobile inference slower while consuming substantially more CPU.
+            options.addConfigEntry("session.intra_op.allow_spinning", "0");
             options.setIntraOpNumThreads(1);
             options.addXnnpack(Collections.singletonMap(
                     "intra_op_num_threads", Integer.toString(threads)));
         } else {
+            options.addConfigEntry("session.intra_op.allow_spinning",
+                    latencyPriority ? "1" : "0");
             options.setIntraOpNumThreads(threads);
             options.addCPU(true);
         }
@@ -285,7 +299,8 @@ public final class DetectionEngine implements AutoCloseable {
                 candidate = environment.createSession(modelBytes, options);
                 long benchmarkNanos = benchmark(candidate);
                 Log.i(TAG, provider + " benchmark for " + model + ": "
-                        + benchmarkNanos / 1_000_000f + " ms");
+                        + benchmarkNanos / 1_000_000f + " ms profile="
+                        + (latencyPriority ? "realtime" : "quality"));
                 if (benchmarkNanos < fastestNanos) {
                     closeQuietly(fastestSession);
                     fastestSession = candidate;
@@ -306,6 +321,7 @@ public final class DetectionEngine implements AutoCloseable {
     private String providerCacheKey(String model) {
         String identity = android.os.Build.FINGERPRINT + '|' + model + '|'
                 + config.getInferenceResolution() + '|' + config.getInferenceThreads()
+                + '|' + (latencyPriority ? "realtime" : "quality")
                 + '|' + PROVIDER_CONFIG_REVISION;
         return "provider_" + Integer.toHexString(identity.hashCode());
     }

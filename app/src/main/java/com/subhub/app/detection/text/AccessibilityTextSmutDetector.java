@@ -111,6 +111,11 @@ public final class AccessibilityTextSmutDetector {
                         classifiedNodes++;
                         SmutTextClassifier.Match match = factory.classify(
                                 text, config, semanticEnabled);
+                        // Character-location extras cross the Accessibility Binder boundary and
+                        // can cost several milliseconds per node. Safe text needs no geometry at
+                        // all, so only ask Android for exact character bounds after classification
+                        // has produced a real censor candidate.
+                        if (!match.isMatched()) continue;
                         Rect characterBounds = AccessibilityTextGeometry.resolve(
                                 node, text, match, width, height);
                         if (characterBounds == null
@@ -296,6 +301,7 @@ public final class AccessibilityTextSmutDetector {
         node.getBoundsInScreen(bounds);
         if (!isUsefulTextRegion(node, bounds, width, height)) return null;
         SmutTextClassifier.Match match = factory.classify(text, config, semanticEnabled);
+        if (!match.isMatched()) return null;
         Rect characterBounds = AccessibilityTextGeometry.resolve(
                 node, text, match, width, height);
         if (characterBounds == null

@@ -173,6 +173,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile long lastTextRefreshMillis;
     private volatile long lastTextContentChangeUptime;
     private volatile long textContentBurstStartedUptime;
+    private volatile long accessibilityTextInvalidatedAtUptime;
     private volatile long lastOcrCompletionUptime;
     private volatile long lastMotionUptime;
     private volatile long lastInferenceUptime;
@@ -284,13 +285,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             textSmutConfig = settings.loadTextSmutConfig();
             warmTextModels(config);
             if (detector == null) {
-                detector = new DetectionEngine(this, config);
+                detector = new DetectionEngine(this, config, false);
                 detector.initialize();
             } else {
                 detector.setConfig(config);
             }
             if (fastDetector == null) {
-                fastDetector = new DetectionEngine(this, fastConfig);
+                fastDetector = new DetectionEngine(this, fastConfig, true);
                 fastDetector.initialize();
             } else {
                 fastDetector.setConfig(fastConfig);
@@ -901,7 +902,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!usesContinuousMotionInference(detectorConfig)) discardPendingInference();
         dwellTracker.onScroll();
         textRefreshRequested.set(true);
-        scheduleAccessibilityTextExpiry();
+        invalidateAccessibilityTextSnapshot();
         invalidateOcrForMotion();
         main.removeCallbacks(settledTextRefresh);
         main.postDelayed(settledTextRefresh, SETTLED_SCROLL_REFRESH_MS);
@@ -924,13 +925,23 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (pending != null) pending.close();
     }
 
-    private void scheduleAccessibilityTextExpiry() {
+    private synchronized void invalidateAccessibilityTextSnapshot() {
         TextDetectionSnapshot snapshot = cachedAccessibilityText;
-        if (snapshot == TextDetectionSnapshot.EMPTY) return;
+        if (snapshot == TextDetectionSnapshot.EMPTY || snapshot.detections.isEmpty()) return;
+        long now = SystemClock.uptimeMillis();
+        if (accessibilityTextInvalidatedAtUptime <= snapshot.capturedAtUptimeMillis) {
+            accessibilityTextInvalidatedAtUptime = now;
+        }
         long delay = Math.max(0L, ACCESSIBILITY_TEXT_STALE_TTL_MS
-                - (SystemClock.uptimeMillis() - snapshot.capturedAtUptimeMillis));
+                - (now - accessibilityTextInvalidatedAtUptime));
         main.removeCallbacks(staleAccessibilityTextExpiry);
         main.postDelayed(staleAccessibilityTextExpiry, delay);
+    }
+
+    private synchronized void cacheAccessibilityText(TextDetectionSnapshot snapshot) {
+        cachedAccessibilityText = snapshot == null ? TextDetectionSnapshot.EMPTY : snapshot;
+        accessibilityTextInvalidatedAtUptime = 0L;
+        main.removeCallbacks(staleAccessibilityTextExpiry);
     }
 
     private ScrollAlignment consumeTrackerMotion(int width, int height) {
@@ -1158,9 +1169,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                             scanContentGeneration, scanScroll);
                     scan = null;
                 } else if (scene.getPendingCandidates() == 0) {
-                    cachedAccessibilityText = new TextDetectionSnapshot(
+                    cacheAccessibilityText(new TextDetectionSnapshot(
                             scene.getStableDetections(), captureWidth, captureHeight,
-                            scanScroll.scrollX, scanScroll.scrollY);
+                            scanScroll.scrollX, scanScroll.scrollY));
                     publishTextLane(epoch, "accessibility",
                             scanMotionGeneration, scanSceneGeneration,
                             currentContentGeneration);
@@ -1252,9 +1263,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     }
                     TextDetectionStabilizer.UpdateResult scene =
                             accessibilityTextStabilizer.confirmSubset(mapped);
-                    cachedAccessibilityText = new TextDetectionSnapshot(
+                    cacheAccessibilityText(new TextDetectionSnapshot(
                             scene.getStableDetections(), captureWidth, captureHeight,
-                            scanScroll.scrollX, scanScroll.scrollY);
+                            scanScroll.scrollX, scanScroll.scrollY));
                     DiagnosticsRepository.recordAccessibilityText(
                             DIAGNOSTICS_MODE, confirmation.getConfirmedNodes(),
                             scene.getStableDetections().size());
@@ -1357,12 +1368,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     static boolean isAccessibilityTextSnapshotFresh(
             long nowUptime,
             long capturedAtUptime,
-            long lastMotionUptime,
-            long lastContentChangeUptime) {
+            long invalidatedAtUptime) {
         if (capturedAtUptime <= 0L || nowUptime < capturedAtUptime) return false;
-        long latestInvalidation = Math.max(lastMotionUptime, lastContentChangeUptime);
-        return latestInvalidation <= capturedAtUptime
-                || nowUptime - capturedAtUptime <= ACCESSIBILITY_TEXT_STALE_TTL_MS;
+        if (invalidatedAtUptime <= capturedAtUptime) return true;
+        return nowUptime >= invalidatedAtUptime
+                && nowUptime - invalidatedAtUptime <= ACCESSIBILITY_TEXT_STALE_TTL_MS;
     }
 
     private List<Detection> cachedTextForFrame(
@@ -1371,7 +1381,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         TextDetectionSnapshot accessibilitySnapshot = cachedAccessibilityText;
         List<Detection> accessibility = isAccessibilityTextSnapshotFresh(
                 nowUptime, accessibilitySnapshot.capturedAtUptimeMillis,
-                lastMotionUptime, lastTextContentChangeUptime)
+                accessibilityTextInvalidatedAtUptime)
                 ? shiftTextSource(accessibilitySnapshot,
                         width, height, requestedScrollX, requestedScrollY)
                 : Collections.emptyList();
@@ -1898,7 +1908,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             textContentEvents.incrementAndGet();
             textContentChangeTypes.updateAndGet(previous -> previous | contentTypes);
             textRefreshRequested.set(true);
-            scheduleAccessibilityTextExpiry();
+            invalidateAccessibilityTextSnapshot();
             if (textContentBurstStartedUptime <= 0L) {
                 textContentBurstStartedUptime = contentChangedAt;
             }
@@ -2031,10 +2041,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         textContentStaleRetries.set(0);
         lastTextContentChangeUptime = 0L;
         textContentBurstStartedUptime = 0L;
+        accessibilityTextInvalidatedAtUptime = 0L;
         main.removeCallbacks(contentTextRefresh);
         main.removeCallbacks(staleAccessibilityTextExpiry);
         contentTextRefreshScheduled.set(false);
-        cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
+        cacheAccessibilityText(TextDetectionSnapshot.EMPTY);
         clearCachedOcr();
         cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
         qualityVisualStabilizer.clear();
@@ -2285,7 +2296,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             pendingTrackerOffsetX.set(0L);
             pendingTrackerOffsetY.set(0L);
         }
-        cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
+        cacheAccessibilityText(TextDetectionSnapshot.EMPTY);
         clearCachedOcr();
         cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
         qualityVisualStabilizer.clear();
