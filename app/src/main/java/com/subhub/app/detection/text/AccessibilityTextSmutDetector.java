@@ -104,7 +104,7 @@ public final class AccessibilityTextSmutDetector {
                     }
                 }
                 for (int index = 0; index < node.getChildCount(); index++) {
-                    AccessibilityNodeInfo child = node.getChild(index);
+                    AccessibilityNodeInfo child = childWithPrefetch(node, index);
                     if (child != null) pending.addLast(child);
                 }
             } finally {
@@ -164,14 +164,29 @@ public final class AccessibilityTextSmutDetector {
     }
 
     private static String anchorFor(AccessibilityNodeInfo node, String text) {
+        String normalized = SmutTextClassifier.normalize(text);
+        String textIdentity = Integer.toUnsignedString(normalized.hashCode(), 36);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             String uniqueId = node.getUniqueId();
-            if (uniqueId != null && !uniqueId.isEmpty()) return "a11y:id:" + uniqueId;
+            if (uniqueId != null && !uniqueId.isEmpty()) {
+                // Recycler-backed views may keep a node identity while binding different text.
+                // Include content identity so a recycled cell cannot inherit confirmation.
+                return "a11y:id:" + uniqueId + ':' + textIdentity;
+            }
         }
         String viewId = node.getViewIdResourceName();
         String className = node.getClassName() == null ? "" : node.getClassName().toString();
-        String normalized = SmutTextClassifier.normalize(text);
         return "a11y:text:" + (viewId == null ? "" : viewId) + ':' + className + ':'
-                + Integer.toUnsignedString(normalized.hashCode(), 36);
+                + textIdentity;
+    }
+
+    private static AccessibilityNodeInfo childWithPrefetch(
+            AccessibilityNodeInfo node,
+            int index) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return node.getChild(index,
+                    AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_BREADTH_FIRST);
+        }
+        return node.getChild(index);
     }
 }

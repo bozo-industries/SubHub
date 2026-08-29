@@ -717,6 +717,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void applyScrollMotion(int dx, int dy, boolean alreadyOnMainThread) {
         if (dx == 0 && dy == 0) return;
         qualityVisualStabilizer.clear();
+        resetTextConfirmationForMotion();
         lastMotionUptime = SystemClock.uptimeMillis();
         settledInferenceNeeded.set(true);
         // cumulativeScroll stores content-scroll direction; dx/dy are screen movement.
@@ -741,6 +742,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         };
         if (alreadyOnMainThread || Looper.myLooper() == main.getLooper()) moveOverlay.run();
         else main.post(moveOverlay);
+    }
+
+    private void resetTextConfirmationForMotion() {
+        lastAccessibilityCandidateFingerprint = "";
+        accessibilityCandidateScans = 0;
     }
 
     private ScrollAlignment consumeTrackerMotion(int width, int height) {
@@ -846,7 +852,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long scanStartedUptime = SystemClock.uptimeMillis();
             long scanMotionGeneration = motionGeneration.get();
             ScrollPosition scanScroll = currentScrollPosition();
-            AccessibilityNodeInfo root = getRootInActiveWindow();
+            AccessibilityNodeInfo root = accessibilityTextRoot();
             try {
                 if (root == null || !isCurrentCapture(epoch)) return;
                 Rect screen = screenBounds();
@@ -887,11 +893,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 }
                 accessibilityTextCandidatesPresent = !mapped.isEmpty();
                 if (accessibilityTextCandidatesPresent) clearCachedOcr();
+                boolean stageForConfirmation = shouldStagePostScrollTextScan(
+                        mapped.size(), bridgeConfirmedMiss, accessibilityCandidateScans);
+                DiagnosticsRepository.recordAccessibilityText(
+                        DIAGNOSTICS_MODE, mapped.size(), stable.size());
+                if (stageForConfirmation) {
+                    Log.i(TAG, "TEXT_SCAN staged candidates=" + mapped.size()
+                            + " stable=" + stable.size()
+                            + " durationMs=" + (completedUptime - scanStartedUptime));
+                    textRefreshRequested.set(true);
+                    return;
+                }
                 cachedAccessibilityText = new TextDetectionSnapshot(
                         stable, captureWidth, captureHeight,
                         scanScroll.scrollX, scanScroll.scrollY);
-                DiagnosticsRepository.recordAccessibilityText(
-                        DIAGNOSTICS_MODE, mapped.size(), stable.size());
                 Log.i(TAG, "TEXT_SCAN accepted candidates=" + mapped.size()
                         + " stable=" + stable.size()
                         + " bridgeMiss=" + bridgeConfirmedMiss
@@ -931,6 +946,23 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     static boolean shouldBridgeTextMisses(long scanStartedUptime, long lastMotionUptime) {
         return lastMotionUptime <= 0L
                 || scanStartedUptime - lastMotionUptime >= POST_SCROLL_TEXT_RECONCILE_MS;
+    }
+
+    static boolean shouldStagePostScrollTextScan(
+            int candidateCount,
+            boolean bridgeConfirmedMiss,
+            int matchingCandidateScans) {
+        return !bridgeConfirmedMiss
+                && candidateCount > 0
+                && matchingCandidateScans < 2;
+    }
+
+    private AccessibilityNodeInfo accessibilityTextRoot() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return getRootInActiveWindow(
+                    AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_BREADTH_FIRST);
+        }
+        return getRootInActiveWindow();
     }
 
     static long textRefreshDelayAfterMotion(long nowUptime, long lastMotionUptime) {
@@ -1369,6 +1401,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     // Keep screenshot motion as a fallback for custom views which omit deltas.
                     lastMotionUptime = SystemClock.uptimeMillis();
                     motionGeneration.incrementAndGet();
+                    resetTextConfirmationForMotion();
                     settledInferenceNeeded.set(true);
                     discardPendingInference();
                     invalidateOcrForMotion();

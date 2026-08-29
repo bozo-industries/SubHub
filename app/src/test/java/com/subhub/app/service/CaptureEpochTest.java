@@ -98,6 +98,17 @@ public final class CaptureEpochTest {
                 ScreenshotAccessibilityService.textRefreshDelayAfterMotion(10_200L, 10_000L));
     }
 
+    @Test public void postScrollTextReplacementWaitsForCompleteConfirmation() {
+        assertTrue(ScreenshotAccessibilityService.shouldStagePostScrollTextScan(
+                7, false, 1));
+        assertFalse(ScreenshotAccessibilityService.shouldStagePostScrollTextScan(
+                7, false, 2));
+        assertFalse(ScreenshotAccessibilityService.shouldStagePostScrollTextScan(
+                7, true, 1));
+        assertFalse(ScreenshotAccessibilityService.shouldStagePostScrollTextScan(
+                0, false, 1));
+    }
+
     @Test public void semanticTextAndOcrAreGatedByPresetCost() {
         DetectorConfig medium = DetectorConfig.builder().inferenceThreads(2).build();
         DetectorConfig high = DetectorConfig.builder().inferenceThreads(3).build();
