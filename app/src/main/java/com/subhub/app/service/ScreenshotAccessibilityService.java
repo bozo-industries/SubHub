@@ -834,16 +834,16 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void requestTextRefresh() {
         TextSmutConfig config = textSmutConfig;
         if (!running || !recognitionActive || textWorker == null || config == null
-                || !config.isEnabled() || !textRefreshRequested.get()
-                || !textRefreshRunning.compareAndSet(false, true)) return;
-        long wait = MIN_TEXT_REFRESH_MS
-                - (System.currentTimeMillis() - lastTextRefreshMillis);
+                || !config.isEnabled() || !textRefreshRequested.get()) return;
+        long wait = textScanStartDelayMs(
+                SystemClock.uptimeMillis(), lastMotionUptime,
+                System.currentTimeMillis(), lastTextRefreshMillis);
         if (wait > 0L) {
-            textRefreshRunning.set(false);
             main.removeCallbacks(settledTextRefresh);
             main.postDelayed(settledTextRefresh, wait);
             return;
         }
+        if (!textRefreshRunning.compareAndSet(false, true)) return;
         textRefreshRequested.set(false);
         long epoch = captureEpoch.token();
         int captureWidth = latestCaptureWidth;
@@ -969,6 +969,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (lastMotionUptime <= 0L) return 0L;
         return Math.max(0L,
                 SETTLED_SCROLL_REFRESH_MS - (nowUptime - lastMotionUptime));
+    }
+
+    static long textScanStartDelayMs(
+            long nowUptime,
+            long lastMotionUptime,
+            long nowMillis,
+            long lastRefreshMillis) {
+        long motionDelay = textRefreshDelayAfterMotion(nowUptime, lastMotionUptime);
+        long cadenceDelay = Math.max(0L,
+                MIN_TEXT_REFRESH_MS - (nowMillis - lastRefreshMillis));
+        return Math.max(motionDelay, cadenceDelay);
     }
 
     private List<Detection> cachedTextForFrame(

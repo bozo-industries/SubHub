@@ -96,6 +96,12 @@ public final class CaptureEpochTest {
                 ScreenshotAccessibilityService.textRefreshDelayAfterMotion(10_050L, 10_000L));
         assertEquals(0L,
                 ScreenshotAccessibilityService.textRefreshDelayAfterMotion(10_200L, 10_000L));
+        assertEquals(90L, ScreenshotAccessibilityService.textScanStartDelayMs(
+                10_050L, 10_000L, 20_000L, 19_000L));
+        assertEquals(80L, ScreenshotAccessibilityService.textScanStartDelayMs(
+                10_200L, 10_000L, 20_000L, 19_960L));
+        assertEquals(0L, ScreenshotAccessibilityService.textScanStartDelayMs(
+                10_200L, 10_000L, 20_000L, 19_800L));
     }
 
     @Test public void postScrollTextReplacementWaitsForCompleteConfirmation() {
