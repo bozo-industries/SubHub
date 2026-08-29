@@ -30,6 +30,7 @@ import com.subhub.app.settings.FeatureModuleManager;
 import com.subhub.app.subliminal.SubliminalSettings;
 import com.subhub.app.subliminal.SubliminalSettingsActivity;
 import com.subhub.app.subliminal.SubliminalSettingsRepository;
+import com.subhub.app.util.PrimaryHeader;
 import com.subhub.app.util.SubHubNavigation;
 
 import java.util.Locale;
@@ -48,8 +49,10 @@ public final class AtmosphereActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityAtmosphereBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_atmosphere,
+                R.string.atmosphere_title, R.string.atmosphere_subtitle_dom);
         if (SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.ATMOSPHERE)) return;
-        binding.buttonEditLock.setOnClickListener(view -> toggleSpace());
+        PrimaryHeader.editLockButton(binding.getRoot()).setOnClickListener(view -> toggleSpace());
         binding.whispersCard.setOnClickListener(view -> openWhispers());
         binding.buttonWhispers.setOnClickListener(view -> openWhispers());
         binding.popupStormCard.setOnClickListener(view -> openPopupStorm());
@@ -103,8 +106,8 @@ public final class AtmosphereActivity extends AppCompatActivity {
                 && !SubHubPackLocks.isLocked(this, SubHubPackSchema.MODULES));
         binding.switchPopupStorm.setEnabled(dom
                 && !SubHubPackLocks.isLocked(this, SubHubPackSchema.POPUP));
-        ControllerEditMode.renderButton(this, binding.buttonEditLock);
-        binding.atmosphereSubtitle.setText(dom
+        ControllerEditMode.renderButton(this, PrimaryHeader.editLockButton(binding.getRoot()));
+        PrimaryHeader.subtitle(binding.getRoot()).setText(dom
                 ? R.string.atmosphere_subtitle_dom : R.string.atmosphere_subtitle_sub);
         binding.buttonWhispers.setText(dom
                 ? R.string.atmosphere_shape_whispers

@@ -73,6 +73,7 @@ import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.security.HardcoreReadinessNotificationManager;
 import com.subhub.app.security.ProtectionStopPolicy;
 import com.subhub.app.util.AppShortcuts;
+import com.subhub.app.util.PrimaryHeader;
 import com.subhub.app.util.PremiumMotion;
 import com.subhub.app.util.SubHubNavigation;
 import com.subhub.app.subliminal.SubliminalSettings;
@@ -119,6 +120,8 @@ public final class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_tab_home, R.string.app_name,
+                R.string.header_subtitle);
         editLockButton = findViewById(R.id.button_edit_lock);
         projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
@@ -529,7 +532,7 @@ public final class MainActivity extends AppCompatActivity {
         if (binding == null) return;
         boolean domMode = ControllerPinManager.isDomModeActive();
         ControllerEditMode.renderButton(this, editLockButton);
-        TextView headerSubtitle = findViewById(R.id.header_subtitle);
+        TextView headerSubtitle = findViewById(R.id.primary_header_subtitle);
         if (headerSubtitle != null) headerSubtitle.setText(domMode
                 ? R.string.header_subtitle_dom : R.string.header_subtitle_sub);
         binding.domContent.setVisibility(View.GONE);

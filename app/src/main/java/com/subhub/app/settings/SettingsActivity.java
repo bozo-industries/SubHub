@@ -36,6 +36,7 @@ import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.pack.PackManager;
 import com.subhub.app.studio.StudioActivity;
 import com.subhub.app.stats.StatsRepository;
+import com.subhub.app.util.PrimaryHeader;
 import com.subhub.app.util.SubHubNavigation;
 
 import java.util.LinkedHashSet;
@@ -54,6 +55,8 @@ public final class SettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivitySettingsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_nav_censor,
+                R.string.censor_header_title, R.string.settings_subtitle);
         binding.getRoot().setFocusableInTouchMode(true);
         binding.getRoot().requestFocus();
         repository = new SettingsRepository(this);
@@ -62,8 +65,9 @@ public final class SettingsActivity extends AppCompatActivity {
         bindValues();
         attachListeners();
         applyLockState();
-        binding.buttonBack.setOnClickListener(view -> finish());
-        binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
+        PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
+        PrimaryHeader.editLockButton(binding.getRoot())
+                .setOnClickListener(view -> toggleEditSession());
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
     }
 
@@ -255,7 +259,7 @@ public final class SettingsActivity extends AppCompatActivity {
     private void applyLockState() {
         boolean editing = ControllerPinManager.isSessionUnlocked()
                 && !SubHubPackLocks.isLocked(this, SubHubPackSchema.CENSOR);
-        ControllerEditMode.renderButton(this, binding.buttonEditLock);
+        ControllerEditMode.renderButton(this, PrimaryHeader.editLockButton(binding.getRoot()));
         setEnabledRecursive(binding.styleGroup,
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE));
         setEnabledRecursive(binding.captureMethodGroup,

@@ -419,10 +419,10 @@ Maximum coverage · flagship devices</string>
     <string name="achievement_legend">Legend</string>
 
     <string name="achievement_desc_first_block">Block your first piece of content</string>
-    <string name="achievement_desc_blocks_10">Block 10 pieces of content</string>
-    <string name="achievement_desc_blocks_100">Block 100 pieces of content</string>
-    <string name="achievement_desc_blocks_1000">Block 1,000 pieces of content</string>
-    <string name="achievement_desc_blocks_10000">Block 10,000 pieces of content</string>
+    <string name="achievement_desc_blocks_10">Block 100 pieces of content</string>
+    <string name="achievement_desc_blocks_100">Block 1,000 pieces of content</string>
+    <string name="achievement_desc_blocks_1000">Block 10,000 pieces of content</string>
+    <string name="achievement_desc_blocks_10000">Block 100,000 pieces of content</string>
     <string name="achievement_desc_time_1hr">Spend 1 hour protected</string>
     <string name="achievement_desc_time_10hr">Spend 24 hours protected</string>
     <string name="achievement_desc_time_50hr">Spend 7 days protected</string>
@@ -439,8 +439,8 @@ Maximum coverage · flagship devices</string>
     <string name="achievement_desc_halloween">Block content on Halloween</string>
     <string name="achievement_desc_christmas">Block content on Christmas</string>
     <string name="achievement_desc_valentine">Block content on Valentine’s Day</string>
-    <string name="achievement_desc_peak_50">Block 50+ in a single session</string>
-    <string name="achievement_desc_peak_500">Block 500+ in a single session</string>
+    <string name="achievement_desc_peak_50">Block 500+ in a single session</string>
+    <string name="achievement_desc_peak_500">Block 5,000+ in a single session</string>
     <string name="achievement_desc_style_explorer">Try every censor style</string>
     <string name="achievement_desc_border_artist">Try classic, gradient, glow, and rainbow borders</string>
     <string name="achievement_desc_color_picker">Change the border color from the default</string>

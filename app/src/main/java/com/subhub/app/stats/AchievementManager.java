@@ -219,22 +219,24 @@ public final class AchievementManager {
         }
     }
 
-    private static long target(String id) {
+    static long target(String id) {
         switch (id) {
             case "first_block": case "first_session": case "first_custom_phrase": case "profile_creator":
             case "export_first": case "color_picker": return 1;
-            case "blocks_10": case "sessions_10": case "phrase_library": return 10;
-            case "blocks_100": case "sessions_100": return 100;
-            case "blocks_1000": return 1000;
-            case "blocks_10000": return 10000;
+            case "sessions_10": case "phrase_library": return 10;
+            case "sessions_100": case "blocks_10": return 100;
+            case "blocks_100": return 1000;
+            case "blocks_1000": return 10000;
+            case "blocks_10000": return 100000;
             case "time_1hr": return 3600;
             case "time_10hr": return 86400;
             case "time_50hr": return 604800;
             case "time_200hr": return 2592000;
             case "streak_7": return 7;
             case "streak_30": return 30;
-            case "peak_50": case "export_artist": case "ntr_50": return 50;
-            case "peak_500": case "ntr_500": return 500;
+            case "export_artist": case "ntr_50": return 50;
+            case "peak_50": case "ntr_500": return 500;
+            case "peak_500": return 5000;
             case "style_explorer": return 8;
             case "border_artist": return 4;
             case "profile_organizer": return 3;

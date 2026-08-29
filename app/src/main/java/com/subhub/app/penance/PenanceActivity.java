@@ -24,6 +24,7 @@ import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.pack.SubHubPackLocks;
 import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.security.ControllerEditMode;
+import com.subhub.app.util.PrimaryHeader;
 import com.subhub.app.util.SubHubNavigation;
 
 import java.math.BigDecimal;
@@ -68,6 +69,8 @@ public final class PenanceActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityPenanceBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_nav_money,
+                R.string.penance_title, R.string.penance_subtitle);
         if (!Intent.ACTION_VIEW.equals(getIntent().getAction())
                 && SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.MONEY)) return;
         manager = new PenanceManager(this);
@@ -77,8 +80,9 @@ public final class PenanceActivity extends AppCompatActivity {
         populateRules();
         attachRuleMathListeners();
 
-        binding.buttonBack.setOnClickListener(view -> finish());
-        binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
+        PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
+        PrimaryHeader.editLockButton(binding.getRoot())
+                .setOnClickListener(view -> toggleEditSession());
         binding.buttonSettle.setOnClickListener(view -> beginCheckout());
         binding.buttonResumeCheckout.setOnClickListener(view -> openApprovalUrl());
         binding.buttonConfirmPayment.setOnClickListener(view -> confirmPayment());
@@ -126,10 +130,11 @@ public final class PenanceActivity extends AppCompatActivity {
         if (binding == null) return;
         boolean editing = ControllerPinManager.isDomModeActive()
                 && !SubHubPackLocks.isLocked(this, SubHubPackSchema.WALLET);
-        ControllerEditMode.renderButton(this, binding.buttonEditLock);
-        binding.buttonEditLock.setVisibility(editing ? View.VISIBLE : View.GONE);
-        binding.buttonBack.setVisibility(View.GONE);
-        binding.penanceSubtitle.setText(editing
+        ControllerEditMode.renderButton(this, PrimaryHeader.editLockButton(binding.getRoot()));
+        PrimaryHeader.editLockButton(binding.getRoot())
+                .setVisibility(editing ? View.VISIBLE : View.GONE);
+        PrimaryHeader.backButton(binding.getRoot()).setVisibility(View.GONE);
+        PrimaryHeader.subtitle(binding.getRoot()).setText(editing
                 ? R.string.penance_subtitle : R.string.penance_sub_checkout_subtitle);
         binding.ruleConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
         binding.safetyConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);

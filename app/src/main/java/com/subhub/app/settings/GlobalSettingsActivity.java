@@ -46,6 +46,7 @@ import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.security.HardcoreReadinessNotificationManager;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
+import com.subhub.app.util.PrimaryHeader;
 import com.subhub.app.util.SubHubNavigation;
 
 import java.text.Collator;
@@ -88,6 +89,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityGlobalSettingsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_tab_settings,
+                R.string.global_settings_title, R.string.global_settings_subtitle);
         arrangeSettingsSections();
         modules = new FeatureModuleManager(this);
         hardcore = new HardcoreModeManager(this);
@@ -131,7 +134,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.paypalEnvironment.check(credentials.environment() == PayPalEnvironment.LIVE
                 ? R.id.paypal_environment_live : R.id.paypal_environment_sandbox);
         updatingPaypalEnvironment = false;
-        binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
+        PrimaryHeader.editLockButton(binding.getRoot())
+                .setOnClickListener(view -> toggleEditSession());
         binding.buttonProfiles.setOnClickListener(view ->
                 startActivity(new Intent(this, StudioActivity.class)));
         binding.buttonHelp.setOnClickListener(view ->
@@ -208,9 +212,9 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         }
         binding.hardcoreCard.setPadding(dp(12), dp(12), dp(12), dp(12));
         LinearLayout.LayoutParams header =
-                (LinearLayout.LayoutParams) binding.settingsHeader.getLayoutParams();
+                (LinearLayout.LayoutParams) PrimaryHeader.view(binding.getRoot()).getLayoutParams();
         header.bottomMargin = dp(8);
-        binding.settingsHeader.setLayoutParams(header);
+        PrimaryHeader.view(binding.getRoot()).setLayoutParams(header);
     }
 
     private boolean isSettingsGroupLabel(View view) {
@@ -242,7 +246,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         if (binding == null) return;
         editingUnlocked = ControllerPinManager.isSessionUnlocked();
         applySpaceVisibility();
-        ControllerEditMode.renderButton(this, binding.buttonEditLock);
+        ControllerEditMode.renderButton(this, PrimaryHeader.editLockButton(binding.getRoot()));
         boolean modulesEditable = editingUnlocked
                 && !SubHubPackLocks.isLocked(this, SubHubPackSchema.MODULES);
         binding.switchModuleCensor.setEnabled(modulesEditable);
@@ -292,7 +296,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.settingsGroupServices.setVisibility(View.VISIBLE);
         binding.appSettingsCard.setVisibility(View.VISIBLE);
         binding.buttonProfiles.setVisibility(View.VISIBLE);
-        binding.settingsSubtitle.setText(domSpace
+        PrimaryHeader.subtitle(binding.getRoot()).setText(domSpace
                 ? R.string.global_settings_subtitle
                 : R.string.global_settings_subtitle_sub);
     }

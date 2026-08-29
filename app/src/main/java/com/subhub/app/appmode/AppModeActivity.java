@@ -26,6 +26,7 @@ import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.pack.SubHubPackLocks;
 import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.security.ControllerEditMode;
+import com.subhub.app.util.PrimaryHeader;
 import com.subhub.app.util.SubHubNavigation;
 
 import java.text.Collator;
@@ -56,6 +57,8 @@ public final class AppModeActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityAppModeBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_nav_limits,
+                R.string.app_mode_title, R.string.app_mode_subtitle);
         if (SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.LIMITS)) return;
         manager = new AppModeManager(this);
         timers = new AppTimerManager(this);
@@ -78,8 +81,9 @@ public final class AppModeActivity extends AppCompatActivity {
         binding.totalLimitMinutes.setOnFocusChangeListener((view, focused) -> {
             if (!focused) commitTimers(true);
         });
-        binding.buttonBack.setOnClickListener(view -> finish());
-        binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
+        PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
+        PrimaryHeader.editLockButton(binding.getRoot())
+                .setOnClickListener(view -> toggleEditSession());
         renderPerAppAllowances();
         renderTimerControls();
         renderTimerUsage();
@@ -108,7 +112,7 @@ public final class AppModeActivity extends AppCompatActivity {
         if (binding == null) return;
         editingUnlocked = ControllerPinManager.isSessionUnlocked()
                 && !SubHubPackLocks.isLocked(this, SubHubPackSchema.LIMITS);
-        ControllerEditMode.renderButton(this, binding.buttonEditLock);
+        ControllerEditMode.renderButton(this, PrimaryHeader.editLockButton(binding.getRoot()));
         View[] editable = {binding.perAppLimitEnabled, binding.totalLimitEnabled};
         for (View view : editable) view.setEnabled(editingUnlocked);
         renderTimerControls();
