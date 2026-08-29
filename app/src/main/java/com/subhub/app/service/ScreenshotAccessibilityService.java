@@ -971,7 +971,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             int rawDy,
             int dx,
             int dy,
-            String source) {
+            String source,
+            String evidence,
+            int adjustedPixels,
+            boolean amplified) {
         long gap = lastScrollTraceEventUptime <= 0L
                 ? Long.MAX_VALUE : nowUptime - lastScrollTraceEventUptime;
         if (gap > 250L) {
@@ -984,7 +987,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 + " gapMs=" + (gap == Long.MAX_VALUE ? 0L : gap)
                 + " eventAgeMs=" + eventAgeMs
                 + " rawDx=" + rawDx + " rawDy=" + rawDy
-                + " dx=" + dx + " dy=" + dy);
+                + " dx=" + dx + " dy=" + dy
+                + " evidence=" + evidence
+                + " adjustedPx=" + adjustedPixels
+                + " amplified=" + amplified);
         main.removeCallbacks(settledScrollTrace);
         main.postDelayed(settledScrollTrace, MOTION_SETTLE_MS);
     }
@@ -2000,7 +2006,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 if (sourceTime <= 0L || sourceTime > scrollNow) sourceTime = scrollNow;
                 long eventAgeMs = Math.max(0L, scrollNow - sourceTime);
                 ScrollDeltaStabilizer.Result motion = scrollDeltaStabilizer.filter(
-                        rawMotion.dx, rawMotion.dy, sourceTime, viewportWidth, viewportHeight);
+                        rawMotion.dx, rawMotion.dy, sourceTime, viewportWidth, viewportHeight,
+                        rawMotion.authoritative());
                 if (BuildConfig.DEBUG && scrollNow - lastScrollDiagnosticUptime >= 250L) {
                     lastScrollDiagnosticUptime = scrollNow;
                     Log.d(TAG, "Scroll event screen motion raw=" + rawMotion.dx + ','
@@ -2008,9 +2015,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 }
                 traceScrollEvent(scrollNow, eventAgeMs, rawMotion.dx, rawMotion.dy,
                         motion.dx, motion.dy,
-                        motion.rapidReversal ? "rapid-reversal"
+                        motion.authoritative ? "accessibility-authoritative"
+                                : motion.rapidReversal ? "rapid-reversal"
                                 : rawMotion.moved() && !motion.moved()
-                                ? "direction-suppressed" : "accessibility");
+                                ? "direction-suppressed" : "accessibility",
+                        rawMotion.evidence.name(), motion.adjustedPixels(), motion.amplified());
                 if (motion.moved()) {
                     applyEventMotion(motion.dx, motion.dy);
                 } else {

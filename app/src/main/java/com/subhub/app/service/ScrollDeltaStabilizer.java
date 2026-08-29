@@ -4,13 +4,12 @@ package com.subhub.app.service;
  * Rejects isolated direction reversals without discarding valid Accessibility scroll distance.
  *
  * <p>Some RecyclerView producers emit correction records whose sign is opposite to the visible
- * gesture. Applying each record literally makes an otherwise fast overlay bounce. Initial motion
- * is accepted immediately; a genuine reversal is accepted after two consecutive meaningful
- * samples and reconciles the initially held displacement. Strictly alternating rapid input enters
- * a pass-through burst after four samples, so deliberate up/down jitter cannot accumulate a large
- * one-direction error. A gesture gap clears direction so the first sample of a deliberate new
- * gesture is applied immediately instead of being withheld and folded into an oversized second
- * sample.</p>
+ * gesture. Applying each low-confidence record literally makes an otherwise fast overlay bounce.
+ * Explicit and absolute Accessibility deltas bypass this heuristic because their timing is
+ * authoritative. Fallback indexed motion accepts a genuine reversal after two consecutive
+ * meaningful samples, but never folds withheld displacement into a later oversized event.
+ * Strictly alternating input enters pass-through after four samples. A gesture gap clears
+ * direction so a deliberate new gesture is accepted immediately.</p>
  */
 final class ScrollDeltaStabilizer {
     private static final long SESSION_GAP_MS = 250L;
@@ -26,6 +25,16 @@ final class ScrollDeltaStabilizer {
             long nowUptime,
             int viewportWidth,
             int viewportHeight) {
+        return filter(rawDx, rawDy, nowUptime, viewportWidth, viewportHeight, false);
+    }
+
+    synchronized Result filter(
+            int rawDx,
+            int rawDy,
+            long nowUptime,
+            int viewportWidth,
+            int viewportHeight,
+            boolean authoritative) {
         if (lastSampleUptime <= 0L || nowUptime - lastSampleUptime > SESSION_GAP_MS) {
             x.startSession();
             y.startSession();
@@ -35,10 +44,14 @@ final class ScrollDeltaStabilizer {
         // half-viewport clamp here permanently discarded most of each fast Chrome scroll event
         // (for example 5,984px reported versus 1,496px applied on the Pixel 8 Pro). That made
         // every track trail the page even after Android delivered the authoritative displacement.
-        int dx = x.filter(rawDx, displacementLimit(viewportWidth));
-        int dy = y.filter(rawDy, displacementLimit(viewportHeight));
+        int dx = authoritative
+                ? x.acceptAuthoritative(rawDx, displacementLimit(viewportWidth))
+                : x.filter(rawDx, displacementLimit(viewportWidth));
+        int dy = authoritative
+                ? y.acceptAuthoritative(rawDy, displacementLimit(viewportHeight))
+                : y.filter(rawDy, displacementLimit(viewportHeight));
         return new Result(rawDx, rawDy, dx, dy,
-                x.wasRapidReversalOutput() || y.wasRapidReversalOutput());
+                x.wasRapidReversalOutput() || y.wasRapidReversalOutput(), authoritative);
     }
 
     synchronized void reset() {
@@ -50,10 +63,8 @@ final class ScrollDeltaStabilizer {
     private static final class Axis {
         private int direction;
         private int oppositeCount;
-        private int pendingOpposite;
         private int lastRawDirection;
         private int alternatingTransitions;
-        private int alternatingDebt;
         private boolean rapidReversalMode;
         private int rapidSameDirectionSamples;
         private boolean rapidReversalOutput;
@@ -73,7 +84,6 @@ final class ScrollDeltaStabilizer {
                 rapidSameDirectionSamples = 1;
             } else {
                 alternatingTransitions = 0;
-                alternatingDebt = 0;
                 rapidSameDirectionSamples++;
             }
             lastRawDirection = sign;
@@ -82,65 +92,66 @@ final class ScrollDeltaStabilizer {
                 rapidReversalOutput = true;
                 direction = sign;
                 oppositeCount = 0;
-                pendingOpposite = 0;
                 if (!rawReversed && rapidSameDirectionSamples >= 3) {
                     rapidReversalMode = false;
                     alternatingTransitions = 0;
-                    alternatingDebt = 0;
                 }
                 return clamped;
             }
 
             if (alternatingTransitions >= 3) {
-                // The previous samples proved that the held opposite records were deliberate
-                // motion, not one producer correction. Reconcile that debt once, then follow the
-                // burst literally. ViewportMotion spreads this correction across display frames.
-                int reconciled = clamp(clamped + alternatingDebt, -limit, limit);
+                // The previous samples proved the alternating input is deliberate. Enter
+                // pass-through without lumping a withheld sample into this event: Accessibility
+                // timing is authoritative, and debt reconciliation creates a visible double jump.
                 rapidReversalMode = true;
                 rapidReversalOutput = true;
                 direction = sign;
                 oppositeCount = 0;
-                pendingOpposite = 0;
-                alternatingDebt = 0;
-                return reconciled;
+                return clamped;
             }
 
             if (direction == 0) {
                 direction = sign;
                 oppositeCount = 0;
-                pendingOpposite = 0;
                 return clamped;
             }
             if (direction != 0 && sign == direction) {
                 oppositeCount = 0;
-                pendingOpposite = 0;
                 return clamped;
             }
             oppositeCount++;
             if (oppositeCount < 2) {
-                pendingOpposite = clamped;
-                alternatingDebt += clamped;
                 return 0;
             }
 
             direction = sign;
             oppositeCount = 0;
-            int confirmed = clamp(pendingOpposite + clamped, -limit, limit);
-            pendingOpposite = 0;
-            return confirmed;
+            return clamped;
         }
 
         boolean wasRapidReversalOutput() {
             return rapidReversalOutput;
         }
 
+        int acceptAuthoritative(int raw, int limit) {
+            int clamped = clamp(raw, -limit, limit);
+            rapidReversalOutput = false;
+            if (Math.abs(clamped) >= MEANINGFUL_DELTA_PX) {
+                direction = Integer.signum(clamped);
+                lastRawDirection = direction;
+            }
+            oppositeCount = 0;
+            alternatingTransitions = 0;
+            rapidReversalMode = false;
+            rapidSameDirectionSamples = clamped == 0 ? 0 : 1;
+            return clamped;
+        }
+
         void startSession() {
             direction = 0;
             oppositeCount = 0;
-            pendingOpposite = 0;
             lastRawDirection = 0;
             alternatingTransitions = 0;
-            alternatingDebt = 0;
             rapidReversalMode = false;
             rapidSameDirectionSamples = 0;
             rapidReversalOutput = false;
@@ -157,17 +168,32 @@ final class ScrollDeltaStabilizer {
         final int dx;
         final int dy;
         final boolean rapidReversal;
+        final boolean authoritative;
 
-        Result(int rawDx, int rawDy, int dx, int dy, boolean rapidReversal) {
+        Result(
+                int rawDx,
+                int rawDy,
+                int dx,
+                int dy,
+                boolean rapidReversal,
+                boolean authoritative) {
             this.rawDx = rawDx;
             this.rawDy = rawDy;
             this.dx = dx;
             this.dy = dy;
             this.rapidReversal = rapidReversal;
+            this.authoritative = authoritative;
         }
 
         boolean moved() { return dx != 0 || dy != 0; }
         boolean changed() { return rawDx != dx || rawDy != dy; }
+        int adjustedPixels() {
+            return Math.abs(rawDx - dx) + Math.abs(rawDy - dy);
+        }
+        boolean amplified() {
+            return Math.abs((long) dx) + Math.abs((long) dy)
+                    > Math.abs((long) rawDx) + Math.abs((long) rawDy);
+        }
     }
 
     private static int clamp(int value, int minimum, int maximum) {

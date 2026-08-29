@@ -42,7 +42,8 @@ final class AccessibilityScrollMotionResolver {
             if (Math.abs(contentDx) <= safeWidth * 2
                     && Math.abs(contentDy) <= safeHeight * 2) {
                 Motion absolute = screenMotion(
-                        contentDx, contentDy, safeWidth, safeHeight);
+                        contentDx, contentDy, safeWidth, safeHeight,
+                        Motion.Evidence.ABSOLUTE);
                 if (absolute.moved()) {
                     rememberIndex(event);
                     return absolute;
@@ -77,7 +78,8 @@ final class AccessibilityScrollMotionResolver {
             AccessibilityRecord record, int viewportWidth, int viewportHeight) {
         int contentDx = normalizeDelta(record.getScrollDeltaX());
         int contentDy = normalizeDelta(record.getScrollDeltaY());
-        return screenMotion(contentDx, contentDy, viewportWidth, viewportHeight);
+        return screenMotion(contentDx, contentDy, viewportWidth, viewportHeight,
+                Motion.Evidence.EXPLICIT);
     }
 
     private static int normalizeDelta(int value) {
@@ -87,13 +89,17 @@ final class AccessibilityScrollMotionResolver {
     }
 
     private static Motion screenMotion(
-            int contentDx, int contentDy, int viewportWidth, int viewportHeight) {
+            int contentDx,
+            int contentDy,
+            int viewportWidth,
+            int viewportHeight,
+            Motion.Evidence evidence) {
         int limitX = Math.max(1, viewportWidth * 2);
         int limitY = Math.max(1, viewportHeight * 2);
         int screenDx = clamp(-contentDx, -limitX, limitX);
         int screenDy = clamp(-contentDy, -limitY, limitY);
         return screenDx == 0 && screenDy == 0
-                ? Motion.NONE : new Motion(screenDx, screenDy);
+                ? Motion.NONE : new Motion(screenDx, screenDy, evidence);
     }
 
     private void rememberAbsolute(AccessibilityEvent event) {
@@ -125,7 +131,7 @@ final class AccessibilityScrollMotionResolver {
         int visibleItems = Math.max(1, currentTo - currentFrom + 1);
         int estimatedItemHeight = Math.max(1, viewportHeight / visibleItems);
         return screenMotion(0, itemDelta * estimatedItemHeight,
-                viewportWidth, viewportHeight);
+                viewportWidth, viewportHeight, Motion.Evidence.INDEXED);
     }
 
     private void rememberIndex(AccessibilityEvent event) {
@@ -149,16 +155,28 @@ final class AccessibilityScrollMotionResolver {
     }
 
     static final class Motion {
-        static final Motion NONE = new Motion(0, 0);
+        enum Evidence {
+            NONE,
+            EXPLICIT,
+            ABSOLUTE,
+            INDEXED
+        }
+
+        static final Motion NONE = new Motion(0, 0, Evidence.NONE);
         final int dx;
         final int dy;
+        final Evidence evidence;
 
-        Motion(int dx, int dy) {
+        Motion(int dx, int dy, Evidence evidence) {
             this.dx = dx;
             this.dy = dy;
+            this.evidence = evidence == null ? Evidence.NONE : evidence;
         }
 
         boolean moved() { return dx != 0 || dy != 0; }
         long magnitude() { return Math.abs((long) dx) + Math.abs((long) dy); }
+        boolean authoritative() {
+            return evidence == Evidence.EXPLICIT || evidence == Evidence.ABSOLUTE;
+        }
     }
 }
