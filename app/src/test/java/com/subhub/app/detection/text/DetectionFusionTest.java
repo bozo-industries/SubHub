@@ -52,7 +52,7 @@ public final class DetectionFusionTest {
         assertEquals(line.getBox(), merged.get(0).getBox());
     }
 
-    @Test public void bridgeRegionCoalescesAllDuplicateTextBoxes() {
+    @Test public void bridgeRegionCannotCollapseSeparateLinesIntoOneGroup() {
         Detection upper = text(new BBox(80, 300, 500, 60));
         Detection lower = text(new BBox(80, 390, 500, 60));
         Detection bridge = text(new BBox(80, 340, 500, 70));
@@ -60,8 +60,25 @@ public final class DetectionFusionTest {
         List<Detection> merged = DetectionFusion.merge(
                 Collections.emptyList(), Arrays.asList(upper, lower, bridge));
 
-        assertEquals(1, merged.size());
-        assertEquals(new BBox(80, 300, 500, 150), merged.get(0).getBox());
+        assertEquals(2, merged.size());
+        assertEquals(upper.getBox(), merged.get(0).getBox());
+        assertEquals(lower.getBox(), merged.get(1).getBox());
+    }
+
+    @Test public void differentSemanticAnchorsNeverFuseDespiteOverlap() {
+        Detection first = text(new BBox(80, 300, 500, 60)).withObservation(
+                Detection.ObservationSource.ACCESSIBILITY,
+                Detection.GeometryQuality.EXACT,
+                "post-1:line-1");
+        Detection second = text(new BBox(80, 320, 500, 60)).withObservation(
+                Detection.ObservationSource.ACCESSIBILITY,
+                Detection.GeometryQuality.EXACT,
+                "post-1:line-2");
+
+        List<Detection> merged = DetectionFusion.merge(
+                Collections.emptyList(), Arrays.asList(first, second));
+
+        assertEquals(2, merged.size());
     }
 
     @Test public void preciseOcrLineReplacesNearbyAccessibilityEstimate() {

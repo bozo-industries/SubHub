@@ -68,6 +68,9 @@ final class CensorOverlayView extends View {
     private String diagnostics = "";
     private float contentOffsetX;
     private float contentOffsetY;
+    private float renderContentOffsetX;
+    private float renderContentOffsetY;
+    private final ViewportMotion viewportMotion = new ViewportMotion();
     private float sourceFrameOffsetX;
     private float sourceFrameOffsetY;
     private long borderAnimationTimeOverride = -1L;
@@ -152,6 +155,7 @@ final class CensorOverlayView extends View {
         captureHeight = Math.max(1, sourceHeight);
         contentOffsetX = motionX;
         contentOffsetY = motionY;
+        viewportMotion.reset(contentOffsetX, contentOffsetY, tracksPublishedAtMillis);
         sourceFrameOffsetX = sourceMotionX;
         sourceFrameOffsetY = sourceMotionY;
         if (frame != null && frame != latestFrame && !frame.isRecycled()) frame.recycle();
@@ -168,6 +172,7 @@ final class CensorOverlayView extends View {
         if (tracks.isEmpty()) return;
         contentOffsetX += deltaX;
         contentOffsetY += deltaY;
+        viewportMotion.addDelta(deltaX, deltaY, SystemClock.uptimeMillis());
         postInvalidateOnAnimation();
         scheduleNextFrame(SystemClock.uptimeMillis());
     }
@@ -177,6 +182,7 @@ final class CensorOverlayView extends View {
         tracks.clear();
         contentOffsetX = 0;
         contentOffsetY = 0;
+        viewportMotion.reset(0f, 0f, SystemClock.uptimeMillis());
         sourceFrameOffsetX = 0;
         sourceFrameOffsetY = 0;
         if (frame != null && !frame.isRecycled()) frame.recycle();
@@ -224,6 +230,9 @@ final class CensorOverlayView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        ViewportMotion.Position viewport = viewportMotion.position(renderTimeMillis());
+        renderContentOffsetX = viewport.x;
+        renderContentOffsetY = viewport.y;
         if (appearance.isReverseMode()) drawReverse(canvas);
         else drawNormal(canvas);
         drawDiagnostics(canvas);
@@ -265,7 +274,7 @@ final class CensorOverlayView extends View {
             activePredictionX = (predicted.getX() - track.box().getX()) * scaleX;
             activePredictionY = (predicted.getY() - track.box().getY()) * scaleY;
             setPaddedRect(predicted, scaleX, scaleY, textRegion);
-            drawRect.offset(contentOffsetX, contentOffsetY);
+            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
             drawEffect(canvas, drawRect, track.id(), appearance.getType(),
                     appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
@@ -297,7 +306,7 @@ final class CensorOverlayView extends View {
             BBox predicted = track.predict(ageMs, maxExtrapolationMs);
             setPaddedRect(predicted, scaleX, scaleY,
                     "text_smut".equals(track.category()));
-            drawRect.offset(contentOffsetX, contentOffsetY);
+            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
             RectF hole = new RectF(drawRect);
             holes.add(hole);
             drawShape(canvas, hole, clear);
@@ -737,13 +746,13 @@ final class CensorOverlayView extends View {
         if (frame == null || frame.isRecycled() || getWidth() <= 0 || getHeight() <= 0) return false;
         // The retained frame predates any compensated scroll. Sample the original source pixels
         // while drawing them at the translated destination so blur/pixelate/glitch remain stable.
-        float sourceLeft = destination.left - contentOffsetX - sourceFrameOffsetX
+        float sourceLeft = destination.left - renderContentOffsetX - sourceFrameOffsetX
                 - activePredictionX;
-        float sourceTop = destination.top - contentOffsetY - sourceFrameOffsetY
+        float sourceTop = destination.top - renderContentOffsetY - sourceFrameOffsetY
                 - activePredictionY;
-        float sourceRight = destination.right - contentOffsetX - sourceFrameOffsetX
+        float sourceRight = destination.right - renderContentOffsetX - sourceFrameOffsetX
                 - activePredictionX;
-        float sourceBottom = destination.bottom - contentOffsetY - sourceFrameOffsetY
+        float sourceBottom = destination.bottom - renderContentOffsetY - sourceFrameOffsetY
                 - activePredictionY;
         int left = Math.max(0, Math.min(frame.getWidth() - 1,
                 Math.round(sourceLeft / getWidth() * frame.getWidth())));
@@ -782,7 +791,8 @@ final class CensorOverlayView extends View {
 
     private void scheduleNextFrame(long nowMillis) {
         if (frameCallbackPosted || !isAttachedToWindow() || tracks.isEmpty()
-                || (!isAnimated() && !hasActivePrediction(nowMillis))) return;
+                || (!isAnimated() && !hasActivePrediction(nowMillis)
+                && !viewportMotion.isAnimating(nowMillis))) return;
         frameCallbackPosted = true;
         Choreographer.getInstance().postFrameCallback(frameCallback);
     }

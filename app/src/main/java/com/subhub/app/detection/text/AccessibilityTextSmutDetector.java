@@ -1,6 +1,7 @@
 package com.subhub.app.detection.text;
 
 import android.graphics.Rect;
+import android.os.Build;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import com.subhub.app.detection.Detection;
@@ -76,7 +77,15 @@ public final class AccessibilityTextSmutDetector {
                                         "TEXT_SMUT_ACCESSIBILITY_")
                                 : factory.createExact(characterBounds, match, width, height,
                                         "TEXT_SMUT_ACCESSIBILITY_");
-                        if (detection != null) result.add(detection);
+                        if (detection != null) {
+                            detection = detection.withObservation(
+                                    Detection.ObservationSource.ACCESSIBILITY,
+                                    characterBounds == null
+                                            ? Detection.GeometryQuality.ESTIMATED
+                                            : Detection.GeometryQuality.EXACT,
+                                    anchorFor(node, text));
+                            result.add(detection);
+                        }
                     }
                 }
                 for (int index = 0; index < node.getChildCount(); index++) {
@@ -134,5 +143,17 @@ public final class AccessibilityTextSmutDetector {
         }
         return combined.length() <= MAX_TEXT_LENGTH
                 ? combined : combined.substring(0, MAX_TEXT_LENGTH);
+    }
+
+    private static String anchorFor(AccessibilityNodeInfo node, String text) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            String uniqueId = node.getUniqueId();
+            if (uniqueId != null && !uniqueId.isEmpty()) return "a11y:id:" + uniqueId;
+        }
+        String viewId = node.getViewIdResourceName();
+        String className = node.getClassName() == null ? "" : node.getClassName().toString();
+        String normalized = SmutTextClassifier.normalize(text);
+        return "a11y:text:" + (viewId == null ? "" : viewId) + ':' + className + ':'
+                + Integer.toUnsignedString(normalized.hashCode(), 36);
     }
 }

@@ -18,6 +18,7 @@ public final class TrackedObject {
     private boolean visible;
     private boolean confirmed;
     private BBox predictionOriginBox;
+    private String anchorKey;
 
     TrackedObject(int id, Detection detection, long nowNanos) {
         this(id, detection, nowNanos, true);
@@ -34,6 +35,7 @@ public final class TrackedObject {
         lastSeenNanos = nowNanos;
         framesTracked = 1;
         visible = visibleImmediately;
+        anchorKey = detection.getAnchorKey();
     }
 
     public int getId() { return id; }
@@ -50,6 +52,7 @@ public final class TrackedObject {
     public boolean isActive() { return active; }
     public boolean isVisible() { return visible; }
     public boolean isConfirmed() { return confirmed; }
+    public String getAnchorKey() { return anchorKey; }
 
     void update(Detection detection, BBox renderedBox, float dx, float dy, long nowNanos) {
         rawBox = detection.getBox();
@@ -63,6 +66,7 @@ public final class TrackedObject {
         visible = true;
         velocityX = dx;
         velocityY = dy;
+        if (detection.getAnchorKey() != null) anchorKey = detection.getAnchorKey();
         if (framesTracked >= 5) confirmed = true;
     }
 

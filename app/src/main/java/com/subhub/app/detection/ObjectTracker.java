@@ -38,7 +38,7 @@ public final class ObjectTracker {
                 // Spatial continuity owns the identity so one stable image cannot create a new
                 // censor (and a new ledger event) merely because its label changed for one frame.
                 if (!track.isActive()) continue;
-                float score = matchScore(detection.getBox(), track, nowNanos,
+                float score = matchScore(detection, track, nowNanos,
                         config.getMaxExtrapolationMs());
                 if (score >= IOU_THRESHOLD) {
                     candidates.add(new MatchCandidate(detectionIndex, track.getId(), score));
@@ -154,19 +154,22 @@ public final class ObjectTracker {
     }
 
     private static float matchScore(
-            BBox detection,
+            Detection detection,
             TrackedObject track,
             long nowNanos,
             float maxExtrapolationMs) {
-        float iou = detection.intersectionOverUnion(track.getBox());
+        if (detection.getAnchorKey() != null
+                && detection.getAnchorKey().equals(track.getAnchorKey())) return 2f;
+        BBox detectionBox = detection.getBox();
+        float iou = detectionBox.intersectionOverUnion(track.getBox());
         BBox predicted = track.predict(nowNanos, maxExtrapolationMs);
-        iou = Math.max(iou, detection.intersectionOverUnion(predicted));
-        float dx = detection.getCenterX() - track.getBox().getCenterX();
-        float dy = detection.getCenterY() - track.getBox().getCenterY();
+        iou = Math.max(iou, detectionBox.intersectionOverUnion(predicted));
+        float dx = detectionBox.getCenterX() - track.getBox().getCenterX();
+        float dy = detectionBox.getCenterY() - track.getBox().getCenterY();
         float distance = (float) Math.sqrt(dx * dx + dy * dy);
         float limit = Math.min(
                 Math.max(
-                        Math.max(detection.getWidth(), detection.getHeight()),
+                        Math.max(detectionBox.getWidth(), detectionBox.getHeight()),
                         Math.max(track.getBox().getWidth(), track.getBox().getHeight())) * 2f,
                 200f);
         if (distance < limit) iou = Math.max(iou, (1f - distance / limit) * 0.5f);

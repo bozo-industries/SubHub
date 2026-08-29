@@ -170,6 +170,30 @@ public final class ObjectTrackerTest {
         assertFalse(moved.get(0).isConfirmed());
     }
 
+    @Test
+    public void semanticAnchorRetainsIdentityAcrossALargeGeometryCorrection() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .trackingSmoothing(1f)
+                .build());
+        Detection first = detection(new BBox(20, 700, 400, 50)).withObservation(
+                Detection.ObservationSource.ACCESSIBILITY,
+                Detection.GeometryQuality.EXACT,
+                "feed:post-42:line-1");
+        int id = tracker.update(Collections.singletonList(first), 1_000_000_000L)
+                .get(0).getId();
+        Detection afterScroll = detection(new BBox(20, 100, 400, 50)).withObservation(
+                Detection.ObservationSource.ACCESSIBILITY,
+                Detection.GeometryQuality.EXACT,
+                "feed:post-42:line-1");
+
+        List<TrackedObject> tracks = tracker.update(
+                Collections.singletonList(afterScroll), 1_100_000_000L);
+
+        assertEquals(1, tracks.size());
+        assertEquals(id, tracks.get(0).getId());
+        assertEquals(id, afterScroll.getTrackId());
+    }
+
     private static Detection detection(BBox box) {
         return detection(0.9f, box);
     }
