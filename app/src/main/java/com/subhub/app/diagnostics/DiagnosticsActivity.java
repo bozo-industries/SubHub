@@ -81,9 +81,12 @@ public final class DiagnosticsActivity extends AppCompatActivity {
                 state, live.getMode(), live.getProvider(), live.getModel(), live.getResolution(),
                 live.getResolution(), duration(live.getUptimeMs())));
         binding.performanceStatus.setText(String.format(Locale.ROOT,
-                "Frames: %d\nRegions: %d total / %d latest\nInference: %d ms latest / %d ms average / %d ms peak\nLatest frame: %d × %d\nLast sanitized failure: %s",
-                live.getFrames(), live.getTotalDetections(), live.getLastDetections(),
+                "Frames: %d processed / %d stale dropped\nRegions: %d total / %d latest\nInference: %d ms latest / %d ms average / %d ms peak\nStages: %d ms preprocess / %d ms runtime / %d ms postprocess\nFrame age at publish: %d ms\nLatest frame: %d × %d\nLast sanitized failure: %s",
+                live.getFrames(), live.getDroppedFrames(),
+                live.getTotalDetections(), live.getLastDetections(),
                 live.getLastInferenceMs(), live.getAverageInferenceMs(), live.getPeakInferenceMs(),
+                live.getLastPreprocessMs(), live.getLastRuntimeMs(),
+                live.getLastPostprocessMs(), live.getLastFrameAgeMs(),
                 live.getFrameWidth(), live.getFrameHeight(), live.getLastFailure()));
 
         DetectorConfig config = settings.loadDetectorConfig();

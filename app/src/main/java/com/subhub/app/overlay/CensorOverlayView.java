@@ -16,6 +16,8 @@ import android.graphics.Shader;
 import android.graphics.SweepGradient;
 import android.graphics.Typeface;
 import android.os.SystemClock;
+import android.os.Build;
+import android.graphics.RenderNode;
 import android.view.Choreographer;
 import android.view.View;
 
@@ -27,7 +29,9 @@ import com.subhub.app.settings.CensorAppearance;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /** Full-screen, touch-through renderer for every recovered censor style and reverse mode. */
@@ -54,6 +58,7 @@ final class CensorOverlayView extends View {
     private final RectF bandRect = new RectF();
     private final Matrix borderShaderMatrix = new Matrix();
     private final CustomImagePool customImages;
+    private final Map<Integer, SolidRenderLayer> solidRenderLayers = new HashMap<>();
 
     private List<RenderTrackSnapshot> tracks = new ArrayList<>();
     private CensorAppearance appearance = CensorAppearance.defaults();
@@ -162,6 +167,7 @@ final class CensorOverlayView extends View {
         frame = latestFrame;
         Set<Integer> activeIds = new HashSet<>();
         for (RenderTrackSnapshot track : tracks) activeIds.add(track.id());
+        solidRenderLayers.keySet().retainAll(activeIds);
         customImages.retainAssignments(activeIds);
         setVisibility(VISIBLE);
         postInvalidateOnAnimation();
@@ -180,6 +186,7 @@ final class CensorOverlayView extends View {
     /** Hide all censor pixels without treating an empty track list as reverse-mode content. */
     void clearContent() {
         tracks.clear();
+        solidRenderLayers.clear();
         contentOffsetX = 0;
         contentOffsetY = 0;
         viewportMotion.reset(0f, 0f, SystemClock.uptimeMillis());
@@ -196,6 +203,7 @@ final class CensorOverlayView extends View {
     void setAppearance(CensorAppearance value) {
         CensorAppearance.Type previous = appearance.getType();
         appearance = value;
+        solidRenderLayers.clear();
         cyanShiftPaint.setColorFilter(new PorterDuffColorFilter(
                 value.getEffectPalette().first(), PorterDuff.Mode.SRC_ATOP));
         redShiftPaint.setColorFilter(new PorterDuffColorFilter(
@@ -265,6 +273,10 @@ final class CensorOverlayView extends View {
     }
 
     private void drawNormal(Canvas canvas) {
+        if (canUseSolidRenderLayers(canvas)) {
+            drawSolidRenderLayers(canvas);
+            return;
+        }
         float scaleX = (float) getWidth() / captureWidth;
         float scaleY = (float) getHeight() / captureHeight;
         float ageMs = renderAgeMillis();
@@ -286,6 +298,57 @@ final class CensorOverlayView extends View {
         }
         activePredictionX = 0f;
         activePredictionY = 0f;
+    }
+
+    /**
+     * Records each ordinary solid censor once and lets the hardware compositor translate it on
+     * every vsync. Geometry motion no longer replays paint, border, and label commands.
+     */
+    private void drawSolidRenderLayers(Canvas canvas) {
+        float scaleX = (float) getWidth() / captureWidth;
+        float scaleY = (float) getHeight() / captureHeight;
+        float ageMs = renderAgeMillis();
+        for (RenderTrackSnapshot track : tracks) {
+            BBox predicted = track.predict(ageMs, maxExtrapolationMs);
+            setPaddedRect(predicted, scaleX, scaleY,
+                    "text_smut".equals(track.category()));
+            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+            int width = Math.max(1, Math.round(drawRect.width()));
+            int height = Math.max(1, Math.round(drawRect.height()));
+            String phrase = appearance.phraseFor(track.id());
+            SolidRenderLayer layer = solidRenderLayers.get(track.id());
+            if (layer == null || layer.width != width || layer.height != height
+                    || !layer.phrase.equals(phrase)) {
+                layer = recordSolidLayer(track.id(), width, height, phrase);
+                solidRenderLayers.put(track.id(), layer);
+            }
+            int left = Math.round(drawRect.left);
+            int top = Math.round(drawRect.top);
+            layer.node.setPosition(left, top, left + width, top + height);
+            canvas.drawRenderNode(layer.node);
+        }
+    }
+
+    private SolidRenderLayer recordSolidLayer(int stableId, int width, int height, String phrase) {
+        RenderNode node = new RenderNode("censor-" + stableId);
+        node.setPosition(0, 0, width, height);
+        Canvas recording = node.beginRecording(width, height);
+        RectF local = new RectF(0f, 0f, width, height);
+        drawSolid(recording, local, appearance.getIntensity());
+        if (appearance.isShowBorder()) drawBorder(recording, local);
+        if (appearance.isShowText() && height >= dp(22) && width >= dp(44)) {
+            drawLabel(recording, local, phrase);
+        }
+        node.endRecording();
+        return new SolidRenderLayer(node, width, height, phrase);
+    }
+
+    private boolean canUseSolidRenderLayers(Canvas canvas) {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                && canvas.isHardwareAccelerated()
+                && !appearance.isReverseMode()
+                && appearance.getType() == CensorAppearance.Type.BOX
+                && !appearance.isAnimateBorder();
     }
 
     private void drawReverse(Canvas canvas) {
@@ -814,6 +877,7 @@ final class CensorOverlayView extends View {
         noiseBitmap = null;
         noisePixels = null;
         customImages.close();
+        solidRenderLayers.clear();
     }
 
     @Override
@@ -830,5 +894,19 @@ final class CensorOverlayView extends View {
 
     private float dp(float value) {
         return value * getResources().getDisplayMetrics().density;
+    }
+
+    private static final class SolidRenderLayer {
+        private final RenderNode node;
+        private final int width;
+        private final int height;
+        private final String phrase;
+
+        private SolidRenderLayer(RenderNode node, int width, int height, String phrase) {
+            this.node = node;
+            this.width = width;
+            this.height = height;
+            this.phrase = phrase;
+        }
     }
 }

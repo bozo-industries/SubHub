@@ -1,5 +1,6 @@
 package com.subhub.app.detection;
 
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -27,6 +28,38 @@ public final class DetectionPostProcessor {
                 return Collections.emptyList();
             }
         }
+        return decodeMatrix((feature, candidate) -> output[feature][candidate],
+                candidateCount, frameWidth, frameHeight, inputSize, config);
+    }
+
+    /** Decodes ONNX's contiguous [1, features, candidates] buffer without nested arrays. */
+    public List<Detection> decode(
+            FloatBuffer output,
+            int featureCount,
+            int candidateCount,
+            int frameWidth,
+            int frameHeight,
+            int inputSize,
+            DetectorConfig config) {
+        if (output == null || featureCount < OUTPUT_FEATURES || candidateCount <= 0
+                || output.remaining() < featureCount * candidateCount
+                || frameWidth <= 0 || frameHeight <= 0 || inputSize <= 0) {
+            return Collections.emptyList();
+        }
+        int start = output.position();
+        return decodeMatrix(
+                (feature, candidate) -> output.get(
+                        start + feature * candidateCount + candidate),
+                candidateCount, frameWidth, frameHeight, inputSize, config);
+    }
+
+    private List<Detection> decodeMatrix(
+            OutputMatrix output,
+            int candidateCount,
+            int frameWidth,
+            int frameHeight,
+            int inputSize,
+            DetectorConfig config) {
 
         float letterboxScale = (float) inputSize / Math.max(frameWidth, frameHeight);
         float frameScale = 1f / letterboxScale;
@@ -39,7 +72,7 @@ public final class DetectionPostProcessor {
             float bestScore = 0f;
             float secondScore = 0f;
             for (int classIndex = 0; classIndex < NudeNetClassCatalog.CLASS_COUNT; classIndex++) {
-                float score = output[classIndex + 4][candidate];
+                float score = output.get(classIndex + 4, candidate);
                 if (score > bestScore) {
                     secondScore = bestScore;
                     bestScore = score;
@@ -58,8 +91,8 @@ public final class DetectionPostProcessor {
             if (className == null || info == null) continue;
 
             BBox rawBox = decodeBox(
-                    output[0][candidate], output[1][candidate],
-                    output[2][candidate], output[3][candidate],
+                    output.get(0, candidate), output.get(1, candidate),
+                    output.get(2, candidate), output.get(3, candidate),
                     frameScale, frameWidth, frameHeight, className);
 
             String category = firstEnabled(info.getCategories(), config.getEnabledCategories());
@@ -108,6 +141,11 @@ public final class DetectionPostProcessor {
             filtered = ambiguityFiltered;
         }
         return suppressCrossCategory(filtered, 0.50f);
+    }
+
+    @FunctionalInterface
+    private interface OutputMatrix {
+        float get(int feature, int candidate);
     }
 
     private static float confidenceFloor(String className, float configured) {

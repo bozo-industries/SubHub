@@ -25,6 +25,7 @@ import ai.onnxruntime.OnnxValue;
 import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
+import ai.onnxruntime.TensorInfo;
 
 /** Owns the ONNX Runtime session and converts Android bitmaps to model input. */
 public final class DetectionEngine implements AutoCloseable {
@@ -43,11 +44,13 @@ public final class DetectionEngine implements AutoCloseable {
     private Bitmap letterbox;
     private Canvas letterboxCanvas;
     private int[] pixels;
-    private float[] input;
     private FloatBuffer directInput;
     private OnnxTensor inputTensor;
     private Map<String, OnnxTensor> inferenceInputs;
     private long lastInferenceMs;
+    private long lastPreprocessMs;
+    private long lastRuntimeMs;
+    private long lastPostprocessMs;
 
     public DetectionEngine(Context context, DetectorConfig config) {
         this.context = context.getApplicationContext();
@@ -112,7 +115,7 @@ public final class DetectionEngine implements AutoCloseable {
         }
         sourceWidth = Math.max(1, sourceWidth);
         sourceHeight = Math.max(1, sourceHeight);
-        long started = System.currentTimeMillis();
+        long started = SystemClock.elapsedRealtimeNanos();
         int size = config.getInferenceResolution();
         float scale = (float) size / Math.max(sourceWidth, sourceHeight);
         letterbox.eraseColor(Color.BLACK);
@@ -124,29 +127,53 @@ public final class DetectionEngine implements AutoCloseable {
         letterbox.getPixels(pixels, 0, size, 0, 0, size, size);
 
         int plane = size * size;
+        directInput.clear();
         for (int index = 0; index < plane; index++) {
             int pixel = pixels[index];
-            input[index] = ((pixel >>> 16) & 0xff) * INV_255;
-            input[plane + index] = ((pixel >>> 8) & 0xff) * INV_255;
-            input[plane * 2 + index] = (pixel & 0xff) * INV_255;
+            directInput.put(((pixel >>> 16) & 0xff) * INV_255);
         }
+        for (int index = 0; index < plane; index++) {
+            directInput.put(((pixels[index] >>> 8) & 0xff) * INV_255);
+        }
+        for (int index = 0; index < plane; index++) {
+            directInput.put((pixels[index] & 0xff) * INV_255);
+        }
+        directInput.flip();
 
         ensureInputTensor(size);
-        directInput.position(0);
-        directInput.put(input);
-        directInput.position(0);
+        long runtimeStarted = SystemClock.elapsedRealtimeNanos();
         try (OrtSession.Result result = session.run(inferenceInputs)) {
+            long runtimeFinished = SystemClock.elapsedRealtimeNanos();
             OnnxValue value = result.get(0);
-            Object raw = value.getValue();
-            if (!(raw instanceof float[][][])) {
-                Log.e(TAG, "Unexpected model output type: " + raw.getClass());
+            if (!(value instanceof OnnxTensor)) {
+                Log.e(TAG, "Unexpected model output type: " + value.getClass());
                 return Collections.emptyList();
             }
-            float[][][] batch = (float[][][]) raw;
-            if (batch.length == 0) return Collections.emptyList();
+            OnnxTensor output = (OnnxTensor) value;
+            TensorInfo info = output.getInfo();
+            long[] shape = info.getShape();
+            if (shape.length != 3 || shape[0] != 1L
+                    || shape[1] < DetectionPostProcessor.OUTPUT_FEATURES
+                    || shape[1] > Integer.MAX_VALUE || shape[2] <= 0L
+                    || shape[2] > Integer.MAX_VALUE) {
+                Log.e(TAG, "Unexpected model output shape: "
+                        + java.util.Arrays.toString(shape));
+                return Collections.emptyList();
+            }
+            FloatBuffer outputBuffer = output.getFloatBuffer();
             List<Detection> detections = postProcessor.decode(
-                    batch[0], sourceWidth, sourceHeight, size, config);
-            lastInferenceMs = System.currentTimeMillis() - started;
+                    outputBuffer,
+                    (int) shape[1],
+                    (int) shape[2],
+                    sourceWidth,
+                    sourceHeight,
+                    size,
+                    config);
+            long finished = SystemClock.elapsedRealtimeNanos();
+            lastPreprocessMs = nanosToMillis(runtimeStarted - started);
+            lastRuntimeMs = nanosToMillis(runtimeFinished - runtimeStarted);
+            lastPostprocessMs = nanosToMillis(finished - runtimeFinished);
+            lastInferenceMs = nanosToMillis(finished - started);
             return detections;
         }
     }
@@ -160,6 +187,13 @@ public final class DetectionEngine implements AutoCloseable {
     public String getActiveProvider() { return activeProvider; }
     public String getActiveModel() { return activeModel; }
     public long getLastInferenceMs() { return lastInferenceMs; }
+    public long getLastPreprocessMs() { return lastPreprocessMs; }
+    public long getLastRuntimeMs() { return lastRuntimeMs; }
+    public long getLastPostprocessMs() { return lastPostprocessMs; }
+
+    private static long nanosToMillis(long nanos) {
+        return Math.max(0L, Math.round(nanos / 1_000_000d));
+    }
 
     private OrtSession.SessionOptions optionsFor(String provider) throws OrtException {
         OrtSession.SessionOptions options = new OrtSession.SessionOptions();
@@ -252,8 +286,7 @@ public final class DetectionEngine implements AutoCloseable {
     private void allocateBuffers(int size) {
         closeInputTensor();
         pixels = new int[size * size];
-        input = new float[size * size * 3];
-        directInput = ByteBuffer.allocateDirect(input.length * Float.BYTES)
+        directInput = ByteBuffer.allocateDirect(size * size * 3 * Float.BYTES)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
         if (letterbox != null) letterbox.recycle();
         letterbox = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);

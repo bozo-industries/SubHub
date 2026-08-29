@@ -16,6 +16,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.WindowManager;
@@ -52,6 +53,7 @@ import com.subhub.app.security.ProtectionStopPolicy;
 
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,11 +71,12 @@ public final class ScreenCaptureService extends Service {
     private static volatile boolean running;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final AtomicBoolean processing = new AtomicBoolean();
     private final AtomicBoolean firstFrameReported = new AtomicBoolean();
     private final SharedPreferences.OnSharedPreferenceChangeListener settingsListener =
             (preferences, key) -> reloadSettings();
     private ScheduledExecutorService executor;
+    private ExecutorService inferenceExecutor;
+    private LatestFrameBroker<ProjectionFrame> frameBroker;
     private MediaProjection projection;
     private ScreenCaptureManager capture;
     private DetectionEngine detector;
@@ -106,6 +109,7 @@ public final class ScreenCaptureService extends Service {
         super.onCreate();
         createNotificationChannel();
         executor = Executors.newSingleThreadScheduledExecutor();
+        inferenceExecutor = Executors.newSingleThreadExecutor();
         settings = new SettingsRepository(this);
         stats = new StatsRepository(this);
         penance = new PenanceManager(this);
@@ -184,8 +188,12 @@ public final class ScreenCaptureService extends Service {
                     config.getInferenceResolution(),
                     config.getCaptureScale());
             capture.start();
-            executor.scheduleWithFixedDelay(
+            frameBroker = new LatestFrameBroker<>(
+                    inferenceExecutor,
                     this::processFrame,
+                    ProjectionFrame::close);
+            executor.scheduleWithFixedDelay(
+                    this::captureLatestFrame,
                     0,
                     Math.max(16, config.getDetectionIntervalMs()),
                     TimeUnit.MILLISECONDS);
@@ -209,12 +217,25 @@ public final class ScreenCaptureService extends Service {
         PopupStormManager.get().reloadSettings(this);
     }
 
-    private void processFrame() {
-        if (!running || !processing.compareAndSet(false, true)) return;
-        Bitmap frame = null;
+    private void captureLatestFrame() {
+        if (!running || capture == null) return;
         try {
-            frame = capture.acquireLatestFrame();
+            Bitmap frame = capture.acquireLatestFrame();
+            LatestFrameBroker<ProjectionFrame> broker = frameBroker;
             if (frame == null) return;
+            if (broker == null) frame.recycle();
+            else broker.submit(new ProjectionFrame(
+                    frame, capture, SystemClock.uptimeMillis()));
+        } catch (Exception error) {
+            DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
+            Log.w(TAG, "Frame capture failed", error);
+        }
+    }
+
+    private void processFrame(ProjectionFrame candidate) {
+        Bitmap frame = candidate.bitmap();
+        try {
+            if (!running || frame == null || frame.isRecycled()) return;
             List<Detection> detections = detector.detect(frame);
             List<TrackedObject> tracks = tracker.update(detections);
             DetectorConfig currentConfig = detectorConfig;
@@ -241,10 +262,18 @@ public final class ScreenCaptureService extends Service {
             tapTracker.update(tracks, width, height, now);
             PopupStormManager.get().updateTrackedObjects(tracks, width, height);
             DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
-                    DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
+                    DIAGNOSTICS_MODE,
+                    detector.getLastInferenceMs(),
+                    detector.getLastPreprocessMs(),
+                    detector.getLastRuntimeMs(),
+                    detector.getLastPostprocessMs(),
+                    SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis,
+                    frameBroker == null ? 0L : frameBroker.droppedCount(),
+                    tracks.size(),
+                    width,
+                    height);
             String diagnosticText = diagnosticsOverlayText(diagnostics);
-            Bitmap overlayFrame = overlayNeedsSourceFrame ? frame : null;
-            if (overlayFrame != null) frame = null;
+            Bitmap overlayFrame = overlayNeedsSourceFrame ? candidate.detachBitmap() : null;
             if (firstFrameReported.compareAndSet(false, true)) {
                 Log.i(TAG, "First frame processed with "
                         + detector.getActiveModel() + " on " + detector.getActiveProvider()
@@ -261,9 +290,6 @@ public final class ScreenCaptureService extends Service {
         } catch (Exception error) {
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
             Log.w(TAG, "Frame processing failed", error);
-        } finally {
-            if (frame != null && !frame.isRecycled()) frame.recycle();
-            processing.set(false);
         }
     }
 
@@ -338,6 +364,16 @@ public final class ScreenCaptureService extends Service {
             settings.preferences().unregisterOnSharedPreferenceChangeListener(settingsListener);
         }
         if (executor != null) executor.shutdownNow();
+        if (frameBroker != null) frameBroker.close();
+        frameBroker = null;
+        if (inferenceExecutor != null) {
+            inferenceExecutor.shutdownNow();
+            try {
+                inferenceExecutor.awaitTermination(2, TimeUnit.SECONDS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
         if (capture != null) capture.close();
         if (detector != null) detector.close();
         dwellTracker.clear();
@@ -364,6 +400,35 @@ public final class ScreenCaptureService extends Service {
             this.width = width;
             this.height = height;
             this.densityDpi = densityDpi;
+        }
+    }
+
+    private static final class ProjectionFrame implements AutoCloseable {
+        private Bitmap bitmap;
+        private final ScreenCaptureManager owner;
+        private final long capturedAtUptimeMillis;
+
+        private ProjectionFrame(
+                Bitmap bitmap,
+                ScreenCaptureManager owner,
+                long capturedAtUptimeMillis) {
+            this.bitmap = bitmap;
+            this.owner = owner;
+            this.capturedAtUptimeMillis = capturedAtUptimeMillis;
+        }
+
+        private Bitmap bitmap() { return bitmap; }
+
+        private Bitmap detachBitmap() {
+            Bitmap value = bitmap;
+            bitmap = null;
+            return value;
+        }
+
+        @Override
+        public void close() {
+            if (bitmap != null && !bitmap.isRecycled()) owner.releaseFrame(bitmap);
+            bitmap = null;
         }
     }
 }

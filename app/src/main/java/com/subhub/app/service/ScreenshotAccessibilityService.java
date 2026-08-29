@@ -83,6 +83,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final AtomicBoolean inferenceDraining = new AtomicBoolean();
     private final AtomicBoolean settledInferenceNeeded = new AtomicBoolean();
     private final AtomicReference<InferenceFrame> pendingInference = new AtomicReference<>();
+    private final AtomicLong droppedInferenceFrames = new AtomicLong();
     private final AtomicLong cumulativeScrollX = new AtomicLong();
     private final AtomicLong cumulativeScrollY = new AtomicLong();
     private final AtomicLong pendingTrackerOffsetX = new AtomicLong();
@@ -302,6 +303,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long requestedEpoch,
             long requestedScrollX,
             long requestedScrollY) {
+        long capturedAtUptimeMillis = SystemClock.uptimeMillis();
         Bitmap wrapped = null;
         Bitmap frame = null;
         HardwareBuffer buffer = result.getHardwareBuffer();
@@ -349,7 +351,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             enqueueInference(new InferenceFrame(frame, requestedEpoch, requestedScrollX,
                     requestedScrollY, inferenceMotionGeneration,
                     prepared.sourceWidth, prepared.sourceHeight,
-                    prepared.retainedSourceFrame, continuousMotionInference));
+                    prepared.retainedSourceFrame, continuousMotionInference,
+                    capturedAtUptimeMillis));
             frame = null;
         } catch (Exception error) {
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
@@ -368,7 +371,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             return;
         }
         InferenceFrame replaced = pendingInference.getAndSet(candidate);
-        if (replaced != null) replaced.recycle();
+        if (replaced != null) {
+            droppedInferenceFrames.incrementAndGet();
+            replaced.recycle();
+        }
         if (inferenceWorker != null && inferenceDraining.compareAndSet(false, true)) {
             inferenceWorker.execute(this::drainInferenceQueue);
         }
@@ -463,7 +469,16 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             tapTracker.update(tracks, width, height, now);
             PopupStormManager.get().updateTrackedObjects(tracks, width, height);
             DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
-                    DIAGNOSTICS_MODE, detector.getLastInferenceMs(), tracks.size(), width, height);
+                    DIAGNOSTICS_MODE,
+                    detector.getLastInferenceMs(),
+                    detector.getLastPreprocessMs(),
+                    detector.getLastRuntimeMs(),
+                    detector.getLastPostprocessMs(),
+                    SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis,
+                    droppedInferenceFrames.get(),
+                    tracks.size(),
+                    width,
+                    height);
             String diagnosticText = diagnosticsOverlayText(diagnostics);
             InferenceScrollReprojector.ScreenMotion sourceFrameMotion =
                     InferenceScrollReprojector.screenMotion(
@@ -1187,6 +1202,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (recognitionActive || !running || worker == null) return;
         captureEpoch.invalidate();
         recognitionActive = true;
+        droppedInferenceFrames.set(0L);
         Log.i(TAG, "Recognition activated for foreground package " + foregroundPackage);
         firstFrameReported.set(false);
         resetScrollCompensation();
@@ -1286,6 +1302,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private final int sourceHeight;
         private final boolean retainedSourceFrame;
         private final boolean continuousMotionInference;
+        private final long capturedAtUptimeMillis;
 
         private InferenceFrame(
                 Bitmap frame,
@@ -1296,7 +1313,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 int sourceWidth,
                 int sourceHeight,
                 boolean retainedSourceFrame,
-                boolean continuousMotionInference) {
+                boolean continuousMotionInference,
+                long capturedAtUptimeMillis) {
             this.frame = frame;
             this.epoch = epoch;
             this.scrollX = scrollX;
@@ -1306,6 +1324,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             this.sourceHeight = sourceHeight;
             this.retainedSourceFrame = retainedSourceFrame;
             this.continuousMotionInference = continuousMotionInference;
+            this.capturedAtUptimeMillis = capturedAtUptimeMillis;
         }
 
         private Bitmap detachFrame() {

@@ -23,6 +23,11 @@ public final class DiagnosticsRepository {
     private static int lastDetections;
     private static int frameWidth;
     private static int frameHeight;
+    private static long lastPreprocessMs;
+    private static long lastRuntimeMs;
+    private static long lastPostprocessMs;
+    private static long lastFrameAgeMs;
+    private static long droppedFrames;
     private static String lastFailure = "None";
 
     private DiagnosticsRepository() {}
@@ -43,6 +48,11 @@ public final class DiagnosticsRepository {
         lastDetections = 0;
         frameWidth = 0;
         frameHeight = 0;
+        lastPreprocessMs = 0;
+        lastRuntimeMs = 0;
+        lastPostprocessMs = 0;
+        lastFrameAgeMs = 0;
+        droppedFrames = 0;
         lastFailure = "None";
     }
 
@@ -57,6 +67,21 @@ public final class DiagnosticsRepository {
 
     public static synchronized Snapshot recordFrame(String captureMode, long inferenceMs,
             int detections, int width, int height) {
+        return recordFrame(captureMode, inferenceMs, 0L, inferenceMs, 0L,
+                0L, 0L, detections, width, height);
+    }
+
+    public static synchronized Snapshot recordFrame(
+            String captureMode,
+            long inferenceMs,
+            long preprocessMs,
+            long runtimeMs,
+            long postprocessMs,
+            long frameAgeMs,
+            long totalDroppedFrames,
+            int detections,
+            int width,
+            int height) {
         if (!running || !mode.equals(captureMode)) return snapshot();
         frames++;
         lastInferenceMs = Math.max(0, inferenceMs);
@@ -66,6 +91,11 @@ public final class DiagnosticsRepository {
         totalDetections += lastDetections;
         frameWidth = Math.max(0, width);
         frameHeight = Math.max(0, height);
+        lastPreprocessMs = Math.max(0L, preprocessMs);
+        lastRuntimeMs = Math.max(0L, runtimeMs);
+        lastPostprocessMs = Math.max(0L, postprocessMs);
+        lastFrameAgeMs = Math.max(0L, frameAgeMs);
+        droppedFrames = Math.max(0L, totalDroppedFrames);
         return snapshot();
     }
 
@@ -89,15 +119,18 @@ public final class DiagnosticsRepository {
         long uptime = startedAt == 0 ? 0 : Math.max(0, SystemClock.elapsedRealtime() - startedAt);
         return new Snapshot(mode, running, ready, provider, model, resolution, uptime, frames,
                 totalDetections, totalInferenceMs, lastInferenceMs, peakInferenceMs,
-                lastDetections, frameWidth, frameHeight, lastFailure);
+                lastDetections, frameWidth, frameHeight, lastPreprocessMs, lastRuntimeMs,
+                lastPostprocessMs, lastFrameAgeMs, droppedFrames, lastFailure);
     }
 
     public static String overlayText(Snapshot value) {
         if (value == null || !value.isRunning()) return "";
         if (!value.isReady()) return value.getMode() + " • INITIALIZING";
-        return String.format(Locale.ROOT, "%s • %d ms (avg %d)\n%d regions • %dx%d",
+        return String.format(Locale.ROOT,
+                "%s • %d ms (avg %d)\nP/R/O %d/%d/%d • age %d ms\n%d regions • %d dropped",
                 value.getProvider(), value.getLastInferenceMs(), value.getAverageInferenceMs(),
-                value.getLastDetections(), value.getFrameWidth(), value.getFrameHeight());
+                value.getLastPreprocessMs(), value.getLastRuntimeMs(), value.getLastPostprocessMs(),
+                value.getLastFrameAgeMs(), value.getLastDetections(), value.getDroppedFrames());
     }
 
     private static String filenameOnly(String value) {
@@ -129,12 +162,19 @@ public final class DiagnosticsRepository {
         private final int lastDetections;
         private final int frameWidth;
         private final int frameHeight;
+        private final long lastPreprocessMs;
+        private final long lastRuntimeMs;
+        private final long lastPostprocessMs;
+        private final long lastFrameAgeMs;
+        private final long droppedFrames;
         private final String lastFailure;
 
         private Snapshot(String mode, boolean running, boolean ready, String provider,
                 String model, int resolution, long uptimeMs, long frames, long totalDetections,
                 long totalInferenceMs, long lastInferenceMs, long peakInferenceMs,
-                int lastDetections, int frameWidth, int frameHeight, String lastFailure) {
+                int lastDetections, int frameWidth, int frameHeight,
+                long lastPreprocessMs, long lastRuntimeMs, long lastPostprocessMs,
+                long lastFrameAgeMs, long droppedFrames, String lastFailure) {
             this.mode = mode;
             this.running = running;
             this.ready = ready;
@@ -150,6 +190,11 @@ public final class DiagnosticsRepository {
             this.lastDetections = lastDetections;
             this.frameWidth = frameWidth;
             this.frameHeight = frameHeight;
+            this.lastPreprocessMs = lastPreprocessMs;
+            this.lastRuntimeMs = lastRuntimeMs;
+            this.lastPostprocessMs = lastPostprocessMs;
+            this.lastFrameAgeMs = lastFrameAgeMs;
+            this.droppedFrames = droppedFrames;
             this.lastFailure = lastFailure;
         }
 
@@ -167,6 +212,11 @@ public final class DiagnosticsRepository {
         public int getLastDetections() { return lastDetections; }
         public int getFrameWidth() { return frameWidth; }
         public int getFrameHeight() { return frameHeight; }
+        public long getLastPreprocessMs() { return lastPreprocessMs; }
+        public long getLastRuntimeMs() { return lastRuntimeMs; }
+        public long getLastPostprocessMs() { return lastPostprocessMs; }
+        public long getLastFrameAgeMs() { return lastFrameAgeMs; }
+        public long getDroppedFrames() { return droppedFrames; }
         public String getLastFailure() { return lastFailure; }
         public long getAverageInferenceMs() {
             return frames == 0 ? 0 : Math.round((double) totalInferenceMs / frames);

@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
+import java.nio.FloatBuffer;
 import java.util.List;
 
 public final class DetectionPostProcessorTest {
@@ -40,6 +41,37 @@ public final class DetectionPostProcessorTest {
 
         assertEquals(1, detections.size());
         assertEquals(0.90f, detections.get(0).getConfidence(), 0.0001f);
+    }
+
+    @Test
+    public void contiguousNativeOutputMatchesNestedArrayDecoder() {
+        int candidates = 2;
+        float[][] nested = outputWithCandidates(candidates);
+        nested[0][0] = 160f;
+        nested[1][0] = 120f;
+        nested[2][0] = 80f;
+        nested[3][0] = 100f;
+        nested[7][0] = 0.80f;
+        FloatBuffer contiguous = FloatBuffer.allocate(
+                DetectionPostProcessor.OUTPUT_FEATURES * candidates);
+        for (float[] feature : nested) contiguous.put(feature);
+        contiguous.flip();
+
+        DetectionPostProcessor processor = new DetectionPostProcessor();
+        List<Detection> expected = processor.decode(
+                nested, 640, 360, 320, DetectorConfig.builder().build());
+        List<Detection> actual = processor.decode(
+                contiguous,
+                DetectionPostProcessor.OUTPUT_FEATURES,
+                candidates,
+                640,
+                360,
+                320,
+                DetectorConfig.builder().build());
+
+        assertEquals(expected.size(), actual.size());
+        assertEquals(expected.get(0).getCategory(), actual.get(0).getCategory());
+        assertEquals(expected.get(0).getBox(), actual.get(0).getBox());
     }
 
     private static float[][] outputWithCandidates(int count) {
