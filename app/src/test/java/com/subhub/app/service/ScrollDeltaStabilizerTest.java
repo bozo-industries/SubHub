@@ -1,0 +1,69 @@
+package com.subhub.app.service;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import org.junit.Test;
+
+public final class ScrollDeltaStabilizerTest {
+    @Test
+    public void isolatedOppositeCorrectionNeverBouncesTheOverlay() {
+        ScrollDeltaStabilizer filter = new ScrollDeltaStabilizer();
+        assertEquals(0, filter.filter(0, 261, 100L, 1080, 2400).dy);
+        assertEquals(531, filter.filter(0, 270, 200L, 1080, 2400).dy);
+
+        ScrollDeltaStabilizer.Result correction =
+                filter.filter(0, -485, 300L, 1080, 2400);
+        assertEquals(0, correction.dy);
+        assertTrue(correction.changed());
+        assertEquals(262, filter.filter(0, 262, 400L, 1080, 2400).dy);
+    }
+
+    @Test
+    public void twoConsecutiveOppositeSamplesConfirmARealReversal() {
+        ScrollDeltaStabilizer filter = new ScrollDeltaStabilizer();
+        filter.filter(0, 200, 100L, 1080, 2400);
+        filter.filter(0, 180, 160L, 1080, 2400);
+        assertEquals(0, filter.filter(0, -100, 220L, 1080, 2400).dy);
+        assertEquals(-220, filter.filter(0, -120, 280L, 1080, 2400).dy);
+        assertEquals(-80, filter.filter(0, -80, 340L, 1080, 2400).dy);
+    }
+
+    @Test
+    public void idleGapKeepsPriorDirectionButRequiresConfirmationToReverse() {
+        ScrollDeltaStabilizer filter = new ScrollDeltaStabilizer();
+        filter.filter(0, 200, 100L, 1080, 2400);
+        filter.filter(0, 200, 180L, 1080, 2400);
+        assertEquals(0, filter.filter(0, -180, 500L, 1080, 2400).dy);
+        assertEquals(-340, filter.filter(0, -160, 580L, 1080, 2400).dy);
+    }
+
+    @Test
+    public void pathologicalProducerJumpIsBoundedToHalfAViewport() {
+        ScrollDeltaStabilizer filter = new ScrollDeltaStabilizer();
+        filter.filter(5000, -9000, 100L, 1000, 2000);
+        ScrollDeltaStabilizer.Result result =
+                filter.filter(5000, -9000, 180L, 1000, 2000);
+        assertEquals(500, result.dx);
+        assertEquals(-1000, result.dy);
+    }
+
+    @Test
+    public void capturedTwitterSequencesNeverEmitAnIsolatedWrongWayCorrection() {
+        int[][] sequences = {
+                {11, 261, 270, 196, 152, 73, 31, 7, -485, 262, 212, 180, 76, 38, 14},
+                {12, 236, -333, 117, 50, 18, 1},
+                {1, 159, 170, 195, 144, -442, 33, 10}
+        };
+        long now = 100L;
+        ScrollDeltaStabilizer filter = new ScrollDeltaStabilizer();
+        for (int[] sequence : sequences) {
+            for (int raw : sequence) {
+                int filtered = filter.filter(0, raw, now, 1344, 2992).dy;
+                assertTrue("Wrong-way output " + filtered, filtered >= 0);
+                now += 100L;
+            }
+            now += 300L;
+        }
+    }
+}

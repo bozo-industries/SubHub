@@ -30,6 +30,7 @@ import com.subhub.app.detection.DetectorConfig;
 import com.subhub.app.detection.FastVisualGate;
 import com.subhub.app.detection.ObjectTracker;
 import com.subhub.app.detection.TrackedObject;
+import com.subhub.app.detection.VisualDetectionStabilizer;
 import com.subhub.app.detection.text.AccessibilityTextSmutDetector;
 import com.subhub.app.detection.text.DetectionFusion;
 import com.subhub.app.detection.text.OcrTextSmutDetector;
@@ -88,7 +89,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final long OCR_RESULT_TTL_MS = 5_000L;
     private static final int OCR_MAX_DIMENSION = 1_024;
     private static final int FAST_INFERENCE_RESOLUTION = 320;
-    private static final long QUALITY_REFRESH_INTERVAL_MS = 1_500L;
+    private static final long QUALITY_REFRESH_INTERVAL_MS = 1_000L;
+    private static final long QUALITY_RESULT_TTL_MS = 2_500L;
 
     private final AtomicBoolean processing = new AtomicBoolean();
     private final AtomicBoolean inferenceDraining = new AtomicBoolean();
@@ -112,6 +114,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final CaptureEpoch captureEpoch = new CaptureEpoch();
     private final AccessibilityScrollMotionResolver scrollMotionResolver =
             new AccessibilityScrollMotionResolver();
+    private final ScrollDeltaStabilizer scrollDeltaStabilizer = new ScrollDeltaStabilizer();
     private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
             (preferences, key) -> reloadSettings();
@@ -132,11 +135,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final TextDetectionStabilizer accessibilityTextStabilizer =
             new TextDetectionStabilizer();
     private final TextDetectionStabilizer ocrTextStabilizer = new TextDetectionStabilizer();
+    private final VisualDetectionStabilizer qualityVisualStabilizer =
+            new VisualDetectionStabilizer();
     private OverlayController overlay;
     private volatile DetectorConfig detectorConfig;
     private volatile TextSmutConfig textSmutConfig;
     private volatile TextDetectionSnapshot cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
     private volatile TextDetectionSnapshot cachedOcrText = TextDetectionSnapshot.EMPTY;
+    private volatile VisualDetectionSnapshot cachedQualityVisual =
+            VisualDetectionSnapshot.EMPTY;
     private volatile boolean accessibilityTextCandidatesPresent;
     private volatile int latestCaptureWidth = 1;
     private volatile int latestCaptureHeight = 1;
@@ -150,6 +157,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile long scrollTraceId;
     private volatile long scrollTraceStartedUptime;
     private volatile long lastScrollTraceEventUptime;
+    private volatile String lastAccessibilityCandidateFingerprint = "";
+    private volatile int accessibilityCandidateScans;
+    private String lastPublishedTextFingerprint = "";
+    private long skippedUnchangedTextPublishes;
     private volatile boolean overlayNeedsSourceFrame;
     private volatile String foregroundPackage = "";
     private volatile String guardForegroundPackage = "";
@@ -480,8 +491,29 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         int width = candidate.sourceWidth;
         int height = candidate.sourceHeight;
         List<Detection> visualDetections = engine.detect(frame, width, height);
-        if (fastPass) visualDetections = FastVisualGate.filter(
-                visualDetections, detectorConfig);
+        int rawVisualCount = visualDetections.size();
+        if (!fastPass && (!isCurrentCapture(requestedEpoch)
+                || inferenceMotionGeneration != motionGeneration.get()
+                || SystemClock.uptimeMillis() - lastMotionUptime < MOTION_SETTLE_MS)) {
+            return;
+        }
+        int cachedQualityCount;
+        if (fastPass) {
+            visualDetections = FastVisualGate.filter(visualDetections, detectorConfig);
+            List<Detection> cachedQuality = cachedQualityForFrame(
+                    width, height, requestedScrollX, requestedScrollY);
+            cachedQualityCount = cachedQuality.size();
+            visualDetections = DetectionFusion.merge(visualDetections, cachedQuality);
+        } else {
+            visualDetections = qualityVisualStabilizer.update(
+                    visualDetections, detectorConfig);
+            if (!isCurrentCapture(requestedEpoch)
+                    || inferenceMotionGeneration != motionGeneration.get()) return;
+            cachedQualityVisual = new VisualDetectionSnapshot(
+                    visualDetections, width, height, requestedScrollX, requestedScrollY,
+                    SystemClock.uptimeMillis());
+            cachedQualityCount = visualDetections.size();
+        }
         TextSmutConfig currentTextConfig = textSmutConfig;
         List<Detection> accessibilityDetections = Collections.emptyList();
         if (currentTextConfig != null && currentTextConfig.isEnabled()) {
@@ -572,6 +604,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + " afterMotionMs=" + (lastMotionUptime <= 0L
                                 ? 0L : publishedAt - lastMotionUptime)
                         + " tracks=" + tracks.size()
+                        + " rawVisual=" + rawVisualCount
+                        + " cachedQuality=" + cachedQualityCount
                         + " dropped=" + droppedInferenceFrames.get());
             } else if (overlayFrame != null) {
                 overlayFrame.recycle();
@@ -634,7 +668,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         applyScrollMotion(dx, dy, true);
     }
 
-    private void traceScrollEvent(long nowUptime, int dx, int dy, String source) {
+    private void traceScrollEvent(
+            long nowUptime,
+            int rawDx,
+            int rawDy,
+            int dx,
+            int dy,
+            String source) {
         long gap = lastScrollTraceEventUptime <= 0L
                 ? Long.MAX_VALUE : nowUptime - lastScrollTraceEventUptime;
         if (gap > 250L) {
@@ -645,6 +685,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         lastScrollTraceEventUptime = nowUptime;
         Log.i(TAG, "SCROLL_EVENT id=" + scrollTraceId + " source=" + source
                 + " gapMs=" + (gap == Long.MAX_VALUE ? 0L : gap)
+                + " rawDx=" + rawDx + " rawDy=" + rawDy
                 + " dx=" + dx + " dy=" + dy);
         main.removeCallbacks(settledScrollTrace);
         main.postDelayed(settledScrollTrace, MOTION_SETTLE_MS);
@@ -652,6 +693,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void applyScrollMotion(int dx, int dy, boolean alreadyOnMainThread) {
         if (dx == 0 && dy == 0) return;
+        qualityVisualStabilizer.clear();
         lastMotionUptime = SystemClock.uptimeMillis();
         settledInferenceNeeded.set(true);
         // cumulativeScroll stores content-scroll direction; dx/dy are screen movement.
@@ -793,6 +835,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         captureWidth, captureHeight);
                 if (!isCurrentCapture(epoch)) return;
                 List<Detection> stable = accessibilityTextStabilizer.update(mapped);
+                String candidateFingerprint = detectionFingerprint(mapped, true);
+                if (candidateFingerprint.equals(lastAccessibilityCandidateFingerprint)) {
+                    accessibilityCandidateScans++;
+                } else {
+                    lastAccessibilityCandidateFingerprint = candidateFingerprint;
+                    accessibilityCandidateScans = 1;
+                }
                 accessibilityTextCandidatesPresent = !mapped.isEmpty();
                 if (accessibilityTextCandidatesPresent) clearCachedOcr();
                 cachedAccessibilityText = new TextDetectionSnapshot(
@@ -801,7 +850,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         DIAGNOSTICS_MODE, mapped.size(), stable.size());
                 publishTextLane(epoch, "accessibility");
                 lastTextRefreshMillis = System.currentTimeMillis();
-                if (stable.size() < mapped.size()) {
+                if (stable.size() < mapped.size() && accessibilityCandidateScans < 2) {
                     textRefreshRequested.set(true);
                     main.postDelayed(settledTextRefresh, MIN_TEXT_REFRESH_MS);
                 }
@@ -827,6 +876,19 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return DetectionFusion.merge(Collections.emptyList(), accessibility, ocr);
     }
 
+    private List<Detection> cachedQualityForFrame(
+            int width, int height, long requestedScrollX, long requestedScrollY) {
+        VisualDetectionSnapshot snapshot = cachedQualityVisual;
+        if (snapshot == VisualDetectionSnapshot.EMPTY
+                || SystemClock.uptimeMillis() - snapshot.capturedAtUptimeMillis
+                        > QUALITY_RESULT_TTL_MS) {
+            return Collections.emptyList();
+        }
+        return shiftDetectionSource(snapshot.detections,
+                snapshot.width, snapshot.height, snapshot.scrollX, snapshot.scrollY,
+                width, height, requestedScrollX, requestedScrollY);
+    }
+
     private void publishTextLane(long epoch, String source) {
         main.post(() -> {
             if (!isCurrentCapture(epoch) || overlay == null) return;
@@ -835,12 +897,46 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             ScrollPosition current = currentScrollPosition();
             List<Detection> detections = cachedTextForFrame(
                     width, height, current.scrollX, current.scrollY);
+            String fingerprint = width + "x" + height + '@'
+                    + current.scrollX + ',' + current.scrollY + '|'
+                    + detectionFingerprint(detections, false);
+            if (fingerprint.equals(lastPublishedTextFingerprint)) {
+                skippedUnchangedTextPublishes++;
+                return;
+            }
+            lastPublishedTextFingerprint = fingerprint;
             overlay.updateText(detections, width, height, 0, 0);
             long now = SystemClock.uptimeMillis();
             Log.i(TAG, "TEXT_PUBLISH source=" + source + " regions=" + detections.size()
+                    + " unchangedSkipped=" + skippedUnchangedTextPublishes
                     + " afterMotionMs=" + (lastMotionUptime <= 0L
                             ? 0L : now - lastMotionUptime));
+            skippedUnchangedTextPublishes = 0L;
         });
+    }
+
+    private static String detectionFingerprint(
+            List<Detection> detections,
+            boolean coarseGeometry) {
+        if (detections == null || detections.isEmpty()) return "empty";
+        List<String> parts = new ArrayList<>(detections.size());
+        for (Detection detection : detections) {
+            if (detection == null) continue;
+            BBox box = detection.getBox();
+            String anchor = detection.getAnchorKey();
+            if (coarseGeometry && anchor != null && !anchor.isEmpty()) {
+                parts.add(detection.getClassName() + '@' + anchor);
+            } else {
+                int x = coarseGeometry ? box.getX() / 32 : box.getX();
+                int y = coarseGeometry ? box.getY() / 24 : box.getY();
+                int width = coarseGeometry ? box.getWidth() / 32 : box.getWidth();
+                int height = coarseGeometry ? box.getHeight() / 16 : box.getHeight();
+                parts.add(detection.getClassName() + '@' + (anchor == null ? "" : anchor)
+                        + ':' + x + ',' + y + ',' + width + ',' + height);
+            }
+        }
+        Collections.sort(parts);
+        return String.join(";", parts);
     }
 
     private static List<TrackedObject> visualRenderTracks(List<TrackedObject> tracks) {
@@ -860,15 +956,29 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             int height,
             long requestedScrollX,
             long requestedScrollY) {
-        List<Detection> source = snapshot.detections;
+        return shiftDetectionSource(snapshot.detections,
+                snapshot.width, snapshot.height, snapshot.scrollX, snapshot.scrollY,
+                width, height, requestedScrollX, requestedScrollY);
+    }
+
+    private List<Detection> shiftDetectionSource(
+            List<Detection> source,
+            int sourceWidth,
+            int sourceHeight,
+            long sourceScrollX,
+            long sourceScrollY,
+            int width,
+            int height,
+            long requestedScrollX,
+            long requestedScrollY) {
         if (source == null || source.isEmpty()) return Collections.emptyList();
-        float scaleX = width / (float) Math.max(1, snapshot.width);
-        float scaleY = height / (float) Math.max(1, snapshot.height);
+        float scaleX = width / (float) Math.max(1, sourceWidth);
+        float scaleY = height / (float) Math.max(1, sourceHeight);
         Rect screen = screenBounds();
         float scrollScaleX = width / (float) Math.max(1, screen.width());
         float scrollScaleY = height / (float) Math.max(1, screen.height());
-        int offsetX = Math.round(-(requestedScrollX - snapshot.scrollX) * scrollScaleX);
-        int offsetY = Math.round(-(requestedScrollY - snapshot.scrollY) * scrollScaleY);
+        int offsetX = Math.round(-(requestedScrollX - sourceScrollX) * scrollScaleX);
+        int offsetY = Math.round(-(requestedScrollY - sourceScrollY) * scrollScaleY);
         List<Detection> shifted = new ArrayList<>(source.size());
         for (Detection detection : source) {
             BBox box = detection.getBox();
@@ -1156,18 +1266,28 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     viewportWidth = Math.max(1, metrics.widthPixels);
                     viewportHeight = Math.max(1, metrics.heightPixels);
                 }
-                AccessibilityScrollMotionResolver.Motion motion = scrollMotionResolver.resolve(
+                AccessibilityScrollMotionResolver.Motion rawMotion = scrollMotionResolver.resolve(
                         event, viewportWidth, viewportHeight);
                 long scrollNow = SystemClock.uptimeMillis();
+                ScrollDeltaStabilizer.Result motion = scrollDeltaStabilizer.filter(
+                        rawMotion.dx, rawMotion.dy, scrollNow, viewportWidth, viewportHeight);
                 if (BuildConfig.DEBUG && scrollNow - lastScrollDiagnosticUptime >= 250L) {
                     lastScrollDiagnosticUptime = scrollNow;
-                    Log.d(TAG, "Scroll event screen motion " + motion.dx + ',' + motion.dy);
+                    Log.d(TAG, "Scroll event screen motion raw=" + rawMotion.dx + ','
+                            + rawMotion.dy + " filtered=" + motion.dx + ',' + motion.dy);
                 }
+                traceScrollEvent(scrollNow, rawMotion.dx, rawMotion.dy,
+                        motion.dx, motion.dy,
+                        rawMotion.moved() && !motion.moved()
+                                ? "direction-suppressed" : "accessibility");
                 if (motion.moved()) {
-                    traceScrollEvent(scrollNow, motion.dx, motion.dy, "accessibility");
                     applyEventMotion(motion.dx, motion.dy);
                 } else {
-                    traceScrollEvent(scrollNow, 0, 0, "metadata-missing");
+                    if (rawMotion.moved() && motionEstimator != null) {
+                        // The buffered raw delta will be included when direction is confirmed.
+                        // Prevent screenshot phase-correlation from applying it in the meantime.
+                        motionEstimator.reset();
+                    }
                     dwellTracker.onScroll();
                     // Keep screenshot motion as a fallback for custom views which omit deltas.
                     lastMotionUptime = SystemClock.uptimeMillis();
@@ -1289,7 +1409,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void resetTextSnapshots() {
         cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
         clearCachedOcr();
+        cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
+        qualityVisualStabilizer.clear();
         accessibilityTextStabilizer.clear();
+        lastAccessibilityCandidateFingerprint = "";
+        accessibilityCandidateScans = 0;
+        lastPublishedTextFingerprint = "";
+        skippedUnchangedTextPublishes = 0L;
         accessibilityTextCandidatesPresent = false;
         textRefreshRequested.set(true);
         main.post(() -> {
@@ -1533,7 +1659,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
         clearCachedOcr();
+        cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
+        qualityVisualStabilizer.clear();
         accessibilityTextStabilizer.clear();
+        lastAccessibilityCandidateFingerprint = "";
+        accessibilityCandidateScans = 0;
+        lastPublishedTextFingerprint = "";
+        skippedUnchangedTextPublishes = 0L;
         accessibilityTextCandidatesPresent = false;
         settledInferenceNeeded.set(false);
         discardPendingInference();
@@ -1545,6 +1677,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         lastOcrCompletionUptime = 0L;
         if (motionEstimator != null) motionEstimator.reset();
         scrollMotionResolver.reset();
+        scrollDeltaStabilizer.reset();
         main.removeCallbacks(settledScrollTrace);
         lastScrollTraceEventUptime = 0L;
         textRefreshRequested.set(true);
@@ -1664,6 +1797,33 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 long scrollY,
                 long capturedAtUptimeMillis) {
             this.detections = detections == null ? Collections.emptyList() : detections;
+            this.width = Math.max(1, width);
+            this.height = Math.max(1, height);
+            this.scrollX = scrollX;
+            this.scrollY = scrollY;
+            this.capturedAtUptimeMillis = Math.max(0L, capturedAtUptimeMillis);
+        }
+    }
+
+    private static final class VisualDetectionSnapshot {
+        private static final VisualDetectionSnapshot EMPTY = new VisualDetectionSnapshot(
+                Collections.emptyList(), 1, 1, 0L, 0L, 0L);
+        private final List<Detection> detections;
+        private final int width;
+        private final int height;
+        private final long scrollX;
+        private final long scrollY;
+        private final long capturedAtUptimeMillis;
+
+        private VisualDetectionSnapshot(
+                List<Detection> detections,
+                int width,
+                int height,
+                long scrollX,
+                long scrollY,
+                long capturedAtUptimeMillis) {
+            this.detections = detections == null || detections.isEmpty()
+                    ? Collections.emptyList() : new ArrayList<>(detections);
             this.width = Math.max(1, width);
             this.height = Math.max(1, height);
             this.scrollX = scrollX;

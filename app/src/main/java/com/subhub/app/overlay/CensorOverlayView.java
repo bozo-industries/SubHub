@@ -84,6 +84,8 @@ final class CensorOverlayView extends View {
     private float contentOffsetY;
     private float renderContentOffsetX;
     private float renderContentOffsetY;
+    private float renderViewportLeadX;
+    private float renderViewportLeadY;
     private final ViewportMotion viewportMotion = new ViewportMotion();
     private float sourceFrameOffsetX;
     private float sourceFrameOffsetY;
@@ -93,6 +95,7 @@ final class CensorOverlayView extends View {
     private long motionInputUptime;
     private long lastMotionTraceInputUptime;
     private boolean motionDrawPending;
+    private boolean motionAnimationWasActive;
     private long borderAnimationTimeOverride = -1L;
     private long renderTimeOverride = -1L;
     private long tracksPublishedAtMillis;
@@ -190,6 +193,7 @@ final class CensorOverlayView extends View {
         contentOffsetX = motionX;
         contentOffsetY = motionY;
         viewportMotion.reset(contentOffsetX, contentOffsetY, tracksPublishedAtMillis);
+        motionAnimationWasActive = false;
         sourceFrameOffsetX = sourceMotionX;
         sourceFrameOffsetY = sourceMotionY;
         if (frame != latestFrame) {
@@ -256,6 +260,7 @@ final class CensorOverlayView extends View {
         textContentOffsetX = 0;
         textContentOffsetY = 0;
         viewportMotion.reset(0f, 0f, SystemClock.uptimeMillis());
+        motionAnimationWasActive = false;
         sourceFrameOffsetX = 0;
         sourceFrameOffsetY = 0;
         releaseFrame();
@@ -306,10 +311,12 @@ final class CensorOverlayView extends View {
         ViewportMotion.Position viewport = viewportMotion.position(renderTimeMillis());
         renderContentOffsetX = viewport.x;
         renderContentOffsetY = viewport.y;
+        renderViewportLeadX = viewport.x - contentOffsetX;
+        renderViewportLeadY = viewport.y - contentOffsetY;
         if (appearance.isReverseMode()) drawReverse(canvas);
         else drawNormal(canvas);
         drawDiagnostics(canvas);
-        traceRenderedMotion();
+        traceRenderedMotion(viewportMotion.isAnimating(renderTimeMillis()));
         scheduleNextFrame(renderTimeMillis());
     }
 
@@ -372,8 +379,8 @@ final class CensorOverlayView extends View {
         if (textTracks.isEmpty()) return;
         float savedOffsetX = renderContentOffsetX;
         float savedOffsetY = renderContentOffsetY;
-        renderContentOffsetX = textContentOffsetX;
-        renderContentOffsetY = textContentOffsetY;
+        renderContentOffsetX = textContentOffsetX + renderViewportLeadX;
+        renderContentOffsetY = textContentOffsetY + renderViewportLeadY;
         float scaleX = (float) getWidth() / textCaptureWidth;
         float scaleY = (float) getHeight() / textCaptureHeight;
         activePredictionX = 0f;
@@ -429,8 +436,8 @@ final class CensorOverlayView extends View {
         if (textTracks.isEmpty()) return;
         float savedOffsetX = renderContentOffsetX;
         float savedOffsetY = renderContentOffsetY;
-        renderContentOffsetX = textContentOffsetX;
-        renderContentOffsetY = textContentOffsetY;
+        renderContentOffsetX = textContentOffsetX + renderViewportLeadX;
+        renderContentOffsetY = textContentOffsetY + renderViewportLeadY;
         float scaleX = (float) getWidth() / textCaptureWidth;
         float scaleY = (float) getHeight() / textCaptureHeight;
         for (RenderTrackSnapshot track : textTracks) {
@@ -502,8 +509,8 @@ final class CensorOverlayView extends View {
         if (!textTracks.isEmpty()) {
             float savedOffsetX = renderContentOffsetX;
             float savedOffsetY = renderContentOffsetY;
-            renderContentOffsetX = textContentOffsetX;
-            renderContentOffsetY = textContentOffsetY;
+            renderContentOffsetX = textContentOffsetX + renderViewportLeadX;
+            renderContentOffsetY = textContentOffsetY + renderViewportLeadY;
             float textScaleX = (float) getWidth() / textCaptureWidth;
             float textScaleY = (float) getHeight() / textCaptureHeight;
             for (RenderTrackSnapshot track : textTracks) {
@@ -1016,16 +1023,23 @@ final class CensorOverlayView extends View {
         }
     }
 
-    private void traceRenderedMotion() {
+    private void traceRenderedMotion(boolean animationActive) {
         long now = renderTimeMillis();
         if (motionDrawPending) {
             motionDrawPending = false;
             Log.i(MOTION_TAG, "DRAW seq=" + motionSequence + " inputToDrawMs="
                     + Math.max(0L, now - motionInputUptime) + " visual="
                     + Math.round(renderContentOffsetX) + ',' + Math.round(renderContentOffsetY)
-                    + " text=" + Math.round(textContentOffsetX) + ','
-                    + Math.round(textContentOffsetY));
+                    + " text=" + Math.round(textContentOffsetX + renderViewportLeadX) + ','
+                    + Math.round(textContentOffsetY + renderViewportLeadY));
         }
+        if (motionAnimationWasActive && !animationActive) {
+            Log.i(MOTION_TAG, "SETTLED seq=" + motionSequence + " inputToSettledMs="
+                    + Math.max(0L, now - motionInputUptime)
+                    + " visual=" + Math.round(renderContentOffsetX) + ','
+                    + Math.round(renderContentOffsetY));
+        }
+        motionAnimationWasActive = animationActive;
     }
 
     private void stopFrameCallback() {
