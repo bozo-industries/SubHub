@@ -49,6 +49,9 @@
         <activity
             android:name=".subliminal.SubliminalSettingsActivity"
             android:exported="false" />
+        <activity
+            android:name=".atmosphere.AtmosphereActivity"
+            android:exported="false" />
 
         <activity
             android:name=".capture.CustomImagesActivity"

@@ -482,7 +482,7 @@
                     android:visibility="gone" />
 
                 <LinearLayout
-                    android:id="@+id/sub_subliminal_card"
+                    android:id="@+id/home_atmosphere_card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
@@ -499,9 +499,9 @@
                         android:layout_width="34dp"
                         android:layout_height="34dp"
                         android:background="@drawable/bg_home_metric"
-                        android:contentDescription="@string/sub_subliminal_title"
+                        android:contentDescription="@string/atmosphere_title"
                         android:padding="7dp"
-                        android:src="@drawable/ic_subliminal_whisper_2"
+                        android:src="@drawable/ic_atmosphere"
                         app:tint="@color/accent_mid" />
 
                     <LinearLayout
@@ -515,13 +515,13 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:includeFontPadding="false"
-                            android:text="@string/sub_subliminal_title"
+                            android:text="@string/atmosphere_title"
                             android:textColor="@color/text_secondary"
                             android:textSize="9sp"
                             android:textStyle="bold" />
 
                         <TextView
-                            android:id="@+id/sub_subliminal_voice"
+                            android:id="@+id/home_atmosphere_status"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
@@ -530,7 +530,7 @@
                             android:textStyle="bold" />
 
                         <TextView
-                            android:id="@+id/sub_subliminal_summary"
+                            android:id="@+id/home_atmosphere_summary"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"

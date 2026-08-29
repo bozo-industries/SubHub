@@ -82,7 +82,7 @@ public final class StudioActivity extends AppCompatActivity {
         setupEditor();
         binding.buttonImport.setOnClickListener(view -> importPicker.launch(
                 new String[]{"application/zip", "application/octet-stream", "*/*"}));
-        binding.buttonBlank.setOnClickListener(view -> openDraft(SubHubPack.blank()));
+        binding.buttonBlank.setOnClickListener(view -> openDraft(manager.createBlank()));
         binding.buttonCapture.setOnClickListener(view -> openDraft(manager.captureCurrent()));
         renderLibrary();
         renderDrafts();
@@ -430,7 +430,9 @@ public final class StudioActivity extends AppCompatActivity {
         if (uri == null) return;
         try {
             SubHubPack pack = manager.importPack(uri);
-            toast(getString(R.string.studio_imported, pack.getName()));
+            toast(getString(pack.getId().equals(manager.activePackId())
+                    ? R.string.studio_active_update_imported : R.string.studio_imported,
+                    pack.getName()));
         } catch (IOException modernFailure) {
             try {
                 PackManager.PackInfo legacy = new PackManager(this).importPack(uri);

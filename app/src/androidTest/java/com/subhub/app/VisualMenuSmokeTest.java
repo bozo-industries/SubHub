@@ -13,6 +13,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.subhub.app.appmode.AppModeActivity;
+import com.subhub.app.atmosphere.AtmosphereActivity;
 import com.subhub.app.capture.CustomImagesActivity;
 import com.subhub.app.capture.ExportActivity;
 import com.subhub.app.commitment.CommitmentActivity;
@@ -48,6 +49,7 @@ public final class VisualMenuSmokeTest {
         screens.put("help", HelpActivity.class);
         screens.put("export", ExportActivity.class);
         screens.put("app-mode", AppModeActivity.class);
+        screens.put("atmosphere", AtmosphereActivity.class);
         screens.put("commitment", CommitmentActivity.class);
         screens.put("penance", PenanceActivity.class);
         screens.put("popup-storm", PopupStormActivity.class);
