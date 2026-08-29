@@ -3,6 +3,25 @@
 User-facing changes from every tagged SubHub release.
 
 <details open>
+<summary><strong>SubHub 0.6.3</strong></summary>
+
+## What’s new in SubHub 0.6.3
+
+### New
+
+- **Add Atmosphere and trusted arrangement updates** — Brings Whispers and Popup Storm into one discoverable Atmosphere hub, and lets Sub Space apply an active Studio pack update only when its pack, creator-device, name, and author identity still match.
+
+### Improved
+
+- **Unify SubHub around a purple accent system** — Replaces the remaining hot-pink default chrome with a consistent violet palette across buttons, tabs, switches, selection tiles, quality icons, borders, and Whisper artwork.
+
+### Quality
+
+- **Publish the complete SubHub screen map** — Expands the device screenshot suite to cover both spaces and every major settings, Wallet, Studio, Atmosphere, diagnostics, update, achievement, and service-lock surface.
+
+</details>
+
+<details>
 <summary><strong>SubHub 0.6.2</strong></summary>
 
 ## What’s new in SubHub 0.6.2
