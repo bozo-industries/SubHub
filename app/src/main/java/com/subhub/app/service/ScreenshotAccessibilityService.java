@@ -951,17 +951,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!motionGeneration.compareAndSet(expectedGeneration, expectedGeneration + 1L)) {
             return false;
         }
-        applyScrollMotion(dx, dy, false);
+        applyScrollMotion(dx, dy, false, false);
         return true;
     }
 
-    private void applyEventMotion(int dx, int dy) {
+    private void applyEventMotion(int dx, int dy, boolean allowPrediction) {
         if (dx == 0 && dy == 0) return;
         motionGeneration.incrementAndGet();
         // Establish the next screenshot as a fresh visual baseline. Otherwise the estimator sees
         // the same movement Android just reported and translates every censor a second time.
         if (motionEstimator != null) motionEstimator.reset();
-        applyScrollMotion(dx, dy, true);
+        applyScrollMotion(dx, dy, true, allowPrediction);
     }
 
     private void traceScrollEvent(
@@ -995,7 +995,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         main.postDelayed(settledScrollTrace, MOTION_SETTLE_MS);
     }
 
-    private void applyScrollMotion(int dx, int dy, boolean alreadyOnMainThread) {
+    private void applyScrollMotion(
+            int dx,
+            int dy,
+            boolean alreadyOnMainThread,
+            boolean allowPrediction) {
         if (dx == 0 && dy == 0) return;
         qualityVisualStabilizer.clear();
         qualityConfirmationRequested.set(false);
@@ -1020,6 +1024,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             pendingTrackerOffsetX.addAndGet(dx);
             pendingTrackerOffsetY.addAndGet(dy);
         }
+        offsetVisualGeometryHistory(dx, dy);
         android.util.DisplayMetrics tapMetrics = getResources().getDisplayMetrics();
         tapTracker.offsetContent(dx, dy, tapMetrics.widthPixels, tapMetrics.heightPixels,
                 System.currentTimeMillis());
@@ -1032,7 +1037,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         main.postDelayed(settledTextRefresh, SETTLED_SCROLL_REFRESH_MS);
         queueSettledCapture();
         Runnable moveOverlay = () -> {
-            if (recognitionActive && overlay != null) overlay.offsetContent(dx, dy);
+            if (recognitionActive && overlay != null) {
+                overlay.offsetContent(dx, dy, allowPrediction);
+            }
         };
         if (alreadyOnMainThread || Looper.myLooper() == main.getLooper()) moveOverlay.run();
         else main.post(moveOverlay);
@@ -1675,6 +1682,18 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         lastPublishedVisualBoxes.clear();
     }
 
+    private synchronized void offsetVisualGeometryHistory(int dx, int dy) {
+        if (dx == 0 && dy == 0 || lastPublishedVisualBoxes.isEmpty()) return;
+        for (Map.Entry<Integer, BBox> entry : lastPublishedVisualBoxes.entrySet()) {
+            BBox box = entry.getValue();
+            entry.setValue(new BBox(
+                    box.getX() + dx,
+                    box.getY() + dy,
+                    box.getWidth(),
+                    box.getHeight()));
+        }
+    }
+
     private List<Detection> shiftTextSource(
             TextDetectionSnapshot snapshot,
             int width,
@@ -2021,7 +2040,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                 ? "direction-suppressed" : "accessibility",
                         rawMotion.evidence.name(), motion.adjustedPixels(), motion.amplified());
                 if (motion.moved()) {
-                    applyEventMotion(motion.dx, motion.dy);
+                    applyEventMotion(motion.dx, motion.dy, motion.authoritative);
                 } else {
                     if (rawMotion.moved() && motionEstimator != null) {
                         // Prevent screenshot phase-correlation from applying a rejected producer

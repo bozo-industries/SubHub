@@ -153,9 +153,9 @@ public final class CensorOverlayViewTest {
         view.layout(0, 0, 100, 100);
 
         view.offsetContent(0, -20);
-        // Accessibility deltas are compositor-smoothed for at most 56 ms. Verify that the
-        // existing censor reaches the authoritative event position before another detector frame
-        // is required, rather than restoring the obsolete first-draw teleport contract.
+        // The first authoritative delta uses a short catch-up; established sparse streams may
+        // retain a bounded prediction pulse for up to two event gaps. Either path must converge
+        // without another detector frame.
         view.setRenderTimeForTest(SystemClock.uptimeMillis() + 100L);
         Bitmap moved = draw(view, 100, 100);
 

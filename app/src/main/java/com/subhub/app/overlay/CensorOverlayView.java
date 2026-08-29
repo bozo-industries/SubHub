@@ -100,6 +100,7 @@ final class CensorOverlayView extends View {
     private boolean motionAnimationWasActive;
     private long borderAnimationTimeOverride = -1L;
     private long renderTimeOverride = -1L;
+    private long presentationFrameTimeMillis = -1L;
     private long tracksPublishedAtMillis;
     private long activeRenderTimeMillis;
     private float maxExtrapolationMs = 180f;
@@ -108,8 +109,9 @@ final class CensorOverlayView extends View {
     private float activePredictionY;
     private final Choreographer.FrameCallback frameCallback = frameTimeNanos -> {
         frameCallbackPosted = false;
+        presentationFrameTimeMillis = frameTimeNanos / 1_000_000L;
         invalidate();
-        scheduleNextFrame(frameTimeNanos / 1_000_000L);
+        scheduleNextFrame(presentationFrameTimeMillis);
     };
 
     CensorOverlayView(Context context) {
@@ -275,12 +277,17 @@ final class CensorOverlayView extends View {
     }
 
     void offsetContent(int deltaX, int deltaY) {
+        offsetContent(deltaX, deltaY, true);
+    }
+
+    void offsetContent(int deltaX, int deltaY, boolean allowPrediction) {
         if (tracks.isEmpty() && textTracks.isEmpty()) return;
         contentOffsetX += deltaX;
         contentOffsetY += deltaY;
         textContentOffsetX += deltaX;
         textContentOffsetY += deltaY;
-        viewportMotion.addDelta(deltaX, deltaY, SystemClock.uptimeMillis());
+        viewportMotion.addDelta(deltaX, deltaY, SystemClock.uptimeMillis(),
+                Math.max(1, getWidth()), Math.max(1, getHeight()), allowPrediction);
         noteMotionInput("event", deltaX, deltaY, true);
         postInvalidateOnAnimation();
         scheduleNextFrame(SystemClock.uptimeMillis());
@@ -357,6 +364,7 @@ final class CensorOverlayView extends View {
         drawDiagnostics(canvas);
         traceRenderedMotion(viewportMotion.isAnimating(activeRenderTimeMillis));
         scheduleNextFrame(activeRenderTimeMillis);
+        presentationFrameTimeMillis = -1L;
     }
 
     private void drawDiagnostics(Canvas canvas) {
@@ -1025,7 +1033,9 @@ final class CensorOverlayView extends View {
     }
 
     private long renderTimeMillis() {
-        return renderTimeOverride >= 0L ? renderTimeOverride : SystemClock.uptimeMillis();
+        if (renderTimeOverride >= 0L) return renderTimeOverride;
+        if (presentationFrameTimeMillis >= 0L) return presentationFrameTimeMillis;
+        return SystemClock.uptimeMillis();
     }
 
     private float renderAgeMillis() {
@@ -1090,7 +1100,11 @@ final class CensorOverlayView extends View {
         if (forceTrace || now - lastMotionTraceInputUptime >= MOTION_TRACE_INTERVAL_MS) {
             lastMotionTraceInputUptime = now;
             Log.i(MOTION_TAG, "INPUT seq=" + motionSequence + " source=" + source
-                    + " dx=" + Math.round(dx) + " dy=" + Math.round(dy));
+                    + " dx=" + Math.round(dx) + " dy=" + Math.round(dy)
+                    + " prediction="
+                    + Math.round(viewportMotion.predictionAmplitude().x) + ','
+                    + Math.round(viewportMotion.predictionAmplitude().y)
+                    + " predictionPeakMs=" + viewportMotion.predictionPeakMillis());
         }
     }
 

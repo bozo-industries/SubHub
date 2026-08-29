@@ -112,7 +112,12 @@ public final class OverlayController implements AutoCloseable {
 
     /** Moves the current lightweight overlay immediately while the next inference is pending. */
     public void offsetContent(int deltaX, int deltaY) {
-        view.offsetContent(deltaX, deltaY);
+        offsetContent(deltaX, deltaY, true);
+    }
+
+    /** Moves content while allowing prediction only for trustworthy viewport observations. */
+    public void offsetContent(int deltaX, int deltaY, boolean allowPrediction) {
+        view.offsetContent(deltaX, deltaY, allowPrediction);
     }
 
     /** Publishes stabilized Accessibility/OCR geometry without waiting behind visual inference. */
@@ -125,7 +130,6 @@ public final class OverlayController implements AutoCloseable {
         view.setTextDetections(detections, captureWidth, captureHeight, motionX, motionY);
     }
 
-    /** Applies renderer-only finger motion between authoritative Accessibility scroll events. */
     /** Immediately removes rendered content while keeping the lightweight window ready. */
     public void clear() {
         view.clearContent();

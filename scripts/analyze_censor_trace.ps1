@@ -65,6 +65,7 @@ foreach ($requestedPath in $Path) {
     $textConfirms = [Collections.Generic.List[object]]::new()
     $fastPublishTimes = [Collections.Generic.List[datetime]]::new()
     $motionDraws = [Collections.Generic.List[object]]::new()
+    $motionInputs = [Collections.Generic.List[object]]::new()
     $motionSettles = [Collections.Generic.List[object]]::new()
 
     foreach ($line in $lines) {
@@ -107,6 +108,14 @@ foreach ($requestedPath in $Path) {
             if ($item.pass -eq 'fast' -and $null -ne $time) { $fastPublishTimes.Add($time) }
             continue
         }
+        if ($line -match 'CensorMotion: INPUT .*prediction=(-?\d+),(-?\d+) predictionPeakMs=(\d+)') {
+            $motionInputs.Add([pscustomobject]@{
+                time = $time
+                predictionAbs = [math]::Abs([int] $Matches[1]) + [math]::Abs([int] $Matches[2])
+                predictionPeak = [int] $Matches[3]
+            })
+            continue
+        }
         if ($line -match 'CensorMotion: DRAW .*inputToDrawMs=(\d+).*?(?:viewportLead=(-?\d+),(-?\d+))?$') {
             $leadX = if ($Matches[2]) { [int] $Matches[2] } else { 0 }
             $leadY = if ($Matches[3]) { [int] $Matches[3] } else { 0 }
@@ -144,7 +153,7 @@ foreach ($requestedPath in $Path) {
             })
             continue
         }
-        if ($line -match 'SCROLL_EVENT id=(\d+) source=(\S+) gapMs=(\d+)(?: eventAgeMs=(\d+))? rawDx=(-?\d+) rawDy=(-?\d+) dx=(-?\d+) dy=(-?\d+)') {
+        if ($line -match 'SCROLL_EVENT id=(\d+) source=(\S+) gapMs=(\d+)(?: eventAgeMs=(\d+))? rawDx=(-?\d+) rawDy=(-?\d+) dx=(-?\d+) dy=(-?\d+)(?: evidence=(\S+) adjustedPx=(\d+) amplified=(true|false))?') {
             $rawX = [int] $Matches[5]
             $rawY = [int] $Matches[6]
             $appliedX = [int] $Matches[7]
@@ -161,6 +170,11 @@ foreach ($requestedPath in $Path) {
                 appliedY = $appliedY
                 rawAbs = [math]::Abs($rawX) + [math]::Abs($rawY)
                 appliedAbs = [math]::Abs($appliedX) + [math]::Abs($appliedY)
+                evidence = if ($Matches[9]) { $Matches[9] } else { 'unknown' }
+                adjusted = if ($Matches[10]) { [int] $Matches[10] } else {
+                    [math]::Abs($rawX - $appliedX) + [math]::Abs($rawY - $appliedY)
+                }
+                explicitlyAmplified = $Matches[11] -eq 'true'
             })
             continue
         }
@@ -280,8 +294,14 @@ foreach ($requestedPath in $Path) {
             appliedNet = @($appliedNetX, $appliedNetY)
             amplifiedEvents = $amplified
             amplifiedBySource = $amplifiedBySource
+            evidence = Get-GroupCounts @($scrolls) 'evidence'
+            adjustedPixels = ($scrolls | Measure-Object -Property adjusted -Sum).Sum
+            explicitlyAmplifiedEvents = @($scrolls | Where-Object explicitlyAmplified).Count
         }
         displayMotion = [ordered]@{
+            inputs = $motionInputs.Count
+            predictionAmplitudeAbsPx = Get-Distribution @($motionInputs.predictionAbs)
+            predictionPeakMs = Get-Distribution @($motionInputs.predictionPeak)
             draws = $motionDraws.Count
             inputToDrawMs = Get-Distribution @($motionDraws.inputToDraw)
             viewportLeadAbsPx = Get-Distribution @($motionDraws.leadAbs)
