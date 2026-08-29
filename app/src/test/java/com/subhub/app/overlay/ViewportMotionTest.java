@@ -8,7 +8,7 @@ import org.junit.Test;
 
 public final class ViewportMotionTest {
     @Test
-    public void sparseScrollEventsProduceIntermediateDisplayPositionsThenSettleExactly() {
+    public void authoritativeScrollNeverReversesOrRetainsDrift() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
         motion.addDelta(0f, -20f, 16L);
@@ -18,8 +18,8 @@ public final class ViewportMotionTest {
         float eventPosition = motion.position(32L).y;
         float betweenEvents = motion.position(40L).y;
         assertEquals(-40f, eventPosition, 0.001f);
-        assertTrue(betweenEvents < eventPosition);
-        assertTrue(motion.isAnimating(40L));
+        assertEquals(eventPosition, betweenEvents, 0.001f);
+        assertFalse(motion.isAnimating(40L));
 
         assertEquals(-40f, motion.position(200L).y, 0.001f);
         assertFalse(motion.isAnimating(200L));

@@ -103,4 +103,21 @@ public final class CaptureEpochTest {
         assertFalse(ScreenshotAccessibilityService.isOcrSnapshotFresh(6_001L, 1_000L));
         assertFalse(ScreenshotAccessibilityService.isOcrSnapshotFresh(500L, 1_000L));
     }
+
+    @Test public void realtimeDetectorKeepsQualitySettingsAtA320PixelInput() {
+        DetectorConfig quality = DetectorConfig.builder()
+                .inferenceResolution(512)
+                .confidenceThreshold(0.18f)
+                .inferenceThreads(4)
+                .detectionIntervalMs(90L)
+                .build();
+
+        DetectorConfig fast = ScreenshotAccessibilityService.fastDetectorConfig(quality);
+
+        assertEquals(320, fast.getInferenceResolution());
+        assertEquals(0L, fast.getDetectionIntervalMs());
+        assertEquals(4, fast.getInferenceThreads());
+        assertEquals(0.18f, fast.getConfidenceThreshold(), 0.001f);
+        assertEquals(512, quality.getInferenceResolution());
+    }
 }

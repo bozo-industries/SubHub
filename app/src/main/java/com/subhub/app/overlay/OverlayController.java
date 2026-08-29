@@ -8,6 +8,7 @@ import android.view.Gravity;
 import android.view.WindowManager;
 
 import com.subhub.app.detection.TrackedObject;
+import com.subhub.app.detection.Detection;
 import com.subhub.app.settings.CensorAppearance;
 
 import java.util.List;
@@ -112,6 +113,21 @@ public final class OverlayController implements AutoCloseable {
     /** Moves the current lightweight overlay immediately while the next inference is pending. */
     public void offsetContent(int deltaX, int deltaY) {
         view.offsetContent(deltaX, deltaY);
+    }
+
+    /** Publishes stabilized Accessibility/OCR geometry without waiting behind visual inference. */
+    public void updateText(
+            List<Detection> detections,
+            int captureWidth,
+            int captureHeight,
+            int motionX,
+            int motionY) {
+        view.setTextDetections(detections, captureWidth, captureHeight, motionX, motionY);
+    }
+
+    /** Applies renderer-only finger motion between authoritative Accessibility scroll events. */
+    public void setTouchPrediction(float deltaX, float deltaY, boolean active) {
+        view.setTouchPrediction(deltaX, deltaY, active);
     }
 
     /** Immediately removes rendered content while keeping the lightweight window ready. */

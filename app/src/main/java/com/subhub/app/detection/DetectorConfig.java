@@ -47,6 +47,27 @@ public final class DetectorConfig {
     }
 
     public static Builder builder() { return new Builder(); }
+    public Builder toBuilder() {
+        return new Builder()
+                .enabledCategories(enabledCategories)
+                .confidenceThreshold(confidenceThreshold)
+                .trackingSmoothing(trackingSmoothing)
+                .trackMaxAgeSeconds(trackMaxAgeSeconds)
+                .minRemoveFrames(minRemoveFrames)
+                .motionPrediction(motionPrediction)
+                .detectionIntervalMs(detectionIntervalMs)
+                .boxPadding(boxPadding)
+                .minDetectionSize(minDetectionSize)
+                .captureScale(captureScale)
+                .inferenceResolution(inferenceResolution)
+                .modelFilename(modelFilename)
+                .idleThresholdFrames(idleThresholdFrames)
+                .renderAlpha(renderAlpha)
+                .velocitySmoothing(velocitySmoothing)
+                .maxExtrapolationMs(maxExtrapolationMs)
+                .detectCovered(detectCovered)
+                .inferenceThreads(inferenceThreads);
+    }
     public Set<String> getEnabledCategories() { return enabledCategories; }
     public float getConfidenceThreshold() { return confidenceThreshold; }
     public float getTrackingSmoothing() { return trackingSmoothing; }

@@ -18,6 +18,7 @@ import android.graphics.SweepGradient;
 import android.graphics.Typeface;
 import android.os.SystemClock;
 import android.os.Build;
+import android.util.Log;
 import android.graphics.RenderNode;
 import android.view.Choreographer;
 import android.view.View;
@@ -25,6 +26,7 @@ import android.view.View;
 import com.subhub.app.R;
 import com.subhub.app.capture.CustomImagePool;
 import com.subhub.app.detection.BBox;
+import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.TrackedObject;
 import com.subhub.app.settings.CensorAppearance;
 
@@ -37,6 +39,8 @@ import java.util.Set;
 
 /** Full-screen, touch-through renderer for every recovered censor style and reverse mode. */
 final class CensorOverlayView extends View {
+    private static final String MOTION_TAG = "CensorMotion";
+    private static final long MOTION_TRACE_INTERVAL_MS = 32L;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -62,9 +66,12 @@ final class CensorOverlayView extends View {
     private final Map<Integer, SolidRenderLayer> solidRenderLayers = new HashMap<>();
 
     private List<RenderTrackSnapshot> tracks = new ArrayList<>();
+    private List<RenderTrackSnapshot> textTracks = new ArrayList<>();
     private CensorAppearance appearance = CensorAppearance.defaults();
     private int captureWidth = 1;
     private int captureHeight = 1;
+    private int textCaptureWidth = 1;
+    private int textCaptureHeight = 1;
     private Bitmap frame;
     private Runnable frameRelease;
     private Bitmap effectScratch;
@@ -80,6 +87,15 @@ final class CensorOverlayView extends View {
     private final ViewportMotion viewportMotion = new ViewportMotion();
     private float sourceFrameOffsetX;
     private float sourceFrameOffsetY;
+    private float textContentOffsetX;
+    private float textContentOffsetY;
+    private float touchPredictionX;
+    private float touchPredictionY;
+    private boolean touchPredictionActive;
+    private long motionSequence;
+    private long motionInputUptime;
+    private long lastMotionTraceInputUptime;
+    private boolean motionDrawPending;
     private long borderAnimationTimeOverride = -1L;
     private long renderTimeOverride = -1L;
     private long tracksPublishedAtMillis;
@@ -188,18 +204,61 @@ final class CensorOverlayView extends View {
         }
         Set<Integer> activeIds = new HashSet<>();
         for (RenderTrackSnapshot track : tracks) activeIds.add(track.id());
+        for (RenderTrackSnapshot track : textTracks) activeIds.add(track.id());
         solidRenderLayers.keySet().retainAll(activeIds);
         customImages.retainAssignments(activeIds);
-        setVisibility(VISIBLE);
+        setVisibility(tracks.isEmpty() && textTracks.isEmpty() ? INVISIBLE : VISIBLE);
         postInvalidateOnAnimation();
         scheduleNextFrame(tracksPublishedAtMillis);
     }
 
+    void setTextDetections(
+            List<Detection> detections,
+            int sourceWidth,
+            int sourceHeight,
+            int motionX,
+            int motionY) {
+        List<RenderTrackSnapshot> snapshots = new ArrayList<>(detections.size());
+        for (Detection detection : detections) {
+            if (detection != null) snapshots.add(RenderTrackSnapshot.fromTextDetection(detection));
+        }
+        textTracks = snapshots;
+        textCaptureWidth = Math.max(1, sourceWidth);
+        textCaptureHeight = Math.max(1, sourceHeight);
+        textContentOffsetX = motionX;
+        textContentOffsetY = motionY;
+        Set<Integer> activeIds = new HashSet<>();
+        for (RenderTrackSnapshot track : tracks) activeIds.add(track.id());
+        for (RenderTrackSnapshot track : textTracks) activeIds.add(track.id());
+        solidRenderLayers.keySet().retainAll(activeIds);
+        customImages.retainAssignments(activeIds);
+        setVisibility(tracks.isEmpty() && textTracks.isEmpty() ? INVISIBLE : VISIBLE);
+        postInvalidateOnAnimation();
+        scheduleNextFrame(SystemClock.uptimeMillis());
+    }
+
     void offsetContent(int deltaX, int deltaY) {
-        if (tracks.isEmpty()) return;
+        if (tracks.isEmpty() && textTracks.isEmpty()) return;
         contentOffsetX += deltaX;
         contentOffsetY += deltaY;
+        textContentOffsetX += deltaX;
+        textContentOffsetY += deltaY;
         viewportMotion.addDelta(deltaX, deltaY, SystemClock.uptimeMillis());
+        noteMotionInput("event", deltaX, deltaY, true);
+        postInvalidateOnAnimation();
+        scheduleNextFrame(SystemClock.uptimeMillis());
+    }
+
+    void setTouchPrediction(float deltaX, float deltaY, boolean active) {
+        if (tracks.isEmpty() && textTracks.isEmpty()) return;
+        boolean changed = Math.abs(deltaX - touchPredictionX) >= 0.25f
+                || Math.abs(deltaY - touchPredictionY) >= 0.25f
+                || active != touchPredictionActive;
+        if (!changed) return;
+        touchPredictionX = active ? deltaX : 0f;
+        touchPredictionY = active ? deltaY : 0f;
+        touchPredictionActive = active;
+        noteMotionInput("touch", touchPredictionX, touchPredictionY, !active);
         postInvalidateOnAnimation();
         scheduleNextFrame(SystemClock.uptimeMillis());
     }
@@ -207,9 +266,15 @@ final class CensorOverlayView extends View {
     /** Hide all censor pixels without treating an empty track list as reverse-mode content. */
     void clearContent() {
         tracks.clear();
+        textTracks.clear();
         solidRenderLayers.clear();
         contentOffsetX = 0;
         contentOffsetY = 0;
+        textContentOffsetX = 0;
+        textContentOffsetY = 0;
+        touchPredictionX = 0;
+        touchPredictionY = 0;
+        touchPredictionActive = false;
         viewportMotion.reset(0f, 0f, SystemClock.uptimeMillis());
         sourceFrameOffsetX = 0;
         sourceFrameOffsetY = 0;
@@ -259,11 +324,12 @@ final class CensorOverlayView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         ViewportMotion.Position viewport = viewportMotion.position(renderTimeMillis());
-        renderContentOffsetX = viewport.x;
-        renderContentOffsetY = viewport.y;
+        renderContentOffsetX = viewport.x + touchPredictionX;
+        renderContentOffsetY = viewport.y + touchPredictionY;
         if (appearance.isReverseMode()) drawReverse(canvas);
         else drawNormal(canvas);
         drawDiagnostics(canvas);
+        traceRenderedMotion();
         scheduleNextFrame(renderTimeMillis());
     }
 
@@ -295,6 +361,7 @@ final class CensorOverlayView extends View {
     private void drawNormal(Canvas canvas) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canUseSolidRenderLayers(canvas)) {
             drawSolidRenderLayers(canvas);
+            drawSolidTextRenderLayers(canvas);
             return;
         }
         float scaleX = (float) getWidth() / captureWidth;
@@ -318,6 +385,33 @@ final class CensorOverlayView extends View {
         }
         activePredictionX = 0f;
         activePredictionY = 0f;
+        drawTextTracks(canvas);
+    }
+
+    private void drawTextTracks(Canvas canvas) {
+        if (textTracks.isEmpty()) return;
+        float savedOffsetX = renderContentOffsetX;
+        float savedOffsetY = renderContentOffsetY;
+        renderContentOffsetX = textContentOffsetX + touchPredictionX;
+        renderContentOffsetY = textContentOffsetY + touchPredictionY;
+        float scaleX = (float) getWidth() / textCaptureWidth;
+        float scaleY = (float) getHeight() / textCaptureHeight;
+        activePredictionX = 0f;
+        activePredictionY = 0f;
+        for (RenderTrackSnapshot track : textTracks) {
+            setPaddedRect(track.box(), scaleX, scaleY, true);
+            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+            drawEffect(canvas, drawRect, track.id(), appearance.getType(),
+                    appearance.getIntensity());
+            if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
+            if (appearance.isShowText() && drawRect.height() >= dp(22)
+                    && drawRect.width() >= dp(44)
+                    && appearance.getType() != CensorAppearance.Type.ERROR_POPUP) {
+                drawLabel(canvas, drawRect, appearance.phraseFor(track.id()));
+            }
+        }
+        renderContentOffsetX = savedOffsetX;
+        renderContentOffsetY = savedOffsetY;
     }
 
     /**
@@ -348,6 +442,36 @@ final class CensorOverlayView extends View {
             layer.node.setPosition(left, top, left + width, top + height);
             canvas.drawRenderNode(layer.node);
         }
+    }
+
+    @SuppressLint("NewApi")
+    private void drawSolidTextRenderLayers(Canvas canvas) {
+        if (textTracks.isEmpty()) return;
+        float savedOffsetX = renderContentOffsetX;
+        float savedOffsetY = renderContentOffsetY;
+        renderContentOffsetX = textContentOffsetX + touchPredictionX;
+        renderContentOffsetY = textContentOffsetY + touchPredictionY;
+        float scaleX = (float) getWidth() / textCaptureWidth;
+        float scaleY = (float) getHeight() / textCaptureHeight;
+        for (RenderTrackSnapshot track : textTracks) {
+            setPaddedRect(track.box(), scaleX, scaleY, true);
+            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+            int width = Math.max(1, Math.round(drawRect.width()));
+            int height = Math.max(1, Math.round(drawRect.height()));
+            String phrase = appearance.phraseFor(track.id());
+            SolidRenderLayer layer = solidRenderLayers.get(track.id());
+            if (layer == null || layer.width != width || layer.height != height
+                    || !layer.phrase.equals(phrase)) {
+                layer = recordSolidLayer(track.id(), width, height, phrase);
+                solidRenderLayers.put(track.id(), layer);
+            }
+            int left = Math.round(drawRect.left);
+            int top = Math.round(drawRect.top);
+            layer.node.setPosition(left, top, left + width, top + height);
+            canvas.drawRenderNode(layer.node);
+        }
+        renderContentOffsetX = savedOffsetX;
+        renderContentOffsetY = savedOffsetY;
     }
 
     @SuppressLint("NewApi") // Called only from the guarded RenderNode path.
@@ -394,6 +518,23 @@ final class CensorOverlayView extends View {
             RectF hole = new RectF(drawRect);
             holes.add(hole);
             drawShape(canvas, hole, clear);
+        }
+        if (!textTracks.isEmpty()) {
+            float savedOffsetX = renderContentOffsetX;
+            float savedOffsetY = renderContentOffsetY;
+            renderContentOffsetX = textContentOffsetX + touchPredictionX;
+            renderContentOffsetY = textContentOffsetY + touchPredictionY;
+            float textScaleX = (float) getWidth() / textCaptureWidth;
+            float textScaleY = (float) getHeight() / textCaptureHeight;
+            for (RenderTrackSnapshot track : textTracks) {
+                setPaddedRect(track.box(), textScaleX, textScaleY, true);
+                drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+                RectF hole = new RectF(drawRect);
+                holes.add(hole);
+                drawShape(canvas, hole, clear);
+            }
+            renderContentOffsetX = savedOffsetX;
+            renderContentOffsetY = savedOffsetY;
         }
         canvas.restoreToCount(layer);
         if (appearance.isShowBorder()) {
@@ -874,11 +1015,37 @@ final class CensorOverlayView extends View {
     }
 
     private void scheduleNextFrame(long nowMillis) {
-        if (frameCallbackPosted || !isAttachedToWindow() || tracks.isEmpty()
+        if (frameCallbackPosted || !isAttachedToWindow()
+                || tracks.isEmpty() && textTracks.isEmpty()
                 || (!isAnimated() && !hasActivePrediction(nowMillis)
-                && !viewportMotion.isAnimating(nowMillis))) return;
+                && !viewportMotion.isAnimating(nowMillis)
+                && !motionDrawPending)) return;
         frameCallbackPosted = true;
         Choreographer.getInstance().postFrameCallback(frameCallback);
+    }
+
+    private void noteMotionInput(String source, float dx, float dy, boolean forceTrace) {
+        long now = SystemClock.uptimeMillis();
+        motionSequence++;
+        motionInputUptime = now;
+        motionDrawPending = true;
+        if (forceTrace || now - lastMotionTraceInputUptime >= MOTION_TRACE_INTERVAL_MS) {
+            lastMotionTraceInputUptime = now;
+            Log.i(MOTION_TAG, "INPUT seq=" + motionSequence + " source=" + source
+                    + " dx=" + Math.round(dx) + " dy=" + Math.round(dy));
+        }
+    }
+
+    private void traceRenderedMotion() {
+        long now = renderTimeMillis();
+        if (motionDrawPending) {
+            motionDrawPending = false;
+            Log.i(MOTION_TAG, "DRAW seq=" + motionSequence + " inputToDrawMs="
+                    + Math.max(0L, now - motionInputUptime) + " visual="
+                    + Math.round(renderContentOffsetX) + ',' + Math.round(renderContentOffsetY)
+                    + " text=" + Math.round(textContentOffsetX + touchPredictionX) + ','
+                    + Math.round(textContentOffsetY + touchPredictionY));
+        }
     }
 
     private void stopFrameCallback() {

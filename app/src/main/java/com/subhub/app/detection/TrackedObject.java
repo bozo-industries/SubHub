@@ -38,6 +38,25 @@ public final class TrackedObject {
         anchorKey = detection.getAnchorKey();
     }
 
+    private TrackedObject(TrackedObject source) {
+        id = source.id;
+        category = source.category;
+        className = source.className;
+        box = source.box;
+        rawBox = source.rawBox;
+        confidence = source.confidence;
+        lastSeenNanos = source.lastSeenNanos;
+        framesTracked = source.framesTracked;
+        framesMissing = source.framesMissing;
+        velocityX = source.velocityX;
+        velocityY = source.velocityY;
+        active = source.active;
+        visible = source.visible;
+        confirmed = source.confirmed;
+        predictionOriginBox = source.predictionOriginBox;
+        anchorKey = source.anchorKey;
+    }
+
     public int getId() { return id; }
     public String getCategory() { return category; }
     public String getClassName() { return className; }
@@ -53,6 +72,9 @@ public final class TrackedObject {
     public boolean isVisible() { return visible; }
     public boolean isConfirmed() { return confirmed; }
     public String getAnchorKey() { return anchorKey; }
+
+    /** Immutable-by-convention renderer handoff detached from subsequent tracker mutation. */
+    public TrackedObject snapshot() { return new TrackedObject(this); }
 
     void update(Detection detection, BBox renderedBox, float dx, float dy, long nowNanos) {
         rawBox = detection.getBox();

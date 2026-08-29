@@ -10,6 +10,8 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 import android.view.Display;
+import android.view.InputDevice;
+import android.view.MotionEvent;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -27,6 +29,7 @@ import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.DetectionEngine;
 import com.subhub.app.detection.DetectorConfig;
+import com.subhub.app.detection.FastVisualGate;
 import com.subhub.app.detection.ObjectTracker;
 import com.subhub.app.detection.TrackedObject;
 import com.subhub.app.detection.text.AccessibilityTextSmutDetector;
@@ -86,6 +89,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final long OCR_VISUAL_IDLE_TIMEOUT_MS = 600L;
     private static final long OCR_RESULT_TTL_MS = 5_000L;
     private static final int OCR_MAX_DIMENSION = 1_024;
+    private static final int FAST_INFERENCE_RESOLUTION = 320;
+    private static final long QUALITY_REFRESH_INTERVAL_MS = 1_500L;
 
     private final AtomicBoolean processing = new AtomicBoolean();
     private final AtomicBoolean inferenceDraining = new AtomicBoolean();
@@ -109,6 +114,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final CaptureEpoch captureEpoch = new CaptureEpoch();
     private final AccessibilityScrollMotionResolver scrollMotionResolver =
             new AccessibilityScrollMotionResolver();
+    private final TouchScrollPredictor touchScrollPredictor = new TouchScrollPredictor();
     private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
             (preferences, key) -> reloadSettings();
@@ -121,6 +127,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private SettingsRepository settings;
     private StatsRepository stats;
     private DetectionEngine detector;
+    private DetectionEngine fastDetector;
     private ObjectTracker tracker;
     private SmutTextClassifier smutTextClassifier;
     private AccessibilityTextSmutDetector accessibilityText;
@@ -140,8 +147,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile long lastOcrCompletionUptime;
     private volatile long lastMotionUptime;
     private volatile long lastInferenceUptime;
+    private volatile long lastQualityInferenceUptime;
     private volatile long lastScreenshotRequestUptime;
     private volatile long lastScrollDiagnosticUptime;
+    private volatile long scrollTraceId;
+    private volatile long scrollTraceStartedUptime;
+    private volatile long lastScrollTraceEventUptime;
     private volatile boolean overlayNeedsSourceFrame;
     private volatile String foregroundPackage = "";
     private volatile String guardForegroundPackage = "";
@@ -161,6 +172,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         refreshHardcoreSettingsGuard();
     };
     private final Runnable settledTextRefresh = this::requestTextRefresh;
+    private final Runnable settledScrollTrace = () -> {
+        long now = SystemClock.uptimeMillis();
+        long idleMs = now - lastScrollTraceEventUptime;
+        if (lastScrollTraceEventUptime > 0L && idleMs >= MOTION_SETTLE_MS) {
+            Log.i(TAG, "SCROLL_IDLE id=" + scrollTraceId + " afterLastEventMs=" + idleMs
+                    + " durationMs=" + (now - scrollTraceStartedUptime));
+        }
+    };
     private final Runnable timerTick = new Runnable() {
         @Override public void run() {
             if (!running) return;
@@ -221,6 +240,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!running || !initializing.compareAndSet(false, true)) return;
         try {
             DetectorConfig config = settings.loadDetectorConfig();
+            DetectorConfig fastConfig = fastDetectorConfig(config);
             detectorConfig = config;
             textSmutConfig = settings.loadTextSmutConfig();
             warmTextModels(config);
@@ -229,6 +249,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 detector.initialize();
             } else {
                 detector.setConfig(config);
+            }
+            if (fastDetector == null) {
+                fastDetector = new DetectionEngine(this, fastConfig);
+                fastDetector.initialize();
+            } else {
+                fastDetector.setConfig(fastConfig);
             }
             if (tracker == null) tracker = new ObjectTracker(config);
             else tracker.setConfig(config);
@@ -250,6 +276,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         } catch (Exception error) {
             if (detector != null) detector.close();
             detector = null;
+            if (fastDetector != null) fastDetector.close();
+            fastDetector = null;
             tracker = null;
             if (recognitionActive) DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
             Log.e(TAG, "Could not initialize accessibility capture", error);
@@ -351,6 +379,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (!priorityFrame
                     && nowUptime - lastInferenceUptime < captureDelayMs(detectorConfig)) return;
             lastInferenceUptime = nowUptime;
+            boolean motionSettled = lastMotionUptime <= 0L
+                    || nowUptime - lastMotionUptime >= MOTION_SETTLE_MS;
+            boolean qualityRefine = motionSettled
+                    && (!firstFrameReported.get()
+                    || priorityFrame
+                    || nowUptime - lastQualityInferenceUptime >= QUALITY_REFRESH_INTERVAL_MS);
             long inferenceMotionGeneration = motionGeneration.get();
             if (!isCurrentCapture(requestedEpoch)) return;
             int inferenceResolution = currentConfig == null
@@ -359,11 +393,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     wrapped, inferenceResolution, overlayNeedsSourceFrame);
             if (prepared == null) return;
             frame = prepared.bitmap;
-            settledInferenceNeeded.compareAndSet(true, false);
+            if (qualityRefine) settledInferenceNeeded.compareAndSet(true, false);
             enqueueInference(new InferenceFrame(frame, requestedEpoch, requestedScrollX,
                     requestedScrollY, inferenceMotionGeneration,
                     prepared.sourceWidth, prepared.sourceHeight,
-                    prepared.retainedSourceFrame, continuousMotionInference,
+                    prepared.retainedSourceFrame, continuousMotionInference, qualityRefine,
                     requestedAtUptimeMillis));
             frame = null;
             maybeRequestOcr(wrapped, requestedEpoch, requestedScrollX, requestedScrollY,
@@ -423,99 +457,129 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void runInference(InferenceFrame candidate) throws Exception {
-            Bitmap frame = candidate.frame;
-            long requestedEpoch = candidate.epoch;
-            long requestedScrollX = candidate.scrollX;
-            long requestedScrollY = candidate.scrollY;
-            long inferenceMotionGeneration = candidate.motionGeneration;
-            int width = candidate.sourceWidth;
-            int height = candidate.sourceHeight;
-            List<Detection> visualDetections = detector.detect(frame, width, height);
-            TextSmutConfig currentTextConfig = textSmutConfig;
-            List<Detection> accessibilityDetections = Collections.emptyList();
-            if (currentTextConfig != null && currentTextConfig.isEnabled()) {
-                accessibilityDetections = cachedTextForFrame(
-                        width, height, requestedScrollX, requestedScrollY);
-                requestTextRefresh();
-            }
-            List<Detection> detections = DetectionFusion.merge(
-                    visualDetections, accessibilityDetections);
-            if (!isCurrentCapture(requestedEpoch)
-                    || (!candidate.continuousMotionInference
-                    && inferenceMotionGeneration != motionGeneration.get())) return;
-            ScrollAlignment alignment = consumeTrackerMotion(width, height);
-            if (!candidate.continuousMotionInference
-                    && inferenceMotionGeneration != motionGeneration.get()) return;
-            if (candidate.continuousMotionInference) {
-                Rect viewport = screenBounds();
-                detections = InferenceScrollReprojector.toCurrentViewport(
-                        detections, width, height, viewport.width(), viewport.height(),
+        DetectionEngine realtime = fastDetector == null ? detector : fastDetector;
+        if (realtime == null) return;
+        boolean hasSeparateQuality = detector != null && detector != realtime;
+        runInferencePass(candidate, realtime, true,
+                !candidate.qualityRefine || !hasSeparateQuality);
+        if (!candidate.qualityRefine || !hasSeparateQuality
+                || !isCurrentCapture(candidate.epoch)
+                || candidate.motionGeneration != motionGeneration.get()
+                || SystemClock.uptimeMillis() - lastMotionUptime < MOTION_SETTLE_MS) return;
+        lastQualityInferenceUptime = SystemClock.uptimeMillis();
+        runInferencePass(candidate, detector, false, true);
+    }
+
+    private void runInferencePass(
+            InferenceFrame candidate,
+            DetectionEngine engine,
+            boolean fastPass,
+            boolean finalPass) throws Exception {
+        Bitmap frame = candidate.frame;
+        long requestedEpoch = candidate.epoch;
+        long requestedScrollX = candidate.scrollX;
+        long requestedScrollY = candidate.scrollY;
+        long inferenceMotionGeneration = candidate.motionGeneration;
+        int width = candidate.sourceWidth;
+        int height = candidate.sourceHeight;
+        List<Detection> visualDetections = engine.detect(frame, width, height);
+        if (fastPass) visualDetections = FastVisualGate.filter(
+                visualDetections, detectorConfig);
+        TextSmutConfig currentTextConfig = textSmutConfig;
+        List<Detection> accessibilityDetections = Collections.emptyList();
+        if (currentTextConfig != null && currentTextConfig.isEnabled()) {
+            accessibilityDetections = cachedTextForFrame(
+                    width, height, requestedScrollX, requestedScrollY);
+            requestTextRefresh();
+        }
+        List<Detection> detections = DetectionFusion.merge(
+                visualDetections, accessibilityDetections);
+        if (!isCurrentCapture(requestedEpoch)
+                || (!candidate.continuousMotionInference
+                && inferenceMotionGeneration != motionGeneration.get())) return;
+        ScrollAlignment alignment = consumeTrackerMotion(width, height);
+        if (!candidate.continuousMotionInference
+                && inferenceMotionGeneration != motionGeneration.get()) return;
+        if (candidate.continuousMotionInference) {
+            Rect viewport = screenBounds();
+            detections = InferenceScrollReprojector.toCurrentViewport(
+                    detections, width, height, viewport.width(), viewport.height(),
+                    requestedScrollX, requestedScrollY,
+                    alignment.scrollX, alignment.scrollY);
+        }
+        List<TrackedObject> tracks = tracker.update(detections);
+        List<TrackedObject> renderTracks = visualRenderTracks(tracks);
+        DetectorConfig currentConfig = detectorConfig;
+        int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
+                ? null : currentConfig.getEnabledCategories());
+        long now = System.currentTimeMillis();
+        if (recordedBlocks > 0) {
+            int charged = penance.recordInfraction(
+                    PenanceInfraction.NEW_DETECTION, recordedBlocks, now);
+            PenanceChargeNotifier.show(this, penance,
+                    PenanceInfraction.NEW_DETECTION, charged, now);
+            new AchievementManager(this).checkAchievements(stats.load());
+        }
+        long inferenceMs = engine.getLastInferenceMs();
+        long preprocessMs = engine.getLastPreprocessMs();
+        long runtimeMs = engine.getLastRuntimeMs();
+        long postprocessMs = engine.getLastPostprocessMs();
+        if (firstFrameReported.compareAndSet(false, true)) {
+            Log.i(TAG, "First accessibility fast frame processed in "
+                    + inferenceMs + " ms at " + width + "x" + height);
+        }
+        Bitmap overlayFrame = finalPass && candidate.retainedSourceFrame
+                ? candidate.detachFrame() : null;
+        int dwellInfractions = dwellTracker.update(
+                tracks, now, penance.getDwellSeconds() * 1_000L, false);
+        if (dwellInfractions > 0) {
+            int charged = penance.recordInfraction(
+                    PenanceInfraction.CENSORED_DWELL, dwellInfractions, now);
+            PenanceChargeNotifier.show(this, penance,
+                    PenanceInfraction.CENSORED_DWELL, charged, now);
+        }
+        tapTracker.update(tracks, width, height, now);
+        PopupStormManager.get().updateTrackedObjects(tracks, width, height);
+        DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
+                DIAGNOSTICS_MODE, inferenceMs, preprocessMs, runtimeMs, postprocessMs,
+                SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis,
+                droppedInferenceFrames.get(), tracks.size(), width, height);
+        String diagnosticText = diagnosticsOverlayText(diagnostics);
+        InferenceScrollReprojector.ScreenMotion sourceFrameMotion =
+                InferenceScrollReprojector.screenMotion(
                         requestedScrollX, requestedScrollY,
                         alignment.scrollX, alignment.scrollY);
+        main.post(() -> {
+            if (isCurrentCapture(requestedEpoch) && overlay != null
+                    && (candidate.continuousMotionInference
+                    || inferenceMotionGeneration == motionGeneration.get())) {
+                ScrollPosition current = currentScrollPosition();
+                InferenceScrollReprojector.ScreenMotion liveMotion =
+                        InferenceScrollReprojector.screenMotion(
+                                alignment.scrollX, alignment.scrollY,
+                                current.scrollX, current.scrollY);
+                overlay.setDiagnostics(diagnosticText);
+                overlay.update(renderTracks, width, height, overlayFrame,
+                        liveMotion.dx, liveMotion.dy,
+                        sourceFrameMotion.dx, sourceFrameMotion.dy);
+                long publishedAt = SystemClock.uptimeMillis();
+                long publishDelay = publishedAt - candidate.capturedAtUptimeMillis;
+                DiagnosticsRepository.recordPublishDelay(DIAGNOSTICS_MODE, publishDelay);
+                Log.i(TAG, "OVERLAY_PUBLISH pass=" + (fastPass ? "fast" : "quality")
+                        + " scrollId=" + scrollTraceId
+                        + " captureAgeMs=" + publishDelay
+                        + " inferenceMs=" + inferenceMs
+                        + " preprocessMs=" + preprocessMs
+                        + " runtimeMs=" + runtimeMs
+                        + " postprocessMs=" + postprocessMs
+                        + " afterMotionMs=" + (lastMotionUptime <= 0L
+                                ? 0L : publishedAt - lastMotionUptime)
+                        + " tracks=" + tracks.size()
+                        + " dropped=" + droppedInferenceFrames.get());
+            } else if (overlayFrame != null) {
+                overlayFrame.recycle();
             }
-            List<TrackedObject> tracks = tracker.update(detections);
-            DetectorConfig currentConfig = detectorConfig;
-            int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
-                    ? null : currentConfig.getEnabledCategories());
-            long now = System.currentTimeMillis();
-            if (recordedBlocks > 0) {
-                int charged = penance.recordInfraction(
-                        PenanceInfraction.NEW_DETECTION, recordedBlocks, now);
-                PenanceChargeNotifier.show(this, penance,
-                        PenanceInfraction.NEW_DETECTION, charged, now);
-                new AchievementManager(this).checkAchievements(stats.load());
-            }
-            if (firstFrameReported.compareAndSet(false, true)) {
-                Log.i(TAG, "First accessibility frame processed in "
-                        + detector.getLastInferenceMs() + " ms at "
-                        + width + "x" + height);
-            }
-            Bitmap overlayFrame = candidate.retainedSourceFrame
-                    ? candidate.detachFrame() : null;
-            int dwellInfractions = dwellTracker.update(
-                    tracks, now, penance.getDwellSeconds() * 1_000L, false);
-            if (dwellInfractions > 0) {
-                int charged = penance.recordInfraction(
-                        PenanceInfraction.CENSORED_DWELL, dwellInfractions, now);
-                PenanceChargeNotifier.show(this, penance,
-                        PenanceInfraction.CENSORED_DWELL, charged, now);
-            }
-            tapTracker.update(tracks, width, height, now);
-            PopupStormManager.get().updateTrackedObjects(tracks, width, height);
-            DiagnosticsRepository.Snapshot diagnostics = DiagnosticsRepository.recordFrame(
-                    DIAGNOSTICS_MODE,
-                    detector.getLastInferenceMs(),
-                    detector.getLastPreprocessMs(),
-                    detector.getLastRuntimeMs(),
-                    detector.getLastPostprocessMs(),
-                    SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis,
-                    droppedInferenceFrames.get(),
-                    tracks.size(),
-                    width,
-                    height);
-            String diagnosticText = diagnosticsOverlayText(diagnostics);
-            InferenceScrollReprojector.ScreenMotion sourceFrameMotion =
-                    InferenceScrollReprojector.screenMotion(
-                            requestedScrollX, requestedScrollY,
-                            alignment.scrollX, alignment.scrollY);
-            main.post(() -> {
-                if (isCurrentCapture(requestedEpoch) && overlay != null
-                        && (candidate.continuousMotionInference
-                        || inferenceMotionGeneration == motionGeneration.get())) {
-                    ScrollPosition current = currentScrollPosition();
-                    InferenceScrollReprojector.ScreenMotion liveMotion =
-                            InferenceScrollReprojector.screenMotion(
-                                    alignment.scrollX, alignment.scrollY,
-                                    current.scrollX, current.scrollY);
-                    overlay.setDiagnostics(diagnosticText);
-                    overlay.update(tracks, width, height, overlayFrame,
-                            liveMotion.dx, liveMotion.dy,
-                            sourceFrameMotion.dx, sourceFrameMotion.dy);
-                    DiagnosticsRepository.recordPublishDelay(DIAGNOSTICS_MODE,
-                            SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis);
-                }
-                else if (overlayFrame != null) overlayFrame.recycle();
-            });
+        });
     }
 
     static long captureDelayMs(DetectorConfig config) {
@@ -526,6 +590,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         else if (threads == 3) floor = 240L;
         else floor = 180L;
         return Math.max(floor, config == null ? 0L : config.getDetectionIntervalMs());
+    }
+
+    static DetectorConfig fastDetectorConfig(DetectorConfig quality) {
+        DetectorConfig source = quality == null ? DetectorConfig.builder().build() : quality;
+        return source.toBuilder()
+                .inferenceResolution(Math.min(
+                        FAST_INFERENCE_RESOLUTION, source.getInferenceResolution()))
+                .detectionIntervalMs(0L)
+                .build();
     }
 
     static boolean usesContinuousMotionInference(DetectorConfig config) {
@@ -562,6 +635,22 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         // the same movement Android just reported and translates every censor a second time.
         if (motionEstimator != null) motionEstimator.reset();
         applyScrollMotion(dx, dy, true);
+    }
+
+    private void traceScrollEvent(long nowUptime, int dx, int dy, String source) {
+        long gap = lastScrollTraceEventUptime <= 0L
+                ? Long.MAX_VALUE : nowUptime - lastScrollTraceEventUptime;
+        if (gap > 250L) {
+            scrollTraceId++;
+            scrollTraceStartedUptime = nowUptime;
+            Log.i(TAG, "SCROLL_START id=" + scrollTraceId + " source=" + source);
+        }
+        lastScrollTraceEventUptime = nowUptime;
+        Log.i(TAG, "SCROLL_EVENT id=" + scrollTraceId + " source=" + source
+                + " gapMs=" + (gap == Long.MAX_VALUE ? 0L : gap)
+                + " dx=" + dx + " dy=" + dy);
+        main.removeCallbacks(settledScrollTrace);
+        main.postDelayed(settledScrollTrace, MOTION_SETTLE_MS);
     }
 
     private void applyScrollMotion(int dx, int dy, boolean alreadyOnMainThread) {
@@ -645,6 +734,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             return;
         }
         priorityCaptureSchedule = null;
+        Log.i(TAG, "SETTLED_CAPTURE_REQUEST scrollId=" + scrollTraceId
+                + " afterMotionMs=" + (lastMotionUptime <= 0L
+                        ? 0L : now - lastMotionUptime)
+                + " platformGapMs=" + (now - lastScreenshotRequestUptime));
         requestScreenshot();
     }
 
@@ -709,6 +802,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         stable, captureWidth, captureHeight, scrollX, scrollY);
                 DiagnosticsRepository.recordAccessibilityText(
                         DIAGNOSTICS_MODE, mapped.size(), stable.size());
+                publishTextLane(epoch, "accessibility");
                 lastTextRefreshMillis = System.currentTimeMillis();
                 if (stable.size() < mapped.size()) {
                     textRefreshRequested.set(true);
@@ -734,6 +828,33 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         width, height, requestedScrollX, requestedScrollY)
                 : Collections.emptyList();
         return DetectionFusion.merge(Collections.emptyList(), accessibility, ocr);
+    }
+
+    private void publishTextLane(long epoch, String source) {
+        main.post(() -> {
+            if (!isCurrentCapture(epoch) || overlay == null) return;
+            int width = Math.max(1, latestCaptureWidth);
+            int height = Math.max(1, latestCaptureHeight);
+            ScrollPosition current = currentScrollPosition();
+            List<Detection> detections = cachedTextForFrame(
+                    width, height, current.scrollX, current.scrollY);
+            overlay.updateText(detections, width, height, 0, 0);
+            long now = SystemClock.uptimeMillis();
+            Log.i(TAG, "TEXT_PUBLISH source=" + source + " regions=" + detections.size()
+                    + " afterMotionMs=" + (lastMotionUptime <= 0L
+                            ? 0L : now - lastMotionUptime));
+        });
+    }
+
+    private static List<TrackedObject> visualRenderTracks(List<TrackedObject> tracks) {
+        if (tracks == null || tracks.isEmpty()) return Collections.emptyList();
+        List<TrackedObject> visual = new ArrayList<>(tracks.size());
+        for (TrackedObject track : tracks) {
+            if (track != null && !"text_smut".equals(track.getCategory())) {
+                visual.add(track.snapshot());
+            }
+        }
+        return visual;
     }
 
     private List<Detection> shiftTextSource(
@@ -854,6 +975,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                         scrollX, scrollY, completedAt);
                                 ocrConfirmationRequested.set(
                                         stable.size() != detections.size());
+                                publishTextLane(epoch, "ocr");
                             } finally {
                                 DiagnosticsRepository.recordOcr(
                                         DIAGNOSTICS_MODE,
@@ -977,6 +1099,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!usesScreenshotOcr(config)) cachedOcrText = TextDetectionSnapshot.EMPTY;
         textRefreshRequested.set(true);
         if (detector != null) detector.setConfig(config);
+        if (fastDetector != null) fastDetector.setConfig(fastDetectorConfig(config));
         if (tracker != null) tracker.setConfig(config);
         PopupStormManager.get().reloadSettings(this);
         main.post(() -> {
@@ -1007,6 +1130,29 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
             Log.e(TAG, "Accessibility event failed", error);
         }
+    }
+
+    @Override
+    public void onMotionEvent(MotionEvent event) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                || event == null
+                || (event.getSource() & InputDevice.SOURCE_TOUCHSCREEN)
+                        != InputDevice.SOURCE_TOUCHSCREEN) {
+            super.onMotionEvent(event);
+            return;
+        }
+        TouchScrollPredictor.Prediction prediction =
+                touchScrollPredictor.onMotionEvent(event);
+        if (recognitionActive && overlay != null) {
+            overlay.setTouchPrediction(prediction.dx, prediction.dy, prediction.active);
+        }
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP
+                || action == MotionEvent.ACTION_CANCEL) {
+            Log.i(TAG, "TOUCH action=" + MotionEvent.actionToString(action)
+                    + " x=" + Math.round(event.getX()) + " y=" + Math.round(event.getY()));
+        }
+        super.onMotionEvent(event);
     }
 
     private void handleAccessibilityEvent(AccessibilityEvent event) {
@@ -1044,8 +1190,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     Log.d(TAG, "Scroll event screen motion " + motion.dx + ',' + motion.dy);
                 }
                 if (motion.moved()) {
+                    traceScrollEvent(scrollNow, motion.dx, motion.dy, "accessibility");
+                    touchScrollPredictor.onAuthoritativeScroll();
+                    if (overlay != null) overlay.setTouchPrediction(0f, 0f, false);
                     applyEventMotion(motion.dx, motion.dy);
                 } else {
+                    traceScrollEvent(scrollNow, 0, 0, "metadata-missing");
                     dwellTracker.onScroll();
                     // Keep screenshot motion as a fallback for custom views which omit deltas.
                     lastMotionUptime = SystemClock.uptimeMillis();
@@ -1170,6 +1320,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         accessibilityTextStabilizer.clear();
         accessibilityTextCandidatesPresent = false;
         textRefreshRequested.set(true);
+        main.post(() -> {
+            if (overlay != null) overlay.updateText(
+                    Collections.emptyList(), latestCaptureWidth, latestCaptureHeight, 0, 0);
+        });
     }
 
     private void recordCensoredTap(AccessibilityEvent event, String packageName) {
@@ -1414,10 +1568,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         motionGeneration.incrementAndGet();
         lastMotionUptime = 0L;
         lastInferenceUptime = 0L;
+        lastQualityInferenceUptime = 0L;
         lastScreenshotRequestUptime = 0L;
         lastOcrCompletionUptime = 0L;
         if (motionEstimator != null) motionEstimator.reset();
         scrollMotionResolver.reset();
+        touchScrollPredictor.reset();
+        main.removeCallbacks(settledScrollTrace);
+        lastScrollTraceEventUptime = 0L;
         textRefreshRequested.set(true);
         main.removeCallbacks(settledTextRefresh);
     }
@@ -1429,6 +1587,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         info.notificationTimeout = ultra ? 0L : 16L;
         if (ultra) info.flags |= AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
         else info.flags &= ~AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // API 34 can observe ordinary touchscreen MotionEvents without touch exploration or
+            // intercepting input. Those samples fill the visual gaps between sparse scroll events.
+            info.setMotionEventSources(InputDevice.SOURCE_TOUCHSCREEN);
+        }
         setServiceInfo(info);
     }
 
@@ -1457,6 +1620,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private final int sourceHeight;
         private final boolean retainedSourceFrame;
         private final boolean continuousMotionInference;
+        private final boolean qualityRefine;
         private final long capturedAtUptimeMillis;
 
         private InferenceFrame(
@@ -1469,6 +1633,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 int sourceHeight,
                 boolean retainedSourceFrame,
                 boolean continuousMotionInference,
+                boolean qualityRefine,
                 long capturedAtUptimeMillis) {
             this.frame = frame;
             this.epoch = epoch;
@@ -1479,6 +1644,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             this.sourceHeight = sourceHeight;
             this.retainedSourceFrame = retainedSourceFrame;
             this.continuousMotionInference = continuousMotionInference;
+            this.qualityRefine = qualityRefine;
             this.capturedAtUptimeMillis = capturedAtUptimeMillis;
         }
 
@@ -1565,6 +1731,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (ocrWorker != null) ocrWorker.shutdownNow();
         if (textWorker != null) textWorker.shutdownNow();
         if (detector != null) detector.close();
+        if (fastDetector != null) fastDetector.close();
+        fastDetector = null;
         if (motionEstimator != null) motionEstimator.close();
         motionEstimator = null;
         if (hardcoreSettingsGuard != null) hardcoreSettingsGuard.clear();

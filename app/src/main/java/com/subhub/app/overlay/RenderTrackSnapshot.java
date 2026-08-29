@@ -1,6 +1,7 @@
 package com.subhub.app.overlay;
 
 import com.subhub.app.detection.BBox;
+import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.TrackedObject;
 
 /** Immutable renderer input. Detection workers can keep mutating tracks without tearing a frame. */
@@ -18,6 +19,18 @@ final class RenderTrackSnapshot {
                 track.getBox(),
                 track.getVelocityX(),
                 track.getVelocityY());
+    }
+
+    static RenderTrackSnapshot fromTextDetection(Detection detection) {
+        String anchor = detection.getAnchorKey();
+        BBox box = detection.getBox();
+        String identity = anchor == null || anchor.isEmpty()
+                ? detection.getClassName() + '|' + box.getCenterX() / 32 + '|'
+                        + box.getCenterY() / 24 + '|' + box.getWidth() / 32
+                : anchor;
+        int stableTextId = -1 - (identity.hashCode() & 0x3fffffff);
+        return new RenderTrackSnapshot(
+                stableTextId, detection.getCategory(), box, 0f, 0f);
     }
 
     RenderTrackSnapshot(
