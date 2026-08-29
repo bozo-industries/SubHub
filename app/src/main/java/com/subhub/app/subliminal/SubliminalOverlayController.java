@@ -40,8 +40,11 @@ public final class SubliminalOverlayController implements AutoCloseable {
     private final Runnable showNext = this::showNextMessage;
 
     public SubliminalOverlayController(Context context) {
+        // TYPE_ACCESSIBILITY_OVERLAY needs the AccessibilityService's window token. Using the
+        // application context loses that token and can abort the event which activates censoring.
+        Context windowContext = context;
         this.context = context.getApplicationContext();
-        windows = this.context.getSystemService(WindowManager.class);
+        windows = windowContext.getSystemService(WindowManager.class);
         stats = new StatsRepository(this.context);
         repository = new SubliminalSettingsRepository(this.context);
         settings = repository.load();

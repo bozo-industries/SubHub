@@ -72,4 +72,35 @@ public final class CaptureEpochTest {
         assertFalse(ScreenshotAccessibilityService.usesScreenshotOcr(high));
         assertTrue(ScreenshotAccessibilityService.usesScreenshotOcr(ultra));
     }
+
+    @Test public void ocrWaitsForMotionAndUsesShortConfirmationBursts() {
+        assertEquals(0L, ScreenshotAccessibilityService.ocrDelayMs(
+                10_000L, 0L, 0L, false));
+        assertEquals(3_000L, ScreenshotAccessibilityService.ocrDelayMs(
+                10_000L, 10_000L, 0L, false));
+        assertEquals(650L, ScreenshotAccessibilityService.ocrDelayMs(
+                10_000L, 10_000L, 0L, true));
+        assertEquals(600L, ScreenshotAccessibilityService.ocrDelayMs(
+                10_000L, 0L, 10_000L, false));
+    }
+
+    @Test public void accessibilityTextOwnsNativeCaptionsBeforeOcr() {
+        DetectorConfig ultra = DetectorConfig.builder().inferenceThreads(4).build();
+
+        assertFalse(ScreenshotAccessibilityService.ocrEligibleForViewport(
+                ultra, true, false, false));
+        assertTrue(ScreenshotAccessibilityService.ocrEligibleForViewport(
+                ultra, true, true, false));
+        assertFalse(ScreenshotAccessibilityService.ocrEligibleForViewport(
+                ultra, true, true, true));
+        assertFalse(ScreenshotAccessibilityService.sameOcrViewport(4L, 5L, false));
+        assertFalse(ScreenshotAccessibilityService.sameOcrViewport(5L, 5L, true));
+        assertTrue(ScreenshotAccessibilityService.sameOcrViewport(5L, 5L, false));
+    }
+
+    @Test public void ocrSnapshotsExpireInsteadOfFlashingLongAfterTheirViewport() {
+        assertTrue(ScreenshotAccessibilityService.isOcrSnapshotFresh(5_000L, 1_000L));
+        assertFalse(ScreenshotAccessibilityService.isOcrSnapshotFresh(6_001L, 1_000L));
+        assertFalse(ScreenshotAccessibilityService.isOcrSnapshotFresh(500L, 1_000L));
+    }
 }

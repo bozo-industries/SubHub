@@ -81,13 +81,17 @@ public final class DiagnosticsActivity extends AppCompatActivity {
                 state, live.getMode(), live.getProvider(), live.getModel(), live.getResolution(),
                 live.getResolution(), duration(live.getUptimeMs())));
         binding.performanceStatus.setText(String.format(Locale.ROOT,
-                "Frames: %d processed / %d stale dropped\nRegions: %d total / %d latest\nInference: %d ms latest / %d ms average / %d ms peak\nStages: %d ms preprocess / %d ms runtime / %d ms postprocess\nFrame age before UI: %d ms\nEnd-to-end overlay publish: %d ms\nLatest frame: %d × %d\nLast sanitized failure: %s",
+                "Frames: %d processed / %d stale dropped\nRegions: %d total / %d latest\nInference: %d ms latest / %d ms average / %d ms peak\nStages: %d ms preprocess / %d ms runtime / %d ms postprocess\nFrame age before UI: %d ms\nEnd-to-end overlay publish: %d ms\nText: %d Accessibility candidates / %d stable / %d OCR stable\nOCR: %d runs / %d ms latest / %d ms average / %d ms peak / %d stale dropped\nLatest frame: %d × %d\nLast sanitized failure: %s",
                 live.getFrames(), live.getDroppedFrames(),
                 live.getTotalDetections(), live.getLastDetections(),
                 live.getLastInferenceMs(), live.getAverageInferenceMs(), live.getPeakInferenceMs(),
                 live.getLastPreprocessMs(), live.getLastRuntimeMs(),
                 live.getLastPostprocessMs(), live.getLastFrameAgeMs(),
                 live.getLastPublishDelayMs(),
+                live.getLastAccessibilityTextCandidates(),
+                live.getLastAccessibilityTextStable(), live.getLastOcrTextStable(),
+                live.getOcrRuns(), live.getLastOcrMs(), live.getAverageOcrMs(),
+                live.getPeakOcrMs(), live.getStaleOcrResults(),
                 live.getFrameWidth(), live.getFrameHeight(), live.getLastFailure()));
 
         DetectorConfig config = settings.loadDetectorConfig();

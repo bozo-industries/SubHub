@@ -29,6 +29,14 @@ public final class DiagnosticsRepository {
     private static long lastFrameAgeMs;
     private static long lastPublishDelayMs;
     private static long droppedFrames;
+    private static long ocrRuns;
+    private static long totalOcrMs;
+    private static long lastOcrMs;
+    private static long peakOcrMs;
+    private static long staleOcrResults;
+    private static int lastAccessibilityTextCandidates;
+    private static int lastAccessibilityTextStable;
+    private static int lastOcrTextStable;
     private static String lastFailure = "None";
 
     private DiagnosticsRepository() {}
@@ -55,6 +63,14 @@ public final class DiagnosticsRepository {
         lastFrameAgeMs = 0;
         lastPublishDelayMs = 0;
         droppedFrames = 0;
+        ocrRuns = 0;
+        totalOcrMs = 0;
+        lastOcrMs = 0;
+        peakOcrMs = 0;
+        staleOcrResults = 0;
+        lastAccessibilityTextCandidates = 0;
+        lastAccessibilityTextStable = 0;
+        lastOcrTextStable = 0;
         lastFailure = "None";
     }
 
@@ -111,6 +127,25 @@ public final class DiagnosticsRepository {
         lastPublishDelayMs = Math.max(0L, publishDelayMs);
     }
 
+    public static synchronized void recordAccessibilityText(
+            String captureMode, int candidates, int stable) {
+        if (!running || !mode.equals(captureMode)) return;
+        lastAccessibilityTextCandidates = Math.max(0, candidates);
+        lastAccessibilityTextStable = Math.max(0, stable);
+    }
+
+    public static synchronized void recordOcr(
+            String captureMode, long durationMs, boolean stale, int stable) {
+        if (!running || !mode.equals(captureMode)) return;
+        long boundedDuration = Math.max(0L, durationMs);
+        ocrRuns++;
+        totalOcrMs += boundedDuration;
+        lastOcrMs = boundedDuration;
+        peakOcrMs = Math.max(peakOcrMs, boundedDuration);
+        if (stale) staleOcrResults++;
+        lastOcrTextStable = stale ? 0 : Math.max(0, stable);
+    }
+
     public static synchronized void failCode(String captureMode, String family, int code) {
         if (!mode.equals(captureMode)) return;
         lastFailure = safeLabel(family, "Failure") + " " + code;
@@ -128,7 +163,9 @@ public final class DiagnosticsRepository {
                 totalDetections, totalInferenceMs, lastInferenceMs, peakInferenceMs,
                 lastDetections, frameWidth, frameHeight, lastPreprocessMs, lastRuntimeMs,
                 lastPostprocessMs, lastFrameAgeMs, lastPublishDelayMs,
-                droppedFrames, lastFailure);
+                droppedFrames, ocrRuns, totalOcrMs, lastOcrMs, peakOcrMs,
+                staleOcrResults, lastAccessibilityTextCandidates,
+                lastAccessibilityTextStable, lastOcrTextStable, lastFailure);
     }
 
     public static String overlayText(Snapshot value) {
@@ -177,6 +214,14 @@ public final class DiagnosticsRepository {
         private final long lastFrameAgeMs;
         private final long lastPublishDelayMs;
         private final long droppedFrames;
+        private final long ocrRuns;
+        private final long totalOcrMs;
+        private final long lastOcrMs;
+        private final long peakOcrMs;
+        private final long staleOcrResults;
+        private final int lastAccessibilityTextCandidates;
+        private final int lastAccessibilityTextStable;
+        private final int lastOcrTextStable;
         private final String lastFailure;
 
         private Snapshot(String mode, boolean running, boolean ready, String provider,
@@ -185,7 +230,11 @@ public final class DiagnosticsRepository {
                 int lastDetections, int frameWidth, int frameHeight,
                 long lastPreprocessMs, long lastRuntimeMs, long lastPostprocessMs,
                 long lastFrameAgeMs, long lastPublishDelayMs,
-                long droppedFrames, String lastFailure) {
+                long droppedFrames, long ocrRuns, long totalOcrMs,
+                long lastOcrMs, long peakOcrMs, long staleOcrResults,
+                int lastAccessibilityTextCandidates,
+                int lastAccessibilityTextStable, int lastOcrTextStable,
+                String lastFailure) {
             this.mode = mode;
             this.running = running;
             this.ready = ready;
@@ -207,6 +256,14 @@ public final class DiagnosticsRepository {
             this.lastFrameAgeMs = lastFrameAgeMs;
             this.lastPublishDelayMs = lastPublishDelayMs;
             this.droppedFrames = droppedFrames;
+            this.ocrRuns = ocrRuns;
+            this.totalOcrMs = totalOcrMs;
+            this.lastOcrMs = lastOcrMs;
+            this.peakOcrMs = peakOcrMs;
+            this.staleOcrResults = staleOcrResults;
+            this.lastAccessibilityTextCandidates = lastAccessibilityTextCandidates;
+            this.lastAccessibilityTextStable = lastAccessibilityTextStable;
+            this.lastOcrTextStable = lastOcrTextStable;
             this.lastFailure = lastFailure;
         }
 
@@ -230,9 +287,21 @@ public final class DiagnosticsRepository {
         public long getLastFrameAgeMs() { return lastFrameAgeMs; }
         public long getLastPublishDelayMs() { return lastPublishDelayMs; }
         public long getDroppedFrames() { return droppedFrames; }
+        public long getOcrRuns() { return ocrRuns; }
+        public long getLastOcrMs() { return lastOcrMs; }
+        public long getPeakOcrMs() { return peakOcrMs; }
+        public long getStaleOcrResults() { return staleOcrResults; }
+        public int getLastAccessibilityTextCandidates() {
+            return lastAccessibilityTextCandidates;
+        }
+        public int getLastAccessibilityTextStable() { return lastAccessibilityTextStable; }
+        public int getLastOcrTextStable() { return lastOcrTextStable; }
         public String getLastFailure() { return lastFailure; }
         public long getAverageInferenceMs() {
             return frames == 0 ? 0 : Math.round((double) totalInferenceMs / frames);
+        }
+        public long getAverageOcrMs() {
+            return ocrRuns == 0 ? 0 : Math.round((double) totalOcrMs / ocrRuns);
         }
     }
 }
