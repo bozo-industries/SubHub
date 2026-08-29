@@ -42,6 +42,24 @@ public final class StatsRepository {
     private static final String KEY_TOTAL_SESSION_TIME = "total_session_time";
     private static final String KEY_SUBLIMINAL_IMPRESSIONS = "subliminal_impressions";
     private static final String KEY_ACTIVE_SESSION_SUBLIMINALS = "active_session_subliminals";
+    private static final String KEY_LIMITED_APP_MILLIS = "limited_app_millis";
+    private static final String KEY_ACTIVE_SESSION_LIMITED_APP_MILLIS =
+            "active_session_limited_app_millis";
+    private static final String KEY_LIMIT_INTERVENTIONS = "limit_interventions";
+    private static final String KEY_ACTIVE_SESSION_LIMIT_INTERVENTIONS =
+            "active_session_limit_interventions";
+    private static final String KEY_TRIBUTE_EVENTS = "tribute_events";
+    private static final String KEY_ACTIVE_SESSION_TRIBUTE_EVENTS =
+            "active_session_tribute_events";
+    private static final String KEY_TRIBUTE_CENTS = "tribute_cents";
+    private static final String KEY_ACTIVE_SESSION_TRIBUTE_CENTS =
+            "active_session_tribute_cents";
+    private static final String KEY_TAMPER_EVENTS = "tamper_events";
+    private static final String KEY_ACTIVE_SESSION_TAMPER_EVENTS =
+            "active_session_tamper_events";
+    private static final String KEY_POPUP_IMPRESSIONS = "popup_impressions";
+    private static final String KEY_ACTIVE_SESSION_POPUP_IMPRESSIONS =
+            "active_session_popup_impressions";
     private static final int SESSION_HISTORY_MAX = 30;
     private static final Object SESSION_LOCK = new Object();
     private static final Set<Integer> SEEN_TRACK_IDS = new HashSet<>();
@@ -70,6 +88,12 @@ public final class StatsRepository {
                     .putLong(KEY_ACTIVE_SESSION_START, sessionStartMs)
                     .putInt(KEY_ACTIVE_SESSION_BLOCKS, 0)
                     .putLong(KEY_ACTIVE_SESSION_SUBLIMINALS, 0L)
+                    .putLong(KEY_ACTIVE_SESSION_LIMITED_APP_MILLIS, 0L)
+                    .putLong(KEY_ACTIVE_SESSION_LIMIT_INTERVENTIONS, 0L)
+                    .putLong(KEY_ACTIVE_SESSION_TRIBUTE_EVENTS, 0L)
+                    .putLong(KEY_ACTIVE_SESSION_TRIBUTE_CENTS, 0L)
+                    .putLong(KEY_ACTIVE_SESSION_TAMPER_EVENTS, 0L)
+                    .putLong(KEY_ACTIVE_SESSION_POPUP_IMPRESSIONS, 0L)
                     .putInt(KEY_SESSIONS_COUNT, preferences.getInt(KEY_SESSIONS_COUNT, 0) + 1)
                     .apply();
             updateStreak();
@@ -133,10 +157,23 @@ public final class StatsRepository {
                 edit.putLong(KEY_LONGEST_SESSION, durationSeconds);
             }
             edit.apply();
-            appendSessionHistory(started, durationSeconds, sessionBlocks);
+            appendSessionHistory(new SessionEntry(started, durationSeconds, sessionBlocks,
+                    activeLong(KEY_ACTIVE_SESSION_LIMITED_APP_MILLIS),
+                    activeLong(KEY_ACTIVE_SESSION_LIMIT_INTERVENTIONS),
+                    activeLong(KEY_ACTIVE_SESSION_TRIBUTE_EVENTS),
+                    activeLong(KEY_ACTIVE_SESSION_TRIBUTE_CENTS),
+                    activeLong(KEY_ACTIVE_SESSION_SUBLIMINALS),
+                    activeLong(KEY_ACTIVE_SESSION_POPUP_IMPRESSIONS),
+                    activeLong(KEY_ACTIVE_SESSION_TAMPER_EVENTS)));
             preferences.edit().remove(KEY_ACTIVE_SESSION_START)
                     .remove(KEY_ACTIVE_SESSION_BLOCKS)
-                    .remove(KEY_ACTIVE_SESSION_SUBLIMINALS).apply();
+                    .remove(KEY_ACTIVE_SESSION_SUBLIMINALS)
+                    .remove(KEY_ACTIVE_SESSION_LIMITED_APP_MILLIS)
+                    .remove(KEY_ACTIVE_SESSION_LIMIT_INTERVENTIONS)
+                    .remove(KEY_ACTIVE_SESSION_TRIBUTE_EVENTS)
+                    .remove(KEY_ACTIVE_SESSION_TRIBUTE_CENTS)
+                    .remove(KEY_ACTIVE_SESSION_TAMPER_EVENTS)
+                    .remove(KEY_ACTIVE_SESSION_POPUP_IMPRESSIONS).apply();
             sessionStartMs = 0;
             sessionBlocks = 0;
             SEEN_TRACK_IDS.clear();
@@ -173,7 +210,19 @@ public final class StatsRepository {
                     preferences.getLong(KEY_ALL_CATEGORIES_CENSORS, 0),
                     currentSessionSeconds,
                     preferences.getLong(KEY_SUBLIMINAL_IMPRESSIONS, 0L),
-                    preferences.getLong(KEY_ACTIVE_SESSION_SUBLIMINALS, 0L));
+                    activeLong(KEY_ACTIVE_SESSION_SUBLIMINALS),
+                    preferences.getLong(KEY_LIMITED_APP_MILLIS, 0L),
+                    activeLong(KEY_ACTIVE_SESSION_LIMITED_APP_MILLIS),
+                    preferences.getLong(KEY_LIMIT_INTERVENTIONS, 0L),
+                    activeLong(KEY_ACTIVE_SESSION_LIMIT_INTERVENTIONS),
+                    preferences.getLong(KEY_TRIBUTE_EVENTS, 0L),
+                    activeLong(KEY_ACTIVE_SESSION_TRIBUTE_EVENTS),
+                    preferences.getLong(KEY_TRIBUTE_CENTS, 0L),
+                    activeLong(KEY_ACTIVE_SESSION_TRIBUTE_CENTS),
+                    preferences.getLong(KEY_TAMPER_EVENTS, 0L),
+                    activeLong(KEY_ACTIVE_SESSION_TAMPER_EVENTS),
+                    preferences.getLong(KEY_POPUP_IMPRESSIONS, 0L),
+                    activeLong(KEY_ACTIVE_SESSION_POPUP_IMPRESSIONS));
         }
     }
 
@@ -198,13 +247,21 @@ public final class StatsRepository {
         if (raw == null || raw.trim().isEmpty()) return result;
         for (String encoded : raw.split(";")) {
             String[] parts = encoded.split(",", -1);
-            if (parts.length != 3) continue;
             try {
-                long start = Long.parseLong(parts[0]);
-                long duration = Long.parseLong(parts[1]);
-                int blocks = Integer.parseInt(parts[2]);
+                boolean versionTwo = parts.length == 11 && "2".equals(parts[0]);
+                if (!versionTwo && parts.length != 3) continue;
+                int offset = versionTwo ? 1 : 0;
+                long start = Long.parseLong(parts[offset]);
+                long duration = Long.parseLong(parts[offset + 1]);
+                int blocks = Integer.parseInt(parts[offset + 2]);
                 if (start > 0 && duration >= 0 && blocks >= 0) {
-                    result.add(new SessionEntry(start, duration, blocks));
+                    result.add(versionTwo
+                            ? new SessionEntry(start, duration, blocks,
+                            Long.parseLong(parts[4]), Long.parseLong(parts[5]),
+                            Long.parseLong(parts[6]), Long.parseLong(parts[7]),
+                            Long.parseLong(parts[8]), Long.parseLong(parts[9]),
+                            Long.parseLong(parts[10]))
+                            : new SessionEntry(start, duration, blocks));
                 }
             } catch (NumberFormatException ignored) {
                 // Ignore malformed legacy entries without discarding the remaining history.
@@ -245,6 +302,41 @@ public final class StatsRepository {
                     .apply();
         }
     }
+    public void recordLimitedAppUsage(long elapsedMillis) {
+        incrementDuringSession(KEY_LIMITED_APP_MILLIS,
+                KEY_ACTIVE_SESSION_LIMITED_APP_MILLIS, elapsedMillis);
+    }
+    public void recordLimitIntervention() {
+        incrementDuringSession(KEY_LIMIT_INTERVENTIONS,
+                KEY_ACTIVE_SESSION_LIMIT_INTERVENTIONS, 1L);
+    }
+    public void recordTributeEvent(int amountCents, boolean tamper) {
+        if (amountCents <= 0) return;
+        synchronized (SESSION_LOCK) {
+            restoreActiveSession();
+            if (sessionStartMs == 0) return;
+            SharedPreferences.Editor editor = preferences.edit()
+                    .putLong(KEY_TRIBUTE_EVENTS,
+                            safeAdd(preferences.getLong(KEY_TRIBUTE_EVENTS, 0L), 1L))
+                    .putLong(KEY_ACTIVE_SESSION_TRIBUTE_EVENTS,
+                            safeAdd(activeLong(KEY_ACTIVE_SESSION_TRIBUTE_EVENTS), 1L))
+                    .putLong(KEY_TRIBUTE_CENTS,
+                            safeAdd(preferences.getLong(KEY_TRIBUTE_CENTS, 0L), amountCents))
+                    .putLong(KEY_ACTIVE_SESSION_TRIBUTE_CENTS,
+                            safeAdd(activeLong(KEY_ACTIVE_SESSION_TRIBUTE_CENTS), amountCents));
+            if (tamper) {
+                editor.putLong(KEY_TAMPER_EVENTS,
+                                safeAdd(preferences.getLong(KEY_TAMPER_EVENTS, 0L), 1L))
+                        .putLong(KEY_ACTIVE_SESSION_TAMPER_EVENTS,
+                                safeAdd(activeLong(KEY_ACTIVE_SESSION_TAMPER_EVENTS), 1L));
+            }
+            editor.apply();
+        }
+    }
+    public void recordPopupImpression() {
+        incrementDuringSession(KEY_POPUP_IMPRESSIONS,
+                KEY_ACTIVE_SESSION_POPUP_IMPRESSIONS, 1L);
+    }
     private void updateStreak() {
         String today = today();
         String previous = preferences.getString(KEY_LAST_SESSION_DATE, "");
@@ -257,13 +349,19 @@ public final class StatsRepository {
                 .putString(KEY_LAST_SESSION_DATE, today).apply();
     }
 
-    private void appendSessionHistory(long started, long duration, int blocks) {
+    private void appendSessionHistory(SessionEntry entry) {
         List<String> entries = new ArrayList<>();
         String raw = preferences.getString(KEY_SESSION_HISTORY, "");
         if (raw != null) for (String item : raw.split(";")) {
             if (!item.trim().isEmpty()) entries.add(item);
         }
-        entries.add(started + "," + duration + "," + blocks);
+        entries.add(String.join(",", "2", Long.toString(entry.startMillis),
+                Long.toString(entry.durationSeconds), Integer.toString(entry.blocks),
+                Long.toString(entry.limitedAppMillis),
+                Long.toString(entry.limitInterventions),
+                Long.toString(entry.tributeEvents), Long.toString(entry.tributeCents),
+                Long.toString(entry.subliminals), Long.toString(entry.popupImpressions),
+                Long.toString(entry.tamperEvents)));
         while (entries.size() > SESSION_HISTORY_MAX) entries.remove(0);
         preferences.edit().putString(KEY_SESSION_HISTORY, String.join(";", entries)).apply();
     }
@@ -284,6 +382,26 @@ public final class StatsRepository {
         return value instanceof Number ? ((Number) value).longValue() : 0L;
     }
 
+    private long activeLong(String key) {
+        return Math.max(0L, preferences.getLong(key, 0L));
+    }
+
+    private void incrementDuringSession(String totalKey, String activeKey, long amount) {
+        if (amount <= 0L) return;
+        synchronized (SESSION_LOCK) {
+            restoreActiveSession();
+            if (sessionStartMs == 0) return;
+            preferences.edit()
+                    .putLong(totalKey, safeAdd(preferences.getLong(totalKey, 0L), amount))
+                    .putLong(activeKey, safeAdd(activeLong(activeKey), amount))
+                    .apply();
+        }
+    }
+
+    private static long safeAdd(long current, long amount) {
+        return current > Long.MAX_VALUE - amount ? Long.MAX_VALUE : current + amount;
+    }
+
     private static List<Integer> trackIds(List<TrackedObject> tracks) {
         List<Integer> ids = new ArrayList<>(tracks.size());
         // Render immediately, but only count a region after temporal confirmation. This keeps
@@ -301,13 +419,43 @@ public final class StatsRepository {
         private final long startMillis;
         private final long durationSeconds;
         private final int blocks;
+        private final long limitedAppMillis;
+        private final long limitInterventions;
+        private final long tributeEvents;
+        private final long tributeCents;
+        private final long subliminals;
+        private final long popupImpressions;
+        private final long tamperEvents;
         public SessionEntry(long startMillis, long durationSeconds, int blocks) {
+            this(startMillis, durationSeconds, blocks, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        }
+        public SessionEntry(long startMillis, long durationSeconds, int blocks,
+                long limitedAppMillis, long limitInterventions, long tributeEvents,
+                long tributeCents, long subliminals, long popupImpressions,
+                long tamperEvents) {
             this.startMillis = startMillis;
             this.durationSeconds = durationSeconds;
             this.blocks = blocks;
+            this.limitedAppMillis = Math.max(0L, limitedAppMillis);
+            this.limitInterventions = Math.max(0L, limitInterventions);
+            this.tributeEvents = Math.max(0L, tributeEvents);
+            this.tributeCents = Math.max(0L, tributeCents);
+            this.subliminals = Math.max(0L, subliminals);
+            this.popupImpressions = Math.max(0L, popupImpressions);
+            this.tamperEvents = Math.max(0L, tamperEvents);
         }
         public long getStartMillis() { return startMillis; }
         public long getDurationSeconds() { return durationSeconds; }
         public int getBlocks() { return blocks; }
+        public long getLimitedAppMillis() { return limitedAppMillis; }
+        public long getLimitInterventions() { return limitInterventions; }
+        public long getTributeEvents() { return tributeEvents; }
+        public long getTributeCents() { return tributeCents; }
+        public long getSubliminals() { return subliminals; }
+        public long getPopupImpressions() { return popupImpressions; }
+        public long getTamperEvents() { return tamperEvents; }
+        public long getActivityEvents() {
+            return blocks + limitInterventions + tributeEvents + subliminals + popupImpressions;
+        }
     }
 }

@@ -105,6 +105,7 @@ public final class StudioActivity extends AppCompatActivity {
             showPanel(binding.draftsPanel);
         });
         binding.tabCreate.setOnClickListener(view -> showPanel(binding.createPanel));
+        updateTabSelection(binding.libraryPanel);
     }
 
     private void showPanel(View panel) {
@@ -112,7 +113,14 @@ public final class StudioActivity extends AppCompatActivity {
         binding.draftsPanel.setVisibility(panel == binding.draftsPanel ? View.VISIBLE : View.GONE);
         binding.createPanel.setVisibility(panel == binding.createPanel ? View.VISIBLE : View.GONE);
         binding.editorPanel.setVisibility(panel == binding.editorPanel ? View.VISIBLE : View.GONE);
+        updateTabSelection(panel);
         binding.studioScroll.smoothScrollTo(0, 0);
+    }
+
+    private void updateTabSelection(View panel) {
+        binding.tabLibrary.setSelected(panel == binding.libraryPanel);
+        binding.tabDrafts.setSelected(panel == binding.draftsPanel);
+        binding.tabCreate.setSelected(panel == binding.createPanel || panel == binding.editorPanel);
     }
 
     private void setupEditor() {

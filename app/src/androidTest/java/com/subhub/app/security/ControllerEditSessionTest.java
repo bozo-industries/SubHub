@@ -30,7 +30,7 @@ public final class ControllerEditSessionTest {
         ControllerPinManager.enterDomMode();
     }
 
-    @Test public void subModeIsOnePageAndHidesConfigurationNavigation() {
+    @Test public void subSpaceShowsHomeAndStudioButHidesConfigurationNavigation() {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
                 activity.findViewById(R.id.button_edit_lock).performClick();
@@ -39,14 +39,26 @@ public final class ControllerEditSessionTest {
                         activity.findViewById(R.id.sub_dashboard).getVisibility());
                 assertEquals(View.GONE,
                         activity.findViewById(R.id.dom_content).getVisibility());
-                assertEquals(View.GONE,
+                assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.bottom_navigation).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.nav_home).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.nav_studio).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.nav_censor).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.nav_limits).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.nav_money).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.nav_settings).getVisibility());
                 assertFalse(activity.findViewById(R.id.button_censor_settings).isShown());
                 assertTrue(activity.findViewById(R.id.button_protection).isEnabled());
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.commitment_card).getVisibility());
                 assertEquals(View.VISIBLE,
-                        activity.findViewById(R.id.home_stats_row).getVisibility());
+                        activity.findViewById(R.id.home_session_metrics).getVisibility());
             });
         }
     }
@@ -70,7 +82,7 @@ public final class ControllerEditSessionTest {
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.commitment_card).getVisibility());
                 assertEquals(View.VISIBLE,
-                        activity.findViewById(R.id.home_stats_row).getVisibility());
+                        activity.findViewById(R.id.home_session_metrics).getVisibility());
                 assertFalse(activity.findViewById(R.id.button_censor_settings).isShown());
             });
         }
@@ -88,7 +100,7 @@ public final class ControllerEditSessionTest {
                         activity.findViewById(R.id.sub_limits_card).getVisibility());
                 assertEquals(View.GONE,
                         activity.findViewById(R.id.sub_wallet_card).getVisibility());
-                assertEquals(View.GONE,
+                assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.button_protection).getVisibility());
             });
         } finally {

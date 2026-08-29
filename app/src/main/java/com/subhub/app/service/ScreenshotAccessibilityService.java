@@ -150,14 +150,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final Runnable timerTick = new Runnable() {
         @Override public void run() {
             if (!running) return;
-            long now = System.currentTimeMillis();
-            boolean foregroundChanged = syncForegroundFromActiveRoot(now);
-            if (!foregroundChanged) accountForegroundUsage(now);
-            enforceForegroundLimit(now);
-            reevaluateRecognition();
-            reevaluateSubliminals();
-            refreshHardcoreSettingsGuard();
-            main.postDelayed(this, 1_000L);
+            try {
+                long now = System.currentTimeMillis();
+                boolean foregroundChanged = syncForegroundFromActiveRoot(now);
+                if (!foregroundChanged) accountForegroundUsage(now);
+                enforceForegroundLimit(now);
+                reevaluateRecognition();
+                reevaluateSubliminals();
+                refreshHardcoreSettingsGuard();
+            } catch (RuntimeException error) {
+                DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
+                Log.e(TAG, "Accessibility service tick failed", error);
+            } finally {
+                if (running) main.postDelayed(this, 1_000L);
+            }
         }
     };
 
@@ -826,6 +832,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        try {
+            handleAccessibilityEvent(event);
+        } catch (RuntimeException error) {
+            DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
+            Log.e(TAG, "Accessibility event failed", error);
+        }
+    }
+
+    private void handleAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
         String packageName = event.getPackageName() == null
                 ? "" : event.getPackageName().toString();
@@ -1071,7 +1086,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         int message = status == AppTimerManager.LimitStatus.PER_APP
                 ? com.subhub.app.R.string.app_timer_blocked_app
                 : com.subhub.app.R.string.app_timer_blocked_total;
-        if (!repeated) Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        if (!repeated) {
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+            stats.recordLimitIntervention();
+        }
         Log.i(TAG, "Daily app limit enforced for " + blockedPackage + " (" + status + ")");
         if (performGlobalAction(GLOBAL_ACTION_HOME)) {
             foregroundPackage = "";

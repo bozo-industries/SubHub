@@ -150,7 +150,6 @@ public final class AchievementManager {
             case "time_1hr": case "time_10hr": case "time_50hr": case "time_200hr":
                 return stats.getTotalProtectedSeconds();
             case "first_session": case "sessions_10": case "sessions_100": return stats.getSessions();
-            case "marathon": case "mega_marathon": return stats.getLongestSessionSeconds();
             case "streak_7": case "streak_30": return stats.getCurrentStreak();
             case "peak_50": case "peak_500": return stats.getPeakSessionBlocks();
             case "style_explorer": return stats.getCensorStylesTried().size();
@@ -229,11 +228,9 @@ public final class AchievementManager {
             case "blocks_1000": return 1000;
             case "blocks_10000": return 10000;
             case "time_1hr": return 3600;
-            case "time_10hr": return 36000;
-            case "time_50hr": return 180000;
-            case "time_200hr": return 720000;
-            case "marathon": return 24L * 60L * 60L;
-            case "mega_marathon": return 7L * 24L * 60L * 60L;
+            case "time_10hr": return 86400;
+            case "time_50hr": return 604800;
+            case "time_200hr": return 2592000;
             case "streak_7": return 7;
             case "streak_30": return 30;
             case "peak_50": case "export_artist": case "ntr_50": return 50;
@@ -251,9 +248,9 @@ public final class AchievementManager {
             case "text_filter_catalog": return 3;
             case "tribute_rulesmith": return 3;
             case "wallet_paid_10": return 1_000;
-            case "wallet_paid_100": return 10_000;
-            case "wallet_paid_500": return 50_000;
-            case "wallet_paid_1000": return 100_000;
+            case "wallet_paid_100": return 25_000;
+            case "wallet_paid_500": return 100_000;
+            case "wallet_paid_1000": return 1_000_000;
             case "subliminal_1": return 1;
             case "subliminal_100": return 100;
             case "subliminal_1000": return 1_000;
@@ -288,45 +285,15 @@ public final class AchievementManager {
 
     private static List<Achievement> achievements() {
         List<Achievement> values = Arrays.asList(
-                a("first_block", R.string.achievement_first_block, R.string.achievement_desc_first_block, "★", "blocks", R.drawable.achievement_badge_first_block, false),
-                a("blocks_10", R.string.achievement_getting_started, R.string.achievement_desc_blocks_10, "10", "blocks", R.drawable.achievement_badge_blocks_10, false),
-                a("blocks_100", R.string.achievement_centurion, R.string.achievement_desc_blocks_100, "100", "blocks", R.drawable.achievement_badge_blocks_100, false),
-                a("blocks_1000", R.string.achievement_block_master, R.string.achievement_desc_blocks_1000, "♛", "blocks", R.drawable.achievement_badge_blocks_1000, false),
-                a("blocks_10000", R.string.achievement_ultimate_blocker, R.string.achievement_desc_blocks_10000, "♚", "blocks", R.drawable.achievement_badge_blocks_10000, false),
+                a("first_session", R.string.achievement_first_session, R.string.achievement_desc_first_session, "▶", "sessions", R.drawable.achievement_badge_first_session, false),
+                a("sessions_10", R.string.achievement_regular, R.string.achievement_desc_sessions_10, "↻", "sessions", R.drawable.achievement_badge_sessions_10, false),
+                a("sessions_100", R.string.achievement_veteran, R.string.achievement_desc_sessions_100, "✪", "sessions", R.drawable.achievement_badge_sessions_100, false),
                 a("time_1hr", R.string.achievement_first_hour, R.string.achievement_desc_time_1hr, "◷", "time", R.drawable.achievement_badge_time_1hr, false),
                 a("time_10hr", R.string.achievement_dedicated, R.string.achievement_desc_time_10hr, "◷", "time", R.drawable.achievement_badge_time_10hr, false),
                 a("time_50hr", R.string.achievement_committed, R.string.achievement_desc_time_50hr, "◷", "time", R.drawable.achievement_badge_time_50hr, false),
                 a("time_200hr", R.string.achievement_platinum_protection, R.string.achievement_desc_time_200hr, "◆", "time", R.drawable.achievement_badge_time_200hr, false),
-                a("first_session", R.string.achievement_first_session, R.string.achievement_desc_first_session, "▶", "sessions", R.drawable.achievement_badge_first_session, false),
-                a("sessions_10", R.string.achievement_regular, R.string.achievement_desc_sessions_10, "↻", "sessions", R.drawable.achievement_badge_sessions_10, false),
-                a("sessions_100", R.string.achievement_veteran, R.string.achievement_desc_sessions_100, "✪", "sessions", R.drawable.achievement_badge_sessions_100, false),
-                a("marathon", R.string.achievement_marathon, R.string.achievement_desc_marathon, "⌁", "sessions", R.drawable.achievement_badge_marathon, false),
                 a("streak_7", R.string.achievement_week_warrior, R.string.achievement_desc_streak_7, "♨", "streaks", R.drawable.achievement_badge_streak_7, false),
                 a("streak_30", R.string.achievement_month_master, R.string.achievement_desc_streak_30, "♨", "streaks", R.drawable.achievement_badge_streak_30, false),
-                a("midnight_blocker", R.string.achievement_midnight_blocker, R.string.achievement_desc_midnight, "☾", "hidden", R.drawable.achievement_badge_midnight_blocker, true),
-                a("early_bird", R.string.achievement_early_bird, R.string.achievement_desc_early_bird, "☀", "hidden", R.drawable.achievement_badge_early_bird, true),
-                a("night_owl", R.string.achievement_night_owl, R.string.achievement_desc_night_owl, "◉", "hidden", R.drawable.achievement_badge_night_owl, true),
-                a("new_year", R.string.achievement_new_year, R.string.achievement_desc_new_year, "✦", "hidden", R.drawable.achievement_badge_new_year, true),
-                a("halloween_block", R.string.achievement_spooky, R.string.achievement_desc_halloween, "◈", "hidden", R.drawable.achievement_badge_halloween_block, true),
-                a("christmas_block", R.string.achievement_holiday, R.string.achievement_desc_christmas, "♣", "hidden", R.drawable.achievement_badge_christmas_block, true),
-                a("valentine_block", R.string.achievement_love, R.string.achievement_desc_valentine, "♥", "hidden", R.drawable.achievement_badge_valentine_block, true),
-                a("peak_50", R.string.achievement_peak_50, R.string.achievement_desc_peak_50, "▥", "peaks", R.drawable.achievement_badge_peak_50, false),
-                a("peak_500", R.string.achievement_peak_500, R.string.achievement_desc_peak_500, "▥", "peaks", R.drawable.achievement_badge_peak_500, false),
-                a("mega_marathon", R.string.achievement_mega_marathon, R.string.achievement_desc_mega_marathon, "✪", "peaks", R.drawable.achievement_badge_mega_marathon, false),
-                a("style_explorer", R.string.achievement_style_explorer, R.string.achievement_desc_style_explorer, "◒", "custom", R.drawable.achievement_badge_style_explorer, false),
-                a("border_artist", R.string.achievement_border_artist, R.string.achievement_desc_border_artist, "▣", "custom", R.drawable.achievement_badge_border_artist, false),
-                a("color_picker", R.string.achievement_color_picker, R.string.achievement_desc_color_picker, "◉", "custom", R.drawable.achievement_badge_color_picker, false),
-                a("first_custom_phrase", R.string.achievement_first_custom_phrase, R.string.achievement_desc_first_custom_phrase, "✎", "custom", R.drawable.achievement_badge_first_custom_phrase, false),
-                a("phrase_library", R.string.achievement_phrase_library, R.string.achievement_desc_phrase_library, "▤", "custom", R.drawable.achievement_badge_phrase_library, false),
-                a("profile_creator", R.string.achievement_profile_creator, R.string.achievement_desc_profile_creator, "▣", "profiles", R.drawable.achievement_badge_profile_creator, false),
-                a("profile_organizer", R.string.achievement_profile_organizer, R.string.achievement_desc_profile_organizer, "▰", "profiles", R.drawable.achievement_badge_profile_organizer, false),
-                a("export_first", R.string.achievement_export_first, R.string.achievement_desc_export_first, "⇩", "export", R.drawable.achievement_badge_export_first, false),
-                a("export_artist", R.string.achievement_export_artist, R.string.achievement_desc_export_artist, "⇩", "export", R.drawable.achievement_badge_export_artist, false),
-                a("weekend_warrior", R.string.achievement_weekend_warrior, R.string.achievement_desc_weekend_warrior, "☀", "hidden", R.drawable.achievement_badge_weekend_warrior, true),
-                a("ntr_50", R.string.achievement_get_cucked, R.string.achievement_desc_get_cucked, "♈", "hidden", R.drawable.achievement_badge_ntr_50, true),
-                a("ntr_100", R.string.achievement_get_cucked_2, R.string.achievement_desc_get_cucked_2, "♈", "hidden", R.drawable.achievement_badge_ntr_100, true),
-                a("ntr_200", R.string.achievement_get_cucked_3, R.string.achievement_desc_get_cucked_3, "♈", "hidden", R.drawable.achievement_badge_ntr_200, true),
-                a("ntr_500", R.string.achievement_get_cucked_4, R.string.achievement_desc_get_cucked_4, "♈", "hidden", R.drawable.achievement_badge_ntr_500, true),
                 a("app_mode_guardian", R.string.achievement_app_mode_guardian, R.string.achievement_desc_app_mode_guardian, "▶", "app_mode", R.drawable.achievement_badge_app_mode_guardian, false),
                 a("app_assignment_curator", R.string.achievement_app_assignment_curator, R.string.achievement_desc_app_assignment_curator, "▦", "app_mode", R.drawable.achievement_badge_app_assignment_curator, false),
                 a("limits_setter", R.string.achievement_limits_setter, R.string.achievement_desc_limits_setter, "⌛", "limits", R.drawable.achievement_badge_limits_setter, false),
@@ -334,9 +301,29 @@ public final class AchievementManager {
                 a("pact_sealed", R.string.achievement_pact_sealed, R.string.achievement_desc_pact_sealed, "🔒", "pact", R.drawable.achievement_badge_pact_sealed, false),
                 a("pact_long_haul", R.string.achievement_pact_long_haul, R.string.achievement_desc_pact_long_haul, "⛓", "pact", R.drawable.achievement_badge_pact_long_haul, false),
                 a("hardcore_guardian", R.string.achievement_hardcore_guardian, R.string.achievement_desc_hardcore_guardian, "♜", "hardcore", R.drawable.achievement_badge_hardcore_guardian, false),
+                a("first_block", R.string.achievement_first_block, R.string.achievement_desc_first_block, "★", "blocks", R.drawable.achievement_badge_first_block, false),
+                a("blocks_10", R.string.achievement_getting_started, R.string.achievement_desc_blocks_10, "10", "blocks", R.drawable.achievement_badge_blocks_10, false),
+                a("blocks_100", R.string.achievement_centurion, R.string.achievement_desc_blocks_100, "100", "blocks", R.drawable.achievement_badge_blocks_100, false),
+                a("blocks_1000", R.string.achievement_block_master, R.string.achievement_desc_blocks_1000, "♛", "blocks", R.drawable.achievement_badge_blocks_1000, false),
+                a("blocks_10000", R.string.achievement_ultimate_blocker, R.string.achievement_desc_blocks_10000, "♚", "blocks", R.drawable.achievement_badge_blocks_10000, false),
+                a("peak_50", R.string.achievement_peak_50, R.string.achievement_desc_peak_50, "▥", "peaks", R.drawable.achievement_badge_peak_50, false),
+                a("peak_500", R.string.achievement_peak_500, R.string.achievement_desc_peak_500, "▥", "peaks", R.drawable.achievement_badge_peak_500, false),
                 a("text_filter_enabled", R.string.achievement_text_filter_enabled, R.string.achievement_desc_text_filter_enabled, "Aa", "censor", R.drawable.achievement_badge_text_filter_enabled, false),
                 a("text_filter_catalog", R.string.achievement_text_filter_catalog, R.string.achievement_desc_text_filter_catalog, "Aa", "censor", R.drawable.achievement_badge_text_filter_catalog, false),
+                a("style_explorer", R.string.achievement_style_explorer, R.string.achievement_desc_style_explorer, "◒", "custom", R.drawable.achievement_badge_style_explorer, false),
+                a("border_artist", R.string.achievement_border_artist, R.string.achievement_desc_border_artist, "▣", "custom", R.drawable.achievement_badge_border_artist, false),
+                a("color_picker", R.string.achievement_color_picker, R.string.achievement_desc_color_picker, "◉", "custom", R.drawable.achievement_badge_color_picker, false),
+                a("first_custom_phrase", R.string.achievement_first_custom_phrase, R.string.achievement_desc_first_custom_phrase, "✎", "custom", R.drawable.achievement_badge_first_custom_phrase, false),
+                a("phrase_library", R.string.achievement_phrase_library, R.string.achievement_desc_phrase_library, "▤", "custom", R.drawable.achievement_badge_phrase_library, false),
                 a("pack_curator", R.string.achievement_pack_curator, R.string.achievement_desc_pack_curator, "▤", "custom", R.drawable.achievement_badge_pack_curator, false),
+                a("profile_creator", R.string.achievement_profile_creator, R.string.achievement_desc_profile_creator, "▣", "profiles", R.drawable.achievement_badge_profile_creator, false),
+                a("profile_organizer", R.string.achievement_profile_organizer, R.string.achievement_desc_profile_organizer, "▰", "profiles", R.drawable.achievement_badge_profile_organizer, false),
+                a("export_first", R.string.achievement_export_first, R.string.achievement_desc_export_first, "⇩", "export", R.drawable.achievement_badge_export_first, false),
+                a("export_artist", R.string.achievement_export_artist, R.string.achievement_desc_export_artist, "⇩", "export", R.drawable.achievement_badge_export_artist, false),
+                a("subliminal_1", R.string.achievement_subliminal_1, R.string.achievement_desc_subliminal_1, "◉", "subliminal", R.drawable.achievement_badge_subliminal_1, false),
+                a("subliminal_100", R.string.achievement_subliminal_100, R.string.achievement_desc_subliminal_100, "◉", "subliminal", R.drawable.achievement_badge_subliminal_100, false),
+                a("subliminal_1000", R.string.achievement_subliminal_1000, R.string.achievement_desc_subliminal_1000, "◉", "subliminal", R.drawable.achievement_badge_subliminal_1000, false),
+                a("subliminal_10000", R.string.achievement_subliminal_10000, R.string.achievement_desc_subliminal_10000, "◉", "subliminal", R.drawable.achievement_badge_subliminal_10000, false),
                 a("wallet_keeper", R.string.achievement_wallet_keeper, R.string.achievement_desc_wallet_keeper, "¤", "wallet", R.drawable.achievement_badge_wallet_keeper, false),
                 a("tribute_rulesmith", R.string.achievement_tribute_rulesmith, R.string.achievement_desc_tribute_rulesmith, "¤", "wallet", R.drawable.achievement_badge_tribute_rulesmith, false),
                 a("paypal_vault", R.string.achievement_paypal_vault, R.string.achievement_desc_paypal_vault, "¤", "wallet", R.drawable.achievement_badge_paypal_vault, false),
@@ -345,10 +332,18 @@ public final class AchievementManager {
                 a("wallet_paid_100", R.string.achievement_wallet_paid_100, R.string.achievement_desc_wallet_paid_100, "◆", "wallet", R.drawable.achievement_badge_wallet_paid_100, false),
                 a("wallet_paid_500", R.string.achievement_wallet_paid_500, R.string.achievement_desc_wallet_paid_500, "◆", "wallet", R.drawable.achievement_badge_wallet_paid_500, false),
                 a("wallet_paid_1000", R.string.achievement_wallet_paid_1000, R.string.achievement_desc_wallet_paid_1000, "◆", "wallet", R.drawable.achievement_badge_wallet_paid_1000, false),
-                a("subliminal_1", R.string.achievement_subliminal_1, R.string.achievement_desc_subliminal_1, "◉", "subliminal", R.drawable.achievement_badge_subliminal_1, false),
-                a("subliminal_100", R.string.achievement_subliminal_100, R.string.achievement_desc_subliminal_100, "◉", "subliminal", R.drawable.achievement_badge_subliminal_100, false),
-                a("subliminal_1000", R.string.achievement_subliminal_1000, R.string.achievement_desc_subliminal_1000, "◉", "subliminal", R.drawable.achievement_badge_subliminal_1000, false),
-                a("subliminal_10000", R.string.achievement_subliminal_10000, R.string.achievement_desc_subliminal_10000, "◉", "subliminal", R.drawable.achievement_badge_subliminal_10000, false),
+                a("midnight_blocker", R.string.achievement_midnight_blocker, R.string.achievement_desc_midnight, "☾", "hidden", R.drawable.achievement_badge_midnight_blocker, true),
+                a("early_bird", R.string.achievement_early_bird, R.string.achievement_desc_early_bird, "☀", "hidden", R.drawable.achievement_badge_early_bird, true),
+                a("night_owl", R.string.achievement_night_owl, R.string.achievement_desc_night_owl, "◉", "hidden", R.drawable.achievement_badge_night_owl, true),
+                a("weekend_warrior", R.string.achievement_weekend_warrior, R.string.achievement_desc_weekend_warrior, "☀", "hidden", R.drawable.achievement_badge_weekend_warrior, true),
+                a("new_year", R.string.achievement_new_year, R.string.achievement_desc_new_year, "✦", "hidden", R.drawable.achievement_badge_new_year, true),
+                a("halloween_block", R.string.achievement_spooky, R.string.achievement_desc_halloween, "◈", "hidden", R.drawable.achievement_badge_halloween_block, true),
+                a("christmas_block", R.string.achievement_holiday, R.string.achievement_desc_christmas, "♣", "hidden", R.drawable.achievement_badge_christmas_block, true),
+                a("valentine_block", R.string.achievement_love, R.string.achievement_desc_valentine, "♥", "hidden", R.drawable.achievement_badge_valentine_block, true),
+                a("ntr_50", R.string.achievement_get_cucked, R.string.achievement_desc_get_cucked, "♈", "hidden", R.drawable.achievement_badge_ntr_50, true),
+                a("ntr_100", R.string.achievement_get_cucked_2, R.string.achievement_desc_get_cucked_2, "♈", "hidden", R.drawable.achievement_badge_ntr_100, true),
+                a("ntr_200", R.string.achievement_get_cucked_3, R.string.achievement_desc_get_cucked_3, "♈", "hidden", R.drawable.achievement_badge_ntr_200, true),
+                a("ntr_500", R.string.achievement_get_cucked_4, R.string.achievement_desc_get_cucked_4, "♈", "hidden", R.drawable.achievement_badge_ntr_500, true),
                 a("legend", R.string.achievement_legend, R.string.achievement_desc_legend, "★", "special", R.drawable.achievement_badge_legend, false));
         return Collections.unmodifiableList(values);
     }
@@ -387,7 +382,8 @@ public final class AchievementManager {
     public static final class Progress {
         private final long current; private final long target; private final boolean unlocked;
         Progress(long current, long target, boolean unlocked) {
-            this.current = current; this.target = target; this.unlocked = unlocked;
+            this.current = unlocked && target > 0 ? target : current;
+            this.target = target; this.unlocked = unlocked;
         }
         public long getCurrent() { return current; }
         public long getTarget() { return target; }

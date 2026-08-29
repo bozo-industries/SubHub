@@ -3,6 +3,17 @@
 User-facing changes from every tagged SubHub release.
 
 <details open>
+<summary><strong>SubHub 0.6.1</strong></summary>
+
+## What’s new in SubHub 0.6.1
+
+### New
+
+- **Complete app-wide service progress** — Expand Home and Statistics beyond censor counts with durable feature-aware service history and retuned achievements; preserve timed service state across process and Accessibility interruptions; let Dom Space release timed service…
+
+</details>
+
+<details>
 <summary><strong>SubHub 0.6.0</strong></summary>
 
 ## What’s new in SubHub 0.6.0

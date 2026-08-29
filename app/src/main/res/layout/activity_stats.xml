@@ -40,7 +40,7 @@
                 <LinearLayout style="@style/Widget.SubHub.StatisticColumn">
                     <TextView android:id="@+id/total_blocks" style="@style/Widget.SubHub.Statistic" />
                     <TextView style="@style/Widget.SubHub.StatisticLabel"
-                        android:text="@string/stats_blocks" />
+                        android:text="@string/statistics_activity" />
                 </LinearLayout>
                 <LinearLayout style="@style/Widget.SubHub.StatisticColumn">
                     <TextView android:id="@+id/total_time" style="@style/Widget.SubHub.Statistic" />

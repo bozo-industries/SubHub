@@ -41,11 +41,11 @@ public final class SessionTrendView extends View {
         if (entries.isEmpty()) return;
         int start = Math.max(0, entries.size() - 30);
         long maxDuration = 1;
-        int maxBlocks = 1;
+        long maxActivity = 1;
         for (int index = start; index < entries.size(); index++) {
             StatsRepository.SessionEntry entry = entries.get(index);
             maxDuration = Math.max(maxDuration, entry.getDurationSeconds());
-            maxBlocks = Math.max(maxBlocks, entry.getBlocks());
+            maxActivity = Math.max(maxActivity, entry.getActivityEvents());
         }
         int count = entries.size() - start;
         float slot = (right - left) / count;
@@ -55,7 +55,7 @@ public final class SessionTrendView extends View {
             StatsRepository.SessionEntry entry = entries.get(start + offset);
             float center = left + slot * (offset + 0.5f);
             float timeHeight = available * entry.getDurationSeconds() / maxDuration;
-            float blockHeight = available * entry.getBlocks() / maxBlocks;
+            float blockHeight = available * entry.getActivityEvents() / maxActivity;
             canvas.drawRoundRect(new RectF(center - barWidth, bottom - timeHeight,
                     center, bottom), dp(2), dp(2), timePaint);
             canvas.drawRoundRect(new RectF(center, bottom - blockHeight,

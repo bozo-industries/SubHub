@@ -28,14 +28,16 @@ public final class HomePermissionPolicy {
         // Hardcore's App Info guard is implemented by the accessibility service even when
         // censoring, limits and subliminals are all disabled. Device Admin only supplies
         // Android's native uninstall friction; it cannot guard Clear Storage by itself.
+        // Ask for notifications first so the guidance toast remains visible while Android's
+        // Accessibility page opens on the next step.
+        if (runtimeFeatureEnabled && notificationPermissionApplies && !notificationsReady) {
+            result.add(Requirement.NOTIFICATIONS);
+        }
         if ((runtimeFeatureEnabled || hardcoreRequested) && !accessibilityReady) {
             result.add(Requirement.ACCESSIBILITY);
         }
         if (screenRecordingCensorEnabled && !overlayReady) {
             result.add(Requirement.OVERLAY);
-        }
-        if (runtimeFeatureEnabled && notificationPermissionApplies && !notificationsReady) {
-            result.add(Requirement.NOTIFICATIONS);
         }
         if (hardcoreRequested && !deviceAdminReady) {
             result.add(Requirement.DEVICE_ADMIN);

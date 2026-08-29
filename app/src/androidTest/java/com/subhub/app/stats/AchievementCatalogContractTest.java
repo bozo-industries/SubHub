@@ -3,6 +3,7 @@ package com.subhub.app.stats;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 
@@ -28,7 +29,7 @@ public final class AchievementCatalogContractTest {
         Context context = ApplicationProvider.getApplicationContext();
         AchievementManager manager = new AchievementManager(context);
 
-        assertEquals(58, manager.getTotalCount());
+        assertEquals(60, manager.getTotalCount());
         Set<String> ids = new HashSet<>();
         Set<Integer> badgeResources = new HashSet<>();
         Set<String> badgeDigests = new HashSet<>();
@@ -49,8 +50,8 @@ public final class AchievementCatalogContractTest {
             }
         }
 
-        assertEquals(58, badgeResources.size());
-        assertEquals(58, badgeDigests.size());
+        assertEquals(60, badgeResources.size());
+        assertEquals(60, badgeDigests.size());
         assertEquals(R.drawable.achievement_badge_app_mode_guardian,
                 find(manager, "app_mode_guardian").getBadgeArtRes());
         assertEquals(R.drawable.achievement_badge_limits_setter,
@@ -68,25 +69,42 @@ public final class AchievementCatalogContractTest {
     }
 
     @Test
-    public void marathonAndConfirmedWalletPaymentTargetsUseTheExpandedRequirements() {
+    public void protectedTimeAndConfirmedWalletPaymentTargetsUseTheExpandedRequirements() {
         Context context = ApplicationProvider.getApplicationContext();
         context.getSharedPreferences(PenanceManager.PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().clear().commit();
         AchievementManager manager = new AchievementManager(context);
         StatsSnapshot stats = new StatsRepository(context).load();
 
-        assertEquals(24L * 60L * 60L, manager.progress(find(manager, "marathon"), stats)
-                .getTarget());
+        assertEquals(60L * 60L, manager.progress(find(manager, "time_1hr"), stats).getTarget());
+        assertEquals(24L * 60L * 60L,
+                manager.progress(find(manager, "time_10hr"), stats).getTarget());
         assertEquals(7L * 24L * 60L * 60L,
-                manager.progress(find(manager, "mega_marathon"), stats).getTarget());
+                manager.progress(find(manager, "time_50hr"), stats).getTarget());
+        assertEquals(30L * 24L * 60L * 60L,
+                manager.progress(find(manager, "time_200hr"), stats).getTarget());
         assertEquals(1_000L,
                 manager.progress(find(manager, "wallet_paid_10"), stats).getTarget());
-        assertEquals(10_000L,
+        assertEquals(25_000L,
                 manager.progress(find(manager, "wallet_paid_100"), stats).getTarget());
-        assertEquals(50_000L,
-                manager.progress(find(manager, "wallet_paid_500"), stats).getTarget());
         assertEquals(100_000L,
+                manager.progress(find(manager, "wallet_paid_500"), stats).getTarget());
+        assertEquals(1_000_000L,
                 manager.progress(find(manager, "wallet_paid_1000"), stats).getTarget());
+    }
+
+    @Test
+    public void catalogStartsWithServiceProgressAndKeepsWhispersTiered() {
+        Context context = ApplicationProvider.getApplicationContext();
+        AchievementManager manager = new AchievementManager(context);
+
+        assertEquals("first_session", manager.all().get(0).getId());
+        assertBefore(manager, "subliminal_1", "subliminal_100");
+        assertBefore(manager, "subliminal_100", "subliminal_1000");
+        assertBefore(manager, "subliminal_1000", "subliminal_10000");
+        assertBefore(manager, "wallet_paid_10", "wallet_paid_100");
+        assertBefore(manager, "wallet_paid_100", "wallet_paid_500");
+        assertBefore(manager, "wallet_paid_500", "wallet_paid_1000");
     }
 
     private static AchievementManager.Achievement find(AchievementManager manager, String id) {
@@ -94,6 +112,11 @@ public final class AchievementCatalogContractTest {
             if (id.equals(achievement.getId())) return achievement;
         }
         throw new AssertionError("Missing achievement " + id);
+    }
+
+    private static void assertBefore(AchievementManager manager, String first, String second) {
+        assertTrue(manager.all().indexOf(find(manager, first))
+                < manager.all().indexOf(find(manager, second)));
     }
 
     private static void assertTrueNonEmpty(String value) {
