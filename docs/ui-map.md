@@ -1,43 +1,67 @@
-# SubHub UI page map
+# SubHub UI screenshot map
 
-This inventory is captured from the real debug app on an Android 15 phone-sized emulator. It is kept in the repository so visual changes can be compared against an actual rendered baseline instead of inferred from layout XML.
+These captures come from the real debug app on an Android 15 phone-sized emulator. They are the
+visual QA baseline for layout, hierarchy, color, clipping, and Dom/Sub visibility—not mockups.
 
-## Core experience
+## Sub Space
 
-| Home | Limits | Assigned apps |
+| Home | Atmosphere | Studio |
 |---|---|---|
-| ![Home](screenshots/ui-map/page-map/01-censor-home.png) | ![Limits](screenshots/ui-map/page-map/02-limits.png) | ![Assigned apps](screenshots/ui-map/page-map/02b-limits-app-picker.png) |
+| ![Sub Space home](screenshots/ui-map/page-map/00-sub-home.png) | ![Sub Space Atmosphere](screenshots/ui-map/page-map/00b-sub-atmosphere.png) | ![Sub Space Studio](screenshots/ui-map/page-map/00c-sub-studio.png) |
 
-## Wallet
+## Dom Space: core navigation
 
-| Overview | Rules and boundaries | Checkout and history |
+| Home | Limits |
+|---|---|
+| ![Dom Space home](screenshots/ui-map/page-map/01-dom-home.png) | ![Limits](screenshots/ui-map/page-map/02-limits.png) |
+
+| Wallet | Wallet rules and caps | Checkout and history |
 |---|---|---|
 | ![Wallet](screenshots/ui-map/page-map/03-wallet.png) | ![Wallet rules](screenshots/ui-map/page-map/03b-wallet-rules-and-safety.png) | ![Wallet checkout](screenshots/ui-map/page-map/03c-wallet-checkout-and-history.png) |
 
-## Configuration and censoring
-
-| Global settings | Censor styles | Detection categories |
+| Settings | Censor appearance | Detection categories |
 |---|---|---|
-| ![Global settings](screenshots/ui-map/page-map/04-global-settings.png) | ![Censor style previews](screenshots/ui-map/page-map/05-censor-settings.png) | ![Detection categories](screenshots/ui-map/page-map/05b-settings-detection-categories.png) |
+| ![Global settings](screenshots/ui-map/page-map/04-global-settings.png) | ![Censor appearance](screenshots/ui-map/page-map/05-censor-settings.png) | ![Detection categories](screenshots/ui-map/page-map/05b-settings-detection-categories.png) |
 
 | Phrases and tools | Photo censoring |
 |---|---|
 | ![Phrases and tools](screenshots/ui-map/page-map/05c-settings-phrases-and-tools.png) | ![Photo censoring](screenshots/ui-map/page-map/07-censor-photos.png) |
 
-## Review, safety, and supporting tools
+## Progress, help, and configuration
 
-| Help and safety | Statistics | Achievements |
+| Help and safety | Statistics | Milestones |
 |---|---|---|
-| ![Help and safety](screenshots/ui-map/page-map/08-help-safety.png) | ![Statistics](screenshots/ui-map/page-map/09-statistics.png) | ![Achievements](screenshots/ui-map/page-map/10-achievements.png) |
+| ![Help and safety](screenshots/ui-map/page-map/08-help-safety.png) | ![Statistics](screenshots/ui-map/page-map/09-statistics.png) | ![Milestones](screenshots/ui-map/page-map/10-achievements.png) |
 
-| Custom images | Profiles | Configuration packs |
+| Custom images | Profiles | Imported packs |
 |---|---|---|
-| ![Custom images](screenshots/ui-map/page-map/11-custom-images.png) | ![Profiles](screenshots/ui-map/page-map/12-profiles.png) | ![Configuration packs](screenshots/ui-map/page-map/13-configuration-packs.png) |
+| ![Custom images](screenshots/ui-map/page-map/11-custom-images.png) | ![Profiles](screenshots/ui-map/page-map/12-profiles.png) | ![Imported packs](screenshots/ui-map/page-map/13-configuration-packs.png) |
 
-| Popup storm | Diagnostics | Service lock |
+## Atmosphere and Studio
+
+| Atmosphere hub | Whispers | Popup Storm |
 |---|---|---|
-| ![Popup storm](screenshots/ui-map/page-map/14-popup-storm.png) | ![Diagnostics](screenshots/ui-map/page-map/15-diagnostics.png) | ![Service lock](screenshots/ui-map/page-map/16-commitment-pact.png) |
+| ![Atmosphere](screenshots/ui-map/page-map/14-atmosphere.png) | ![Whispers](screenshots/ui-map/page-map/15-whispers.png) | ![Popup Storm](screenshots/ui-map/page-map/16-popup-storm.png) |
+
+| Studio library | Studio drafts | Studio creator |
+|---|---|---|
+| ![Studio library](screenshots/ui-map/page-map/17-studio-library.png) | ![Studio drafts](screenshots/ui-map/page-map/17b-studio-drafts.png) | ![Studio creator](screenshots/ui-map/page-map/17c-studio-create.png) |
+
+## Maintenance
+
+| Updates | Diagnostics | Service lock details |
+|---|---|---|
+| ![Updates](screenshots/ui-map/page-map/18-updates.png) | ![Diagnostics](screenshots/ui-map/page-map/19-diagnostics.png) | ![Service lock](screenshots/ui-map/page-map/20-service-lock.png) |
+
+## Pack-update rule
+
+Studio packs carry a private random creator-device identity. Sub Space may update the active
+arrangement only when the incoming pack has the same pack ID, creator-device ID, name, and author.
+New, renamed, or differently authored arrangements still require Dom Space. This identifies a
+continuation of the same arrangement; it is not a cryptographic author signature.
 
 ## Refreshing the map
 
-Run `PageMapScreenshotTest` on a phone-sized Android emulator, then copy the resulting `page-map` folder from the app's external files directory into `docs/screenshots/ui-map`. Review the screenshots at original size before accepting UI changes; the test passing proves the pages render, but it cannot judge clipping, hierarchy, or polish.
+Run `PageMapScreenshotTest` on a phone-sized Android emulator, then copy its `page-map` output from
+the app's external files directory into `docs/screenshots/ui-map/page-map`. Review every image at
+original size before accepting UI changes; a passing render test alone cannot judge visual polish.
