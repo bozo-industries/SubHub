@@ -30,7 +30,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import com.subhub.app.databinding.ActivityMainBinding;
-import com.subhub.app.atmosphere.AtmosphereActivity;
 import com.subhub.app.appmode.AppModeActivity;
 import com.subhub.app.capture.ExportActivity;
 import com.subhub.app.commitment.CommitmentActivity;
@@ -218,8 +217,8 @@ public final class MainActivity extends AppCompatActivity {
                 R.string.sub_limits_title, limitsArrangementDetails()));
         binding.subWalletCard.setOnClickListener(view -> showArrangementDetails(
                 R.string.sub_wallet_title, walletArrangementDetails()));
-        binding.homeAtmosphereCard.setOnClickListener(view ->
-                startActivity(new Intent(this, AtmosphereActivity.class)));
+        binding.subAtmosphereCard.setOnClickListener(view -> showArrangementDetails(
+                R.string.atmosphere_title, atmosphereArrangementDetails()));
         boolean seen = getSharedPreferences(SettingsRepository.PREFERENCES_NAME, MODE_PRIVATE)
                 .getBoolean("has_seen_onboarding", false);
         binding.onboardingCard.setVisibility(seen ? View.GONE : View.VISIBLE);
@@ -556,14 +555,20 @@ public final class MainActivity extends AppCompatActivity {
         boolean limitsEnabled = modules.isLimitsEnabled();
         boolean walletEnabled = modules.isWalletEnabled();
         boolean subliminalEnabled = modules.isSubliminalEnabled();
+        boolean popupEnabled = PopupStormSettings.load(this).isEnabled();
         binding.subCensorCard.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
         binding.subLimitsCard.setVisibility(limitsEnabled ? View.VISIBLE : View.GONE);
         binding.subWalletCard.setVisibility(walletEnabled ? View.VISIBLE : View.GONE);
-        boolean atmosphereVisible = censorEnabled || subliminalEnabled;
-        binding.homeAtmosphereCard.setVisibility(atmosphereVisible ? View.VISIBLE : View.GONE);
-        binding.subModulesEmpty.setVisibility(!censorEnabled && !limitsEnabled && !walletEnabled
-                && !subliminalEnabled
-                ? View.VISIBLE : View.GONE);
+        binding.subAtmosphereCard.setVisibility(View.VISIBLE);
+        binding.subModulesEmpty.setVisibility(View.GONE);
+        int atmosphereCount = (subliminalEnabled ? 1 : 0) + (popupEnabled ? 1 : 0);
+        binding.subAtmosphereStatus.setText(getResources().getQuantityString(
+                R.plurals.atmosphere_effects_active, atmosphereCount, atmosphereCount));
+        binding.subAtmosphereSummary.setText(getString(R.string.atmosphere_home_summary,
+                getString(subliminalEnabled ? R.string.atmosphere_state_on
+                        : R.string.atmosphere_state_off),
+                getString(popupEnabled ? R.string.atmosphere_state_on
+                        : R.string.atmosphere_state_off)));
         binding.buttonProtection.setVisibility(modules.hasRuntimeFeature()
                 ? View.VISIBLE : View.GONE);
         binding.protectionStatusRow.setVisibility(View.GONE);
@@ -656,16 +661,6 @@ public final class MainActivity extends AppCompatActivity {
                             CommitmentActivity.formatDuration(paidPause.remainingMillis()))
                     : getString(R.string.paid_pause_buy, paidPause.getDurationMinutes(),
                             PenanceManager.formatMoney(paidPause.getPriceCents())));
-        }
-
-        if (atmosphereVisible) {
-            boolean stormEnabled = PopupStormSettings.load(this).isEnabled();
-            binding.homeAtmosphereStatus.setText(getString(R.string.atmosphere_home_summary,
-                    getString(subliminalEnabled
-                            ? R.string.atmosphere_state_on : R.string.atmosphere_state_off),
-                    getString(stormEnabled
-                            ? R.string.atmosphere_state_on : R.string.atmosphere_state_off)));
-            binding.homeAtmosphereSummary.setText(R.string.atmosphere_home_hint);
         }
 
     }
@@ -814,6 +809,24 @@ public final class MainActivity extends AppCompatActivity {
                 friendlyPreset(settings.getPreset())));
         lines.add(detailLine(R.string.arrangement_apps,
                 appLabels(appMode.getSubliminalPackages())));
+        return joinDetails(lines);
+    }
+
+    private String atmosphereArrangementDetails() {
+        FeatureModuleManager modules = new FeatureModuleManager(this);
+        PopupStormSettings popup = PopupStormSettings.load(this);
+        SubliminalSettings whispers = new SubliminalSettingsRepository(this).load();
+        List<String> lines = new ArrayList<>();
+        lines.add(detailLine(R.string.atmosphere_whispers_title,
+                modules.isSubliminalEnabled()
+                        ? getString(R.string.arrangement_atmosphere_enabled,
+                                friendlyPreset(whispers.getPreset()))
+                        : getString(R.string.popup_off)));
+        lines.add(detailLine(R.string.popup_title,
+                popup.isEnabled() ? getString(R.string.atmosphere_state_on)
+                        : getString(R.string.popup_off)));
+        lines.add(detailLine(R.string.arrangement_apps,
+                appLabels(new AppModeManager(this).getSubliminalPackages())));
         return joinDetails(lines);
     }
 

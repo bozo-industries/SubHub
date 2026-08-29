@@ -33,6 +33,10 @@ public final class FeatureModuleManager {
         return preferences.getBoolean(KEY_SUBLIMINAL_ENABLED, false);
     }
 
+    public void setSubliminalEnabled(boolean enabled) {
+        preferences.edit().putBoolean(KEY_SUBLIMINAL_ENABLED, enabled).commit();
+    }
+
     public boolean hasRuntimeFeature() {
         return isCensorEnabled() || isLimitsEnabled() || isSubliminalEnabled();
     }

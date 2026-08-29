@@ -5,9 +5,12 @@ visual QA baseline for layout, hierarchy, color, clipping, and Dom/Sub visibilit
 
 ## Sub Space
 
-| Home | Atmosphere | Studio |
+| Home | Sub-safe settings | Arrangement library |
 |---|---|---|
-| ![Sub Space home](screenshots/ui-map/page-map/00-sub-home.png) | ![Sub Space Atmosphere](screenshots/ui-map/page-map/00b-sub-atmosphere.png) | ![Sub Space Studio](screenshots/ui-map/page-map/00c-sub-studio.png) |
+| ![Sub Space home](screenshots/ui-map/page-map/00-sub-home.png) | ![Sub Space settings](screenshots/ui-map/page-map/00b-sub-settings.png) | ![Sub Space arrangement library](screenshots/ui-map/page-map/00c-sub-arrangements.png) |
+
+Sub Space keeps only Home and Settings in the bottom navigation. Atmosphere appears as a compact,
+read-only Home card; its full editor and navigation destination are reserved for Dom Space.
 
 ## Dom Space: core navigation
 
@@ -37,13 +40,13 @@ visual QA baseline for layout, hierarchy, color, clipping, and Dom/Sub visibilit
 |---|---|---|
 | ![Custom images](screenshots/ui-map/page-map/11-custom-images.png) | ![Profiles](screenshots/ui-map/page-map/12-profiles.png) | ![Imported packs](screenshots/ui-map/page-map/13-configuration-packs.png) |
 
-## Atmosphere and Studio
+## Atmosphere and arrangements
 
 | Atmosphere hub | Whispers | Popup Storm |
 |---|---|---|
 | ![Atmosphere](screenshots/ui-map/page-map/14-atmosphere.png) | ![Whispers](screenshots/ui-map/page-map/15-whispers.png) | ![Popup Storm](screenshots/ui-map/page-map/16-popup-storm.png) |
 
-| Studio library | Studio drafts | Studio creator |
+| Arrangement library | Drafts | Creator |
 |---|---|---|
 | ![Studio library](screenshots/ui-map/page-map/17-studio-library.png) | ![Studio drafts](screenshots/ui-map/page-map/17b-studio-drafts.png) | ![Studio creator](screenshots/ui-map/page-map/17c-studio-create.png) |
 

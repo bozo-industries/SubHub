@@ -46,6 +46,7 @@
                     android:layout_weight="1"
                     android:orientation="vertical">
                     <TextView
+                        android:id="@+id/settings_subtitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:letterSpacing="0.1"
@@ -153,19 +154,6 @@
                     android:text="@string/global_feature_wallet" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:text="@string/global_feature_wallet_help" />
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/switch_module_subliminal"
-                    style="@style/Widget.SubHub.SettingsToggle"
-                    android:layout_width="match_parent"
-                    android:text="@string/global_feature_subliminal" />
-                <TextView style="@style/Widget.SubHub.FieldHelp"
-                    android:text="@string/global_feature_subliminal_help" />
-                <TextView
-                    android:id="@+id/button_subliminal_settings"
-                    style="@style/Widget.SubHub.OutlineAction"
-                    android:layout_height="42dp"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/subliminal_open_settings" />
             </LinearLayout>
 
             <TextView
@@ -308,16 +296,18 @@
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
-                <TextView style="@style/Widget.SubHub.SectionHeader"
+                <TextView
+                    android:id="@+id/app_settings_title"
+                    style="@style/Widget.SubHub.SectionHeader"
                     android:text="@string/global_app_settings_title" />
                 <GridLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="5dp"
-                    android:columnCount="2">
+                    android:columnCount="1">
                     <TextView android:id="@+id/button_profiles"
                         style="@style/Widget.SubHub.SettingsAction"
-                        android:text="@string/global_backup" />
+                        android:text="@string/global_arrangement_studio" />
                     <TextView android:id="@+id/button_diagnostics"
                         style="@style/Widget.SubHub.SettingsAction"
                         android:text="@string/global_diagnostics" />

@@ -62,6 +62,12 @@
                 android:orientation="vertical">
                 <Button android:id="@+id/button_import" style="@style/Widget.SubHub.PrimaryButton"
                     android:text="@string/studio_import" />
+                <Button android:id="@+id/button_saved_profiles"
+                    style="@style/Widget.SubHub.CompactOutlineButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/studio_saved_profiles" />
                 <TextView android:id="@+id/library_empty" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:layout_marginTop="12dp"
                     android:background="@drawable/bg_card" android:padding="16dp"

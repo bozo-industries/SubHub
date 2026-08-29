@@ -46,8 +46,8 @@ public final class PageMapScreenshotTest {
     @Test public void captureCorePages() throws Exception {
         prepareFixture(true);
         captureMain("00-sub-home", true);
-        captureInSpace("00b-sub-atmosphere", AtmosphereActivity.class, true);
-        captureInSpace("00c-sub-studio", StudioActivity.class, true);
+        captureInSpace("00b-sub-settings", GlobalSettingsActivity.class, true);
+        captureInSpace("00c-sub-arrangements", StudioActivity.class, true);
 
         ControllerPinManager.enterDomMode();
         captureMain("01-dom-home", false);

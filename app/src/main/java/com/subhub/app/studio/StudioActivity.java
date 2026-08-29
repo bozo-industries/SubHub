@@ -28,6 +28,7 @@ import com.subhub.app.pack.PackManager;
 import com.subhub.app.pack.SubHubPack;
 import com.subhub.app.pack.SubHubPackManager;
 import com.subhub.app.pack.SubHubPackSchema;
+import com.subhub.app.profiles.ProfilesActivity;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.util.SubHubNavigation;
 
@@ -75,13 +76,15 @@ public final class StudioActivity extends AppCompatActivity {
         binding = ActivityStudioBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         manager = new SubHubPackManager(this);
-        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.STUDIO);
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.SETTINGS);
         binding.studioMode.setText(ControllerPinManager.isDomModeActive()
                 ? R.string.studio_dom_space : R.string.studio_sub_space);
         setupTabs();
         setupEditor();
         binding.buttonImport.setOnClickListener(view -> importPicker.launch(
                 new String[]{"application/zip", "application/octet-stream", "*/*"}));
+        binding.buttonSavedProfiles.setOnClickListener(view ->
+                startActivity(new Intent(this, ProfilesActivity.class)));
         binding.buttonBlank.setOnClickListener(view -> openDraft(manager.createBlank()));
         binding.buttonCapture.setOnClickListener(view -> openDraft(manager.captureCurrent()));
         renderLibrary();
@@ -92,9 +95,10 @@ public final class StudioActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         if (binding != null) {
-            SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.STUDIO);
+            SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.SETTINGS);
             binding.studioMode.setText(ControllerPinManager.isDomModeActive()
                     ? R.string.studio_dom_space : R.string.studio_sub_space);
+            applySpaceVisibility();
         }
     }
 
@@ -106,6 +110,15 @@ public final class StudioActivity extends AppCompatActivity {
         });
         binding.tabCreate.setOnClickListener(view -> showPanel(binding.createPanel));
         updateTabSelection(binding.libraryPanel);
+        applySpaceVisibility();
+    }
+
+    private void applySpaceVisibility() {
+        boolean domSpace = ControllerPinManager.isDomModeActive();
+        binding.tabDrafts.setVisibility(domSpace ? View.VISIBLE : View.GONE);
+        binding.tabCreate.setVisibility(domSpace ? View.VISIBLE : View.GONE);
+        binding.buttonSavedProfiles.setVisibility(domSpace ? View.VISIBLE : View.GONE);
+        if (!domSpace) showPanel(binding.libraryPanel);
     }
 
     private void showPanel(View panel) {

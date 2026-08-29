@@ -31,6 +31,8 @@ public final class SubHubTestRunner extends AndroidJUnitRunner {
     }
 
     private static void authorize(android.content.Context context) {
-        ControllerPinManager.setPin(context, TEST_PIN);
+        if (!ControllerPinManager.isConfigured(context)) {
+            ControllerPinManager.setPin(context, TEST_PIN);
+        }
     }
 }

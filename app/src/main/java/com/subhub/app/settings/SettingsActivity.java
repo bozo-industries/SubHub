@@ -35,7 +35,6 @@ import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.pack.PackManager;
 import com.subhub.app.studio.StudioActivity;
-import com.subhub.app.popup.PopupStormActivity;
 import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.util.SubHubNavigation;
 
@@ -238,8 +237,6 @@ public final class SettingsActivity extends AppCompatActivity {
                 startActivity(new Intent(this, CustomImagesActivity.class)));
         binding.buttonPacks.setOnClickListener(view ->
                 startActivity(new Intent(this, StudioActivity.class)));
-        binding.buttonPopupStorm.setOnClickListener(view ->
-                startActivity(new Intent(this, PopupStormActivity.class)));
         binding.paletteColorOne.setOnClickListener(view -> pickEffectColor(1));
         binding.paletteColorTwo.setOnClickListener(view -> pickEffectColor(2));
         binding.paletteColorThree.setOnClickListener(view -> pickEffectColor(3));

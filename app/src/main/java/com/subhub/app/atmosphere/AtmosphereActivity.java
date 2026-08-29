@@ -1,9 +1,14 @@
 package com.subhub.app.atmosphere;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.subhub.app.R;
@@ -13,31 +18,47 @@ import com.subhub.app.popup.IntensityPresets;
 import com.subhub.app.popup.PopupStormActivity;
 import com.subhub.app.popup.PopupStormManager;
 import com.subhub.app.popup.PopupStormSettings;
+import com.subhub.app.pack.SubHubPackLocks;
+import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
+import com.subhub.app.service.ScreenCaptureService;
+import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.subhub.app.settings.FeatureModuleManager;
-import com.subhub.app.settings.GlobalSettingsActivity;
 import com.subhub.app.subliminal.SubliminalSettings;
 import com.subhub.app.subliminal.SubliminalSettingsActivity;
 import com.subhub.app.subliminal.SubliminalSettingsRepository;
+import com.subhub.app.util.SubHubNavigation;
 
 import java.util.Locale;
 
-/** Shared, discoverable home for optional scene effects without adding navigation tabs. */
+/** Focused editor for optional on-screen atmosphere effects. */
 public final class AtmosphereActivity extends AppCompatActivity {
     private ActivityAtmosphereBinding binding;
+    private boolean rendering;
+    private final ActivityResultLauncher<Intent> overlayPermission = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (Settings.canDrawOverlays(this)) completePopupEnable();
+                else render();
+            });
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = ActivityAtmosphereBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        binding.buttonBack.setOnClickListener(view -> finish());
+        if (SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.ATMOSPHERE)) return;
         binding.buttonEditLock.setOnClickListener(view -> toggleSpace());
         binding.whispersCard.setOnClickListener(view -> openWhispers());
         binding.buttonWhispers.setOnClickListener(view -> openWhispers());
         binding.popupStormCard.setOnClickListener(view -> openPopupStorm());
         binding.buttonPopupStorm.setOnClickListener(view -> openPopupStorm());
+        binding.switchWhispers.setOnCheckedChangeListener((button, checked) -> {
+            if (!rendering) setWhispersEnabled(checked);
+        });
+        binding.switchPopupStorm.setOnCheckedChangeListener((button, checked) -> {
+            if (!rendering) setPopupEnabled(checked);
+        });
     }
 
     @Override protected void onResume() {
@@ -47,19 +68,14 @@ public final class AtmosphereActivity extends AppCompatActivity {
 
     private void toggleSpace() {
         if (ControllerPinManager.isDomModeActive()) {
-            ControllerPinManager.enterSubMode();
-            render();
+            ControllerEditMode.enterSubMode(this);
         } else {
             ControllerPinGate.require(this, this::render, false);
         }
     }
 
     private void openWhispers() {
-        requireDom(() -> {
-            boolean enabled = new FeatureModuleManager(this).isSubliminalEnabled();
-            startActivity(new Intent(this, enabled
-                    ? SubliminalSettingsActivity.class : GlobalSettingsActivity.class));
-        });
+        requireDom(() -> startActivity(new Intent(this, SubliminalSettingsActivity.class)));
     }
 
     private void openPopupStorm() {
@@ -75,19 +91,95 @@ public final class AtmosphereActivity extends AppCompatActivity {
     }
 
     private void render() {
-        boolean dom = ControllerPinManager.isDomModeActive();
+        boolean dom = ControllerPinManager.isSessionUnlocked();
+        FeatureModuleManager modules = new FeatureModuleManager(this);
+        PopupStormSettings popup = PopupStormSettings.load(this);
+        rendering = true;
+        binding.switchWhispers.setChecked(modules.isSubliminalEnabled());
+        binding.switchPopupStorm.setChecked(popup.isEnabled());
+        rendering = false;
+        binding.switchWhispers.setEnabled(dom
+                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.MODULES));
+        binding.switchPopupStorm.setEnabled(dom
+                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.POPUP));
         ControllerEditMode.renderButton(this, binding.buttonEditLock);
         binding.atmosphereSubtitle.setText(dom
                 ? R.string.atmosphere_subtitle_dom : R.string.atmosphere_subtitle_sub);
         binding.buttonWhispers.setText(dom
-                ? (new FeatureModuleManager(this).isSubliminalEnabled()
-                        ? R.string.atmosphere_shape_whispers
-                        : R.string.atmosphere_enable_whispers)
+                ? R.string.atmosphere_shape_whispers
                 : R.string.atmosphere_unlock_to_edit);
         binding.buttonPopupStorm.setText(dom
                 ? R.string.atmosphere_open_popup_storm : R.string.atmosphere_unlock_to_edit);
         renderWhispers();
         renderPopupStorm();
+        SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.ATMOSPHERE);
+    }
+
+    private void setWhispersEnabled(boolean enabled) {
+        if (!ControllerPinManager.isSessionUnlocked()
+                || SubHubPackLocks.isLocked(this, SubHubPackSchema.MODULES)) {
+            render();
+            return;
+        }
+        FeatureModuleManager modules = new FeatureModuleManager(this);
+        modules.setSubliminalEnabled(enabled);
+        if (!modules.hasRuntimeFeature()) {
+            startService(ScreenCaptureService.stopIntent(this));
+            new AppModeManager(this).setArmed(false);
+        }
+        render();
+    }
+
+    private void setPopupEnabled(boolean enabled) {
+        if (!ControllerPinManager.isSessionUnlocked()
+                || SubHubPackLocks.isLocked(this, SubHubPackSchema.POPUP)) {
+            render();
+            return;
+        }
+        if (!enabled) {
+            PopupStormSettings.preferences(this).edit()
+                    .putBoolean(PopupStormSettings.K_ENABLED, false).apply();
+            PopupStormManager.get().stop();
+            PopupStormManager.get().reloadSettings(this);
+            render();
+            return;
+        }
+        if (!PopupStormSettings.preferences(this).getBoolean(PopupStormSettings.K_ACK, false)) {
+            rendering = true;
+            binding.switchPopupStorm.setChecked(false);
+            rendering = false;
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.popup_photosensitivity_title)
+                    .setMessage(R.string.popup_photosensitivity_body)
+                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> render())
+                    .setPositiveButton(R.string.popup_acknowledge, (dialog, which) -> {
+                        PopupStormSettings.preferences(this).edit()
+                                .putBoolean(PopupStormSettings.K_ACK, true).apply();
+                        requestPopupOverlayOrComplete();
+                    }).show();
+            return;
+        }
+        requestPopupOverlayOrComplete();
+    }
+
+    private void requestPopupOverlayOrComplete() {
+        if (!Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, R.string.popup_overlay_permission, Toast.LENGTH_LONG).show();
+            overlayPermission.launch(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())));
+        } else {
+            completePopupEnable();
+        }
+    }
+
+    private void completePopupEnable() {
+        PopupStormSettings.preferences(this).edit()
+                .putBoolean(PopupStormSettings.K_ENABLED, true).apply();
+        PopupStormManager.get().reloadSettings(this);
+        if (ScreenCaptureService.isRunning() || ScreenshotAccessibilityService.isRunning()) {
+            PopupStormManager.get().start(this);
+        }
+        render();
     }
 
     private void renderWhispers() {

@@ -73,18 +73,18 @@
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/nav_studio"
+        android:id="@+id/nav_atmosphere"
         style="@style/Widget.SubHub.BottomTab"
-        android:contentDescription="@string/nav_studio">
+        android:contentDescription="@string/nav_atmosphere">
         <ImageView
-            android:id="@+id/nav_studio_icon"
+            android:id="@+id/nav_atmosphere_icon"
             style="@style/Widget.SubHub.BottomTabIcon"
             android:contentDescription="@null"
-            android:src="@drawable/ic_nav_studio" />
+            android:src="@drawable/ic_atmosphere" />
         <TextView
-            android:id="@+id/nav_studio_label"
+            android:id="@+id/nav_atmosphere_label"
             style="@style/Widget.SubHub.BottomTabLabel"
-            android:text="@string/nav_studio" />
+            android:text="@string/nav_atmosphere" />
     </LinearLayout>
 
     <LinearLayout

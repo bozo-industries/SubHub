@@ -1029,11 +1029,9 @@
                 android:textStyle="bold" />
 
             <GridLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="6dp" android:columnCount="2">
+                android:layout_marginTop="6dp" android:columnCount="1">
                 <TextView android:id="@+id/button_packs" style="@style/Widget.SubHub.SettingsAction"
                     android:text="@string/manage_packs" />
-                <TextView android:id="@+id/button_popup_storm" style="@style/Widget.SubHub.SettingsAction"
-                    android:text="@string/manage_popup_storm" />
             </GridLayout>
 
             <TextView

@@ -31,7 +31,7 @@ public final class ControllerEditSessionTest {
         ControllerPinManager.enterDomMode();
     }
 
-    @Test public void subSpaceShowsHomeAndStudioButHidesConfigurationNavigation() {
+    @Test public void subSpaceShowsHomeAndSettingsButHidesConfigurationNavigation() {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
                 activity.findViewById(R.id.button_edit_lock).performClick();
@@ -44,8 +44,6 @@ public final class ControllerEditSessionTest {
                         activity.findViewById(R.id.bottom_navigation).getVisibility());
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.nav_home).getVisibility());
-                assertEquals(View.VISIBLE,
-                        activity.findViewById(R.id.nav_studio).getVisibility());
                 assertEquals(View.GONE,
                         activity.findViewById(R.id.nav_censor).getVisibility());
                 assertEquals(View.GONE,
@@ -53,7 +51,11 @@ public final class ControllerEditSessionTest {
                 assertEquals(View.GONE,
                         activity.findViewById(R.id.nav_money).getVisibility());
                 assertEquals(View.GONE,
+                        activity.findViewById(R.id.nav_atmosphere).getVisibility());
+                assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.nav_settings).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.sub_atmosphere_card).getVisibility());
                 assertFalse(activity.findViewById(R.id.button_censor_settings).isShown());
                 assertTrue(activity.findViewById(R.id.button_protection).isEnabled());
                 assertEquals(View.VISIBLE,

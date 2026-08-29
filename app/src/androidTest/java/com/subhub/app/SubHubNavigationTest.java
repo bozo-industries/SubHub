@@ -26,6 +26,7 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 import androidx.test.runner.lifecycle.Stage;
 
 import com.subhub.app.appmode.AppModeActivity;
+import com.subhub.app.atmosphere.AtmosphereActivity;
 import com.subhub.app.penance.PenanceActivity;
 import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.settings.FeatureModuleManager;
@@ -33,7 +34,6 @@ import com.subhub.app.settings.GlobalSettingsActivity;
 import com.subhub.app.settings.SettingsActivity;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.HardcoreModeManager;
-import com.subhub.app.studio.StudioActivity;
 import com.subhub.app.util.SubHubNavigation;
 
 import org.junit.Before;
@@ -65,7 +65,8 @@ public final class SubHubNavigationTest {
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_home).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_limits).getVisibility());
                 assertEquals(View.GONE, activity.findViewById(R.id.nav_money).getVisibility());
-                assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_studio).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.nav_atmosphere).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_settings).getVisibility());
             });
         } finally {
@@ -73,7 +74,7 @@ public final class SubHubNavigationTest {
         }
     }
 
-    @Test public void subSpaceKeepsOnlyHomeAndStudio() {
+    @Test public void subSpaceKeepsHomeAndSettings() {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
                 ControllerPinManager.enterSubMode();
@@ -81,11 +82,36 @@ public final class SubHubNavigationTest {
                         SubHubNavigation.Screen.HOME);
                 assertFalse(ControllerPinManager.isDomModeActive());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_home).getVisibility());
-                assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_studio).getVisibility());
                 assertEquals(View.GONE, activity.findViewById(R.id.nav_censor).getVisibility());
                 assertEquals(View.GONE, activity.findViewById(R.id.nav_limits).getVisibility());
                 assertEquals(View.GONE, activity.findViewById(R.id.nav_money).getVisibility());
-                assertEquals(View.GONE, activity.findViewById(R.id.nav_settings).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.nav_atmosphere).getVisibility());
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.nav_settings).getVisibility());
+            });
+        } finally {
+            ControllerPinManager.enterDomMode();
+        }
+    }
+
+    @Test public void subSettingsRemoveDomOnlySectionsInsteadOfDisablingThem() {
+        ControllerPinManager.enterSubMode();
+        try (ActivityScenario<GlobalSettingsActivity> scenario =
+                     ActivityScenario.launch(GlobalSettingsActivity.class)) {
+            scenario.onActivity(activity -> {
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.settings_group_protection).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.settings_group_coverage).getVisibility());
+                assertEquals(View.GONE, activity.findViewById(R.id.paypal_card).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.settings_group_services).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.app_settings_card).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.button_profiles).getVisibility());
+                assertEquals(View.GONE,
+                        activity.findViewById(R.id.button_diagnostics).getVisibility());
             });
         } finally {
             ControllerPinManager.enterDomMode();
@@ -122,11 +148,11 @@ public final class SubHubNavigationTest {
         onView(withId(R.id.nav_money)).perform(click());
         assertDestination(PenanceActivity.class, R.id.nav_money, R.id.nav_limits);
 
-        onView(withId(R.id.nav_studio)).perform(click());
-        assertDestination(StudioActivity.class, R.id.nav_studio, R.id.nav_money);
+        onView(withId(R.id.nav_atmosphere)).perform(click());
+        assertDestination(AtmosphereActivity.class, R.id.nav_atmosphere, R.id.nav_money);
 
         onView(withId(R.id.nav_settings)).perform(click());
-        assertDestination(GlobalSettingsActivity.class, R.id.nav_settings, R.id.nav_studio);
+        assertDestination(GlobalSettingsActivity.class, R.id.nav_settings, R.id.nav_atmosphere);
 
         onView(withId(R.id.nav_home)).perform(click());
         assertDestination(MainActivity.class, R.id.nav_home, R.id.nav_settings);
@@ -144,11 +170,11 @@ public final class SubHubNavigationTest {
         assertTrue(!(selected.getBackground() instanceof ColorDrawable));
         assertTrue(unselected.getBackground() instanceof ColorDrawable);
         int[] tabs = {R.id.nav_home, R.id.nav_censor, R.id.nav_limits,
-                R.id.nav_money, R.id.nav_studio, R.id.nav_settings};
+                R.id.nav_money, R.id.nav_atmosphere, R.id.nav_settings};
         int[] icons = {R.id.nav_home_icon, R.id.nav_censor_icon, R.id.nav_limits_icon,
-                R.id.nav_money_icon, R.id.nav_studio_icon, R.id.nav_settings_icon};
+                R.id.nav_money_icon, R.id.nav_atmosphere_icon, R.id.nav_settings_icon};
         int[] labels = {R.id.nav_home_label, R.id.nav_censor_label, R.id.nav_limits_label,
-                R.id.nav_money_label, R.id.nav_studio_label, R.id.nav_settings_label};
+                R.id.nav_money_label, R.id.nav_atmosphere_label, R.id.nav_settings_label};
         for (int index = 0; index < tabs.length; index++) {
             LinearLayout tab = activity.findViewById(tabs[index]);
             ImageView icon = activity.findViewById(icons[index]);

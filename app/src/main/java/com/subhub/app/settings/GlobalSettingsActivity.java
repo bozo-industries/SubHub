@@ -35,7 +35,7 @@ import com.subhub.app.penance.HardcoreAutoPayManager;
 import com.subhub.app.penance.PayPalCredentialStore;
 import com.subhub.app.penance.PayPalEnvironment;
 import com.subhub.app.penance.PayPalOrdersClient;
-import com.subhub.app.profiles.ProfilesActivity;
+import com.subhub.app.studio.StudioActivity;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
@@ -46,7 +46,6 @@ import com.subhub.app.security.HardcoreReadinessNotificationManager;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.subhub.app.util.SubHubNavigation;
-import com.subhub.app.subliminal.SubliminalSettingsActivity;
 
 import java.text.Collator;
 import java.net.URI;
@@ -121,7 +120,6 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.switchModuleCensor.setChecked(modules.isCensorEnabled());
         binding.switchModuleLimits.setChecked(modules.isLimitsEnabled());
         binding.switchModuleWallet.setChecked(modules.isWalletEnabled());
-        binding.switchModuleSubliminal.setChecked(modules.isSubliminalEnabled());
         binding.armed.setChecked(appMode.isArmed());
         binding.modeGroup.check(appMode.getMode() == AppModePolicy.Mode.SELECTED_APPS
                 ? R.id.mode_selected : R.id.mode_always);
@@ -134,16 +132,13 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         updatingPaypalEnvironment = false;
         binding.buttonEditLock.setOnClickListener(view -> toggleEditSession());
         binding.buttonProfiles.setOnClickListener(view ->
-                startActivity(new Intent(this, ProfilesActivity.class)));
+                startActivity(new Intent(this, StudioActivity.class)));
         binding.buttonDiagnostics.setOnClickListener(view ->
                 startActivity(new Intent(this, DiagnosticsActivity.class)));
         binding.buttonCommitment.setVisibility(View.GONE);
         binding.switchModuleCensor.setOnCheckedChangeListener((button, checked) -> saveModules());
         binding.switchModuleLimits.setOnCheckedChangeListener((button, checked) -> saveModules());
         binding.switchModuleWallet.setOnCheckedChangeListener((button, checked) -> saveModules());
-        binding.switchModuleSubliminal.setOnCheckedChangeListener((button, checked) -> saveModules());
-        binding.buttonSubliminalSettings.setOnClickListener(view ->
-                startActivity(new Intent(this, SubliminalSettingsActivity.class)));
         binding.switchHardcoreMode.setOnCheckedChangeListener((button, checked) -> {
             if (!updatingHardcore) changeHardcoreMode(checked);
         });
@@ -234,22 +229,22 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
 
     private void toggleEditSession() {
         if (ControllerPinManager.isSessionUnlocked()) {
-            ControllerEditMode.enterSubMode(this);
+            ControllerPinManager.enterSubMode();
+            applyEditState();
+            SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.SETTINGS);
         } else ControllerPinGate.require(this, this::applyEditState, false);
     }
 
     private void applyEditState() {
         if (binding == null) return;
         editingUnlocked = ControllerPinManager.isSessionUnlocked();
+        applySpaceVisibility();
         ControllerEditMode.renderButton(this, binding.buttonEditLock);
         boolean modulesEditable = editingUnlocked
                 && !SubHubPackLocks.isLocked(this, SubHubPackSchema.MODULES);
         binding.switchModuleCensor.setEnabled(modulesEditable);
         binding.switchModuleLimits.setEnabled(modulesEditable);
         binding.switchModuleWallet.setEnabled(modulesEditable);
-        binding.switchModuleSubliminal.setEnabled(modulesEditable);
-        binding.buttonSubliminalSettings.setEnabled(editingUnlocked
-                && binding.switchModuleSubliminal.isChecked());
         binding.switchHardcoreMode.setEnabled(editingUnlocked);
         binding.buttonHardcoreSystem.setEnabled(editingUnlocked);
         binding.buttonHardcoreRestricted.setEnabled(editingUnlocked);
@@ -274,6 +269,27 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         refreshHardcoreState();
         refreshAccessState();
         refreshPayPalSandboxState();
+    }
+
+    private void applySpaceVisibility() {
+        boolean domSpace = ControllerPinManager.isDomModeActive();
+        int domVisibility = domSpace ? View.VISIBLE : View.GONE;
+        binding.settingsGroupProtection.setVisibility(domVisibility);
+        binding.hardcoreCard.setVisibility(domVisibility);
+        binding.featureAreasCard.setVisibility(domVisibility);
+        binding.settingsGroupCoverage.setVisibility(domVisibility);
+        binding.androidAccessCard.setVisibility(domVisibility);
+        binding.recognitionCard.setVisibility(domVisibility);
+        binding.appListCard.setVisibility(domVisibility);
+        binding.paypalCard.setVisibility(domVisibility);
+        binding.buttonDiagnostics.setVisibility(domVisibility);
+        binding.buttonCommitment.setVisibility(View.GONE);
+        binding.settingsGroupServices.setVisibility(View.VISIBLE);
+        binding.appSettingsCard.setVisibility(View.VISIBLE);
+        binding.buttonProfiles.setVisibility(View.VISIBLE);
+        binding.settingsSubtitle.setText(domSpace
+                ? R.string.global_settings_subtitle
+                : R.string.global_settings_subtitle_sub);
     }
 
     private void saveRecognition() {
@@ -730,10 +746,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private void saveModules() {
         if (!ControllerPinManager.isSessionUnlocked()) return;
         boolean censor = binding.switchModuleCensor.isChecked();
-        boolean subliminal = binding.switchModuleSubliminal.isChecked();
         modules.save(censor, binding.switchModuleLimits.isChecked(),
-                binding.switchModuleWallet.isChecked(), subliminal);
-        binding.buttonSubliminalSettings.setEnabled(editingUnlocked && subliminal);
+                binding.switchModuleWallet.isChecked());
         if (!modules.hasRuntimeFeature()) {
             startService(ScreenCaptureService.stopIntent(this));
             new AppModeManager(this).setArmed(false);
