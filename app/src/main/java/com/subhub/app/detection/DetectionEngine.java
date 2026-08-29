@@ -36,6 +36,7 @@ public final class DetectionEngine implements AutoCloseable {
     private final Context context;
     private final OrtEnvironment environment;
     private final DetectionPostProcessor postProcessor = new DetectionPostProcessor();
+    private final InferencePerformanceHints performanceHints;
     private DetectorConfig config;
     private OrtSession session;
     private String inputName = "images";
@@ -56,6 +57,7 @@ public final class DetectionEngine implements AutoCloseable {
         this.context = context.getApplicationContext();
         this.config = config;
         this.environment = OrtEnvironment.getEnvironment();
+        performanceHints = new InferencePerformanceHints(this.context);
         allocateBuffers(config.getInferenceResolution());
     }
 
@@ -116,6 +118,7 @@ public final class DetectionEngine implements AutoCloseable {
         sourceWidth = Math.max(1, sourceWidth);
         sourceHeight = Math.max(1, sourceHeight);
         long started = SystemClock.elapsedRealtimeNanos();
+        performanceHints.begin(config.getDetectionIntervalMs());
         int size = config.getInferenceResolution();
         float scale = (float) size / Math.max(sourceWidth, sourceHeight);
         letterbox.eraseColor(Color.BLACK);
@@ -174,6 +177,7 @@ public final class DetectionEngine implements AutoCloseable {
             lastRuntimeMs = nanosToMillis(runtimeFinished - runtimeStarted);
             lastPostprocessMs = nanosToMillis(finished - runtimeFinished);
             lastInferenceMs = nanosToMillis(finished - started);
+            performanceHints.report(finished - started);
             return detections;
         }
     }
@@ -339,6 +343,7 @@ public final class DetectionEngine implements AutoCloseable {
 
     @Override
     public synchronized void close() {
+        performanceHints.close();
         closeSession();
         directInput = null;
         if (letterbox != null) letterbox.recycle();

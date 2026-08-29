@@ -2,7 +2,7 @@
 
 ## Objective
 
-Recreate the licensed Beta Blocker Android 1.67 behavior as a normal, human-editable Android project that compiles and can be tested independently. Raw APK, JADX, smali, model, native binaries, and vendor art stay in the adjacent private workspace.
+Use Beta Blocker Android 1.67 as a feature source while building a normal, human-editable Android project that compiles and can be tested independently. Raw APK, JADX, smali, model, native binaries, and vendor art stay in the adjacent private workspace.
 
 ## Recovered build facts
 

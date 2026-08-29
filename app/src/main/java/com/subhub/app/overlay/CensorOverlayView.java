@@ -1,5 +1,6 @@
 package com.subhub.app.overlay;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -273,7 +274,7 @@ final class CensorOverlayView extends View {
     }
 
     private void drawNormal(Canvas canvas) {
-        if (canUseSolidRenderLayers(canvas)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canUseSolidRenderLayers(canvas)) {
             drawSolidRenderLayers(canvas);
             return;
         }
@@ -304,6 +305,7 @@ final class CensorOverlayView extends View {
      * Records each ordinary solid censor once and lets the hardware compositor translate it on
      * every vsync. Geometry motion no longer replays paint, border, and label commands.
      */
+    @SuppressLint("NewApi") // Called only behind the API 29 guard in drawNormal.
     private void drawSolidRenderLayers(Canvas canvas) {
         float scaleX = (float) getWidth() / captureWidth;
         float scaleY = (float) getHeight() / captureHeight;
@@ -329,6 +331,7 @@ final class CensorOverlayView extends View {
         }
     }
 
+    @SuppressLint("NewApi") // Called only from the guarded RenderNode path.
     private SolidRenderLayer recordSolidLayer(int stableId, int width, int height, String phrase) {
         RenderNode node = new RenderNode("censor-" + stableId);
         node.setPosition(0, 0, width, height);
@@ -344,8 +347,7 @@ final class CensorOverlayView extends View {
     }
 
     private boolean canUseSolidRenderLayers(Canvas canvas) {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                && canvas.isHardwareAccelerated()
+        return canvas.isHardwareAccelerated()
                 && !appearance.isReverseMode()
                 && appearance.getType() == CensorAppearance.Type.BOX
                 && !appearance.isAnimateBorder();

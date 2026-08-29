@@ -2,7 +2,7 @@ package com.subhub.app.detection;
 
 import java.util.Locale;
 
-/** Recovered Beta Blocker 1.67 quality/performance presets. */
+/** Feature-source-compatible quality/performance presets, extended by SubHub's live pipeline. */
 public enum DetectionPreset {
     LOW("Low", "Battery saver", 0.38f, 150, 28, 0.35f, 320, 15, 0.80f, 0.60f,
             200f, 1, 384, 4),

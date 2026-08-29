@@ -1,4 +1,4 @@
-# Beta Blocker 1.67 feature parity matrix
+# Beta Blocker 1.67 feature-source comparison
 
 This matrix separates behavior recovered from the user-owned APK from the maintained SubHub implementation. Decompiled output and licensed binary assets remain in `C:\Users\user\Code\SubHub-private`; tracked source is independently written and human-editable.
 

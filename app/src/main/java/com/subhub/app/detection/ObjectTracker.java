@@ -29,7 +29,8 @@ public final class ObjectTracker {
         return update(detections, System.nanoTime());
     }
 
-    synchronized List<TrackedObject> update(List<Detection> detections, long nowNanos) {
+    /** Deterministic-time entry point used by capture timestamps and replay verification. */
+    public synchronized List<TrackedObject> update(List<Detection> detections, long nowNanos) {
         List<MatchCandidate> candidates = new ArrayList<>();
         for (int detectionIndex = 0; detectionIndex < detections.size(); detectionIndex++) {
             Detection detection = detections.get(detectionIndex);

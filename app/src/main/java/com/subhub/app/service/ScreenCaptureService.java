@@ -77,6 +77,7 @@ public final class ScreenCaptureService extends Service {
     private ScheduledExecutorService executor;
     private ExecutorService inferenceExecutor;
     private LatestFrameBroker<ProjectionFrame> frameBroker;
+    private CaptureLoadGovernor loadGovernor;
     private MediaProjection projection;
     private ScreenCaptureManager capture;
     private DetectionEngine detector;
@@ -110,6 +111,7 @@ public final class ScreenCaptureService extends Service {
         createNotificationChannel();
         executor = Executors.newSingleThreadScheduledExecutor();
         inferenceExecutor = Executors.newSingleThreadExecutor();
+        loadGovernor = new CaptureLoadGovernor(this);
         settings = new SettingsRepository(this);
         stats = new StatsRepository(this);
         penance = new PenanceManager(this);
@@ -195,7 +197,7 @@ public final class ScreenCaptureService extends Service {
             executor.scheduleWithFixedDelay(
                     this::captureLatestFrame,
                     0,
-                    Math.max(16, config.getDetectionIntervalMs()),
+                    16,
                     TimeUnit.MILLISECONDS);
         } catch (Exception error) {
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
@@ -219,6 +221,10 @@ public final class ScreenCaptureService extends Service {
 
     private void captureLatestFrame() {
         if (!running || capture == null) return;
+        DetectorConfig currentConfig = detectorConfig;
+        if (loadGovernor != null && !loadGovernor.shouldCapture(
+                SystemClock.uptimeMillis(),
+                currentConfig == null ? 0L : currentConfig.getDetectionIntervalMs())) return;
         try {
             Bitmap frame = capture.acquireLatestFrame();
             LatestFrameBroker<ProjectionFrame> broker = frameBroker;
@@ -375,6 +381,8 @@ public final class ScreenCaptureService extends Service {
             }
         }
         if (capture != null) capture.close();
+        if (loadGovernor != null) loadGovernor.close();
+        loadGovernor = null;
         if (detector != null) detector.close();
         dwellTracker.clear();
         tapTracker.clear();

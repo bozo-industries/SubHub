@@ -5,7 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 
-/** Immutable aggregate matching the recovered Beta Blocker statistics schema. */
+/** Immutable aggregate compatible with the Android feature-source statistics schema. */
 public final class StatsSnapshot {
     private final long totalBlocks;
     private final long totalSessionSeconds;
