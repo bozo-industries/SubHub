@@ -122,7 +122,7 @@
     <string name="border_color_help">Used by the classic, glow, and gradient borders.</string>
     <string name="color_hex_label">Hex Color</string>
     <string name="color_picker_presets">Presets</string>
-    <string name="color_invalid">Enter a color such as #000000 or #FF0080.</string>
+    <string name="color_invalid">Enter a color such as #000000 or #9860BE.</string>
     <string name="intensity">Intensity</string>
     <string name="censor_padding">Extra Coverage</string>
     <string name="show_border">Show border</string>
@@ -592,7 +592,7 @@ Maximum coverage · flagship devices</string>
     <string name="help_body_hardcore">Hardcore Mode is optional platform-supported friction. It asks for Device Admin, adds a deliberate Dom release before protected uninstall/data-clear paths, and can guard Android settings while service is active. It does not wipe data, set passwords, use the camera, force-lock the device, or make Android unbreakable. Confirm the Dom PIN and recovery path before handing over control.</string>
     <string name="help_body_troubleshooting">If censors do not appear, open Permission Check and fix the next missing permission. Confirm the target app is assigned and the relevant module is enabled. If App Mode stalls, toggle SubHub off and on in Android Accessibility, then restart protection. Android secure windows may block capture. Diagnostics shows service state, detector, frame rate, latency, and recent errors. For PayPal, confirm the selected environment matches the app credentials and that the saved-wallet status is Ready.</string>
     <string name="help_body_privacy">Image and text detection run on this device. Screen snapshots are processed in memory and are not saved. App assignments, rules, statistics, profiles, packs, diagnostics, and Wallet history stay local unless you explicitly export them. PayPal credentials and saved-wallet IDs are encrypted with Android Keystore; OAuth, checkout, wallet authorization, and fraud-risk data go directly to PayPal.</string>
-    <string name="help_body_studio">Studio creates portable .subhubpack arrangements for SubHub’s client-side features. Start blank, capture the current setup, add feature sections and private image assets, then keep a draft, add it to the Library, or share it through Android. Imported arrangements are checked before they enter the Library. Dom Space reviews every changed section before activation and can optionally lock included feature groups until the arrangement is deactivated. Sub Space can create, import, export, duplicate, and share arrangements, but cannot activate or replace one. Security and service-duration choices are recommendations only: an arrangement never enables Android access, starts service, changes the controller PIN, imports app assignments, or carries PayPal credentials. Legacy .bbpack files remain import-only and appear in Studio beside native arrangements.</string>
+    <string name="help_body_studio">Studio creates portable .subhubpack arrangements for SubHub’s client-side features. Start blank, capture the current setup, add feature sections and private image assets, then keep a draft, add it to the Library, or share it through Android. Imported arrangements are checked before they enter the Library. Dom Space reviews every changed section before activation and can optionally lock included feature groups until the arrangement is deactivated. Sub Space can create, import, export, duplicate, and share arrangements. It may also apply an active arrangement update when the pack identity, creator device, name, and author still match; different or renamed arrangements still require Dom Space. Security and service-duration choices are recommendations only: an arrangement never enables Android access, starts service, changes the controller PIN, imports app assignments, or carries PayPal credentials. Legacy .bbpack files remain import-only and appear in Studio beside native arrangements.</string>
     <string name="help_body_updates">Open Manage Updates below to check SubHub’s public GitHub releases. SubHub selects the smaller APK for this device, verifies its hash, package, version, and signing certificate, then hands it to Android for final approval. Automatic checks include stable and preview builds; downloads never start without your tap.</string>
     <string name="onboarding_title">Welcome to SubHub</string>
     <string name="onboarding_body">Build the rules in Dom mode. Live by them in Sub mode.</string>
@@ -995,6 +995,27 @@ Maximum coverage · flagship devices</string>
     <string name="sub_subliminal_idle">The whispers begin when you enter service.</string>
     <string name="sub_subliminal_setup">Accessibility is needed before the whispers can follow.</string>
     <string name="sub_subliminal_summary">%1$s voice · %2$d assigned app(s) · %3$d this session</string>
+    <string name="atmosphere_title">Atmosphere</string>
+    <string name="atmosphere_home_summary">Whispers %1$s · Popup Storm %2$s</string>
+    <string name="atmosphere_home_hint">Faint messages and visual disruption</string>
+    <string name="atmosphere_subtitle_dom">Dom Space · shape the effects surrounding service</string>
+    <string name="atmosphere_subtitle_sub">Sub Space · see the effects surrounding your service</string>
+    <string name="atmosphere_whispers_title">Whispers</string>
+    <string name="atmosphere_shape_whispers">Shape Whispers</string>
+    <string name="atmosphere_enable_whispers">Enable Whispers in Settings</string>
+    <string name="atmosphere_open_popup_storm">Open Popup Storm</string>
+    <string name="atmosphere_unlock_to_edit">Unlock to Edit</string>
+    <string name="atmosphere_state_on">on</string>
+    <string name="atmosphere_state_off">off</string>
+    <string name="atmosphere_state_active">Active in service</string>
+    <string name="atmosphere_state_ready">Ready for service</string>
+    <string name="atmosphere_state_setup">Needs setup</string>
+    <string name="atmosphere_state_disabled">Not enabled</string>
+    <string name="atmosphere_whispers_summary">%1$s voice · %2$d assigned app(s)</string>
+    <plurals name="atmosphere_popup_summary">
+        <item quantity="one">%1$s intensity · %2$d image source</item>
+        <item quantity="other">%1$s intensity · %2$d image sources</item>
+    </plurals>
     <string name="subliminal_pack_summary_obedience">Obedience</string>
     <string name="subliminal_pack_summary_focus">Focus</string>
     <string name="subliminal_pack_summary_beta">Beta</string>
@@ -1100,6 +1121,7 @@ Maximum coverage · flagship devices</string>
     <string name="studio_applied">Arrangement applied. Existing values were backed up.</string>
     <string name="studio_apply_failed">The arrangement could not be applied. Previous values were restored.</string>
     <string name="studio_imported">Imported %1$s.</string>
+    <string name="studio_active_update_imported">Updated active arrangement %1$s.</string>
     <string name="studio_legacy_imported">Imported legacy .bbpack %1$s.</string>
     <string name="studio_import_failed">Arrangement rejected: %1$s</string>
     <string name="studio_draft_saved">Draft autosaved</string>

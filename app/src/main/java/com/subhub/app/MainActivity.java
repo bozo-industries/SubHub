@@ -30,6 +30,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import com.subhub.app.databinding.ActivityMainBinding;
+import com.subhub.app.atmosphere.AtmosphereActivity;
 import com.subhub.app.appmode.AppModeActivity;
 import com.subhub.app.capture.ExportActivity;
 import com.subhub.app.commitment.CommitmentActivity;
@@ -40,6 +41,7 @@ import com.subhub.app.penance.PenanceManager;
 import com.subhub.app.penance.PaidPauseManager;
 import com.subhub.app.penance.PenanceSnapshot;
 import com.subhub.app.penance.TamperTributeReporter;
+import com.subhub.app.popup.PopupStormSettings;
 import com.subhub.app.permissions.HomePermissionPolicy;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
@@ -88,6 +90,8 @@ import java.util.Set;
 
 /** Main source UI and explicit permission flow for starting on-device protection. */
 public final class MainActivity extends AppCompatActivity {
+    public static final String EXTRA_SUPPRESS_PERMISSION_READINESS =
+            "com.subhub.app.extra.SUPPRESS_PERMISSION_READINESS";
     private static final long PACT_UNTIL_RELEASED = -1L;
     private ActivityMainBinding binding;
     private TextView editLockButton;
@@ -214,8 +218,8 @@ public final class MainActivity extends AppCompatActivity {
                 R.string.sub_limits_title, limitsArrangementDetails()));
         binding.subWalletCard.setOnClickListener(view -> showArrangementDetails(
                 R.string.sub_wallet_title, walletArrangementDetails()));
-        binding.subSubliminalCard.setOnClickListener(view -> showArrangementDetails(
-                R.string.sub_subliminal_title, subliminalArrangementDetails()));
+        binding.homeAtmosphereCard.setOnClickListener(view ->
+                startActivity(new Intent(this, AtmosphereActivity.class)));
         boolean seen = getSharedPreferences(SettingsRepository.PREFERENCES_NAME, MODE_PRIVATE)
                 .getBoolean("has_seen_onboarding", false);
         binding.onboardingCard.setVisibility(seen ? View.GONE : View.VISIBLE);
@@ -224,7 +228,10 @@ public final class MainActivity extends AppCompatActivity {
             boolean shortcutStartsProtection = getIntent() != null
                     && AppShortcuts.ACTION_START_PROTECTION.equals(getIntent().getAction());
             handleShortcutIntent(getIntent());
-            if (!shortcutStartsProtection) {
+            boolean suppressPermissionReadiness = BuildConfig.DEBUG
+                    && getIntent() != null
+                    && getIntent().getBooleanExtra(EXTRA_SUPPRESS_PERMISSION_READINESS, false);
+            if (!shortcutStartsProtection && !suppressPermissionReadiness) {
                 binding.getRoot().postDelayed(
                         () -> beginPermissionReadinessFlow(false), 350L);
             }
@@ -530,7 +537,10 @@ public final class MainActivity extends AppCompatActivity {
                 ? R.string.header_subtitle_dom : R.string.header_subtitle_sub);
         binding.domContent.setVisibility(View.GONE);
         binding.subDashboard.setVisibility(View.VISIBLE);
-        int bottom = dp(domMode ? 116 : 26);
+        // Both spaces use the floating bottom navigation. Keep the final home
+        // content fully reachable above it instead of letting Sub Space cards
+        // disappear underneath the pill.
+        int bottom = dp(116);
         binding.pageContent.setPaddingRelative(binding.pageContent.getPaddingStart(),
                 binding.pageContent.getPaddingTop(), binding.pageContent.getPaddingEnd(), bottom);
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.HOME);
@@ -549,7 +559,8 @@ public final class MainActivity extends AppCompatActivity {
         binding.subCensorCard.setVisibility(censorEnabled ? View.VISIBLE : View.GONE);
         binding.subLimitsCard.setVisibility(limitsEnabled ? View.VISIBLE : View.GONE);
         binding.subWalletCard.setVisibility(walletEnabled ? View.VISIBLE : View.GONE);
-        binding.subSubliminalCard.setVisibility(subliminalEnabled ? View.VISIBLE : View.GONE);
+        boolean atmosphereVisible = censorEnabled || subliminalEnabled;
+        binding.homeAtmosphereCard.setVisibility(atmosphereVisible ? View.VISIBLE : View.GONE);
         binding.subModulesEmpty.setVisibility(!censorEnabled && !limitsEnabled && !walletEnabled
                 && !subliminalEnabled
                 ? View.VISIBLE : View.GONE);
@@ -647,19 +658,16 @@ public final class MainActivity extends AppCompatActivity {
                             PenanceManager.formatMoney(paidPause.getPriceCents())));
         }
 
-        if (subliminalEnabled) {
-            AppModeManager appMode = new AppModeManager(this);
-            SubliminalSettings subliminal = new SubliminalSettingsRepository(this).load();
-            int stateText = !appMode.isAccessibilityEnabled()
-                    ? R.string.sub_subliminal_setup
-                    : appMode.isEffectivelyArmed(now)
-                    ? R.string.sub_subliminal_active : R.string.sub_subliminal_idle;
-            binding.subSubliminalVoice.setText(stateText);
-            StatsSnapshot stats = new StatsRepository(this).load();
-            binding.subSubliminalSummary.setText(getString(R.string.sub_subliminal_summary,
-                    friendlySubliminalVoice(subliminal), appMode.getSubliminalPackages().size(),
-                    stats.getCurrentSessionSubliminals()));
+        if (atmosphereVisible) {
+            boolean stormEnabled = PopupStormSettings.load(this).isEnabled();
+            binding.homeAtmosphereStatus.setText(getString(R.string.atmosphere_home_summary,
+                    getString(subliminalEnabled
+                            ? R.string.atmosphere_state_on : R.string.atmosphere_state_off),
+                    getString(stormEnabled
+                            ? R.string.atmosphere_state_on : R.string.atmosphere_state_off)));
+            binding.homeAtmosphereSummary.setText(R.string.atmosphere_home_hint);
         }
+
     }
 
     private void beginPaidPause() {

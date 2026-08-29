@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.nio.charset.StandardCharsets;
 
 /** In-memory representation of the portable, account-free SubHub pack format. */
 public final class SubHubPack {
@@ -19,6 +20,7 @@ public final class SubHubPack {
     public static final int SCHEMA_VERSION = 1;
 
     private final String id;
+    private final String originDeviceId;
     private String name;
     private String author;
     private String description;
@@ -35,7 +37,16 @@ public final class SubHubPack {
             String packVersion, long createdAt, long updatedAt, String minimumSubHubVersion,
             Map<String, JSONObject> sections, Set<String> lockGroups,
             JSONObject recommendations, Map<String, byte[]> assets) {
+        this(id, legacyOriginId(id), name, author, description, packVersion, createdAt, updatedAt,
+                minimumSubHubVersion, sections, lockGroups, recommendations, assets);
+    }
+
+    public SubHubPack(String id, String originDeviceId, String name, String author,
+            String description, String packVersion, long createdAt, long updatedAt,
+            String minimumSubHubVersion, Map<String, JSONObject> sections,
+            Set<String> lockGroups, JSONObject recommendations, Map<String, byte[]> assets) {
         this.id = cleanId(id);
+        this.originDeviceId = cleanId(originDeviceId);
         this.name = clean(name, "Untitled arrangement", 80);
         this.author = clean(author, "", 80);
         this.description = clean(description, "", 500);
@@ -63,19 +74,25 @@ public final class SubHubPack {
     }
 
     public static SubHubPack blank() {
+        return blank(UUID.randomUUID().toString());
+    }
+
+    public static SubHubPack blank(String originDeviceId) {
         long now = System.currentTimeMillis();
-        return new SubHubPack(UUID.randomUUID().toString(), "Untitled arrangement", "", "",
-                "1.0.0", now, now, "0.6.0", Map.of(), Set.of(), new JSONObject(), Map.of());
+        return new SubHubPack(UUID.randomUUID().toString(), originDeviceId,
+                "Untitled arrangement", "", "", "1.0.0", now, now, "0.6.0",
+                Map.of(), Set.of(), new JSONObject(), Map.of());
     }
 
     public SubHubPack duplicate() {
         long now = System.currentTimeMillis();
-        return new SubHubPack(UUID.randomUUID().toString(), name + " copy", author, description,
-                packVersion, now, now, minimumSubHubVersion, sections, lockGroups,
+        return new SubHubPack(UUID.randomUUID().toString(), originDeviceId, name + " copy",
+                author, description, packVersion, now, now, minimumSubHubVersion, sections, lockGroups,
                 recommendations, assets);
     }
 
     public String getId() { return id; }
+    public String getOriginDeviceId() { return originDeviceId; }
     public String getName() { return name; }
     public String getAuthor() { return author; }
     public String getDescription() { return description; }
@@ -144,6 +161,7 @@ public final class SubHubPack {
         manifest.put("format", FORMAT);
         manifest.put("schemaVersion", SCHEMA_VERSION);
         manifest.put("id", id);
+        manifest.put("originDeviceId", originDeviceId);
         manifest.put("name", name);
         manifest.put("author", author);
         manifest.put("description", description);
@@ -172,7 +190,9 @@ public final class SubHubPack {
             throw new JSONException("Unsupported SubHub pack schema");
         }
         Set<String> locks = jsonStrings(manifest.optJSONArray("lockGroups"));
-        return new SubHubPack(manifest.optString("id"), manifest.optString("name"),
+        String id = manifest.optString("id");
+        String origin = manifest.optString("originDeviceId", legacyOriginId(id));
+        return new SubHubPack(id, origin, manifest.optString("name"),
                 manifest.optString("author"), manifest.optString("description"),
                 manifest.optString("packVersion"), manifest.optLong("createdAt", 1L),
                 manifest.optLong("updatedAt", 1L),
@@ -194,6 +214,12 @@ public final class SubHubPack {
     private static String cleanId(String value) {
         try { return UUID.fromString(value).toString(); }
         catch (Exception ignored) { return UUID.randomUUID().toString(); }
+    }
+
+    private static String legacyOriginId(String packId) {
+        String value = packId == null ? "" : packId.trim();
+        return UUID.nameUUIDFromBytes(("subhub-pack-origin:" + value)
+                .getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private static String clean(String value, String fallback, int maximum) {

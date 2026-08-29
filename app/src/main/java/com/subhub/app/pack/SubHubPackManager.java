@@ -31,7 +31,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 /** Draft/library storage plus reversible, journaled activation for portable SubHub packs. */
 public final class SubHubPackManager {
@@ -40,6 +42,7 @@ public final class SubHubPackManager {
     private static final String KEY_ACTIVE_BACKUP = "active_pack_backup";
     private static final String KEY_JOURNAL = "activation_journal";
     private static final String KEY_ACTIVE_SECTIONS = "active_sections";
+    private static final String KEY_DEVICE_ID = "creator_device_id";
     private static final Set<String> STRING_SET_KEYS = Set.of(
             SettingsRepository.KEY_ENABLED_CATEGORIES,
             SettingsRepository.KEY_TEXT_SMUT_CATEGORIES,
@@ -85,7 +88,7 @@ public final class SubHubPackManager {
     }
 
     public SubHubPack captureCurrent() {
-        SubHubPack pack = SubHubPack.blank();
+        SubHubPack pack = createBlank();
         SharedPreferences main = preferences(SettingsRepository.PREFERENCES_NAME);
         for (String section : SubHubPackSchema.SECTIONS) {
             JSONObject values = SubHubPackSchema.WALLET.equals(section)
@@ -111,6 +114,11 @@ public final class SubHubPackManager {
         return pack;
     }
 
+    /** Creates a new arrangement tied to this installation's private, random creator identity. */
+    public SubHubPack createBlank() {
+        return SubHubPack.blank(deviceIdentifier());
+    }
+
     public JSONObject captureSection(String section) {
         return SubHubPackSchema.WALLET.equals(section)
                 ? SubHubPackSchema.captureWallet(preferences(PenanceManager.PREFS_NAME))
@@ -133,7 +141,22 @@ public final class SubHubPackManager {
                 throw new IOException("This arrangement needs SubHub "
                         + pack.getMinimumSubHubVersion() + " or newer");
             }
-            addToLibrary(pack);
+            SubHubPack installed = findLibrary(pack.getId());
+            boolean replacing = installed != null;
+            if (replacing && !ControllerPinManager.isDomModeActive()
+                    && !samePackIdentity(installed, pack)) {
+                throw new IOException("Arrangement identity differs; unlock Dom Space to replace it");
+            }
+            if (pack.getId().equals(activePackId())) {
+                if (installed == null || !samePackIdentity(installed, pack)) {
+                    throw new IOException("Active arrangement identity does not match this update");
+                }
+                if (!replaceActivePack(installed, pack)) {
+                    throw new IOException("Could not apply the active arrangement update");
+                }
+            } else {
+                addToLibrary(pack);
+            }
             return pack;
         }
     }
@@ -170,6 +193,14 @@ public final class SubHubPackManager {
     public Set<String> activeSections() {
         Set<String> values = state.getStringSet(KEY_ACTIVE_SECTIONS, Set.of());
         return Collections.unmodifiableSet(new LinkedHashSet<>(values == null ? Set.of() : values));
+    }
+
+    static boolean samePackIdentity(SubHubPack installed, SubHubPack update) {
+        return installed != null && update != null
+                && Objects.equals(installed.getId(), update.getId())
+                && Objects.equals(installed.getOriginDeviceId(), update.getOriginDeviceId())
+                && Objects.equals(installed.getName(), update.getName())
+                && Objects.equals(installed.getAuthor(), update.getAuthor());
     }
 
     public List<String> diff(SubHubPack pack, Set<String> requestedSections) {
@@ -253,6 +284,74 @@ public final class SubHubPackManager {
         LockedSettings.clear();
         return state.edit().remove(KEY_ACTIVE_ID).remove(KEY_ACTIVE_BACKUP)
                 .remove(KEY_ACTIVE_SECTIONS).remove(KEY_JOURNAL).commit();
+    }
+
+    /** Replaces an active pack without releasing its original pre-pack backup or requiring Dom. */
+    private boolean replaceActivePack(SubHubPack installed, SubHubPack update) {
+        Set<String> previousSections = activeSections();
+        Set<String> updatedSections = new LinkedHashSet<>(previousSections);
+        updatedSections.retainAll(update.getIncludedSections());
+        if (updatedSections.isEmpty()) return false;
+        String originalRaw = state.getString(KEY_ACTIVE_BACKUP, null);
+        if (originalRaw == null) return false;
+        Set<String> previousLocks = new LinkedHashSet<>(installed.getLockGroups());
+        previousLocks.retainAll(previousSections);
+        JSONObject currentSnapshot = null;
+        try {
+            JSONObject originalBackup = new JSONObject(originalRaw);
+            currentSnapshot = backup(installed, previousSections);
+            mergeMissingBackup(currentSnapshot, backup(update, updatedSections));
+            mergeMissingBackup(originalBackup, backup(update, updatedSections));
+
+            restore(originalBackup);
+            if (!apply(update, updatedSections)) {
+                restore(currentSnapshot);
+                return false;
+            }
+            installAssets(update);
+            Set<String> updatedLocks = new LinkedHashSet<>(update.getLockGroups());
+            updatedLocks.retainAll(updatedSections);
+            SubHubPackLocks.set(context, updatedLocks);
+            synchronizeLegacyLocks(updatedLocks);
+            boolean committed = state.edit()
+                    .putString(KEY_ACTIVE_BACKUP, originalBackup.toString())
+                    .putStringSet(KEY_ACTIVE_SECTIONS, updatedSections)
+                    .commit();
+            if (!committed) throw new IOException("Could not save active pack state");
+            write(update, fileFor(library, update.getId()));
+            return true;
+        } catch (Exception error) {
+            try {
+                if (currentSnapshot != null) restore(currentSnapshot);
+                installAssets(installed);
+                SubHubPackLocks.set(context, previousLocks);
+                synchronizeLegacyLocks(previousLocks);
+                state.edit().putString(KEY_ACTIVE_BACKUP, originalRaw)
+                        .putStringSet(KEY_ACTIVE_SECTIONS, previousSections).commit();
+            } catch (Exception ignored) {
+                // The existing recovery journal remains the final fallback for damaged state.
+            }
+            return false;
+        }
+    }
+
+    private static void mergeMissingBackup(JSONObject target, JSONObject source) throws Exception {
+        Iterator<String> stores = source.keys();
+        while (stores.hasNext()) {
+            String store = stores.next();
+            JSONObject sourceValues = source.optJSONObject(store);
+            if (sourceValues == null) continue;
+            JSONObject targetValues = target.optJSONObject(store);
+            if (targetValues == null) {
+                targetValues = new JSONObject();
+                target.put(store, targetValues);
+            }
+            Iterator<String> keys = sourceValues.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                if (!targetValues.has(key)) targetValues.put(key, sourceValues.opt(key));
+            }
+        }
     }
 
     private boolean apply(SubHubPack pack, Set<String> selected) {
@@ -413,6 +512,14 @@ public final class SubHubPackManager {
 
     private SharedPreferences preferences(String name) {
         return context.getSharedPreferences(name, Context.MODE_PRIVATE);
+    }
+
+    private String deviceIdentifier() {
+        String existing = state.getString(KEY_DEVICE_ID, null);
+        if (existing != null && !existing.isBlank()) return existing;
+        String created = UUID.randomUUID().toString();
+        state.edit().putString(KEY_DEVICE_ID, created).commit();
+        return created;
     }
 
     private static boolean isCompatible(SubHubPack pack) {

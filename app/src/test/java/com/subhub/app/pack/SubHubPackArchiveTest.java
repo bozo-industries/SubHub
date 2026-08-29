@@ -39,6 +39,7 @@ public final class SubHubPackArchiveTest {
                 new ByteArrayInputStream(encoded.toByteArray()));
 
         assertEquals("Night Rules", decoded.getName());
+        assertEquals(source.getOriginDeviceId(), decoded.getOriginDeviceId());
         assertEquals("box", decoded.getSection(SubHubPackSchema.CENSOR)
                 .getString("censor_type"));
         assertTrue(decoded.getLockGroups().contains(SubHubPackSchema.CENSOR));
