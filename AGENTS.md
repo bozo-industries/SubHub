@@ -31,6 +31,12 @@ Before merging or tagging a release, run:
 
 The universal APK is `app/build/outputs/apk/debug/app-universal-debug.apk`. It includes every ABI supported by the project; per-ABI APKs are emitted alongside it for smaller direct installs.
 
+For direct ADB instrumentation, first confirm the declared runner with
+`adb shell pm list instrumentation`, then invoke
+`com.subhub.app.test/com.subhub.app.SubHubTestRunner`. Do not assume the stock
+`AndroidJUnitRunner`; the custom runner prepares the controller PIN without
+overriding each test's Dom/Sub state.
+
 ## Release procedure
 
 1. Complete the version bump and release notes in reviewable commits.
