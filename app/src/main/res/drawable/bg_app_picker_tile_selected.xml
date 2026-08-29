@@ -8,8 +8,8 @@
     </item>
     <item android:bottom="2dp">
         <shape android:shape="rectangle">
-            <gradient android:angle="0" android:startColor="#FF3F1E56"
-                android:endColor="#FF5B214F" />
+            <gradient android:angle="0" android:startColor="#FF3F2852"
+                android:endColor="#FF553568" />
             <stroke android:width="2dp" android:color="@color/outline_selected" />
             <corners android:radius="15dp" />
         </shape>
