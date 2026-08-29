@@ -98,6 +98,17 @@ public final class OverlayController implements AutoCloseable {
                 motionX, motionY, sourceMotionX, sourceMotionY);
     }
 
+    /** Publishes a pooled source frame whose release returns it to capture instead of recycling. */
+    public void updatePooledFrame(
+            List<TrackedObject> tracks,
+            int captureWidth,
+            int captureHeight,
+            Bitmap frame,
+            Runnable frameRelease) {
+        view.setTracks(tracks, captureWidth, captureHeight, frame,
+                0, 0, 0, 0, frameRelease);
+    }
+
     /** Moves the current lightweight overlay immediately while the next inference is pending. */
     public void offsetContent(int deltaX, int deltaY) {
         view.offsetContent(deltaX, deltaY);

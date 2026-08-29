@@ -30,6 +30,7 @@ import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @RunWith(AndroidJUnit4.class)
 public final class CensorOverlayViewTest {
@@ -185,6 +186,23 @@ public final class CensorOverlayViewTest {
         assertEquals("An animated border must not rotate into a display-spanning line",
                 0, opaquePixelsOutside(rendered, 20, 70, 220, 90));
         rendered.recycle();
+        view.release();
+    }
+
+    @Test public void replacingPooledSourceFrameReturnsOwnershipExactlyOnce() {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        Bitmap pooled = gradient(100, 100, 0);
+        AtomicInteger releases = new AtomicInteger();
+        List<TrackedObject> tracks = confirmedTracks();
+
+        view.setTracks(tracks, 100, 100, pooled, 0, 0, 0, 0,
+                releases::incrementAndGet);
+        view.setTracks(tracks, 100, 100, null);
+
+        assertEquals(1, releases.get());
+        assertTrue(!pooled.isRecycled());
+        pooled.recycle();
         view.release();
     }
 

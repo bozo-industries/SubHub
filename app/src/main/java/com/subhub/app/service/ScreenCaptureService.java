@@ -280,6 +280,8 @@ public final class ScreenCaptureService extends Service {
                     height);
             String diagnosticText = diagnosticsOverlayText(diagnostics);
             Bitmap overlayFrame = overlayNeedsSourceFrame ? candidate.detachBitmap() : null;
+            Runnable overlayFrameRelease = overlayFrame == null ? null
+                    : () -> candidate.releaseDetachedBitmap(overlayFrame);
             if (firstFrameReported.compareAndSet(false, true)) {
                 Log.i(TAG, "First frame processed with "
                         + detector.getActiveModel() + " on " + detector.getActiveProvider()
@@ -289,8 +291,14 @@ public final class ScreenCaptureService extends Service {
             mainHandler.post(() -> {
                 if (overlay != null) {
                     overlay.setDiagnostics(diagnosticText);
-                    overlay.update(tracks, width, height, overlayFrame);
+                    if (overlayFrameRelease == null) {
+                        overlay.update(tracks, width, height, overlayFrame);
+                    } else {
+                        overlay.updatePooledFrame(
+                                tracks, width, height, overlayFrame, overlayFrameRelease);
+                    }
                 }
+                else if (overlayFrameRelease != null) overlayFrameRelease.run();
                 else if (overlayFrame != null) overlayFrame.recycle();
             });
         } catch (Exception error) {
@@ -431,6 +439,10 @@ public final class ScreenCaptureService extends Service {
             Bitmap value = bitmap;
             bitmap = null;
             return value;
+        }
+
+        private void releaseDetachedBitmap(Bitmap detached) {
+            if (detached != null && !detached.isRecycled()) owner.releaseFrame(detached);
         }
 
         @Override

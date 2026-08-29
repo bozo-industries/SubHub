@@ -66,6 +66,7 @@ final class CensorOverlayView extends View {
     private int captureWidth = 1;
     private int captureHeight = 1;
     private Bitmap frame;
+    private Runnable frameRelease;
     private Bitmap effectScratch;
     private Canvas effectCanvas;
     private Bitmap noiseBitmap;
@@ -137,7 +138,7 @@ final class CensorOverlayView extends View {
             int motionX,
             int motionY) {
         setTracks(value, sourceWidth, sourceHeight, latestFrame,
-                motionX, motionY, 0, 0);
+                motionX, motionY, 0, 0, null);
     }
 
     /**
@@ -153,6 +154,20 @@ final class CensorOverlayView extends View {
             int motionY,
             int sourceMotionX,
             int sourceMotionY) {
+        setTracks(value, sourceWidth, sourceHeight, latestFrame, motionX, motionY,
+                sourceMotionX, sourceMotionY, null);
+    }
+
+    void setTracks(
+            List<TrackedObject> value,
+            int sourceWidth,
+            int sourceHeight,
+            Bitmap latestFrame,
+            int motionX,
+            int motionY,
+            int sourceMotionX,
+            int sourceMotionY,
+            Runnable latestFrameRelease) {
         List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
         for (TrackedObject track : value) snapshots.add(RenderTrackSnapshot.from(track));
         tracks = snapshots;
@@ -164,8 +179,13 @@ final class CensorOverlayView extends View {
         viewportMotion.reset(contentOffsetX, contentOffsetY, tracksPublishedAtMillis);
         sourceFrameOffsetX = sourceMotionX;
         sourceFrameOffsetY = sourceMotionY;
-        if (frame != null && frame != latestFrame && !frame.isRecycled()) frame.recycle();
-        frame = latestFrame;
+        if (frame != latestFrame) {
+            releaseFrame();
+            frame = latestFrame;
+            frameRelease = latestFrameRelease;
+        } else if (latestFrameRelease != null) {
+            frameRelease = latestFrameRelease;
+        }
         Set<Integer> activeIds = new HashSet<>();
         for (RenderTrackSnapshot track : tracks) activeIds.add(track.id());
         solidRenderLayers.keySet().retainAll(activeIds);
@@ -193,8 +213,7 @@ final class CensorOverlayView extends View {
         viewportMotion.reset(0f, 0f, SystemClock.uptimeMillis());
         sourceFrameOffsetX = 0;
         sourceFrameOffsetY = 0;
-        if (frame != null && !frame.isRecycled()) frame.recycle();
-        frame = null;
+        releaseFrame();
         customImages.retainAssignments(new HashSet<>());
         setVisibility(INVISIBLE);
         stopFrameCallback();
@@ -870,8 +889,7 @@ final class CensorOverlayView extends View {
 
     void release() {
         stopFrameCallback();
-        if (frame != null && !frame.isRecycled()) frame.recycle();
-        frame = null;
+        releaseFrame();
         if (effectScratch != null && !effectScratch.isRecycled()) effectScratch.recycle();
         effectScratch = null;
         effectCanvas = null;
@@ -880,6 +898,16 @@ final class CensorOverlayView extends View {
         noisePixels = null;
         customImages.close();
         solidRenderLayers.clear();
+    }
+
+    private void releaseFrame() {
+        Bitmap owned = frame;
+        Runnable release = frameRelease;
+        frame = null;
+        frameRelease = null;
+        if (owned == null || owned.isRecycled()) return;
+        if (release != null) release.run();
+        else owned.recycle();
     }
 
     @Override
