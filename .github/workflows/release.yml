@@ -10,12 +10,21 @@ on:
         description: "Existing immutable release tag to build"
         required: true
         type: string
+      build_ref:
+        description: "Optional branch or commit to sign instead of the release tag"
+        required: false
+        type: string
+      publish_release:
+        description: "Publish signed assets as a GitHub Release"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
+  group: release-${{ inputs.build_ref || inputs.release_tag || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -23,11 +32,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+      BUILD_REF: ${{ inputs.build_ref || inputs.release_tag || github.ref_name }}
+      PUBLISH_RELEASE: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_release }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ env.BUILD_REF }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -35,7 +46,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Verify tag and version metadata
         id: version
-        run: python3 scripts/release_version.py --tag "${RELEASE_TAG}" --github-output "${GITHUB_OUTPUT}"
+        shell: bash
+        run: |
+          if [[ "$PUBLISH_RELEASE" == "true" ]]; then
+            python3 scripts/release_version.py \
+              --tag "${RELEASE_TAG}" \
+              --github-output "${GITHUB_OUTPUT}"
+          else
+            python3 scripts/release_version.py --github-output "${GITHUB_OUTPUT}"
+          fi
       - name: Test release-note generation
         run: python3 -m unittest scripts.test_generate_release_notes
       - name: Restore release signing key
@@ -82,6 +101,7 @@ jobs:
           done
           sha256sum dist/*.apk > "dist/SubHub-${VERSION_NAME}-SHA256SUMS.txt"
       - name: Compose release changelog
+        if: env.PUBLISH_RELEASE == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -91,6 +111,7 @@ jobs:
             --changelog-output dist/changelog.md \
             --release-output dist/release-notes.md
       - name: Compose updater manifest
+        if: env.PUBLISH_RELEASE == 'true'
         shell: bash
         env:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
@@ -133,6 +154,7 @@ jobs:
           output.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           PY
       - name: Publish GitHub release
+        if: env.PUBLISH_RELEASE == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
@@ -182,3 +204,14 @@ jobs:
           PY
 
           gh release edit "${RELEASE_TAG}" --draft=false
+
+      - name: Upload private signed-build artifact
+        if: github.event_name == 'workflow_dispatch' && env.PUBLISH_RELEASE != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SubHub-${{ steps.version.outputs.version_name }}-signed-${{ github.run_id }}
+          path: |
+            dist/*.apk
+            dist/*-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
