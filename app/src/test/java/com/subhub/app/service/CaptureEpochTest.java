@@ -4,6 +4,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import android.view.accessibility.AccessibilityEvent;
+
 import com.subhub.app.detection.DetectionPreset;
 import com.subhub.app.detection.DetectorConfig;
 
@@ -104,15 +106,17 @@ public final class CaptureEpochTest {
                 10_250L, 10_000L, 20_000L, 19_800L));
     }
 
-    @Test public void postScrollTextReplacementWaitsForCompleteConfirmation() {
-        assertTrue(ScreenshotAccessibilityService.shouldStagePostScrollTextScan(
-                7, false, 1));
-        assertFalse(ScreenshotAccessibilityService.shouldStagePostScrollTextScan(
-                7, false, 2));
-        assertFalse(ScreenshotAccessibilityService.shouldStagePostScrollTextScan(
-                7, true, 1));
-        assertFalse(ScreenshotAccessibilityService.shouldStagePostScrollTextScan(
-                0, false, 1));
+    @Test public void textRefreshIgnoresStateOnlyAccessibilityChurn() {
+        assertTrue(ScreenshotAccessibilityService.isTextRelevantContentChange(
+                AccessibilityEvent.CONTENT_CHANGE_TYPE_UNDEFINED));
+        assertTrue(ScreenshotAccessibilityService.isTextRelevantContentChange(
+                AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT));
+        assertTrue(ScreenshotAccessibilityService.isTextRelevantContentChange(
+                AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE));
+        assertFalse(ScreenshotAccessibilityService.isTextRelevantContentChange(
+                AccessibilityEvent.CONTENT_CHANGE_TYPE_STATE_DESCRIPTION));
+        assertFalse(ScreenshotAccessibilityService.isTextRelevantContentChange(
+                AccessibilityEvent.CONTENT_CHANGE_TYPE_ENABLED));
     }
 
     @Test public void semanticTextAndOcrAreGatedByPresetCost() {

@@ -4,6 +4,7 @@ import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.Detection;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -15,9 +16,10 @@ import java.util.Set;
 public final class TextDetectionStabilizer {
     private final Map<String, Observation> observations = new HashMap<>();
     private long generation;
+    private boolean bridgeCurrentMiss;
 
     public synchronized List<Detection> update(List<Detection> detections) {
-        return update(detections, true);
+        return updateWithMetrics(detections, true).getStableDetections();
     }
 
     /**
@@ -30,20 +32,36 @@ public final class TextDetectionStabilizer {
     public synchronized List<Detection> update(
             List<Detection> detections,
             boolean bridgeConfirmedMiss) {
+        return updateWithMetrics(detections, bridgeConfirmedMiss).getStableDetections();
+    }
+
+    /** Reconciles a complete viewport scan while reporting which candidates still need proof. */
+    public synchronized UpdateResult updateWithMetrics(
+            List<Detection> detections,
+            boolean bridgeConfirmedMiss) {
         generation++;
+        bridgeCurrentMiss = bridgeConfirmedMiss;
         List<Detection> stable = new ArrayList<>();
         Set<String> seen = new HashSet<>();
+        int pending = 0;
+        int confirmedPresent = 0;
+        int bridged = 0;
         if (detections != null) {
             for (Detection detection : detections) {
                 if (detection == null) continue;
                 String key = key(detection);
-                seen.add(key);
+                if (!seen.add(key)) continue;
                 Observation previous = observations.get(key);
                 int hits = previous != null && previous.lastSeenGeneration == generation - 1
                         ? previous.hits + 1 : 1;
                 Observation current = new Observation(detection, hits, generation);
                 observations.put(key, current);
-                if (hits >= 2) stable.add(detection);
+                if (hits >= 2) {
+                    stable.add(detection);
+                    confirmedPresent++;
+                } else {
+                    pending++;
+                }
             }
         }
 
@@ -55,15 +73,52 @@ public final class TextDetectionStabilizer {
             long missed = generation - value.lastSeenGeneration;
             if (bridgeConfirmedMiss && value.hits >= 2 && missed == 1) {
                 stable.add(value.detection);
+                bridged++;
             }
             if (missed > 1 || value.hits < 2) iterator.remove();
         }
-        return stable;
+        return new UpdateResult(stable, pending, confirmedPresent, bridged, 0);
+    }
+
+    /**
+     * Confirms candidates from a cheap targeted node refresh without treating every unprobed
+     * viewport node as missing. The full scan's generation remains authoritative.
+     */
+    public synchronized UpdateResult confirmSubset(List<Detection> detections) {
+        int newlyConfirmed = 0;
+        if (detections != null) {
+            Set<String> confirmed = new HashSet<>();
+            for (Detection detection : detections) {
+                if (detection == null) continue;
+                String key = key(detection);
+                if (!confirmed.add(key)) continue;
+                Observation previous = observations.get(key);
+                if (previous == null || previous.lastSeenGeneration != generation) continue;
+                if (previous.hits >= 2) continue;
+                observations.put(key,
+                        new Observation(detection, Math.max(2, previous.hits + 1), generation));
+                newlyConfirmed++;
+            }
+        }
+
+        List<Detection> stable = new ArrayList<>();
+        int pending = 0;
+        for (Observation observation : observations.values()) {
+            if (observation.lastSeenGeneration == generation) {
+                if (observation.hits >= 2) stable.add(observation.detection);
+                else pending++;
+            } else if (bridgeCurrentMiss && observation.hits >= 2
+                    && generation - observation.lastSeenGeneration == 1) {
+                stable.add(observation.detection);
+            }
+        }
+        return new UpdateResult(stable, pending, stable.size(), 0, newlyConfirmed);
     }
 
     public synchronized void clear() {
         observations.clear();
         generation = 0L;
+        bridgeCurrentMiss = false;
     }
 
     private static String key(Detection detection) {
@@ -73,6 +128,34 @@ public final class TextDetectionStabilizer {
         return detection.getClassName() + '|' + box.getCenterX() / 48 + '|'
                 + box.getCenterY() / 32 + '|' + box.getWidth() / 48 + '|'
                 + box.getHeight() / 16;
+    }
+
+    public static final class UpdateResult {
+        private final List<Detection> stableDetections;
+        private final int pendingCandidates;
+        private final int confirmedPresent;
+        private final int bridgedConfirmed;
+        private final int newlyConfirmedCandidates;
+
+        private UpdateResult(
+                List<Detection> stableDetections,
+                int pendingCandidates,
+                int confirmedPresent,
+                int bridgedConfirmed,
+                int newlyConfirmedCandidates) {
+            this.stableDetections = Collections.unmodifiableList(
+                    new ArrayList<>(stableDetections));
+            this.pendingCandidates = pendingCandidates;
+            this.confirmedPresent = confirmedPresent;
+            this.bridgedConfirmed = bridgedConfirmed;
+            this.newlyConfirmedCandidates = newlyConfirmedCandidates;
+        }
+
+        public List<Detection> getStableDetections() { return stableDetections; }
+        public int getPendingCandidates() { return pendingCandidates; }
+        public int getConfirmedPresent() { return confirmedPresent; }
+        public int getBridgedConfirmed() { return bridgedConfirmed; }
+        public int getNewlyConfirmedCandidates() { return newlyConfirmedCandidates; }
     }
 
     private static final class Observation {

@@ -68,6 +68,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -78,6 +79,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static volatile boolean running;
     private static volatile boolean recognitionActive;
     private static final long MIN_TEXT_REFRESH_MS = 120L;
+    private static final long TEXT_CANDIDATE_CONFIRM_MS = 48L;
     // Short pauses inside a fling regularly exceed the visual 130 ms settle gate. Text traversal
     // is much more expensive than moving the existing overlay, so wait through those micro-pauses
     // instead of launching work that the next Accessibility scroll event immediately invalidates.
@@ -109,12 +111,16 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final AtomicLong pendingTrackerOffsetX = new AtomicLong();
     private final AtomicLong pendingTrackerOffsetY = new AtomicLong();
     private final AtomicLong motionGeneration = new AtomicLong();
+    private final AtomicLong textContentGeneration = new AtomicLong();
     private final Object scrollStateLock = new Object();
     private final AtomicBoolean firstFrameReported = new AtomicBoolean();
     private final AtomicBoolean initializing = new AtomicBoolean();
     private final AtomicBoolean hardcoreGuardRefreshQueued = new AtomicBoolean();
     private final AtomicBoolean textRefreshRequested = new AtomicBoolean(true);
     private final AtomicBoolean textRefreshRunning = new AtomicBoolean();
+    private final AtomicInteger accessibilityCandidateScans = new AtomicInteger();
+    private final AtomicReference<AccessibilityTextSmutDetector.ScanResult>
+            pendingTextConfirmation = new AtomicReference<>();
     private final AtomicBoolean ocrRunning = new AtomicBoolean();
     private final AtomicBoolean ocrConfirmationRequested = new AtomicBoolean();
     private final AtomicReference<Bitmap> activeOcrBitmap = new AtomicReference<>();
@@ -164,7 +170,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile long scrollTraceId;
     private volatile long scrollTraceStartedUptime;
     private volatile long lastScrollTraceEventUptime;
-    private volatile int accessibilityCandidateScans;
     private String lastPublishedTextFingerprint = "";
     private long skippedUnchangedTextPublishes;
     private final Map<Integer, BBox> lastPublishedVisualBoxes = new HashMap<>();
@@ -833,8 +838,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void resetTextConfirmationForMotion() {
-        accessibilityCandidateScans = 0;
-        accessibilityTextStabilizer.clear();
+        accessibilityCandidateScans.set(0);
+        cancelPendingTextConfirmation();
+    }
+
+    private void cancelPendingTextConfirmation() {
+        AccessibilityTextSmutDetector.ScanResult pending =
+                pendingTextConfirmation.getAndSet(null);
+        if (pending != null) pending.close();
     }
 
     private ScrollAlignment consumeTrackerMotion(int width, int height) {
@@ -932,6 +943,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             return;
         }
         if (!textRefreshRunning.compareAndSet(false, true)) return;
+        cancelPendingTextConfirmation();
         textRefreshRequested.set(false);
         long epoch = captureEpoch.token();
         int captureWidth = latestCaptureWidth;
@@ -939,79 +951,96 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         textWorker.execute(() -> {
             long scanStartedUptime = SystemClock.uptimeMillis();
             long scanMotionGeneration = motionGeneration.get();
+            long scanContentGeneration = textContentGeneration.get();
             ScrollPosition scanScroll = currentScrollPosition();
-            AccessibilityNodeInfo root = accessibilityTextRoot();
+            AccessibilityNodeInfo root = null;
+            AccessibilityTextSmutDetector.ScanResult scan = null;
             try {
+                root = accessibilityTextRoot();
+                long rootReadyUptime = SystemClock.uptimeMillis();
                 if (root == null || !isCurrentCapture(epoch)) return;
                 Rect screen = screenBounds();
-                AccessibilityTextSmutDetector.ScanResult scan =
-                        accessibilityText.detectWithMetrics(
+                scan = accessibilityText.detectWithMetrics(
                         root, config, screen.width(), screen.height(),
                         usesSemanticTextModel(detectorConfig),
                         usesScreenshotOcr(detectorConfig),
                         () -> !isCurrentCapture(epoch)
-                                || motionGeneration.get() != scanMotionGeneration);
+                                || config != textSmutConfig
+                                || motionGeneration.get() != scanMotionGeneration
+                                || textContentGeneration.get() != scanContentGeneration);
+                long detectionCompleteUptime = SystemClock.uptimeMillis();
                 List<Detection> mapped = TextDetectionCoordinateMapper.screenToCapture(
                         scan.getDetections(), screen.width(), screen.height(),
                         captureWidth, captureHeight);
-                if (!isCurrentCapture(epoch)) return;
-                long completedUptime = SystemClock.uptimeMillis();
+                long mappedUptime = SystemClock.uptimeMillis();
+                if (!isCurrentCapture(epoch) || config != textSmutConfig) return;
                 long currentMotionGeneration = motionGeneration.get();
                 ScrollPosition currentScroll = currentScrollPosition();
                 if (!shouldPublishTextScan(
                         scanMotionGeneration, currentMotionGeneration,
                         scanScroll.scrollX, scanScroll.scrollY,
-                        currentScroll.scrollX, currentScroll.scrollY)) {
+                        currentScroll.scrollX, currentScroll.scrollY)
+                        || textContentGeneration.get() != scanContentGeneration) {
                     textRefreshRequested.set(true);
-                    Log.i(TAG, "TEXT_SCAN discarded=motion candidates=" + mapped.size()
-                            + " durationMs=" + (completedUptime - scanStartedUptime)
+                    Log.i(TAG, "TEXT_SCAN discarded=stale candidates=" + mapped.size()
+                            + " durationMs=" + (mappedUptime - scanStartedUptime)
+                            + " rootMs=" + (rootReadyUptime - scanStartedUptime)
+                            + " detectMs=" + (detectionCompleteUptime - rootReadyUptime)
+                            + " mapMs=" + (mappedUptime - detectionCompleteUptime)
                             + " visited=" + scan.getVisitedNodes()
                             + " textNodes=" + scan.getTextNodes()
                             + " classified=" + scan.getClassifiedNodes()
                             + " cancelled=" + scan.isCancelled()
                             + " generation=" + scanMotionGeneration + "->"
-                            + currentMotionGeneration);
+                            + currentMotionGeneration
+                            + " contentGeneration=" + scanContentGeneration + "->"
+                            + textContentGeneration.get());
                     return;
                 }
                 boolean bridgeConfirmedMiss = shouldBridgeTextMisses(
                         scanStartedUptime, lastMotionUptime);
-                List<Detection> stable = accessibilityTextStabilizer.update(
+                TextDetectionStabilizer.UpdateResult scene =
+                        accessibilityTextStabilizer.updateWithMetrics(
                         mapped, bridgeConfirmedMiss);
-                accessibilityCandidateScans++;
+                int candidateScan = accessibilityCandidateScans.incrementAndGet();
                 accessibilityTextCandidatesPresent = !mapped.isEmpty();
                 if (accessibilityTextCandidatesPresent) clearCachedOcr();
-                boolean stageForConfirmation = shouldStagePostScrollTextScan(
-                        mapped.size(), bridgeConfirmedMiss, accessibilityCandidateScans);
                 DiagnosticsRepository.recordAccessibilityText(
-                        DIAGNOSTICS_MODE, mapped.size(), stable.size());
-                if (stageForConfirmation) {
-                    Log.i(TAG, "TEXT_SCAN staged candidates=" + mapped.size()
-                            + " stable=" + stable.size()
-                            + " durationMs=" + (completedUptime - scanStartedUptime)
-                            + " visited=" + scan.getVisitedNodes()
-                            + " textNodes=" + scan.getTextNodes()
-                            + " classified=" + scan.getClassifiedNodes());
-                    textRefreshRequested.set(true);
-                    return;
-                }
+                        DIAGNOSTICS_MODE, mapped.size(),
+                        scene.getStableDetections().size());
                 cachedAccessibilityText = new TextDetectionSnapshot(
-                        stable, captureWidth, captureHeight,
+                        scene.getStableDetections(), captureWidth, captureHeight,
                         scanScroll.scrollX, scanScroll.scrollY);
                 Log.i(TAG, "TEXT_SCAN accepted candidates=" + mapped.size()
-                        + " stable=" + stable.size()
+                        + " stable=" + scene.getStableDetections().size()
+                        + " pending=" + scene.getPendingCandidates()
+                        + " present=" + scene.getConfirmedPresent()
+                        + " bridged=" + scene.getBridgedConfirmed()
                         + " bridgeMiss=" + bridgeConfirmedMiss
-                        + " durationMs=" + (completedUptime - scanStartedUptime)
+                        + " durationMs=" + (mappedUptime - scanStartedUptime)
+                        + " rootMs=" + (rootReadyUptime - scanStartedUptime)
+                        + " detectMs=" + (detectionCompleteUptime - rootReadyUptime)
+                        + " mapMs=" + (mappedUptime - detectionCompleteUptime)
                         + " visited=" + scan.getVisitedNodes()
                         + " textNodes=" + scan.getTextNodes()
-                        + " classified=" + scan.getClassifiedNodes());
-                publishTextLane(epoch, "accessibility");
+                        + " classified=" + scan.getClassifiedNodes()
+                        + " probes=" + scan.getConfirmationProbeCount());
+                publishTextLane(epoch, "accessibility",
+                        scanMotionGeneration, scanContentGeneration);
                 lastTextRefreshMillis = System.currentTimeMillis();
-                if (stable.size() < mapped.size() && accessibilityCandidateScans < 2) {
+                if (scene.getPendingCandidates() > 0
+                        && scan.getConfirmationProbeCount() > 0) {
+                    scheduleTextCandidateConfirmation(scan, config, epoch,
+                            screen.width(), screen.height(), captureWidth, captureHeight,
+                            scanMotionGeneration, scanContentGeneration, scanScroll);
+                    scan = null;
+                } else if (scene.getPendingCandidates() > 0 && candidateScan < 2) {
                     textRefreshRequested.set(true);
                     main.postDelayed(settledTextRefresh, MIN_TEXT_REFRESH_MS);
                 }
             } finally {
                 if (root != null) root.recycle();
+                if (scan != null) scan.close();
                 textRefreshRunning.set(false);
                 if (textRefreshRequested.get()) {
                     long nowUptime = SystemClock.uptimeMillis();
@@ -1022,6 +1051,106 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 }
             }
         });
+    }
+
+    private void scheduleTextCandidateConfirmation(
+            AccessibilityTextSmutDetector.ScanResult scan,
+            TextSmutConfig config,
+            long epoch,
+            int screenWidth,
+            int screenHeight,
+            int captureWidth,
+            int captureHeight,
+            long scanMotionGeneration,
+            long scanContentGeneration,
+            ScrollPosition scanScroll) {
+        ScheduledExecutorService executor = textWorker;
+        if (executor == null || executor.isShutdown()) {
+            scan.close();
+            return;
+        }
+        AccessibilityTextSmutDetector.ScanResult replaced =
+                pendingTextConfirmation.getAndSet(scan);
+        if (replaced != null && replaced != scan) replaced.close();
+        try {
+            executor.schedule(() -> {
+                if (!pendingTextConfirmation.compareAndSet(scan, null)) return;
+                if (!textRefreshRunning.compareAndSet(false, true)) {
+                    scan.close();
+                    textRefreshRequested.set(true);
+                    main.post(settledTextRefresh);
+                    return;
+                }
+                long startedUptime = SystemClock.uptimeMillis();
+                try {
+                    ScrollPosition currentScroll = currentScrollPosition();
+                    if (config != textSmutConfig || !isCurrentCapture(epoch)
+                            || textContentGeneration.get() != scanContentGeneration
+                            || !shouldPublishTextScan(
+                            scanMotionGeneration, motionGeneration.get(),
+                            scanScroll.scrollX, scanScroll.scrollY,
+                            currentScroll.scrollX, currentScroll.scrollY)) {
+                        return;
+                    }
+                    AccessibilityTextSmutDetector.ConfirmResult confirmation =
+                            accessibilityText.confirmCandidates(
+                                    scan, config, screenWidth, screenHeight,
+                                    usesSemanticTextModel(detectorConfig),
+                                    usesScreenshotOcr(detectorConfig),
+                                    () -> !isCurrentCapture(epoch)
+                                            || motionGeneration.get() != scanMotionGeneration
+                                            || textContentGeneration.get()
+                                                    != scanContentGeneration);
+                    if (confirmation.isCancelled() || !isCurrentCapture(epoch)) return;
+                    List<Detection> mapped = TextDetectionCoordinateMapper.screenToCapture(
+                            confirmation.getDetections(), screenWidth, screenHeight,
+                            captureWidth, captureHeight);
+                    currentScroll = currentScrollPosition();
+                    if (!shouldPublishTextScan(
+                            scanMotionGeneration, motionGeneration.get(),
+                            scanScroll.scrollX, scanScroll.scrollY,
+                            currentScroll.scrollX, currentScroll.scrollY)
+                            || textContentGeneration.get() != scanContentGeneration) {
+                        return;
+                    }
+                    TextDetectionStabilizer.UpdateResult scene =
+                            accessibilityTextStabilizer.confirmSubset(mapped);
+                    cachedAccessibilityText = new TextDetectionSnapshot(
+                            scene.getStableDetections(), captureWidth, captureHeight,
+                            scanScroll.scrollX, scanScroll.scrollY);
+                    DiagnosticsRepository.recordAccessibilityText(
+                            DIAGNOSTICS_MODE, confirmation.getConfirmedNodes(),
+                            scene.getStableDetections().size());
+                    Log.i(TAG, "TEXT_CONFIRM targeted confirmed="
+                            + confirmation.getConfirmedNodes()
+                            + " promoted=" + scene.getNewlyConfirmedCandidates()
+                            + " stable=" + scene.getStableDetections().size()
+                            + " pending=" + scene.getPendingCandidates()
+                            + " attempted=" + confirmation.getAttemptedNodes()
+                            + " refreshed=" + confirmation.getRefreshedNodes()
+                            + " durationMs="
+                            + (SystemClock.uptimeMillis() - startedUptime));
+                    publishTextLane(epoch, "accessibility-targeted",
+                            scanMotionGeneration, scanContentGeneration);
+                    lastTextRefreshMillis = System.currentTimeMillis();
+                    if (scene.getPendingCandidates() > 0
+                            && accessibilityCandidateScans.get() < 2) {
+                        textRefreshRequested.set(true);
+                    }
+                } finally {
+                    scan.close();
+                    textRefreshRunning.set(false);
+                    if (textRefreshRequested.get()) {
+                        main.removeCallbacks(settledTextRefresh);
+                        main.post(settledTextRefresh);
+                    }
+                }
+            }, TEXT_CANDIDATE_CONFIRM_MS, TimeUnit.MILLISECONDS);
+        } catch (RuntimeException error) {
+            pendingTextConfirmation.compareAndSet(scan, null);
+            scan.close();
+            Log.w(TAG, "Could not schedule targeted text confirmation", error);
+        }
     }
 
     static boolean shouldPublishTextScan(
@@ -1041,19 +1170,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 || scanStartedUptime - lastMotionUptime >= POST_SCROLL_TEXT_RECONCILE_MS;
     }
 
-    static boolean shouldStagePostScrollTextScan(
-            int candidateCount,
-            boolean bridgeConfirmedMiss,
-            int matchingCandidateScans) {
-        return !bridgeConfirmedMiss
-                && candidateCount > 0
-                && matchingCandidateScans < 2;
-    }
-
     private AccessibilityNodeInfo accessibilityTextRoot() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             return getRootInActiveWindow(
-                    AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_BREADTH_FIRST);
+                    AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_BREADTH_FIRST
+                            | AccessibilityNodeInfo.FLAG_PREFETCH_UNINTERRUPTIBLE);
         }
         return getRootInActiveWindow();
     }
@@ -1116,8 +1237,23 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void publishTextLane(long epoch, String source) {
+        publishTextLane(epoch, source, -1L, -1L);
+    }
+
+    private void publishTextLane(
+            long epoch,
+            String source,
+            long expectedMotionGeneration,
+            long expectedContentGeneration) {
         main.post(() -> {
             if (!isCurrentCapture(epoch) || overlay == null) return;
+            if ((expectedMotionGeneration >= 0L
+                    && motionGeneration.get() != expectedMotionGeneration)
+                    || (expectedContentGeneration >= 0L
+                    && textContentGeneration.get() != expectedContentGeneration)) {
+                Log.i(TAG, "TEXT_PUBLISH skipped=stale source=" + source);
+                return;
+            }
             int width = Math.max(1, latestCaptureWidth);
             int height = Math.max(1, latestCaptureHeight);
             ScrollPosition current = currentScrollPosition();
@@ -1466,6 +1602,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         });
         configureAccessibilityCadence(config);
         textSmutConfig = settings.loadTextSmutConfig();
+        textContentGeneration.incrementAndGet();
+        accessibilityCandidateScans.set(0);
+        cancelPendingTextConfirmation();
         warmTextModels(config);
         if (!usesScreenshotOcr(config)) cachedOcrText = TextDetectionSnapshot.EMPTY;
         textRefreshRequested.set(true);
@@ -1570,6 +1709,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
                 && recognitionActive && packageName.equals(foregroundPackage)) {
+            if (!isTextRelevantContentChange(event.getContentChangeTypes())) return;
+            textContentGeneration.incrementAndGet();
+            accessibilityCandidateScans.set(0);
+            cancelPendingTextConfirmation();
             textRefreshRequested.set(true);
             main.removeCallbacks(settledTextRefresh);
             main.postDelayed(settledTextRefresh, 100L);
@@ -1592,6 +1735,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 mode.inputMethodPackage())) return;
         if (packageName.equals(foregroundPackage)) return;
         acceptForegroundPackage(packageName, System.currentTimeMillis());
+    }
+
+    static boolean isTextRelevantContentChange(int changeTypes) {
+        if (changeTypes == AccessibilityEvent.CONTENT_CHANGE_TYPE_UNDEFINED) return true;
+        int relevant = AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT
+                | AccessibilityEvent.CONTENT_CHANGE_TYPE_CONTENT_DESCRIPTION
+                | AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE
+                | AccessibilityEvent.CONTENT_CHANGE_TYPE_CONTENT_INVALID
+                | AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_APPEARED
+                | AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_DISAPPEARED;
+        return (changeTypes & relevant) != 0;
     }
 
     private boolean syncForegroundFromActiveRoot(long nowMillis) {
@@ -1673,12 +1827,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void resetTextSnapshots() {
+        textContentGeneration.incrementAndGet();
+        cancelPendingTextConfirmation();
         cachedAccessibilityText = TextDetectionSnapshot.EMPTY;
         clearCachedOcr();
         cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
         qualityVisualStabilizer.clear();
         accessibilityTextStabilizer.clear();
-        accessibilityCandidateScans = 0;
+        accessibilityCandidateScans.set(0);
         lastPublishedTextFingerprint = "";
         skippedUnchangedTextPublishes = 0L;
         clearVisualGeometryHistory();
@@ -1914,6 +2070,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void resetScrollCompensation() {
+        cancelPendingTextConfirmation();
         ScheduledFuture<?> prioritySchedule = priorityCaptureSchedule;
         priorityCaptureSchedule = null;
         if (prioritySchedule != null) prioritySchedule.cancel(false);
@@ -1928,7 +2085,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
         qualityVisualStabilizer.clear();
         accessibilityTextStabilizer.clear();
-        accessibilityCandidateScans = 0;
+        accessibilityCandidateScans.set(0);
         lastPublishedTextFingerprint = "";
         skippedUnchangedTextPublishes = 0L;
         clearVisualGeometryHistory();

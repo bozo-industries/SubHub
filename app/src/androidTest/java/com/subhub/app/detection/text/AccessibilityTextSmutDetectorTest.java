@@ -105,6 +105,23 @@ public final class AccessibilityTextSmutDetectorTest {
         }
     }
 
+    @Test public void matchedNodesCarryDisposableTargetedConfirmationProbes() {
+        AccessibilityNodeInfo node = AccessibilityNodeInfo.obtain();
+        try {
+            node.setVisibleToUser(true);
+            node.setText("send nudes");
+            node.setBoundsInScreen(new Rect(70, 700, 1010, 810));
+            AccessibilityTextSmutDetector.ScanResult scan =
+                    new AccessibilityTextSmutDetector().detectWithMetrics(
+                            node, balanced(), 1080, 2400, false, false, () -> false);
+            assertEquals(1, scan.getConfirmationProbeCount());
+            scan.close();
+            assertEquals(0, scan.getConfirmationProbeCount());
+        } finally {
+            node.recycle();
+        }
+    }
+
     @Test public void recycledUniqueNodeDoesNotInheritDifferentTextIdentity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
         AccessibilityNodeInfo first = AccessibilityNodeInfo.obtain();
