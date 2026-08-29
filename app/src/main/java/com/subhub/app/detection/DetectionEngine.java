@@ -17,6 +17,7 @@ import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,11 +31,13 @@ import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
 import ai.onnxruntime.TensorInfo;
+import ai.onnxruntime.providers.NNAPIFlags;
 
 /** Owns the ONNX Runtime session and converts Android bitmaps to model input. */
 public final class DetectionEngine implements AutoCloseable {
     private static final String TAG = "DetectionEngine";
     private static final String PROVIDER_PREFS = "detector_provider_cache";
+    private static final String PROVIDER_CONFIG_REVISION = "ep-v2";
     private static final float INV_255 = 1f / 255f;
     private static final ExecutorService PREPROCESS_EXECUTOR =
             Executors.newFixedThreadPool(3, runnable -> {
@@ -216,17 +219,27 @@ public final class DetectionEngine implements AutoCloseable {
     private OrtSession.SessionOptions optionsFor(String provider) throws OrtException {
         OrtSession.SessionOptions options = new OrtSession.SessionOptions();
         options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
-        // Keep capture single-flight while letting ONNX parallelize individual kernels inside
-        // the preset's bounded CPU/battery budget.
+        options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL);
+        options.setInterOpNumThreads(1);
+        // These sessions run every 334 ms. Sleeping between runs prevents the fast and quality
+        // pools from burning CPU or contending with Accessibility text work while no kernel runs.
+        options.addConfigEntry("session.intra_op.allow_spinning", "0");
+        options.addConfigEntry("session.inter_op.allow_spinning", "0");
         int threads = Math.max(1, Math.min(config.getInferenceThreads(),
                 Runtime.getRuntime().availableProcessors()));
-        options.setIntraOpNumThreads(threads);
-        options.setInterOpNumThreads(1);
         if ("NNAPI".equals(provider)) {
-            options.addNnapi();
+            options.setIntraOpNumThreads(threads);
+            // NNAPI's reference CPU device is often slower than ORT's optimized CPU kernels.
+            // Unsupported accelerator nodes still fall back to ORT without changing precision.
+            options.addNnapi(EnumSet.of(NNAPIFlags.CPU_DISABLED));
         } else if ("XNNPACK".equals(provider)) {
-            options.addXnnpack(Collections.emptyMap());
+            // XNNPACK owns a separate intra-op pool. A second multi-threaded ORT pool competes
+            // with it and can make mobile inference slower while consuming substantially more CPU.
+            options.setIntraOpNumThreads(1);
+            options.addXnnpack(Collections.singletonMap(
+                    "intra_op_num_threads", Integer.toString(threads)));
         } else {
+            options.setIntraOpNumThreads(threads);
             options.addCPU(true);
         }
         return options;
@@ -237,22 +250,27 @@ public final class DetectionEngine implements AutoCloseable {
         FloatBuffer benchmarkInput = ByteBuffer.allocateDirect(
                 size * size * 3 * Float.BYTES)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
+        for (int index = 0; index < benchmarkInput.capacity(); index++) {
+            benchmarkInput.put((index & 0xff) * INV_255);
+        }
+        benchmarkInput.flip();
         try (OnnxTensor tensor = OnnxTensor.createTensor(
                 environment,
                 benchmarkInput,
                 new long[]{1, 3, size, size})) {
             Map<String, OnnxTensor> inputs = new LinkedHashMap<>();
             inputs.put(candidate.getInputNames().iterator().next(), tensor);
-            long bestNanos = Long.MAX_VALUE;
-            for (int pass = 0; pass < 3; pass++) {
+            long[] samples = new long[4];
+            for (int pass = 0; pass < 5; pass++) {
                 long started = SystemClock.elapsedRealtimeNanos();
                 try (OrtSession.Result ignored = candidate.run(inputs)) {
-                    // The first pass warms kernels; the next two select on observed device speed.
+                    // The first pass warms kernels; the next four select on sustained median speed.
                 }
                 long elapsed = SystemClock.elapsedRealtimeNanos() - started;
-                if (pass > 0) bestNanos = Math.min(bestNanos, elapsed);
+                if (pass > 0) samples[pass - 1] = elapsed;
             }
-            return bestNanos;
+            Arrays.sort(samples);
+            return samples[1] + (samples[2] - samples[1]) / 2L;
         }
     }
 
@@ -287,7 +305,8 @@ public final class DetectionEngine implements AutoCloseable {
 
     private String providerCacheKey(String model) {
         String identity = android.os.Build.FINGERPRINT + '|' + model + '|'
-                + config.getInferenceResolution() + '|' + config.getInferenceThreads();
+                + config.getInferenceResolution() + '|' + config.getInferenceThreads()
+                + '|' + PROVIDER_CONFIG_REVISION;
         return "provider_" + Integer.toHexString(identity.hashCode());
     }
 

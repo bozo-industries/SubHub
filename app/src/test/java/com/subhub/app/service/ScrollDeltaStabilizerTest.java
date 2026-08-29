@@ -30,12 +30,12 @@ public final class ScrollDeltaStabilizerTest {
     }
 
     @Test
-    public void idleGapKeepsPriorDirectionButRequiresConfirmationToReverse() {
+    public void idleGapStartsANewGestureWithoutCatchUpOvershoot() {
         ScrollDeltaStabilizer filter = new ScrollDeltaStabilizer();
         filter.filter(0, 200, 100L, 1080, 2400);
         filter.filter(0, 200, 180L, 1080, 2400);
-        assertEquals(0, filter.filter(0, -180, 500L, 1080, 2400).dy);
-        assertEquals(-340, filter.filter(0, -160, 580L, 1080, 2400).dy);
+        assertEquals(-180, filter.filter(0, -180, 500L, 1080, 2400).dy);
+        assertEquals(-160, filter.filter(0, -160, 580L, 1080, 2400).dy);
     }
 
     @Test

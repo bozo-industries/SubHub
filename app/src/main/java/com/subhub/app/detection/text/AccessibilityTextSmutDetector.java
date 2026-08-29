@@ -17,8 +17,7 @@ public final class AccessibilityTextSmutDetector {
     private static final int MAX_NODES = 900;
     private static final int MAX_TEXT_LENGTH = 2_000;
     private static final int PREFETCH_FLAGS =
-            AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_BREADTH_FIRST
-                    | AccessibilityNodeInfo.FLAG_PREFETCH_UNINTERRUPTIBLE;
+            AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_BREADTH_FIRST;
     private final TextSmutDetectionFactory factory;
 
     public AccessibilityTextSmutDetector() {

@@ -92,8 +92,14 @@ public final class CaptureEpochTest {
     }
 
     @Test public void postScrollTextScanDropsMissesAndRetriesAfterSettle() {
-        assertFalse(ScreenshotAccessibilityService.shouldBridgeTextMisses(10_500L, 10_000L));
-        assertTrue(ScreenshotAccessibilityService.shouldBridgeTextMisses(10_900L, 10_000L));
+        assertFalse(ScreenshotAccessibilityService.shouldBridgeTextMisses(
+                10_500L, 10_000L, 0L));
+        assertTrue(ScreenshotAccessibilityService.shouldBridgeTextMisses(
+                10_900L, 10_000L, 0L));
+        assertFalse(ScreenshotAccessibilityService.shouldBridgeTextMisses(
+                10_900L, 9_000L, 10_400L));
+        assertTrue(ScreenshotAccessibilityService.shouldBridgeTextMisses(
+                10_900L, 9_000L, 9_500L));
         assertEquals(190L,
                 ScreenshotAccessibilityService.textRefreshDelayAfterMotion(10_050L, 10_000L));
         assertEquals(0L,
@@ -117,6 +123,30 @@ public final class CaptureEpochTest {
                 AccessibilityEvent.CONTENT_CHANGE_TYPE_STATE_DESCRIPTION));
         assertFalse(ScreenshotAccessibilityService.isTextRelevantContentChange(
                 AccessibilityEvent.CONTENT_CHANGE_TYPE_ENABLED));
+    }
+
+    @Test public void contentRefreshDebouncesUntilQuietButCannotStarveForever() {
+        assertEquals(80L, ScreenshotAccessibilityService.contentTextRefreshDelayMs(
+                10_000L, 10_000L, 10_000L));
+        assertEquals(10L, ScreenshotAccessibilityService.contentTextRefreshDelayMs(
+                10_490L, 10_490L, 10_000L));
+        assertEquals(0L, ScreenshotAccessibilityService.contentTextRefreshDelayMs(
+                10_500L, 10_500L, 10_000L));
+        assertEquals(0L, ScreenshotAccessibilityService.contentTextRefreshDelayMs(
+                10_200L, 10_100L, 10_000L));
+    }
+
+    @Test public void accessibilityTextExpiresOnlyAfterANewerViewportInvalidatesIt() {
+        assertTrue(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
+                5_000L, 1_000L, 0L, 0L));
+        assertTrue(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
+                5_000L, 4_500L, 4_800L, 0L));
+        assertFalse(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
+                5_501L, 4_500L, 4_800L, 0L));
+        assertFalse(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
+                5_000L, 1_000L, 0L, 4_500L));
+        assertFalse(ScreenshotAccessibilityService.isAccessibilityTextSnapshotFresh(
+                500L, 1_000L, 0L, 0L));
     }
 
     @Test public void semanticTextAndOcrAreGatedByPresetCost() {
@@ -205,5 +235,11 @@ public final class CaptureEpochTest {
                 12_000L, 10_000L, 11_000L, true, false));
         assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
                 100L, 0L, 0L, false, true));
+        assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                12_000L, 10_000L, 11_000L, true, false, 180L, false));
+        assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                13_500L, 10_000L, 11_000L, true, false, 180L, false));
+        assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                20_000L, 0L, 0L, false, true, 0L, true));
     }
 }

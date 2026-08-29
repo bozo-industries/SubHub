@@ -8,8 +8,9 @@ package com.subhub.app.service;
  * is accepted immediately; a genuine reversal is accepted after two consecutive meaningful
  * samples and reconciles the initially held displacement. Strictly alternating rapid input enters
  * a pass-through burst after four samples, so deliberate up/down jitter cannot accumulate a large
- * one-direction error. Direction persists across gesture gaps so repeated scrolling in the same
- * direction remains immediate.</p>
+ * one-direction error. A gesture gap clears direction so the first sample of a deliberate new
+ * gesture is applied immediately instead of being withheld and folded into an oversized second
+ * sample.</p>
  */
 final class ScrollDeltaStabilizer {
     private static final long SESSION_GAP_MS = 250L;
@@ -130,6 +131,7 @@ final class ScrollDeltaStabilizer {
         }
 
         void startSession() {
+            direction = 0;
             oppositeCount = 0;
             pendingOpposite = 0;
             lastRawDirection = 0;
@@ -141,7 +143,6 @@ final class ScrollDeltaStabilizer {
         }
 
         void reset() {
-            direction = 0;
             startSession();
         }
     }
