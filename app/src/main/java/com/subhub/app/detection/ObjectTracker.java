@@ -70,10 +70,21 @@ public final class ObjectTracker {
                     + measuredX * velocitySmoothing;
             float dy = track.getVelocityY() * (1f - velocitySmoothing)
                     + measuredY * velocitySmoothing;
+            boolean qualityCoverage = detection.getSource()
+                    == Detection.ObservationSource.QUALITY_VISUAL;
+            if (qualityCoverage) {
+                // The larger settled model decides that a region deserves coverage, but its
+                // periodically refreshed rectangle must not tug an already visible track. Fast
+                // inference and Accessibility viewport motion remain the geometry authorities.
+                dx = 0f;
+                dy = 0f;
+            }
             // Text geometry is already screen-aligned. Smoothing makes a corrected OCR bar trail
             // behind its text and remain visibly displaced for several frames.
             BBox rendered = "text_smut".equals(detection.getCategory())
                     ? detection.getBox()
+                    : qualityCoverage
+                            ? track.getBox()
                     : config.isMotionPrediction()
                             ? smooth(track.getBox(), detection.getBox(),
                                     config.getTrackingSmoothing())

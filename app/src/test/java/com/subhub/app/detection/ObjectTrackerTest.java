@@ -236,6 +236,29 @@ public final class ObjectTrackerTest {
     }
 
     @Test
+    public void qualityCoverageRefreshCannotTugExistingGeometry() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .trackingSmoothing(1f)
+                .motionPrediction(false)
+                .velocitySmoothing(0f)
+                .maxExtrapolationMs(0f)
+                .build());
+        BBox original = new BBox(100, 100, 200, 200);
+        tracker.update(Collections.singletonList(detection(original)), 1_000_000_000L);
+        Detection quality = new Detection("QUALITY", "EXPOSED", 0.95f,
+                new BBox(130, 115, 240, 230), true, true,
+                Detection.ObservationSource.QUALITY_VISUAL,
+                Detection.GeometryQuality.MODEL, null);
+
+        List<TrackedObject> tracks = tracker.update(
+                Collections.singletonList(quality), 1_100_000_000L);
+
+        assertEquals(1, tracks.size());
+        assertEquals(original, tracks.get(0).getBox());
+        assertEquals(0, tracks.get(0).getFramesMissing());
+    }
+
+    @Test
     public void semanticAnchorRetainsIdentityAcrossALargeGeometryCorrection() {
         ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
                 .trackingSmoothing(1f)

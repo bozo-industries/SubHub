@@ -50,6 +50,22 @@ public final class InferenceScrollReprojectorTest {
                 10L, 20L, 10L, 20L));
     }
 
+    @Test public void projectionPreservesAccessibilityAnchorAndGeometryAuthority() {
+        Detection anchored = new Detection("TEXT_SMUT_ACCESSIBILITY_EXPLICIT", "text_smut",
+                0.9f, new BBox(100, 200, 300, 60), true, false,
+                Detection.ObservationSource.ACCESSIBILITY,
+                Detection.GeometryQuality.EXACT,
+                "a11y:id:post-1");
+
+        Detection shifted = InferenceScrollReprojector.toCurrentViewport(
+                List.of(anchored), 1080, 2400, 1080, 2400,
+                0L, 0L, 0L, 100L).get(0);
+
+        assertEquals(Detection.ObservationSource.ACCESSIBILITY, shifted.getSource());
+        assertEquals(Detection.GeometryQuality.EXACT, shifted.getGeometryQuality());
+        assertEquals("a11y:id:post-1", shifted.getAnchorKey());
+    }
+
     private static Detection detection(BBox box) {
         return new Detection("EXPOSED_TEST", "EXPOSED", 1f, box, true, true);
     }

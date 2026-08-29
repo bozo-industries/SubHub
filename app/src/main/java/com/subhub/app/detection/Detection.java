@@ -6,6 +6,7 @@ import java.util.Objects;
 public final class Detection {
     public enum ObservationSource {
         VISUAL,
+        QUALITY_VISUAL,
         ACCESSIBILITY,
         OCR,
         EXACT_GEOMETRY

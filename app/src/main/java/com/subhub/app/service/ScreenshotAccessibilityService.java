@@ -494,7 +494,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!candidate.qualityRefine || !hasSeparateQuality
                 || !isCurrentCapture(candidate.epoch)
                 || candidate.motionGeneration != motionGeneration.get()
-                || SystemClock.uptimeMillis() - lastMotionUptime < MOTION_SETTLE_MS) return;
+                || SystemClock.uptimeMillis() - lastMotionUptime < MOTION_SETTLE_MS
+                || textRefreshRunning.get()) return;
         lastQualityInferenceUptime = SystemClock.uptimeMillis();
         runInferencePass(candidate, detector, false, true);
     }
@@ -519,19 +520,28 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             return;
         }
         int cachedQualityCount;
+        int qualityOnlyCount = 0;
         if (fastPass) {
             visualDetections = FastVisualGate.filter(visualDetections, detectorConfig);
             List<Detection> cachedQuality = cachedQualityForFrame(
                     width, height, requestedScrollX, requestedScrollY);
             cachedQualityCount = cachedQuality.size();
-            visualDetections = DetectionFusion.merge(visualDetections, cachedQuality);
+            visualDetections = DetectionFusion.mergeVisualRefinement(
+                    visualDetections, cachedQuality);
+            for (Detection detection : visualDetections) {
+                if (detection != null && detection.getSource()
+                        == Detection.ObservationSource.QUALITY_VISUAL) {
+                    qualityOnlyCount++;
+                }
+            }
         } else {
             visualDetections = qualityVisualStabilizer.update(
                     visualDetections, detectorConfig);
             if (!isCurrentCapture(requestedEpoch)
                     || inferenceMotionGeneration != motionGeneration.get()) return;
+            List<Detection> qualityCoverage = markQualityCoverage(visualDetections);
             cachedQualityVisual = new VisualDetectionSnapshot(
-                    visualDetections, width, height, requestedScrollX, requestedScrollY,
+                    qualityCoverage, width, height, requestedScrollX, requestedScrollY,
                     SystemClock.uptimeMillis());
             cachedQualityCount = visualDetections.size();
             long cachedAt = SystemClock.uptimeMillis();
@@ -633,6 +643,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis,
                 droppedInferenceFrames.get(), tracks.size(), width, height);
         String diagnosticText = diagnosticsOverlayText(diagnostics);
+        int publishedQualityOnlyCount = qualityOnlyCount;
         InferenceScrollReprojector.ScreenMotion sourceFrameMotion =
                 InferenceScrollReprojector.screenMotion(
                         requestedScrollX, requestedScrollY,
@@ -666,6 +677,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + " tracks=" + tracks.size()
                         + " rawVisual=" + rawVisualCount
                         + " cachedQuality=" + cachedQualityCount
+                        + " qualityOnly=" + publishedQualityOnlyCount
                         + " geometryMatched=" + geometry.matched
                         + " geometryChanged=" + geometry.changed
                         + " maxCenterDeltaPx=" + geometry.maxCenterDeltaPx
@@ -1088,6 +1100,19 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return shiftDetectionSource(snapshot.detections,
                 snapshot.width, snapshot.height, snapshot.scrollX, snapshot.scrollY,
                 width, height, requestedScrollX, requestedScrollY);
+    }
+
+    private static List<Detection> markQualityCoverage(List<Detection> detections) {
+        if (detections == null || detections.isEmpty()) return Collections.emptyList();
+        List<Detection> marked = new ArrayList<>(detections.size());
+        for (Detection detection : detections) {
+            if (detection == null) continue;
+            marked.add(detection.withObservation(
+                    Detection.ObservationSource.QUALITY_VISUAL,
+                    detection.getGeometryQuality(),
+                    detection.getAnchorKey()));
+        }
+        return Collections.unmodifiableList(marked);
     }
 
     private void publishTextLane(long epoch, String source) {
@@ -1517,7 +1542,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 }
                 traceScrollEvent(scrollNow, rawMotion.dx, rawMotion.dy,
                         motion.dx, motion.dy,
-                        rawMotion.moved() && !motion.moved()
+                        motion.rapidReversal ? "rapid-reversal"
+                                : rawMotion.moved() && !motion.moved()
                                 ? "direction-suppressed" : "accessibility");
                 if (motion.moved()) {
                     applyEventMotion(motion.dx, motion.dy);

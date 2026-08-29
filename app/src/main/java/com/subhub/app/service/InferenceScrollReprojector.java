@@ -39,7 +39,10 @@ final class InferenceScrollReprojector {
                     detection.getConfidence(),
                     new BBox(left, top, right - left, bottom - top),
                     detection.isNsfw(),
-                    detection.isExposed()));
+                    detection.isExposed(),
+                    detection.getSource(),
+                    detection.getGeometryQuality(),
+                    detection.getAnchorKey()));
         }
         return shifted;
     }

@@ -23,6 +23,49 @@ public final class DetectionFusion {
         return merged;
     }
 
+    /**
+     * Adds settled-model coverage without allowing its older/coarser rectangles to reshape a
+     * matching real-time observation. Unmatched refinement detections remain available as
+     * quality-only coverage; the tracker deliberately treats their geometry as non-authoritative
+     * after the track has been created.
+     */
+    public static List<Detection> mergeVisualRefinement(
+            List<Detection> realtime,
+            List<Detection> refinement) {
+        List<Detection> merged = new ArrayList<>(realtime == null
+                ? Collections.emptyList() : realtime);
+        int realtimeCount = merged.size();
+        if (refinement == null) return merged;
+        for (Detection candidate : refinement) {
+            if (candidate == null) continue;
+            boolean matched = false;
+            for (int index = 0; index < realtimeCount; index++) {
+                Detection authoritative = merged.get(index);
+                if (!shouldFuse(authoritative, candidate)) continue;
+                merged.set(index, metadataWithAuthoritativeBox(authoritative, candidate));
+                matched = true;
+                break;
+            }
+            if (!matched) merged.add(candidate);
+        }
+        return merged;
+    }
+
+    private static Detection metadataWithAuthoritativeBox(
+            Detection authoritative,
+            Detection supporting) {
+        return new Detection(
+                authoritative.getClassName(),
+                authoritative.getCategory(),
+                Math.max(authoritative.getConfidence(), supporting.getConfidence()),
+                authoritative.getBox(),
+                authoritative.isNsfw() || supporting.isNsfw(),
+                authoritative.isExposed() || supporting.isExposed(),
+                authoritative.getSource(),
+                authoritative.getGeometryQuality(),
+                authoritative.getAnchorKey());
+    }
+
     private static void addOrFuse(List<Detection> merged, Detection candidate) {
         if (candidate == null) return;
         for (int index = 0; index < merged.size(); index++) {
