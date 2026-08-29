@@ -802,6 +802,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         });
         DetectorConfig config = settings.loadDetectorConfig();
         detectorConfig = config;
+        main.post(() -> {
+            if (overlay != null) {
+                overlay.setMaxExtrapolationMs(config.getMaxExtrapolationMs());
+            }
+        });
         configureAccessibilityCadence(config);
         textSmutConfig = settings.loadTextSmutConfig();
         warmTextModels(config);
@@ -1190,6 +1195,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         CensorAppearance appearance = settings.loadAppearance();
         overlayNeedsSourceFrame = appearance.requiresSourceFrame();
         overlay.setAppearance(appearance);
+        DetectorConfig config = settings.loadDetectorConfig();
+        overlay.setMaxExtrapolationMs(config.getMaxExtrapolationMs());
         overlay.setDiagnostics(diagnosticsOverlayText());
         overlay.show();
         PopupStormManager.get().start(this);

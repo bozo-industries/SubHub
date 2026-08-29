@@ -11,20 +11,29 @@ public final class TrackedObject {
     private long lastSeenNanos;
     private int framesTracked;
     private int framesMissing;
+    /** Screen-space velocity in pixels per millisecond. */
     private float velocityX;
     private float velocityY;
     private boolean active = true;
+    private boolean visible;
     private boolean confirmed;
+    private BBox predictionOriginBox;
 
     TrackedObject(int id, Detection detection, long nowNanos) {
+        this(id, detection, nowNanos, true);
+    }
+
+    TrackedObject(int id, Detection detection, long nowNanos, boolean visibleImmediately) {
         this.id = id;
         category = detection.getCategory();
         className = detection.getClassName();
         box = detection.getBox();
         rawBox = detection.getBox();
+        predictionOriginBox = box;
         confidence = detection.getConfidence();
         lastSeenNanos = nowNanos;
         framesTracked = 1;
+        visible = visibleImmediately;
     }
 
     public int getId() { return id; }
@@ -39,16 +48,19 @@ public final class TrackedObject {
     public float getVelocityX() { return velocityX; }
     public float getVelocityY() { return velocityY; }
     public boolean isActive() { return active; }
+    public boolean isVisible() { return visible; }
     public boolean isConfirmed() { return confirmed; }
 
     void update(Detection detection, BBox renderedBox, float dx, float dy, long nowNanos) {
         rawBox = detection.getBox();
         box = renderedBox;
+        predictionOriginBox = renderedBox;
         confidence = detection.getConfidence();
         lastSeenNanos = nowNanos;
         framesTracked++;
         framesMissing = 0;
         active = true;
+        visible = true;
         velocityX = dx;
         velocityY = dy;
         if (framesTracked >= 5) confirmed = true;
@@ -57,13 +69,23 @@ public final class TrackedObject {
     void miss(BBox predicted) {
         framesMissing++;
         if (predicted != null) box = predicted;
-        velocityX *= 0.8f;
-        velocityY *= 0.8f;
+    }
+
+    BBox predict(long nowNanos, float maxExtrapolationMs) {
+        if (!active || maxExtrapolationMs <= 0f) return box;
+        float elapsedMs = Math.max(0f, (nowNanos - lastSeenNanos) / 1_000_000f);
+        float predictionMs = Math.min(elapsedMs, maxExtrapolationMs);
+        return new BBox(
+                Math.max(0, Math.round(predictionOriginBox.getX() + velocityX * predictionMs)),
+                Math.max(0, Math.round(predictionOriginBox.getY() + velocityY * predictionMs)),
+                predictionOriginBox.getWidth(),
+                predictionOriginBox.getHeight());
     }
 
     void offset(int dx, int dy, int frameWidth, int frameHeight) {
         box = shifted(box, dx, dy, frameWidth, frameHeight);
         rawBox = shifted(rawBox, dx, dy, frameWidth, frameHeight);
+        predictionOriginBox = shifted(predictionOriginBox, dx, dy, frameWidth, frameHeight);
         if (box.getWidth() == 0 || box.getHeight() == 0) active = false;
     }
 
@@ -75,5 +97,8 @@ public final class TrackedObject {
         return new BBox(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
     }
 
-    void deactivate() { active = false; }
+    void deactivate() {
+        active = false;
+        visible = false;
+    }
 }

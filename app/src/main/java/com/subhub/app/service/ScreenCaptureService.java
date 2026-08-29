@@ -157,6 +157,7 @@ public final class ScreenCaptureService extends Service {
         CensorAppearance appearance = settings.loadAppearance();
         overlayNeedsSourceFrame = appearance.requiresSourceFrame();
         overlay.setAppearance(appearance);
+        overlay.setMaxExtrapolationMs(settings.loadDetectorConfig().getMaxExtrapolationMs());
         overlay.show();
         PopupStormManager.get().start(this);
         executor.execute(this::startPipeline);
@@ -202,6 +203,7 @@ public final class ScreenCaptureService extends Service {
         if (overlay != null) overlay.setDiagnostics(diagnosticsOverlayText());
         DetectorConfig config = settings.loadDetectorConfig();
         detectorConfig = config;
+        if (overlay != null) overlay.setMaxExtrapolationMs(config.getMaxExtrapolationMs());
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
         PopupStormManager.get().reloadSettings(this);

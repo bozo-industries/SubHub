@@ -116,6 +116,11 @@ public final class OverlayController implements AutoCloseable {
         view.setDiagnostics(text);
     }
 
+    /** Caps display-rate motion prediction after the most recent detector observation. */
+    public void setMaxExtrapolationMs(float value) {
+        view.setMaxExtrapolationMs(value);
+    }
+
     @Override
     public void close() {
         if (attached) windowManager.removeViewImmediate(view);

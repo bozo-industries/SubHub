@@ -1,6 +1,7 @@
 package com.subhub.app.detection;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -122,8 +123,59 @@ public final class ObjectTrackerTest {
         assertEquals(precise.getBox(), result.get(0).getBox());
     }
 
+    @Test
+    public void borderlineDetectionRequiresASecondConsistentObservation() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .confidenceThreshold(0.30f)
+                .build());
+        Detection first = detection(0.40f, new BBox(30, 40, 80, 90));
+
+        assertTrue(tracker.update(Collections.singletonList(first), 1_000_000_000L).isEmpty());
+        Detection repeated = detection(0.42f, new BBox(32, 41, 80, 90));
+        List<TrackedObject> visible = tracker.update(
+                Collections.singletonList(repeated), 1_050_000_000L);
+
+        assertEquals(1, visible.size());
+        assertEquals(first.getTrackId(), repeated.getTrackId());
+        assertTrue(visible.get(0).isVisible());
+    }
+
+    @Test
+    public void oneFrameBorderlineDetectionNeverBecomesVisible() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .confidenceThreshold(0.30f)
+                .build());
+
+        assertTrue(tracker.update(Collections.singletonList(
+                detection(0.40f, new BBox(30, 40, 80, 90))), 1_000_000_000L).isEmpty());
+        assertTrue(tracker.update(Collections.emptyList(), 1_050_000_000L).isEmpty());
+        assertEquals(0, tracker.retainedTrackCount());
+    }
+
+    @Test
+    public void velocityIsNormalizedByElapsedTime() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .trackingSmoothing(1f)
+                .velocitySmoothing(1f)
+                .build());
+        tracker.update(Collections.singletonList(
+                detection(new BBox(10, 10, 50, 50))), 1_000_000_000L);
+        List<TrackedObject> moved = tracker.update(Collections.singletonList(
+                detection(new BBox(30, 20, 50, 50))), 1_100_000_000L);
+
+        assertEquals(0.2f, moved.get(0).getVelocityX(), 0.0001f);
+        assertEquals(0.1f, moved.get(0).getVelocityY(), 0.0001f);
+        assertEquals(new BBox(40, 25, 50, 50),
+                moved.get(0).predict(1_150_000_000L, 50f));
+        assertFalse(moved.get(0).isConfirmed());
+    }
+
     private static Detection detection(BBox box) {
-        return new Detection("FEMALE_BREAST_EXPOSED", "breasts", 0.9f, box, true, true);
+        return detection(0.9f, box);
+    }
+
+    private static Detection detection(float confidence, BBox box) {
+        return new Detection("FEMALE_BREAST_EXPOSED", "breasts", confidence, box, true, true);
     }
 
     private static Detection textDetection(BBox box) {

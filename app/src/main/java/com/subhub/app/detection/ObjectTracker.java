@@ -13,7 +13,9 @@ import java.util.Set;
 /** Greedy IoU/distance tracker that keeps censor boxes stable between inference frames. */
 public final class ObjectTracker {
     private static final float IOU_THRESHOLD = 0.20f;
-    private static final float MAX_VELOCITY = 120f;
+    private static final float MAX_VELOCITY_PER_MS = 3f;
+    private static final float MIN_IMMEDIATE_CONFIDENCE = 0.55f;
+    private static final float IMMEDIATE_CONFIDENCE_MARGIN = 0.20f;
 
     private final Map<Integer, TrackedObject> tracks = new LinkedHashMap<>();
     private DetectorConfig config;
@@ -36,7 +38,8 @@ public final class ObjectTracker {
                 // Spatial continuity owns the identity so one stable image cannot create a new
                 // censor (and a new ledger event) merely because its label changed for one frame.
                 if (!track.isActive()) continue;
-                float score = matchScore(detection.getBox(), track);
+                float score = matchScore(detection.getBox(), track, nowNanos,
+                        config.getMaxExtrapolationMs());
                 if (score >= IOU_THRESHOLD) {
                     candidates.add(new MatchCandidate(detectionIndex, track.getId(), score));
                 }
@@ -53,14 +56,16 @@ public final class ObjectTracker {
             TrackedObject track = tracks.get(candidate.trackId);
             if (track == null) continue;
 
+            float elapsedMs = Math.max(1f,
+                    (nowNanos - track.getLastSeenNanos()) / 1_000_000f);
             float measuredX = clamp(
-                    detection.getBox().getCenterX() - track.getBox().getCenterX(),
-                    -MAX_VELOCITY,
-                    MAX_VELOCITY);
+                    (detection.getBox().getCenterX() - track.getRawBox().getCenterX()) / elapsedMs,
+                    -MAX_VELOCITY_PER_MS,
+                    MAX_VELOCITY_PER_MS);
             float measuredY = clamp(
-                    detection.getBox().getCenterY() - track.getBox().getCenterY(),
-                    -MAX_VELOCITY,
-                    MAX_VELOCITY);
+                    (detection.getBox().getCenterY() - track.getRawBox().getCenterY()) / elapsedMs,
+                    -MAX_VELOCITY_PER_MS,
+                    MAX_VELOCITY_PER_MS);
             float velocitySmoothing = config.getVelocitySmoothing();
             float dx = track.getVelocityX() * (1f - velocitySmoothing)
                     + measuredX * velocitySmoothing;
@@ -90,7 +95,12 @@ public final class ObjectTracker {
                     continue;
                 }
                 int id = nextId++;
-                TrackedObject track = new TrackedObject(id, detection, nowNanos);
+                float immediateThreshold = Math.min(0.95f, Math.max(
+                        MIN_IMMEDIATE_CONFIDENCE,
+                        config.getConfidenceThreshold() + IMMEDIATE_CONFIDENCE_MARGIN));
+                TrackedObject track = new TrackedObject(
+                        id, detection, nowNanos,
+                        detection.getConfidence() >= immediateThreshold);
                 tracks.put(id, track);
                 detection.setTrackId(id);
             }
@@ -100,18 +110,14 @@ public final class ObjectTracker {
         while (iterator.hasNext()) {
             TrackedObject track = iterator.next().getValue();
             if (matchedTracks.contains(track.getId()) || track.getLastSeenNanos() == nowNanos) continue;
-            BBox predicted = null;
-            if (config.isMotionPrediction() && track.getFramesMissing() < 4) {
-                predicted = new BBox(
-                        Math.max(0, (int) (track.getBox().getX() + track.getVelocityX())),
-                        Math.max(0, (int) (track.getBox().getY() + track.getVelocityY())),
-                        track.getBox().getWidth(),
-                        track.getBox().getHeight());
-            }
+            BBox predicted = config.isMotionPrediction() && track.getFramesMissing() < 4
+                    ? track.predict(nowNanos, config.getMaxExtrapolationMs())
+                    : null;
             track.miss(predicted);
             float ageSeconds = (nowNanos - track.getLastSeenNanos()) / 1_000_000_000f;
-            if (track.getFramesMissing() >= config.getMinRemoveFrames()
-                    && ageSeconds > config.getTrackMaxAgeSeconds()) {
+            if ((!track.isVisible() && track.getFramesMissing() >= 1)
+                    || (track.getFramesMissing() >= config.getMinRemoveFrames()
+                    && ageSeconds > config.getTrackMaxAgeSeconds())) {
                 iterator.remove();
             }
         }
@@ -121,7 +127,7 @@ public final class ObjectTracker {
     public synchronized List<TrackedObject> activeTracks() {
         List<TrackedObject> active = new ArrayList<>();
         for (TrackedObject track : tracks.values()) {
-            if (track.isActive()) active.add(track);
+            if (track.isActive() && track.isVisible()) active.add(track);
         }
         return Collections.unmodifiableList(active);
     }
@@ -147,13 +153,13 @@ public final class ObjectTracker {
         return tracks.size();
     }
 
-    private static float matchScore(BBox detection, TrackedObject track) {
+    private static float matchScore(
+            BBox detection,
+            TrackedObject track,
+            long nowNanos,
+            float maxExtrapolationMs) {
         float iou = detection.intersectionOverUnion(track.getBox());
-        BBox predicted = new BBox(
-                Math.max(0, (int) (track.getBox().getX() + track.getVelocityX())),
-                Math.max(0, (int) (track.getBox().getY() + track.getVelocityY())),
-                track.getBox().getWidth(),
-                track.getBox().getHeight());
+        BBox predicted = track.predict(nowNanos, maxExtrapolationMs);
         iou = Math.max(iou, detection.intersectionOverUnion(predicted));
         float dx = detection.getCenterX() - track.getBox().getCenterX();
         float dy = detection.getCenterY() - track.getBox().getCenterY();

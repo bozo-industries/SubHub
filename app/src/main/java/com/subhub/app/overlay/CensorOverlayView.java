@@ -16,6 +16,7 @@ import android.graphics.Shader;
 import android.graphics.SweepGradient;
 import android.graphics.Typeface;
 import android.os.SystemClock;
+import android.view.Choreographer;
 import android.view.View;
 
 import com.subhub.app.R;
@@ -54,7 +55,7 @@ final class CensorOverlayView extends View {
     private final Matrix borderShaderMatrix = new Matrix();
     private final CustomImagePool customImages;
 
-    private List<TrackedObject> tracks = new ArrayList<>();
+    private List<RenderTrackSnapshot> tracks = new ArrayList<>();
     private CensorAppearance appearance = CensorAppearance.defaults();
     private int captureWidth = 1;
     private int captureHeight = 1;
@@ -70,6 +71,17 @@ final class CensorOverlayView extends View {
     private float sourceFrameOffsetX;
     private float sourceFrameOffsetY;
     private long borderAnimationTimeOverride = -1L;
+    private long renderTimeOverride = -1L;
+    private long tracksPublishedAtMillis;
+    private float maxExtrapolationMs = 180f;
+    private boolean frameCallbackPosted;
+    private float activePredictionX;
+    private float activePredictionY;
+    private final Choreographer.FrameCallback frameCallback = frameTimeNanos -> {
+        frameCallbackPosted = false;
+        invalidate();
+        scheduleNextFrame(frameTimeNanos / 1_000_000L);
+    };
 
     CensorOverlayView(Context context) {
         super(context);
@@ -132,7 +144,10 @@ final class CensorOverlayView extends View {
             int motionY,
             int sourceMotionX,
             int sourceMotionY) {
-        tracks = new ArrayList<>(value);
+        List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
+        for (TrackedObject track : value) snapshots.add(RenderTrackSnapshot.from(track));
+        tracks = snapshots;
+        tracksPublishedAtMillis = SystemClock.uptimeMillis();
         captureWidth = Math.max(1, sourceWidth);
         captureHeight = Math.max(1, sourceHeight);
         contentOffsetX = motionX;
@@ -142,17 +157,19 @@ final class CensorOverlayView extends View {
         if (frame != null && frame != latestFrame && !frame.isRecycled()) frame.recycle();
         frame = latestFrame;
         Set<Integer> activeIds = new HashSet<>();
-        for (TrackedObject track : tracks) activeIds.add(track.getId());
+        for (RenderTrackSnapshot track : tracks) activeIds.add(track.id());
         customImages.retainAssignments(activeIds);
         setVisibility(VISIBLE);
-        invalidate();
+        postInvalidateOnAnimation();
+        scheduleNextFrame(tracksPublishedAtMillis);
     }
 
     void offsetContent(int deltaX, int deltaY) {
         if (tracks.isEmpty()) return;
         contentOffsetX += deltaX;
         contentOffsetY += deltaY;
-        invalidate();
+        postInvalidateOnAnimation();
+        scheduleNextFrame(SystemClock.uptimeMillis());
     }
 
     /** Hide all censor pixels without treating an empty track list as reverse-mode content. */
@@ -166,6 +183,7 @@ final class CensorOverlayView extends View {
         frame = null;
         customImages.retainAssignments(new HashSet<>());
         setVisibility(INVISIBLE);
+        stopFrameCallback();
         invalidate();
     }
 
@@ -182,7 +200,8 @@ final class CensorOverlayView extends View {
                 || previous == CensorAppearance.Type.CUSTOM) {
             customImages.reloadAsync(this::postInvalidate);
         }
-        invalidate();
+        postInvalidateOnAnimation();
+        scheduleNextFrame(SystemClock.uptimeMillis());
     }
 
     void setDiagnostics(String value) {
@@ -194,13 +213,21 @@ final class CensorOverlayView extends View {
         borderAnimationTimeOverride = Math.max(0L, uptimeMillis);
     }
 
+    void setRenderTimeForTest(long uptimeMillis) {
+        renderTimeOverride = Math.max(0L, uptimeMillis);
+    }
+
+    void setMaxExtrapolationMs(float value) {
+        maxExtrapolationMs = Math.max(0f, value);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (appearance.isReverseMode()) drawReverse(canvas);
         else drawNormal(canvas);
         drawDiagnostics(canvas);
-        if (isAnimated()) postInvalidateDelayed(50);
+        scheduleNextFrame(renderTimeMillis());
     }
 
     private void drawDiagnostics(Canvas canvas) {
@@ -231,19 +258,25 @@ final class CensorOverlayView extends View {
     private void drawNormal(Canvas canvas) {
         float scaleX = (float) getWidth() / captureWidth;
         float scaleY = (float) getHeight() / captureHeight;
-        for (TrackedObject track : tracks) {
-            boolean textRegion = "text_smut".equals(track.getCategory());
-            setPaddedRect(track.getBox(), scaleX, scaleY, textRegion);
+        float ageMs = renderAgeMillis();
+        for (RenderTrackSnapshot track : tracks) {
+            boolean textRegion = "text_smut".equals(track.category());
+            BBox predicted = track.predict(ageMs, maxExtrapolationMs);
+            activePredictionX = (predicted.getX() - track.box().getX()) * scaleX;
+            activePredictionY = (predicted.getY() - track.box().getY()) * scaleY;
+            setPaddedRect(predicted, scaleX, scaleY, textRegion);
             drawRect.offset(contentOffsetX, contentOffsetY);
-            drawEffect(canvas, drawRect, track.getId(), appearance.getType(),
+            drawEffect(canvas, drawRect, track.id(), appearance.getType(),
                     appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
             if (appearance.isShowText() && drawRect.height() >= dp(22)
                     && drawRect.width() >= dp(44)
                     && appearance.getType() != CensorAppearance.Type.ERROR_POPUP) {
-                drawLabel(canvas, drawRect, appearance.phraseFor(track.getId()));
+                drawLabel(canvas, drawRect, appearance.phraseFor(track.id()));
             }
         }
+        activePredictionX = 0f;
+        activePredictionY = 0f;
     }
 
     private void drawReverse(Canvas canvas) {
@@ -252,14 +285,18 @@ final class CensorOverlayView extends View {
         CensorAppearance.Type type = appearance.getType();
         if (type == CensorAppearance.Type.BOX
                 || type == CensorAppearance.Type.CUSTOM) type = CensorAppearance.Type.PIXELATE;
+        activePredictionX = 0f;
+        activePredictionY = 0f;
         drawEffect(canvas, whole, 0, type, appearance.getReverseStrength());
 
         float scaleX = (float) getWidth() / captureWidth;
         float scaleY = (float) getHeight() / captureHeight;
         List<RectF> holes = new ArrayList<>();
-        for (TrackedObject track : tracks) {
-            setPaddedRect(track.getBox(), scaleX, scaleY,
-                    "text_smut".equals(track.getCategory()));
+        float ageMs = renderAgeMillis();
+        for (RenderTrackSnapshot track : tracks) {
+            BBox predicted = track.predict(ageMs, maxExtrapolationMs);
+            setPaddedRect(predicted, scaleX, scaleY,
+                    "text_smut".equals(track.category()));
             drawRect.offset(contentOffsetX, contentOffsetY);
             RectF hole = new RectF(drawRect);
             holes.add(hole);
@@ -700,10 +737,14 @@ final class CensorOverlayView extends View {
         if (frame == null || frame.isRecycled() || getWidth() <= 0 || getHeight() <= 0) return false;
         // The retained frame predates any compensated scroll. Sample the original source pixels
         // while drawing them at the translated destination so blur/pixelate/glitch remain stable.
-        float sourceLeft = destination.left - contentOffsetX - sourceFrameOffsetX;
-        float sourceTop = destination.top - contentOffsetY - sourceFrameOffsetY;
-        float sourceRight = destination.right - contentOffsetX - sourceFrameOffsetX;
-        float sourceBottom = destination.bottom - contentOffsetY - sourceFrameOffsetY;
+        float sourceLeft = destination.left - contentOffsetX - sourceFrameOffsetX
+                - activePredictionX;
+        float sourceTop = destination.top - contentOffsetY - sourceFrameOffsetY
+                - activePredictionY;
+        float sourceRight = destination.right - contentOffsetX - sourceFrameOffsetX
+                - activePredictionX;
+        float sourceBottom = destination.bottom - contentOffsetY - sourceFrameOffsetY
+                - activePredictionY;
         int left = Math.max(0, Math.min(frame.getWidth() - 1,
                 Math.round(sourceLeft / getWidth() * frame.getWidth())));
         int top = Math.max(0, Math.min(frame.getHeight() - 1,
@@ -723,7 +764,37 @@ final class CensorOverlayView extends View {
                 || appearance.getType() == CensorAppearance.Type.TAPE;
     }
 
+    private long renderTimeMillis() {
+        return renderTimeOverride >= 0L ? renderTimeOverride : SystemClock.uptimeMillis();
+    }
+
+    private float renderAgeMillis() {
+        return Math.max(0f, renderTimeMillis() - tracksPublishedAtMillis);
+    }
+
+    private boolean hasActivePrediction(long nowMillis) {
+        if (nowMillis - tracksPublishedAtMillis >= maxExtrapolationMs) return false;
+        for (RenderTrackSnapshot track : tracks) {
+            if (track.isMoving()) return true;
+        }
+        return false;
+    }
+
+    private void scheduleNextFrame(long nowMillis) {
+        if (frameCallbackPosted || !isAttachedToWindow() || tracks.isEmpty()
+                || (!isAnimated() && !hasActivePrediction(nowMillis))) return;
+        frameCallbackPosted = true;
+        Choreographer.getInstance().postFrameCallback(frameCallback);
+    }
+
+    private void stopFrameCallback() {
+        if (!frameCallbackPosted) return;
+        Choreographer.getInstance().removeFrameCallback(frameCallback);
+        frameCallbackPosted = false;
+    }
+
     void release() {
+        stopFrameCallback();
         if (frame != null && !frame.isRecycled()) frame.recycle();
         frame = null;
         if (effectScratch != null && !effectScratch.isRecycled()) effectScratch.recycle();
@@ -733,6 +804,12 @@ final class CensorOverlayView extends View {
         noiseBitmap = null;
         noisePixels = null;
         customImages.close();
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        scheduleNextFrame(SystemClock.uptimeMillis());
     }
 
     @Override
