@@ -3,6 +3,17 @@
 User-facing changes from every tagged SubHub release.
 
 <details open>
+<summary><strong>SubHub 0.6.2</strong></summary>
+
+## What’s new in SubHub 0.6.2
+
+### Fixed
+
+- **Simplify Home progress summary** — Present one focused current-service row and a compact two-row lifetime summary so Home stays useful without duplicating the detailed Statistics page.
+
+</details>
+
+<details>
 <summary><strong>SubHub 0.6.1</strong></summary>
 
 ## What’s new in SubHub 0.6.1
