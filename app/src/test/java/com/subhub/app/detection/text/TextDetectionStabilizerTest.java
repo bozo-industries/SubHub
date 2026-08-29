@@ -26,6 +26,15 @@ public final class TextDetectionStabilizerTest {
         assertTrue(stabilizer.update(Collections.emptyList()).isEmpty());
     }
 
+    @Test public void postScrollReconciliationDoesNotRetainMissingConfirmedLine() {
+        TextDetectionStabilizer stabilizer = new TextDetectionStabilizer();
+        stabilizer.update(Collections.singletonList(text("line", 10)), false);
+        assertEquals(1, stabilizer.update(
+                Collections.singletonList(text("line", 60)), false).size());
+
+        assertTrue(stabilizer.update(Collections.emptyList(), false).isEmpty());
+    }
+
     private static Detection text(String anchor, int top) {
         return new Detection("TEXT_SMUT_ACCESSIBILITY_EXPLICIT", "text_smut", 0.9f,
                 new BBox(20, top, 300, 40), true, false,

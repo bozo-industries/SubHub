@@ -80,6 +80,24 @@ public final class CaptureEpochTest {
                 balanced, 10_000L, 9_000L));
     }
 
+    @Test public void textScanMustMatchCurrentMotionGeneration() {
+        assertTrue(ScreenshotAccessibilityService.shouldPublishTextScan(
+                12L, 12L, 40L, 80L, 40L, 80L));
+        assertFalse(ScreenshotAccessibilityService.shouldPublishTextScan(
+                12L, 13L, 40L, 80L, 40L, 80L));
+        assertFalse(ScreenshotAccessibilityService.shouldPublishTextScan(
+                12L, 12L, 40L, 80L, 40L, 120L));
+    }
+
+    @Test public void postScrollTextScanDropsMissesAndRetriesAfterSettle() {
+        assertFalse(ScreenshotAccessibilityService.shouldBridgeTextMisses(10_500L, 10_000L));
+        assertTrue(ScreenshotAccessibilityService.shouldBridgeTextMisses(10_900L, 10_000L));
+        assertEquals(90L,
+                ScreenshotAccessibilityService.textRefreshDelayAfterMotion(10_050L, 10_000L));
+        assertEquals(0L,
+                ScreenshotAccessibilityService.textRefreshDelayAfterMotion(10_200L, 10_000L));
+    }
+
     @Test public void semanticTextAndOcrAreGatedByPresetCost() {
         DetectorConfig medium = DetectorConfig.builder().inferenceThreads(2).build();
         DetectorConfig high = DetectorConfig.builder().inferenceThreads(3).build();

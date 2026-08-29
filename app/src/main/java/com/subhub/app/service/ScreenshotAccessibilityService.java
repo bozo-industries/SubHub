@@ -77,6 +77,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static volatile boolean recognitionActive;
     private static final long MIN_TEXT_REFRESH_MS = 120L;
     private static final long SETTLED_SCROLL_REFRESH_MS = 140L;
+    private static final long POST_SCROLL_TEXT_RECONCILE_MS = 900L;
     private static final long MOTION_SETTLE_MS = 130L;
     // AOSP enforces a strict >333 ms per-window request interval. Schedule at the first safe
     // millisecond instead of leaving an extra 16 ms idle on every capture.
@@ -841,9 +842,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         long epoch = captureEpoch.token();
         int captureWidth = latestCaptureWidth;
         int captureHeight = latestCaptureHeight;
-        long scrollX = cumulativeScrollX.get();
-        long scrollY = cumulativeScrollY.get();
         textWorker.execute(() -> {
+            long scanStartedUptime = SystemClock.uptimeMillis();
+            long scanMotionGeneration = motionGeneration.get();
+            ScrollPosition scanScroll = currentScrollPosition();
             AccessibilityNodeInfo root = getRootInActiveWindow();
             try {
                 if (root == null || !isCurrentCapture(epoch)) return;
@@ -856,7 +858,24 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         screenDetections, screen.width(), screen.height(),
                         captureWidth, captureHeight);
                 if (!isCurrentCapture(epoch)) return;
-                List<Detection> stable = accessibilityTextStabilizer.update(mapped);
+                long completedUptime = SystemClock.uptimeMillis();
+                long currentMotionGeneration = motionGeneration.get();
+                ScrollPosition currentScroll = currentScrollPosition();
+                if (!shouldPublishTextScan(
+                        scanMotionGeneration, currentMotionGeneration,
+                        scanScroll.scrollX, scanScroll.scrollY,
+                        currentScroll.scrollX, currentScroll.scrollY)) {
+                    textRefreshRequested.set(true);
+                    Log.i(TAG, "TEXT_SCAN discarded=motion candidates=" + mapped.size()
+                            + " durationMs=" + (completedUptime - scanStartedUptime)
+                            + " generation=" + scanMotionGeneration + "->"
+                            + currentMotionGeneration);
+                    return;
+                }
+                boolean bridgeConfirmedMiss = shouldBridgeTextMisses(
+                        scanStartedUptime, lastMotionUptime);
+                List<Detection> stable = accessibilityTextStabilizer.update(
+                        mapped, bridgeConfirmedMiss);
                 String candidateFingerprint = detectionFingerprint(mapped, true);
                 if (candidateFingerprint.equals(lastAccessibilityCandidateFingerprint)) {
                     accessibilityCandidateScans++;
@@ -867,9 +886,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 accessibilityTextCandidatesPresent = !mapped.isEmpty();
                 if (accessibilityTextCandidatesPresent) clearCachedOcr();
                 cachedAccessibilityText = new TextDetectionSnapshot(
-                        stable, captureWidth, captureHeight, scrollX, scrollY);
+                        stable, captureWidth, captureHeight,
+                        scanScroll.scrollX, scanScroll.scrollY);
                 DiagnosticsRepository.recordAccessibilityText(
                         DIAGNOSTICS_MODE, mapped.size(), stable.size());
+                Log.i(TAG, "TEXT_SCAN accepted candidates=" + mapped.size()
+                        + " stable=" + stable.size()
+                        + " bridgeMiss=" + bridgeConfirmedMiss
+                        + " durationMs=" + (completedUptime - scanStartedUptime));
                 publishTextLane(epoch, "accessibility");
                 lastTextRefreshMillis = System.currentTimeMillis();
                 if (stable.size() < mapped.size() && accessibilityCandidateScans < 2) {
@@ -879,9 +903,38 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             } finally {
                 if (root != null) root.recycle();
                 textRefreshRunning.set(false);
-                if (textRefreshRequested.get()) main.post(settledTextRefresh);
+                if (textRefreshRequested.get()) {
+                    long nowUptime = SystemClock.uptimeMillis();
+                    long retryDelay = textRefreshDelayAfterMotion(
+                            nowUptime, lastMotionUptime);
+                    main.removeCallbacks(settledTextRefresh);
+                    main.postDelayed(settledTextRefresh, retryDelay);
+                }
             }
         });
+    }
+
+    static boolean shouldPublishTextScan(
+            long sampledMotionGeneration,
+            long currentMotionGeneration,
+            long sampledScrollX,
+            long sampledScrollY,
+            long currentScrollX,
+            long currentScrollY) {
+        return sampledMotionGeneration == currentMotionGeneration
+                && sampledScrollX == currentScrollX
+                && sampledScrollY == currentScrollY;
+    }
+
+    static boolean shouldBridgeTextMisses(long scanStartedUptime, long lastMotionUptime) {
+        return lastMotionUptime <= 0L
+                || scanStartedUptime - lastMotionUptime >= POST_SCROLL_TEXT_RECONCILE_MS;
+    }
+
+    static long textRefreshDelayAfterMotion(long nowUptime, long lastMotionUptime) {
+        if (lastMotionUptime <= 0L) return 0L;
+        return Math.max(0L,
+                SETTLED_SCROLL_REFRESH_MS - (nowUptime - lastMotionUptime));
     }
 
     private List<Detection> cachedTextForFrame(
@@ -1306,8 +1359,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     applyEventMotion(motion.dx, motion.dy);
                 } else {
                     if (rawMotion.moved() && motionEstimator != null) {
-                        // The buffered raw delta will be included when direction is confirmed.
-                        // Prevent screenshot phase-correlation from applying it in the meantime.
+                        // Prevent screenshot phase-correlation from applying a rejected producer
+                        // correction while Accessibility direction is being confirmed.
                         motionEstimator.reset();
                     }
                     dwellTracker.onScroll();
