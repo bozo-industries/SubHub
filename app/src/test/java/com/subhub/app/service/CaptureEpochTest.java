@@ -92,16 +92,16 @@ public final class CaptureEpochTest {
     @Test public void postScrollTextScanDropsMissesAndRetriesAfterSettle() {
         assertFalse(ScreenshotAccessibilityService.shouldBridgeTextMisses(10_500L, 10_000L));
         assertTrue(ScreenshotAccessibilityService.shouldBridgeTextMisses(10_900L, 10_000L));
-        assertEquals(90L,
+        assertEquals(190L,
                 ScreenshotAccessibilityService.textRefreshDelayAfterMotion(10_050L, 10_000L));
         assertEquals(0L,
-                ScreenshotAccessibilityService.textRefreshDelayAfterMotion(10_200L, 10_000L));
-        assertEquals(90L, ScreenshotAccessibilityService.textScanStartDelayMs(
+                ScreenshotAccessibilityService.textRefreshDelayAfterMotion(10_250L, 10_000L));
+        assertEquals(190L, ScreenshotAccessibilityService.textScanStartDelayMs(
                 10_050L, 10_000L, 20_000L, 19_000L));
         assertEquals(80L, ScreenshotAccessibilityService.textScanStartDelayMs(
-                10_200L, 10_000L, 20_000L, 19_960L));
+                10_250L, 10_000L, 20_000L, 19_960L));
         assertEquals(0L, ScreenshotAccessibilityService.textScanStartDelayMs(
-                10_200L, 10_000L, 20_000L, 19_800L));
+                10_250L, 10_000L, 20_000L, 19_800L));
     }
 
     @Test public void postScrollTextReplacementWaitsForCompleteConfirmation() {
@@ -174,5 +174,32 @@ public final class CaptureEpochTest {
         assertEquals(4, fast.getInferenceThreads());
         assertEquals(0.18f, fast.getConfidenceThreshold(), 0.001f);
         assertEquals(512, quality.getInferenceResolution());
+    }
+
+    @Test public void accessibilityTrackerDisablesCompetingVelocityPrediction() {
+        DetectorConfig configured = DetectionPreset.ULTRA.applyTo(
+                DetectorConfig.builder()).build();
+
+        DetectorConfig tracker = ScreenshotAccessibilityService
+                .accessibilityTrackerConfig(configured);
+
+        assertFalse(tracker.isMotionPrediction());
+        assertEquals(0f, tracker.getVelocitySmoothing(), 0f);
+        assertEquals(0f, tracker.getMaxExtrapolationMs(), 0f);
+        assertEquals(configured.getTrackingSmoothing(),
+                tracker.getTrackingSmoothing(), 0f);
+    }
+
+    @Test public void qualityRefinementWaitsOutsideTheCriticalScrollWindow() {
+        assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                10_849L, 10_000L, 0L, true, true));
+        assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                10_850L, 10_000L, 0L, true, true));
+        assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                11_500L, 10_000L, 11_000L, true, false));
+        assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                12_000L, 10_000L, 11_000L, true, false));
+        assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                100L, 0L, 0L, false, true));
     }
 }

@@ -199,6 +199,43 @@ public final class ObjectTrackerTest {
     }
 
     @Test
+    public void accessibilityOwnedMotionIgnoresSmallDetectorWobble() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .trackingSmoothing(1f)
+                .motionPrediction(false)
+                .velocitySmoothing(0f)
+                .maxExtrapolationMs(0f)
+                .build());
+        BBox original = new BBox(100, 100, 200, 200);
+        tracker.update(Collections.singletonList(detection(original)), 1_000_000_000L);
+
+        List<TrackedObject> jittered = tracker.update(Collections.singletonList(
+                detection(new BBox(104, 103, 204, 198))), 1_100_000_000L);
+
+        assertEquals(original, jittered.get(0).getBox());
+        assertEquals(0f, jittered.get(0).getVelocityX(), 0.0001f);
+        assertEquals(0f, jittered.get(0).getVelocityY(), 0.0001f);
+    }
+
+    @Test
+    public void accessibilityOwnedMotionStillFollowsMeaningfulSubjectMovement() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .trackingSmoothing(1f)
+                .motionPrediction(false)
+                .velocitySmoothing(0f)
+                .maxExtrapolationMs(0f)
+                .build());
+        tracker.update(Collections.singletonList(
+                detection(new BBox(100, 100, 200, 200))), 1_000_000_000L);
+        BBox moved = new BBox(135, 100, 200, 200);
+
+        List<TrackedObject> result = tracker.update(
+                Collections.singletonList(detection(moved)), 1_100_000_000L);
+
+        assertEquals(moved, result.get(0).getBox());
+    }
+
+    @Test
     public void semanticAnchorRetainsIdentityAcrossALargeGeometryCorrection() {
         ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
                 .trackingSmoothing(1f)

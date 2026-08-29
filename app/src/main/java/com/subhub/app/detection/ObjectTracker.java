@@ -74,7 +74,11 @@ public final class ObjectTracker {
             // behind its text and remain visibly displaced for several frames.
             BBox rendered = "text_smut".equals(detection.getCategory())
                     ? detection.getBox()
-                    : smooth(track.getBox(), detection.getBox(), config.getTrackingSmoothing());
+                    : config.isMotionPrediction()
+                            ? smooth(track.getBox(), detection.getBox(),
+                                    config.getTrackingSmoothing())
+                            : smoothEventOwnedGeometry(track.getBox(), detection.getBox(),
+                                    config.getTrackingSmoothing());
             track.update(detection, rendered, dx, dy, nowNanos);
             detection.setTrackId(track.getId());
             matchedDetections[candidate.detectionIndex] = true;
@@ -203,6 +207,25 @@ public final class ObjectTracker {
                 (int) (current.getY() + (target.getY() - current.getY()) * alpha),
                 (int) (current.getWidth() + (target.getWidth() - current.getWidth()) * alpha),
                 (int) (current.getHeight() + (target.getHeight() - current.getHeight()) * alpha));
+    }
+
+    /**
+     * Accessibility already supplies real viewport motion. Ignore sub-box detector wobble while
+     * still following a genuinely moving/resizing subject once it exits a proportional dead zone.
+     */
+    private static BBox smoothEventOwnedGeometry(BBox current, BBox target, float alpha) {
+        int minimumDimension = Math.max(1,
+                Math.min(current.getWidth(), current.getHeight()));
+        int centerTolerance = Math.max(3, Math.round(minimumDimension * 0.035f));
+        int sizeTolerance = Math.max(4, Math.round(minimumDimension * 0.05f));
+        int centerDelta = Math.max(
+                Math.abs(current.getCenterX() - target.getCenterX()),
+                Math.abs(current.getCenterY() - target.getCenterY()));
+        int sizeDelta = Math.max(
+                Math.abs(current.getWidth() - target.getWidth()),
+                Math.abs(current.getHeight() - target.getHeight()));
+        if (centerDelta <= centerTolerance && sizeDelta <= sizeTolerance) return current;
+        return smooth(current, target, alpha);
     }
 
     private static float clamp(float value, float minimum, float maximum) {

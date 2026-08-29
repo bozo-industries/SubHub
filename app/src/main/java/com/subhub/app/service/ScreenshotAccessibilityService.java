@@ -58,7 +58,9 @@ import com.subhub.app.subliminal.SubliminalOverlayController;
 
 import java.util.Collections;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -76,7 +78,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static volatile boolean running;
     private static volatile boolean recognitionActive;
     private static final long MIN_TEXT_REFRESH_MS = 120L;
-    private static final long SETTLED_SCROLL_REFRESH_MS = 140L;
+    // Short pauses inside a fling regularly exceed the visual 130 ms settle gate. Text traversal
+    // is much more expensive than moving the existing overlay, so wait through those micro-pauses
+    // instead of launching work that the next Accessibility scroll event immediately invalidates.
+    private static final long SETTLED_SCROLL_REFRESH_MS = 240L;
     private static final long POST_SCROLL_TEXT_RECONCILE_MS = 900L;
     private static final long MOTION_SETTLE_MS = 130L;
     // AOSP enforces a strict >333 ms per-window request interval. Schedule at the first safe
@@ -91,6 +96,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final int OCR_MAX_DIMENSION = 1_024;
     private static final int FAST_INFERENCE_RESOLUTION = 320;
     private static final long QUALITY_REFRESH_INTERVAL_MS = 1_000L;
+    private static final long QUALITY_MOTION_SETTLE_MS = 850L;
     private static final long QUALITY_RESULT_TTL_MS = 2_500L;
 
     private final AtomicBoolean processing = new AtomicBoolean();
@@ -158,10 +164,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile long scrollTraceId;
     private volatile long scrollTraceStartedUptime;
     private volatile long lastScrollTraceEventUptime;
-    private volatile String lastAccessibilityCandidateFingerprint = "";
     private volatile int accessibilityCandidateScans;
     private String lastPublishedTextFingerprint = "";
     private long skippedUnchangedTextPublishes;
+    private final Map<Integer, BBox> lastPublishedVisualBoxes = new HashMap<>();
     private volatile boolean overlayNeedsSourceFrame;
     private volatile String foregroundPackage = "";
     private volatile String guardForegroundPackage = "";
@@ -265,8 +271,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             } else {
                 fastDetector.setConfig(fastConfig);
             }
-            if (tracker == null) tracker = new ObjectTracker(config);
-            else tracker.setConfig(config);
+            DetectorConfig trackerConfig = accessibilityTrackerConfig(config);
+            if (tracker == null) tracker = new ObjectTracker(trackerConfig);
+            else tracker.setConfig(trackerConfig);
             tracker.clear();
             if (!recognitionActive) {
                 Log.i(TAG, "Detector prewarmed; capture remains asleep");
@@ -399,10 +406,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             lastInferenceUptime = nowUptime;
             boolean motionSettled = lastMotionUptime <= 0L
                     || nowUptime - lastMotionUptime >= MOTION_SETTLE_MS;
-            boolean qualityRefine = motionSettled
-                    && (!firstFrameReported.get()
-                    || priorityFrame
-                    || nowUptime - lastQualityInferenceUptime >= QUALITY_REFRESH_INTERVAL_MS);
+            boolean qualityRefine = shouldRunQualityRefinement(
+                    nowUptime, lastMotionUptime, lastQualityInferenceUptime,
+                    firstFrameReported.get(),
+                    cachedQualityVisual == VisualDetectionSnapshot.EMPTY);
             long inferenceMotionGeneration = motionGeneration.get();
             if (!isCurrentCapture(requestedEpoch)) return;
             int inferenceResolution = currentConfig == null
@@ -411,7 +418,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     wrapped, inferenceResolution, overlayNeedsSourceFrame);
             if (prepared == null) return;
             frame = prepared.bitmap;
-            if (qualityRefine) settledInferenceNeeded.compareAndSet(true, false);
+            // Priority means "publish the first settled fast frame", not "immediately saturate
+            // the CPU with quality and text refinement at the same time".
+            if (priorityFrame && motionSettled) {
+                settledInferenceNeeded.compareAndSet(true, false);
+            }
             enqueueInference(new InferenceFrame(frame, requestedEpoch, requestedScrollX,
                     requestedScrollY, inferenceMotionGeneration,
                     prepared.sourceWidth, prepared.sourceHeight,
@@ -523,6 +534,44 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     visualDetections, width, height, requestedScrollX, requestedScrollY,
                     SystemClock.uptimeMillis());
             cachedQualityCount = visualDetections.size();
+            long cachedAt = SystemClock.uptimeMillis();
+            long inferenceMs = engine.getLastInferenceMs();
+            long preprocessMs = engine.getLastPreprocessMs();
+            long runtimeMs = engine.getLastRuntimeMs();
+            long postprocessMs = engine.getLastPostprocessMs();
+            Log.i(TAG, "QUALITY_CACHE scrollId=" + scrollTraceId
+                    + " captureAgeMs=" + (cachedAt - candidate.capturedAtUptimeMillis)
+                    + " inferenceMs=" + inferenceMs
+                    + " preprocessMs=" + preprocessMs
+                    + " runtimeMs=" + runtimeMs
+                    + " postprocessMs=" + postprocessMs
+                    + " afterMotionMs=" + (lastMotionUptime <= 0L
+                            ? 0L : cachedAt - lastMotionUptime)
+                    + " rawVisual=" + rawVisualCount
+                    + " stableVisual=" + cachedQualityCount);
+            // Quality is a background geometry cache. Publishing it as a second authority made
+            // a still box alternate between fast and quality rectangles every refresh. The next
+            // fast frame consumes this cache once through the ordinary tracker update.
+            Bitmap qualityOverlayFrame = candidate.retainedSourceFrame
+                    ? candidate.detachFrame() : null;
+            if (qualityOverlayFrame != null) {
+                List<TrackedObject> currentTracks = visualRenderTracks(tracker.activeTracks());
+                ScrollPosition current = currentScrollPosition();
+                InferenceScrollReprojector.ScreenMotion sourceMotion =
+                        InferenceScrollReprojector.screenMotion(
+                                requestedScrollX, requestedScrollY,
+                                current.scrollX, current.scrollY);
+                main.post(() -> {
+                    if (isCurrentCapture(requestedEpoch) && overlay != null
+                            && inferenceMotionGeneration == motionGeneration.get()) {
+                        overlay.update(currentTracks, width, height, qualityOverlayFrame,
+                                0, 0, sourceMotion.dx, sourceMotion.dy);
+                    } else {
+                        qualityOverlayFrame.recycle();
+                    }
+                });
+            }
+            return;
         }
         TextSmutConfig currentTextConfig = textSmutConfig;
         List<Detection> accessibilityDetections = Collections.emptyList();
@@ -601,6 +650,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 overlay.update(renderTracks, width, height, overlayFrame,
                         liveMotion.dx, liveMotion.dy,
                         sourceFrameMotion.dx, sourceFrameMotion.dy);
+                VisualGeometryDelta geometry = recordVisualGeometry(renderTracks);
                 long publishedAt = SystemClock.uptimeMillis();
                 long publishDelay = publishedAt - candidate.capturedAtUptimeMillis;
                 DiagnosticsRepository.recordPublishDelay(DIAGNOSTICS_MODE, publishDelay);
@@ -616,6 +666,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + " tracks=" + tracks.size()
                         + " rawVisual=" + rawVisualCount
                         + " cachedQuality=" + cachedQualityCount
+                        + " geometryMatched=" + geometry.matched
+                        + " geometryChanged=" + geometry.changed
+                        + " maxCenterDeltaPx=" + geometry.maxCenterDeltaPx
+                        + " maxSizeDeltaPx=" + geometry.maxSizeDeltaPx
                         + " dropped=" + droppedInferenceFrames.get());
             } else if (overlayFrame != null) {
                 overlayFrame.recycle();
@@ -640,6 +694,28 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         FAST_INFERENCE_RESOLUTION, source.getInferenceResolution()))
                 .detectionIntervalMs(0L)
                 .build();
+    }
+
+    static DetectorConfig accessibilityTrackerConfig(DetectorConfig configured) {
+        DetectorConfig source = configured == null
+                ? DetectorConfig.builder().build() : configured;
+        return source.toBuilder()
+                .motionPrediction(false)
+                .velocitySmoothing(0f)
+                .maxExtrapolationMs(0f)
+                .build();
+    }
+
+    static boolean shouldRunQualityRefinement(
+            long nowUptime,
+            long lastMotionUptime,
+            long lastQualityUptime,
+            boolean firstFrameReported,
+            boolean qualityCacheEmpty) {
+        if (lastMotionUptime > 0L
+                && nowUptime - lastMotionUptime < QUALITY_MOTION_SETTLE_MS) return false;
+        return !firstFrameReported || qualityCacheEmpty
+                || nowUptime - lastQualityUptime >= QUALITY_REFRESH_INTERVAL_MS;
     }
 
     static boolean usesContinuousMotionInference(DetectorConfig config) {
@@ -745,8 +821,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void resetTextConfirmationForMotion() {
-        lastAccessibilityCandidateFingerprint = "";
         accessibilityCandidateScans = 0;
+        accessibilityTextStabilizer.clear();
     }
 
     private ScrollAlignment consumeTrackerMotion(int width, int height) {
@@ -856,14 +932,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             try {
                 if (root == null || !isCurrentCapture(epoch)) return;
                 Rect screen = screenBounds();
-                List<Detection> screenDetections = accessibilityText.detect(
+                AccessibilityTextSmutDetector.ScanResult scan =
+                        accessibilityText.detectWithMetrics(
                         root, config, screen.width(), screen.height(),
                         usesSemanticTextModel(detectorConfig),
                         usesScreenshotOcr(detectorConfig),
                         () -> !isCurrentCapture(epoch)
                                 || motionGeneration.get() != scanMotionGeneration);
                 List<Detection> mapped = TextDetectionCoordinateMapper.screenToCapture(
-                        screenDetections, screen.width(), screen.height(),
+                        scan.getDetections(), screen.width(), screen.height(),
                         captureWidth, captureHeight);
                 if (!isCurrentCapture(epoch)) return;
                 long completedUptime = SystemClock.uptimeMillis();
@@ -876,6 +953,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     textRefreshRequested.set(true);
                     Log.i(TAG, "TEXT_SCAN discarded=motion candidates=" + mapped.size()
                             + " durationMs=" + (completedUptime - scanStartedUptime)
+                            + " visited=" + scan.getVisitedNodes()
+                            + " textNodes=" + scan.getTextNodes()
+                            + " classified=" + scan.getClassifiedNodes()
+                            + " cancelled=" + scan.isCancelled()
                             + " generation=" + scanMotionGeneration + "->"
                             + currentMotionGeneration);
                     return;
@@ -884,13 +965,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         scanStartedUptime, lastMotionUptime);
                 List<Detection> stable = accessibilityTextStabilizer.update(
                         mapped, bridgeConfirmedMiss);
-                String candidateFingerprint = detectionFingerprint(mapped, true);
-                if (candidateFingerprint.equals(lastAccessibilityCandidateFingerprint)) {
-                    accessibilityCandidateScans++;
-                } else {
-                    lastAccessibilityCandidateFingerprint = candidateFingerprint;
-                    accessibilityCandidateScans = 1;
-                }
+                accessibilityCandidateScans++;
                 accessibilityTextCandidatesPresent = !mapped.isEmpty();
                 if (accessibilityTextCandidatesPresent) clearCachedOcr();
                 boolean stageForConfirmation = shouldStagePostScrollTextScan(
@@ -900,7 +975,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 if (stageForConfirmation) {
                     Log.i(TAG, "TEXT_SCAN staged candidates=" + mapped.size()
                             + " stable=" + stable.size()
-                            + " durationMs=" + (completedUptime - scanStartedUptime));
+                            + " durationMs=" + (completedUptime - scanStartedUptime)
+                            + " visited=" + scan.getVisitedNodes()
+                            + " textNodes=" + scan.getTextNodes()
+                            + " classified=" + scan.getClassifiedNodes());
                     textRefreshRequested.set(true);
                     return;
                 }
@@ -910,7 +988,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 Log.i(TAG, "TEXT_SCAN accepted candidates=" + mapped.size()
                         + " stable=" + stable.size()
                         + " bridgeMiss=" + bridgeConfirmedMiss
-                        + " durationMs=" + (completedUptime - scanStartedUptime));
+                        + " durationMs=" + (completedUptime - scanStartedUptime)
+                        + " visited=" + scan.getVisitedNodes()
+                        + " textNodes=" + scan.getTextNodes()
+                        + " classified=" + scan.getClassifiedNodes());
                 publishTextLane(epoch, "accessibility");
                 lastTextRefreshMillis = System.currentTimeMillis();
                 if (stable.size() < mapped.size() && accessibilityCandidateScans < 2) {
@@ -1068,6 +1149,42 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             }
         }
         return visual;
+    }
+
+    private synchronized VisualGeometryDelta recordVisualGeometry(
+            List<TrackedObject> tracks) {
+        int matched = 0;
+        int changed = 0;
+        int maxCenterDeltaPx = 0;
+        int maxSizeDeltaPx = 0;
+        Map<Integer, BBox> current = new HashMap<>();
+        if (tracks != null) {
+            for (TrackedObject track : tracks) {
+                if (track == null) continue;
+                BBox box = track.getBox();
+                current.put(track.getId(), box);
+                BBox previous = lastPublishedVisualBoxes.get(track.getId());
+                if (previous == null) continue;
+                matched++;
+                int centerDelta = Math.max(
+                        Math.abs(box.getCenterX() - previous.getCenterX()),
+                        Math.abs(box.getCenterY() - previous.getCenterY()));
+                int sizeDelta = Math.max(
+                        Math.abs(box.getWidth() - previous.getWidth()),
+                        Math.abs(box.getHeight() - previous.getHeight()));
+                maxCenterDeltaPx = Math.max(maxCenterDeltaPx, centerDelta);
+                maxSizeDeltaPx = Math.max(maxSizeDeltaPx, sizeDelta);
+                if (centerDelta > 1 || sizeDelta > 1) changed++;
+            }
+        }
+        lastPublishedVisualBoxes.clear();
+        lastPublishedVisualBoxes.putAll(current);
+        return new VisualGeometryDelta(
+                matched, changed, maxCenterDeltaPx, maxSizeDeltaPx);
+    }
+
+    private synchronized void clearVisualGeometryHistory() {
+        lastPublishedVisualBoxes.clear();
     }
 
     private List<Detection> shiftTextSource(
@@ -1317,7 +1434,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         detectorConfig = config;
         main.post(() -> {
             if (overlay != null) {
-                overlay.setMaxExtrapolationMs(config.getMaxExtrapolationMs());
+                // Accessibility deltas already move every box at event cadence. Detector
+                // velocity in this mode is geometry noise, not missing viewport motion.
+                overlay.setMaxExtrapolationMs(0f);
             }
         });
         configureAccessibilityCadence(config);
@@ -1327,7 +1446,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         textRefreshRequested.set(true);
         if (detector != null) detector.setConfig(config);
         if (fastDetector != null) fastDetector.setConfig(fastDetectorConfig(config));
-        if (tracker != null) tracker.setConfig(config);
+        if (tracker != null) tracker.setConfig(accessibilityTrackerConfig(config));
         PopupStormManager.get().reloadSettings(this);
         main.post(() -> {
             if (subliminalOverlay != null) subliminalOverlay.updateSettings();
@@ -1533,10 +1652,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
         qualityVisualStabilizer.clear();
         accessibilityTextStabilizer.clear();
-        lastAccessibilityCandidateFingerprint = "";
         accessibilityCandidateScans = 0;
         lastPublishedTextFingerprint = "";
         skippedUnchangedTextPublishes = 0L;
+        clearVisualGeometryHistory();
         accessibilityTextCandidatesPresent = false;
         textRefreshRequested.set(true);
         main.post(() -> {
@@ -1737,7 +1856,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         overlayNeedsSourceFrame = appearance.requiresSourceFrame();
         overlay.setAppearance(appearance);
         DetectorConfig config = settings.loadDetectorConfig();
-        overlay.setMaxExtrapolationMs(config.getMaxExtrapolationMs());
+        overlay.setMaxExtrapolationMs(0f);
         overlay.setDiagnostics(diagnosticsOverlayText());
         overlay.show();
         PopupStormManager.get().start(this);
@@ -1783,10 +1902,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
         qualityVisualStabilizer.clear();
         accessibilityTextStabilizer.clear();
-        lastAccessibilityCandidateFingerprint = "";
         accessibilityCandidateScans = 0;
         lastPublishedTextFingerprint = "";
         skippedUnchangedTextPublishes = 0L;
+        clearVisualGeometryHistory();
         accessibilityTextCandidatesPresent = false;
         settledInferenceNeeded.set(false);
         discardPendingInference();
@@ -1877,6 +1996,24 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private void recycle() {
             if (frame != null && !frame.isRecycled()) frame.recycle();
             frame = null;
+        }
+    }
+
+    private static final class VisualGeometryDelta {
+        private final int matched;
+        private final int changed;
+        private final int maxCenterDeltaPx;
+        private final int maxSizeDeltaPx;
+
+        private VisualGeometryDelta(
+                int matched,
+                int changed,
+                int maxCenterDeltaPx,
+                int maxSizeDeltaPx) {
+            this.matched = matched;
+            this.changed = changed;
+            this.maxCenterDeltaPx = maxCenterDeltaPx;
+            this.maxSizeDeltaPx = maxSizeDeltaPx;
         }
     }
 

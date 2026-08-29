@@ -63,22 +63,44 @@ public final class AccessibilityTextSmutDetector {
             boolean semanticEnabled,
             boolean exactGeometryPreferred,
             BooleanSupplier cancelled) {
-        if (root == null || config == null || !config.isEnabled()) return Collections.emptyList();
+        return detectWithMetrics(root, config, width, height, semanticEnabled,
+                exactGeometryPreferred, cancelled).getDetections();
+    }
+
+    /** Returns traversal cost as well as detections so device traces can expose Binder/tree work. */
+    public ScanResult detectWithMetrics(
+            AccessibilityNodeInfo root,
+            TextSmutConfig config,
+            int width,
+            int height,
+            boolean semanticEnabled,
+            boolean exactGeometryPreferred,
+            BooleanSupplier cancelled) {
+        if (root == null || config == null || !config.isEnabled()) return ScanResult.EMPTY;
         List<Detection> result = new ArrayList<>();
         ArrayDeque<AccessibilityNodeInfo> pending = new ArrayDeque<>();
         pending.add(root);
         int visited = 0;
-        while (!pending.isEmpty() && visited++ < MAX_NODES) {
-            if (cancelled != null && cancelled.getAsBoolean()) break;
+        int textNodes = 0;
+        int classifiedNodes = 0;
+        boolean wasCancelled = false;
+        while (!pending.isEmpty() && visited < MAX_NODES) {
+            if (cancelled != null && cancelled.getAsBoolean()) {
+                wasCancelled = true;
+                break;
+            }
             AccessibilityNodeInfo node = pending.removeFirst();
+            visited++;
             boolean ownsNode = node != root;
             try {
                 if (!node.isVisibleToUser()) continue;
                 String text = textOf(node);
                 if (!text.isEmpty()) {
+                    textNodes++;
                     Rect bounds = new Rect();
                     node.getBoundsInScreen(bounds);
                     if (isUsefulTextRegion(node, bounds, width, height)) {
+                        classifiedNodes++;
                         SmutTextClassifier.Match match = factory.classify(
                                 text, config, semanticEnabled);
                         Rect characterBounds = AccessibilityTextGeometry.resolve(
@@ -115,8 +137,39 @@ public final class AccessibilityTextSmutDetector {
             AccessibilityNodeInfo abandoned = pending.removeFirst();
             if (abandoned != root) abandoned.recycle();
         }
-        return Collections.unmodifiableList(
-                DetectionFusion.merge(Collections.emptyList(), result));
+        return new ScanResult(Collections.unmodifiableList(
+                DetectionFusion.merge(Collections.emptyList(), result)),
+                visited, textNodes, classifiedNodes, wasCancelled);
+    }
+
+    public static final class ScanResult {
+        private static final ScanResult EMPTY = new ScanResult(
+                Collections.emptyList(), 0, 0, 0, false);
+
+        private final List<Detection> detections;
+        private final int visitedNodes;
+        private final int textNodes;
+        private final int classifiedNodes;
+        private final boolean cancelled;
+
+        private ScanResult(
+                List<Detection> detections,
+                int visitedNodes,
+                int textNodes,
+                int classifiedNodes,
+                boolean cancelled) {
+            this.detections = detections;
+            this.visitedNodes = visitedNodes;
+            this.textNodes = textNodes;
+            this.classifiedNodes = classifiedNodes;
+            this.cancelled = cancelled;
+        }
+
+        public List<Detection> getDetections() { return detections; }
+        public int getVisitedNodes() { return visitedNodes; }
+        public int getTextNodes() { return textNodes; }
+        public int getClassifiedNodes() { return classifiedNodes; }
+        public boolean isCancelled() { return cancelled; }
     }
 
     private static boolean isUsefulTextRegion(
