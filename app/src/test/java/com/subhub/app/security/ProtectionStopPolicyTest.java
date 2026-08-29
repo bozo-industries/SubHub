@@ -17,10 +17,10 @@ public final class ProtectionStopPolicyTest {
                 ProtectionStopPolicy.evaluate(false, true, true, false));
     }
 
-    @Test public void pactTimerCannotBeBypassedByDomMode() {
+    @Test public void timedServiceBindsSubSpaceButDomMayReleaseIt() {
         assertEquals(ProtectionStopPolicy.Decision.TIMER_LOCKED,
                 ProtectionStopPolicy.evaluate(true, false, false, false));
-        assertEquals(ProtectionStopPolicy.Decision.TIMER_LOCKED,
+        assertEquals(ProtectionStopPolicy.Decision.ALLOW,
                 ProtectionStopPolicy.evaluate(true, true, true, false));
     }
 

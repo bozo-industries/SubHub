@@ -25,7 +25,7 @@ public final class ProtectionStopPolicy {
             boolean domMode,
             boolean paidPauseActive) {
         if (paidPauseActive) return Decision.ALLOW;
-        if (pactActive) return Decision.TIMER_LOCKED;
+        if (pactActive && !domMode) return Decision.TIMER_LOCKED;
         if (hardcoreActive && !domMode) return Decision.REQUIRE_CONTROLLER;
         return Decision.ALLOW;
     }

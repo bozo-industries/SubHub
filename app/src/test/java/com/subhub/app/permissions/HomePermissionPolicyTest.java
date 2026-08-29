@@ -20,17 +20,17 @@ public final class HomePermissionPolicyTest {
         List<HomePermissionPolicy.Requirement> missing = HomePermissionPolicy.missing(
                 true, false, true, false, true, false, false, false);
         assertEquals(Arrays.asList(
-                HomePermissionPolicy.Requirement.ACCESSIBILITY,
-                HomePermissionPolicy.Requirement.NOTIFICATIONS), missing);
+                HomePermissionPolicy.Requirement.NOTIFICATIONS,
+                HomePermissionPolicy.Requirement.ACCESSIBILITY), missing);
     }
 
     @Test public void screenRecordingCensorAlsoNeedsOverlay() {
         List<HomePermissionPolicy.Requirement> missing = HomePermissionPolicy.missing(
                 true, true, true, false, false, false, false, false);
         assertEquals(Arrays.asList(
+                HomePermissionPolicy.Requirement.NOTIFICATIONS,
                 HomePermissionPolicy.Requirement.ACCESSIBILITY,
-                HomePermissionPolicy.Requirement.OVERLAY,
-                HomePermissionPolicy.Requirement.NOTIFICATIONS), missing);
+                HomePermissionPolicy.Requirement.OVERLAY), missing);
     }
 
     @Test public void requestedHardcoreNeedsAccessibilityAndDeviceAdmin() {

@@ -22,6 +22,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -275,6 +276,10 @@ public final class MainActivity extends AppCompatActivity {
                 ControllerPinGate.require(this, () -> toggleProtection(view), false);
                 return;
             }
+            if (CommitmentManager.isActive(this)
+                    && ControllerPinManager.isDomModeActive()) {
+                CommitmentManager.emergencyRelease(this);
+            }
         }
         if (ScreenCaptureService.isRunning()) {
             startService(ScreenCaptureService.stopIntent(this));
@@ -370,8 +375,9 @@ public final class MainActivity extends AppCompatActivity {
                 || (appMode.isArmed() && (method == CaptureMethod.SCREEN_RECORDING
                         || appMode.isAccessibilityEnabled()));
         if (active && !protectionAvailable) {
-            CommitmentManager.emergencyRelease(this);
-            active = false;
+            // A process restart or a short Accessibility reconnect must never erase a timed
+            // service. Re-arm the stored arrangement and keep the original expiry intact.
+            CommitmentManager.reinforceProtection(this);
         }
         binding.commitmentCard.setVisibility(View.VISIBLE);
         binding.commitmentStartPanel.setVisibility(!active ? View.VISIBLE : View.GONE);
@@ -432,6 +438,8 @@ public final class MainActivity extends AppCompatActivity {
             if (!attemptedPermissions.add(requirement)) continue;
             switch (requirement) {
                 case ACCESSIBILITY:
+                    Toast.makeText(this, R.string.permission_accessibility_guidance,
+                            Toast.LENGTH_LONG).show();
                     accessibilityPermission.launch(
                             new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
                     return;
@@ -1045,20 +1053,144 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         StatsSnapshot stats = new StatsRepository(this).load();
-        binding.statsBlocks.setText(String.valueOf(stats.getCurrentSessionBlocks()));
-        binding.statsTime.setText(StatsSnapshot.formatClock(stats.getCurrentSessionSeconds()));
-        binding.statsSessions.setText(String.valueOf(stats.getSessions()));
-        binding.lifetimeBlocks.setText(String.format(java.util.Locale.getDefault(), "%,d",
-                stats.getTotalBlocks()));
-        binding.lifetimeProtected.setText(
-                StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds()));
-        binding.lifetimeSessions.setText(String.format(java.util.Locale.getDefault(), "%,d",
-                stats.getSessions()));
-        binding.lifetimeStreak.setText(getString(R.string.stats_streak_days,
-                stats.getCurrentStreak()));
+        renderStats(stats);
         renderAchievementsPreview(stats);
         renderCommitmentState();
         renderSubDashboard();
+    }
+
+    private void renderStats(StatsSnapshot stats) {
+        FeatureModuleManager modules = new FeatureModuleManager(this);
+        List<Metric> service = new ArrayList<>();
+        service.add(new Metric(R.string.stats_service_time,
+                StatsSnapshot.formatClock(stats.getCurrentSessionSeconds())));
+        if (modules.isCensorEnabled()) {
+            service.add(new Metric(R.string.stats_censors,
+                    formatCount(stats.getCurrentSessionBlocks())));
+        }
+        if (modules.isLimitsEnabled()) {
+            service.add(new Metric(R.string.stats_limited_app_time,
+                    formatMillis(stats.getCurrentSessionLimitedAppMillis())));
+            service.add(new Metric(R.string.stats_limit_stops,
+                    formatCount(stats.getCurrentSessionLimitInterventions())));
+        }
+        if (modules.isWalletEnabled()) {
+            service.add(new Metric(R.string.stats_tributes,
+                    formatCount(stats.getCurrentSessionTributeEvents())));
+            service.add(new Metric(R.string.stats_tribute_value,
+                    PenanceManager.formatMoney((int) Math.min(Integer.MAX_VALUE,
+                            stats.getCurrentSessionTributeCents()))));
+        }
+        if (modules.isSubliminalEnabled()) {
+            service.add(new Metric(R.string.stats_whispers,
+                    formatCount(stats.getCurrentSessionSubliminals())));
+        }
+        if (stats.getCurrentSessionPopupImpressions() > 0) {
+            service.add(new Metric(R.string.stats_popups,
+                    formatCount(stats.getCurrentSessionPopupImpressions())));
+        }
+        renderMetricRows(binding.homeSessionMetrics, service, 3);
+
+        List<Metric> lifetime = new ArrayList<>();
+        lifetime.add(new Metric(R.string.stats_services, formatCount(stats.getSessions())));
+        lifetime.add(new Metric(R.string.stats_total_protected_short,
+                StatsSnapshot.formatDuration(stats.getTotalProtectedSeconds())));
+        lifetime.add(new Metric(R.string.stats_streak,
+                getString(R.string.stats_streak_days, stats.getCurrentStreak())));
+        if (modules.isCensorEnabled() || stats.getTotalBlocks() > 0) {
+            lifetime.add(new Metric(R.string.stats_censors, formatCount(stats.getTotalBlocks())));
+        }
+        if (modules.isLimitsEnabled() || stats.getLimitedAppMillis() > 0) {
+            lifetime.add(new Metric(R.string.stats_limited_app_time,
+                    formatMillis(stats.getLimitedAppMillis())));
+            lifetime.add(new Metric(R.string.stats_limit_stops,
+                    formatCount(stats.getLimitInterventions())));
+        }
+        if (modules.isWalletEnabled() || stats.getTributeEvents() > 0) {
+            lifetime.add(new Metric(R.string.stats_tributes,
+                    formatCount(stats.getTributeEvents())));
+            lifetime.add(new Metric(R.string.stats_paid,
+                    PenanceManager.formatMoney((int) Math.min(Integer.MAX_VALUE,
+                            new PenanceManager(this).getTotalPaidCents()))));
+        }
+        if (modules.isSubliminalEnabled() || stats.getSubliminalImpressions() > 0) {
+            lifetime.add(new Metric(R.string.stats_whispers,
+                    formatCount(stats.getSubliminalImpressions())));
+        }
+        if (stats.getPopupImpressions() > 0) {
+            lifetime.add(new Metric(R.string.stats_popups,
+                    formatCount(stats.getPopupImpressions())));
+        }
+        renderMetricRows(binding.homeLifetimeMetrics, lifetime, 3);
+    }
+
+    private void renderMetricRows(LinearLayout container, List<Metric> metrics, int columns) {
+        container.removeAllViews();
+        for (int offset = 0; offset < metrics.size(); offset += columns) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            if (offset > 0) rowParams.topMargin = dp(8);
+            row.setLayoutParams(rowParams);
+            for (int column = 0; column < columns; column++) {
+                int index = offset + column;
+                if (index < metrics.size()) row.addView(metricCard(metrics.get(index), column));
+                else {
+                    View spacer = new View(this);
+                    spacer.setLayoutParams(new LinearLayout.LayoutParams(
+                            0, dp(70), 1f));
+                    row.addView(spacer);
+                }
+            }
+            container.addView(row);
+        }
+    }
+
+    private View metricCard(Metric metric, int column) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(android.view.Gravity.CENTER);
+        card.setBackgroundResource(R.drawable.bg_home_metric);
+        card.setPadding(dp(6), dp(8), dp(6), dp(8));
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(0, dp(70), 1f);
+        if (column > 0) cardParams.leftMargin = dp(4);
+        if (column < 2) cardParams.rightMargin = dp(4);
+        card.setLayoutParams(cardParams);
+
+        TextView value = new TextView(this);
+        value.setText(metric.value);
+        value.setTextAppearance(R.style.Widget_SubHub_HomeStatValue);
+        value.setGravity(android.view.Gravity.CENTER);
+        value.setMaxLines(1);
+        value.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        card.addView(value);
+
+        TextView label = new TextView(this);
+        label.setText(metric.label);
+        label.setTextAppearance(R.style.Widget_SubHub_HomeStatLabel);
+        label.setGravity(android.view.Gravity.CENTER);
+        label.setMaxLines(1);
+        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        card.addView(label);
+        return card;
+    }
+
+    private String formatCount(long value) {
+        return String.format(java.util.Locale.getDefault(), "%,d", Math.max(0L, value));
+    }
+
+    private static String formatMillis(long millis) {
+        return StatsSnapshot.formatDuration(Math.max(0L, millis) / 1_000L);
+    }
+
+    private static final class Metric {
+        final int label;
+        final String value;
+        Metric(int label, String value) {
+            this.label = label;
+            this.value = value;
+        }
     }
 
     private void renderAchievementsPreview(StatsSnapshot stats) {

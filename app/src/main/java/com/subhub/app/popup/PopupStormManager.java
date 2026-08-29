@@ -20,6 +20,7 @@ import android.widget.TextView;
 import com.subhub.app.R;
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.TrackedObject;
+import com.subhub.app.stats.StatsRepository;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -257,6 +258,7 @@ public final class PopupStormManager {
         LivePopup live = attach(popup);
         if (live == null) { popup.recycleDerived(); return false; }
         popups.add(live);
+        new StatsRepository(context).recordPopupImpression();
         return true;
     }
 

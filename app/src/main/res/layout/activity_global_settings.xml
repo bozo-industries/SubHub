@@ -267,7 +267,7 @@
                     android:id="@+id/button_toggle_apps"
                     style="@style/Widget.SubHub.CompactOutlineButton"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="48dp"
                     android:layout_marginTop="6dp"
                     android:text="@string/app_selection_expand" />
                 <LinearLayout

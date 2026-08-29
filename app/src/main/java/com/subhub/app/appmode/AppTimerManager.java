@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.subhub.app.settings.SettingsRepository;
+import com.subhub.app.stats.StatsRepository;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -79,6 +80,7 @@ public final class AppTimerManager {
 
     private final SharedPreferences settingsPreferences;
     private final SharedPreferences usagePreferences;
+    private final StatsRepository stats;
 
     public AppTimerManager(Context context) {
         Context application = context.getApplicationContext();
@@ -86,6 +88,7 @@ public final class AppTimerManager {
                 SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE);
         usagePreferences = application.getSharedPreferences(
                 USAGE_PREFERENCES, Context.MODE_PRIVATE);
+        stats = new StatsRepository(application);
     }
 
     public Settings loadSettings() {
@@ -166,6 +169,7 @@ public final class AppTimerManager {
                 .putLong(packageKey, appUsed)
                 .putLong(KEY_TOTAL_USED, totalUsed)
                 .apply();
+        stats.recordLimitedAppUsage(elapsedMillis);
     }
 
     public synchronized UsageSnapshot snapshot(String packageName, long nowMillis) {

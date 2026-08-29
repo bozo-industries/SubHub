@@ -156,17 +156,13 @@ public final class PopupStormActivity extends AppCompatActivity {
         String selectedPreset = preferences.getString(
                 PopupStormSettings.K_PRESET, IntensityPresets.MEDIUM.name());
         for (IntensityPresets preset : IntensityPresets.values()) {
-            Button button = new Button(this);
-            button.setText(preset.getDisplayName().toUpperCase(Locale.ROOT));
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(48), 1);
+            Button button = new Button(this, null, 0, R.style.Widget_SubHub_SegmentedButton);
+            button.setText(preset.getDisplayName());
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1);
             if (binding.presetContainer.getChildCount() > 0) params.setMarginStart(dp(4));
             button.setLayoutParams(params);
-            button.setTextSize(11);
-            button.setAllCaps(false);
             boolean selected = preset.name().equals(selectedPreset);
-            button.setBackgroundResource(selected
-                    ? R.drawable.bg_bottom_tab_active : R.drawable.bg_outline_button);
-            button.setTextColor(getColor(selected ? R.color.text_primary : R.color.accent));
+            button.setSelected(selected);
             button.setEnabled(ControllerPinManager.isSessionUnlocked());
             button.setOnClickListener(view -> {
                 preset.apply(this);

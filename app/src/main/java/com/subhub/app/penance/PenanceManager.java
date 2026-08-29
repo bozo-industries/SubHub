@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 
 import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.security.HardcoreModeManager;
+import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.settings.FeatureModuleManager;
 
 import java.time.ZoneId;
@@ -242,6 +243,8 @@ public final class PenanceManager {
             events.add(new PenanceEvent(UUID.randomUUID().toString(), nowMillis, mercyEnds,
                     amount, billableCount, infraction, PenanceEvent.Status.OPEN, ""));
             saveEvents(events);
+            new StatsRepository(context).recordTributeEvent(amount,
+                    infraction == PenanceInfraction.TAMPER_ATTEMPT);
             if (infraction == PenanceInfraction.TAMPER_ATTEMPT) {
                 preferences.edit().putLong(KEY_LAST_TAMPER_AT, nowMillis).apply();
             }
@@ -279,6 +282,7 @@ public final class PenanceManager {
                     pause.getPriceCents(), 1, PenanceInfraction.PAID_PAUSE,
                     PenanceEvent.Status.OPEN, ""));
             saveEvents(events);
+            new StatsRepository(context).recordTributeEvent(pause.getPriceCents(), false);
             return true;
         }
     }

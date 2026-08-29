@@ -1,10 +1,18 @@
 [
   {
+    "versionName": "0.6.1",
+    "tag": "v0.6.1",
+    "notes": "## What’s new in SubHub 0.6.1\n\n### New\n\n- **Complete app-wide service progress** — Expand Home and Statistics beyond censor counts with durable feature-aware service history and retuned achievements; preserve timed service state across process and Accessibility interruptions; let Dom Space release timed service…\n",
+    "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.6.1",
+    "publishedAt": "2026-08-29T03:30:43+02:00",
+    "prerelease": false
+  },
+  {
     "versionName": "0.6.0",
     "tag": "v0.6.0",
     "notes": "## What’s new in SubHub 0.6.0\n\n### New\n\n- **Add portable SubHub Studio arrangements** — Introduce the always-available Studio surface and bounded .subhubpack format with drafts, previews, embedded art, role-aware sharing, reviewed section merges, reversible backups, optional locks, and legacy .bbpack import.\n",
     "htmlUrl": "https://github.com/bozo-industries/SubHub/releases/tag/v0.6.0",
-    "publishedAt": "2026-08-28T00:56:41+02:00",
+    "publishedAt": "2026-08-28T00:57:16+02:00",
     "prerelease": false
   },
   {

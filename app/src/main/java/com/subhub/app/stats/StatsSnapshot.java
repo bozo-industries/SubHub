@@ -30,6 +30,18 @@ public final class StatsSnapshot {
     private final long currentSessionSeconds;
     private final long subliminalImpressions;
     private final long currentSessionSubliminals;
+    private final long limitedAppMillis;
+    private final long currentSessionLimitedAppMillis;
+    private final long limitInterventions;
+    private final long currentSessionLimitInterventions;
+    private final long tributeEvents;
+    private final long currentSessionTributeEvents;
+    private final long tributeCents;
+    private final long currentSessionTributeCents;
+    private final long tamperEvents;
+    private final long currentSessionTamperEvents;
+    private final long popupImpressions;
+    private final long currentSessionPopupImpressions;
 
     StatsSnapshot(long totalBlocks, long totalSessionSeconds, int sessions, int currentStreak,
             String lastSessionDate, long totalProtectedSeconds, int currentSessionBlocks,
@@ -38,7 +50,13 @@ public final class StatsSnapshot {
             int censorStyleChanges, boolean borderColorChanged, Set<String> censorStylesTried,
             Set<String> borderEffectsTried, Set<String> activeDates, long allCategoryCensors,
             long currentSessionSeconds, long subliminalImpressions,
-            long currentSessionSubliminals) {
+            long currentSessionSubliminals, long limitedAppMillis,
+            long currentSessionLimitedAppMillis, long limitInterventions,
+            long currentSessionLimitInterventions, long tributeEvents,
+            long currentSessionTributeEvents, long tributeCents,
+            long currentSessionTributeCents, long tamperEvents,
+            long currentSessionTamperEvents, long popupImpressions,
+            long currentSessionPopupImpressions) {
         this.totalBlocks = totalBlocks;
         this.totalSessionSeconds = totalSessionSeconds;
         this.sessions = sessions;
@@ -62,6 +80,18 @@ public final class StatsSnapshot {
         this.currentSessionSeconds = Math.max(0, currentSessionSeconds);
         this.subliminalImpressions = Math.max(0, subliminalImpressions);
         this.currentSessionSubliminals = Math.max(0, currentSessionSubliminals);
+        this.limitedAppMillis = Math.max(0, limitedAppMillis);
+        this.currentSessionLimitedAppMillis = Math.max(0, currentSessionLimitedAppMillis);
+        this.limitInterventions = Math.max(0, limitInterventions);
+        this.currentSessionLimitInterventions = Math.max(0, currentSessionLimitInterventions);
+        this.tributeEvents = Math.max(0, tributeEvents);
+        this.currentSessionTributeEvents = Math.max(0, currentSessionTributeEvents);
+        this.tributeCents = Math.max(0, tributeCents);
+        this.currentSessionTributeCents = Math.max(0, currentSessionTributeCents);
+        this.tamperEvents = Math.max(0, tamperEvents);
+        this.currentSessionTamperEvents = Math.max(0, currentSessionTamperEvents);
+        this.popupImpressions = Math.max(0, popupImpressions);
+        this.currentSessionPopupImpressions = Math.max(0, currentSessionPopupImpressions);
     }
 
     public long getTotalBlocks() { return totalBlocks; }
@@ -89,6 +119,31 @@ public final class StatsSnapshot {
     public long getCurrentSessionSeconds() { return currentSessionSeconds; }
     public long getSubliminalImpressions() { return subliminalImpressions; }
     public long getCurrentSessionSubliminals() { return currentSessionSubliminals; }
+    public long getLimitedAppMillis() { return limitedAppMillis; }
+    public long getCurrentSessionLimitedAppMillis() { return currentSessionLimitedAppMillis; }
+    public long getLimitInterventions() { return limitInterventions; }
+    public long getCurrentSessionLimitInterventions() { return currentSessionLimitInterventions; }
+    public long getTributeEvents() { return tributeEvents; }
+    public long getCurrentSessionTributeEvents() { return currentSessionTributeEvents; }
+    public long getTributeCents() { return tributeCents; }
+    public long getCurrentSessionTributeCents() { return currentSessionTributeCents; }
+    public long getTamperEvents() { return tamperEvents; }
+    public long getCurrentSessionTamperEvents() { return currentSessionTamperEvents; }
+    public long getPopupImpressions() { return popupImpressions; }
+    public long getCurrentSessionPopupImpressions() { return currentSessionPopupImpressions; }
+
+    /** Discrete feature events, excluding durations and payment value. */
+    public long getActivityEvents() {
+        return totalBlocks + limitInterventions + tributeEvents + subliminalImpressions
+                + popupImpressions;
+    }
+
+    /** Discrete feature events recorded during the active service. */
+    public long getCurrentSessionActivityEvents() {
+        return currentSessionBlocks + currentSessionLimitInterventions
+                + currentSessionTributeEvents + currentSessionSubliminals
+                + currentSessionPopupImpressions;
+    }
 
     public static String formatDuration(long totalSeconds) {
         long hours = totalSeconds / 3600;

@@ -20,7 +20,7 @@
             android:paddingStart="@dimen/page_margin"
             android:paddingTop="12dp"
             android:paddingEnd="@dimen/page_margin"
-            android:paddingBottom="116dp">
+            android:paddingBottom="16dp">
 
             <!-- One command deck: identity, readiness, duration, and action. -->
             <LinearLayout
@@ -578,20 +578,12 @@
 
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:includeFontPadding="false" android:letterSpacing="0.13" android:text="@string/home_journey_title" android:textColor="@color/text_primary" android:textSize="12sp" android:textStyle="bold" />
 
-                <LinearLayout android:id="@+id/home_stats_row" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="horizontal">
-                    <LinearLayout style="@style/Widget.SubHub.HomeStatCard" android:background="@drawable/bg_home_metric" android:layout_marginEnd="4dp">
-                        <TextView android:id="@+id/stats_blocks" style="@style/Widget.SubHub.HomeStatValue" />
-                        <TextView style="@style/Widget.SubHub.HomeStatLabel" android:text="@string/stats_session_blocks" />
-                    </LinearLayout>
-                    <LinearLayout style="@style/Widget.SubHub.HomeStatCard" android:background="@drawable/bg_home_metric" android:layout_marginHorizontal="4dp">
-                        <TextView android:id="@+id/stats_time" style="@style/Widget.SubHub.HomeStatValue" />
-                        <TextView style="@style/Widget.SubHub.HomeStatLabel" android:text="@string/stat_session" />
-                    </LinearLayout>
-                    <LinearLayout style="@style/Widget.SubHub.HomeStatCard" android:background="@drawable/bg_home_metric" android:layout_marginStart="4dp">
-                        <TextView android:id="@+id/stats_sessions" style="@style/Widget.SubHub.HomeStatValue" />
-                        <TextView style="@style/Widget.SubHub.HomeStatLabel" android:text="@string/stats_sessions" />
-                    </LinearLayout>
-                </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/home_session_metrics"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:orientation="vertical" />
 
                 <TextView
                     android:id="@+id/button_statistics"
@@ -619,26 +611,12 @@
 
                 <LinearLayout android:id="@+id/home_lifetime_stats" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="11dp" android:orientation="vertical">
                     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:includeFontPadding="false" android:text="@string/home_lifetime_title" android:textColor="@color/text_secondary" android:textSize="10sp" android:textStyle="bold" />
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="7dp" android:orientation="horizontal">
-                        <LinearLayout style="@style/Widget.SubHub.HomeStatCard" android:layout_height="70dp" android:background="@drawable/bg_home_metric" android:layout_marginEnd="4dp">
-                            <TextView android:id="@+id/lifetime_blocks" style="@style/Widget.SubHub.HomeStatValue" />
-                            <TextView style="@style/Widget.SubHub.HomeStatLabel" android:text="@string/stats_total_blocks_short" />
-                        </LinearLayout>
-                        <LinearLayout style="@style/Widget.SubHub.HomeStatCard" android:layout_height="70dp" android:background="@drawable/bg_home_metric" android:layout_marginStart="4dp">
-                            <TextView android:id="@+id/lifetime_sessions" style="@style/Widget.SubHub.HomeStatValue" />
-                            <TextView style="@style/Widget.SubHub.HomeStatLabel" android:text="@string/stats_sessions" />
-                        </LinearLayout>
-                    </LinearLayout>
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="horizontal">
-                        <LinearLayout style="@style/Widget.SubHub.HomeStatCard" android:layout_height="70dp" android:background="@drawable/bg_home_metric" android:layout_marginEnd="4dp">
-                            <TextView android:id="@+id/lifetime_protected" style="@style/Widget.SubHub.HomeStatValue" />
-                            <TextView style="@style/Widget.SubHub.HomeStatLabel" android:text="@string/stats_total_protected_short" />
-                        </LinearLayout>
-                        <LinearLayout style="@style/Widget.SubHub.HomeStatCard" android:layout_height="70dp" android:background="@drawable/bg_home_metric" android:layout_marginStart="4dp">
-                            <TextView android:id="@+id/lifetime_streak" style="@style/Widget.SubHub.HomeStatValue" />
-                            <TextView style="@style/Widget.SubHub.HomeStatLabel" android:text="@string/stats_streak" />
-                        </LinearLayout>
-                    </LinearLayout>
+                    <LinearLayout
+                        android:id="@+id/home_lifetime_metrics"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="7dp"
+                        android:orientation="vertical" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -714,6 +692,10 @@
                     <TextView android:id="@+id/button_penance_view" android:layout_width="match_parent" android:layout_height="wrap_content" />
                 </LinearLayout>
             </LinearLayout>
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/bottom_nav_clearance" />
         </LinearLayout>
     </ScrollView>
 

@@ -44,6 +44,7 @@
 
             <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/switch_enabled"
+                style="@style/Widget.SubHub.Switch"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:text="@string/popup_enable"
@@ -74,6 +75,7 @@
                     android:id="@+id/button_stop"
                     style="@style/Widget.SubHub.CompactOutlineButton"
                     android:layout_width="0dp"
+                    android:layout_height="48dp"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:text="@string/popup_stop_now" />

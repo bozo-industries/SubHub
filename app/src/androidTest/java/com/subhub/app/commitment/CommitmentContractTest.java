@@ -59,7 +59,7 @@ public final class CommitmentContractTest {
                 CommitmentManager.originalDurationMillis(context));
     }
 
-    @Test public void sharedHomeOffersFourPactTimersAndProtectionControl() {
+    @Test public void sharedHomeOffersEveryServiceDurationAndProtectionControl() {
         ControllerPinManager.enterSubMode();
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
@@ -74,6 +74,8 @@ public final class CommitmentContractTest {
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.commitment_timer_24h).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.commitment_timer_7d).getVisibility());
                 assertEquals(View.VISIBLE, activity.findViewById(R.id.commitment_timer_30d).getVisibility());
+                assertEquals(View.VISIBLE,
+                        activity.findViewById(R.id.commitment_timer_permanent).getVisibility());
             });
         }
     }
@@ -114,6 +116,17 @@ public final class CommitmentContractTest {
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.commitment_card).getVisibility());
             });
+        }
+    }
+
+    @Test public void reopeningHomeRearmsInsteadOfDeletingATimedService() {
+        assertTrue(CommitmentManager.start(context, CommitmentManager.MIN_DURATION_MS));
+        new AppModeManager(context).setArmed(false);
+        assertTrue(CommitmentManager.isActive(context));
+
+        try (ActivityScenario<MainActivity> ignored = ActivityScenario.launch(MainActivity.class)) {
+            assertTrue(CommitmentManager.isActive(context));
+            assertTrue(new AppModeManager(context).isArmed());
         }
     }
 
