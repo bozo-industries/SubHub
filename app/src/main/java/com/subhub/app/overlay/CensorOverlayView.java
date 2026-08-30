@@ -64,6 +64,7 @@ final class CensorOverlayView extends View {
     private final Matrix borderShaderMatrix = new Matrix();
     private final CustomImagePool customImages;
     private final Map<Integer, SolidRenderLayer> solidRenderLayers = new HashMap<>();
+    private final List<LabelPlacement> labelPlacements = new ArrayList<>();
 
     private List<RenderTrackSnapshot> tracks = new ArrayList<>();
     private List<RenderTrackSnapshot> textTracks = new ArrayList<>();
@@ -416,6 +417,7 @@ final class CensorOverlayView extends View {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canUseSolidRenderLayers(canvas)) {
             drawSolidRenderLayers(canvas);
             drawSolidTextRenderLayers(canvas);
+            drawOverlayLabels(canvas);
             return;
         }
         float scaleX = (float) getWidth() / captureWidth;
@@ -431,15 +433,11 @@ final class CensorOverlayView extends View {
             drawEffect(canvas, drawRect, track.id(), appearance.getType(),
                     appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
-            if (appearance.isShowText() && drawRect.height() >= dp(22)
-                    && drawRect.width() >= dp(44)
-                    && appearance.getType() != CensorAppearance.Type.ERROR_POPUP) {
-                drawLabel(canvas, drawRect, appearance.phraseFor(track.id()));
-            }
         }
         activePredictionX = 0f;
         activePredictionY = 0f;
         drawTextTracks(canvas);
+        drawOverlayLabels(canvas);
     }
 
     private void drawTextTracks(Canvas canvas) {
@@ -458,11 +456,6 @@ final class CensorOverlayView extends View {
             drawEffect(canvas, drawRect, track.id(), appearance.getType(),
                     appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
-            if (appearance.isShowText() && drawRect.height() >= dp(22)
-                    && drawRect.width() >= dp(44)
-                    && appearance.getType() != CensorAppearance.Type.ERROR_POPUP) {
-                drawLabel(canvas, drawRect, appearance.phraseFor(track.id()));
-            }
         }
         renderContentOffsetX = savedOffsetX;
         renderContentOffsetY = savedOffsetY;
@@ -484,11 +477,9 @@ final class CensorOverlayView extends View {
             drawRect.offset(renderContentOffsetX, renderContentOffsetY);
             int width = Math.max(1, Math.round(drawRect.width()));
             int height = Math.max(1, Math.round(drawRect.height()));
-            String phrase = appearance.phraseFor(track.id());
             SolidRenderLayer layer = solidRenderLayers.get(track.id());
-            if (layer == null || layer.width != width || layer.height != height
-                    || !layer.phrase.equals(phrase)) {
-                layer = recordSolidLayer(track.id(), width, height, phrase);
+            if (layer == null || layer.width != width || layer.height != height) {
+                layer = recordSolidLayer(track.id(), width, height);
                 solidRenderLayers.put(track.id(), layer);
             }
             int left = Math.round(drawRect.left);
@@ -512,11 +503,9 @@ final class CensorOverlayView extends View {
             drawRect.offset(renderContentOffsetX, renderContentOffsetY);
             int width = Math.max(1, Math.round(drawRect.width()));
             int height = Math.max(1, Math.round(drawRect.height()));
-            String phrase = appearance.phraseFor(track.id());
             SolidRenderLayer layer = solidRenderLayers.get(track.id());
-            if (layer == null || layer.width != width || layer.height != height
-                    || !layer.phrase.equals(phrase)) {
-                layer = recordSolidLayer(track.id(), width, height, phrase);
+            if (layer == null || layer.width != width || layer.height != height) {
+                layer = recordSolidLayer(track.id(), width, height);
                 solidRenderLayers.put(track.id(), layer);
             }
             int left = Math.round(drawRect.left);
@@ -529,18 +518,15 @@ final class CensorOverlayView extends View {
     }
 
     @SuppressLint("NewApi") // Called only from the guarded RenderNode path.
-    private SolidRenderLayer recordSolidLayer(int stableId, int width, int height, String phrase) {
+    private SolidRenderLayer recordSolidLayer(int stableId, int width, int height) {
         RenderNode node = new RenderNode("censor-" + stableId);
         node.setPosition(0, 0, width, height);
         Canvas recording = node.beginRecording(width, height);
         RectF local = new RectF(0f, 0f, width, height);
         drawSolid(recording, local, appearance.getIntensity());
         if (appearance.isShowBorder()) drawBorder(recording, local);
-        if (appearance.isShowText() && height >= dp(22) && width >= dp(44)) {
-            drawLabel(recording, local, phrase);
-        }
         node.endRecording();
-        return new SolidRenderLayer(node, width, height, phrase);
+        return new SolidRenderLayer(node, width, height);
     }
 
     private boolean canUseSolidRenderLayers(Canvas canvas) {
@@ -988,28 +974,72 @@ final class CensorOverlayView extends View {
         } else canvas.drawRoundRect(rect, dp(8), dp(8), paint);
     }
 
-    private void drawLabel(Canvas canvas, RectF rect, String text) {
-        resetLabelPaint();
-        label.setTextSize(Math.min(dp(11), Math.max(dp(8), rect.height() * 0.20f)));
+    /** Paints every label after every censor so no later box can bury earlier text. */
+    private void drawOverlayLabels(Canvas canvas) {
+        if (!appearance.isShowText()
+                || appearance.getType() == CensorAppearance.Type.ERROR_POPUP) return;
+        labelPlacements.clear();
+        float scaleX = (float) getWidth() / captureWidth;
+        float scaleY = (float) getHeight() / captureHeight;
+        float ageMs = renderAgeMillis();
+        for (RenderTrackSnapshot track : tracks) {
+            BBox predicted = visualBox(track, ageMs);
+            setPaddedRect(predicted, scaleX, scaleY,
+                    "text_smut".equals(track.category()));
+            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+            addLabelPlacement(drawRect, track.id());
+        }
+
+        float textScaleX = (float) getWidth() / textCaptureWidth;
+        float textScaleY = (float) getHeight() / textCaptureHeight;
+        float textOffsetX = textContentOffsetX + renderViewportLeadX;
+        float textOffsetY = textContentOffsetY + renderViewportLeadY;
+        for (RenderTrackSnapshot track : textTracks) {
+            setPaddedRect(textBox(track), textScaleX, textScaleY, true);
+            drawRect.offset(textOffsetX, textOffsetY);
+            addLabelPlacement(drawRect, track.id());
+        }
+
+        // Bands are below all glyphs. Even two overlapping censors can no longer cover one
+        // another's label with their artwork or label background.
         fill.setShader(null);
         fill.setColor(Color.BLACK);
         fill.setAlpha(205);
-        float bandHeight = Math.min(rect.height(), Math.max(dp(22), label.getTextSize() * 1.75f));
-        RectF band = new RectF(rect.left, rect.centerY() - bandHeight / 2f,
-                rect.right, rect.centerY() + bandHeight / 2f);
-        canvas.drawRoundRect(band, dp(5), dp(5), fill);
-        float baseline = rect.centerY() - (label.ascent() + label.descent()) / 2f;
-        drawText(canvas, rect.centerX(), baseline, text, rect.width() - dp(12));
+        for (LabelPlacement placement : labelPlacements) {
+            canvas.drawRoundRect(placement.band, dp(5), dp(5), fill);
+        }
+        for (LabelPlacement placement : labelPlacements) {
+            resetLabelPaint();
+            label.setTextSize(placement.textSize);
+            canvas.drawText(placement.text, placement.x, placement.baseline, label);
+        }
     }
 
-    private void drawText(
-            Canvas canvas, float x, float baseline, String text, float requestedMaximumWidth) {
-        float maximumWidth = Math.max(dp(24), requestedMaximumWidth);
-        String value = text;
-        while (value.length() > 4 && label.measureText(value) > maximumWidth) {
-            value = value.substring(0, value.length() - 2) + "…";
-        }
-        canvas.drawText(value, x, baseline, label);
+    private void addLabelPlacement(RectF source, int stableId) {
+        if (source.width() < dp(32) || source.height() < dp(16)) return;
+        RectF rect = new RectF(source);
+        float maximumWidth = Math.max(dp(18), rect.width() - dp(10));
+        float minimumSize = dp(7);
+        float maximumSize = Math.min(dp(14), Math.max(minimumSize, rect.height() * 0.20f));
+        resetLabelPaint();
+        label.setTextSize(minimumSize);
+        String selected = CensorLabelLayout.selectPhrase(
+                appearance.getPhrases(), stableId, maximumWidth, label::measureText);
+        label.setTextSize(maximumSize);
+        float measured = label.measureText(selected);
+        float fittedSize = measured <= maximumWidth || measured <= 0f
+                ? maximumSize : Math.max(minimumSize,
+                maximumSize * maximumWidth / measured);
+        label.setTextSize(fittedSize);
+        String fitted = CensorLabelLayout.ellipsize(
+                selected, maximumWidth, label::measureText);
+        float bandHeight = Math.min(rect.height(),
+                Math.max(dp(18), fittedSize * 1.65f));
+        RectF band = new RectF(rect.left, rect.centerY() - bandHeight / 2f,
+                rect.right, rect.centerY() + bandHeight / 2f);
+        float baseline = rect.centerY() - (label.ascent() + label.descent()) / 2f;
+        labelPlacements.add(new LabelPlacement(
+                band, rect.centerX(), baseline, fittedSize, fitted));
     }
 
     private void resetLabelPaint() {
@@ -1205,13 +1235,32 @@ final class CensorOverlayView extends View {
         private final RenderNode node;
         private final int width;
         private final int height;
-        private final String phrase;
 
-        private SolidRenderLayer(RenderNode node, int width, int height, String phrase) {
+        private SolidRenderLayer(RenderNode node, int width, int height) {
             this.node = node;
             this.width = width;
             this.height = height;
-            this.phrase = phrase;
+        }
+    }
+
+    private static final class LabelPlacement {
+        private final RectF band;
+        private final float x;
+        private final float baseline;
+        private final float textSize;
+        private final String text;
+
+        private LabelPlacement(
+                RectF band,
+                float x,
+                float baseline,
+                float textSize,
+                String text) {
+            this.band = band;
+            this.x = x;
+            this.baseline = baseline;
+            this.textSize = textSize;
+            this.text = text;
         }
     }
 }
