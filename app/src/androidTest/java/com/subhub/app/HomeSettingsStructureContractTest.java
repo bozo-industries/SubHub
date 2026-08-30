@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -28,13 +27,11 @@ import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
 public final class HomeSettingsStructureContractTest {
-    @Test public void helpLivesOnHomeOutsideDomOnlyContent() {
+    @Test public void helpAndDiagnosticsAreAbsentFromHome() {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
-                View help = activity.findViewById(R.id.button_help);
-                View domContent = activity.findViewById(R.id.dom_content);
-                assertNotNull(help);
-                assertSame(domContent.getParent(), help.getParent());
+                assertNull(activity.findViewById(R.id.button_help));
+                assertNull(activity.findViewById(R.id.button_diagnostics));
             });
         }
     }
@@ -101,7 +98,7 @@ public final class HomeSettingsStructureContractTest {
         }
     }
 
-    @Test public void paypalIsSecondLastSettingsSectionAndHelpIsAbsent() {
+    @Test public void paypalPrecedesAppSettingsAndHelpDiagnosticsLiveInSettings() {
         try (ActivityScenario<GlobalSettingsActivity> scenario =
                      ActivityScenario.launch(GlobalSettingsActivity.class)) {
             scenario.onActivity(activity -> {
@@ -111,7 +108,8 @@ public final class HomeSettingsStructureContractTest {
                 assertNotNull(paypal);
                 assertEquals(sections.getChildCount() - 2, sections.indexOfChild(paypal));
                 assertEquals(sections.getChildCount() - 1, sections.indexOfChild(appSettings));
-                assertNull(activity.findViewById(R.id.button_help));
+                assertNotNull(activity.findViewById(R.id.button_help));
+                assertNotNull(activity.findViewById(R.id.button_diagnostics));
             });
         }
     }
