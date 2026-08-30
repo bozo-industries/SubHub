@@ -157,6 +157,42 @@ public final class ObjectTracker {
         return Collections.unmodifiableList(active);
     }
 
+    /**
+     * Adds newly confirmed settled-model coverage without aging or reshaping live tracks.
+     *
+     * <p>The ordinary {@link #update(List, long)} path treats an omitted observation as a miss.
+     * A quality pass is supplemental rather than a complete realtime scene, so using that path
+     * would make fast-only tracks flicker. Linked quality detections are evidence only; unlinked
+     * confirmed detections become immediately visible coverage.</p>
+     */
+    public synchronized int supplementConfirmedQualityCoverage(
+            List<Detection> detections,
+            long nowNanos) {
+        if (detections == null || detections.isEmpty()) return 0;
+        int added = 0;
+        for (Detection detection : detections) {
+            if (detection == null || detection.getSource()
+                    != Detection.ObservationSource.QUALITY_VISUAL) continue;
+            TrackedObject hinted = tracks.get(detection.getTrackId());
+            if (hinted != null && hinted.isActive()) {
+                detection.setTrackId(hinted.getId());
+                continue;
+            }
+            TrackedObject covering = coveringTrack(detection.getBox());
+            if (covering != null) {
+                detection.setTrackId(covering.getId());
+                continue;
+            }
+            if (detection.getConfidence() < config.getConfidenceThreshold()) continue;
+            int id = nextId++;
+            TrackedObject track = new TrackedObject(id, detection, nowNanos, true);
+            tracks.put(id, track);
+            detection.setTrackId(id);
+            added++;
+        }
+        return added;
+    }
+
     public synchronized void clear() {
         tracks.clear();
         nextId = 1;

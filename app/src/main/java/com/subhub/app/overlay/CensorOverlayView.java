@@ -101,6 +101,7 @@ final class CensorOverlayView extends View {
     private long borderAnimationTimeOverride = -1L;
     private long renderTimeOverride = -1L;
     private long presentationFrameTimeMillis = -1L;
+    private long latestMutationUptime;
     private long tracksPublishedAtMillis;
     private long activeRenderTimeMillis;
     private float maxExtrapolationMs = 180f;
@@ -179,6 +180,18 @@ final class CensorOverlayView extends View {
                 sourceMotionX, sourceMotionY, null);
     }
 
+    /** Updates settled coverage geometry without discarding the retained effect source frame. */
+    void setTracksPreservingFrame(
+            List<TrackedObject> value,
+            int sourceWidth,
+            int sourceHeight,
+            int motionX,
+            int motionY) {
+        setTracks(value, sourceWidth, sourceHeight, frame,
+                motionX, motionY, Math.round(sourceFrameOffsetX),
+                Math.round(sourceFrameOffsetY), frameRelease);
+    }
+
     void setTracks(
             List<TrackedObject> value,
             int sourceWidth,
@@ -192,6 +205,7 @@ final class CensorOverlayView extends View {
         List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
         for (TrackedObject track : value) snapshots.add(RenderTrackSnapshot.from(track));
         tracksPublishedAtMillis = SystemClock.uptimeMillis();
+        latestMutationUptime = tracksPublishedAtMillis;
         ViewportMotion.Position displayedViewport = viewportMotion.position(tracksPublishedAtMillis);
         int displayWidth = Math.max(1, getWidth() > 0 ? getWidth() : sourceWidth);
         int displayHeight = Math.max(1, getHeight() > 0 ? getHeight() : sourceHeight);
@@ -243,6 +257,7 @@ final class CensorOverlayView extends View {
             if (detection != null) snapshots.add(RenderTrackSnapshot.fromTextDetection(detection));
         }
         long nowMillis = SystemClock.uptimeMillis();
+        latestMutationUptime = nowMillis;
         ViewportMotion.Position displayedViewport = viewportMotion.position(nowMillis);
         float oldDisplayedTextX = textContentOffsetX
                 + displayedViewport.x - contentOffsetX;
@@ -280,14 +295,16 @@ final class CensorOverlayView extends View {
         offsetContent(deltaX, deltaY, true);
     }
 
-    void offsetContent(int deltaX, int deltaY, boolean allowPrediction) {
+    void offsetContent(int deltaX, int deltaY, boolean authoritative) {
         if (tracks.isEmpty() && textTracks.isEmpty()) return;
+        long nowMillis = SystemClock.uptimeMillis();
+        latestMutationUptime = nowMillis;
         contentOffsetX += deltaX;
         contentOffsetY += deltaY;
         textContentOffsetX += deltaX;
         textContentOffsetY += deltaY;
-        viewportMotion.addDelta(deltaX, deltaY, SystemClock.uptimeMillis(),
-                Math.max(1, getWidth()), Math.max(1, getHeight()), allowPrediction);
+        viewportMotion.addDelta(deltaX, deltaY, nowMillis,
+                Math.max(1, getWidth()), Math.max(1, getHeight()), authoritative);
         noteMotionInput("event", deltaX, deltaY, true);
         postInvalidateOnAnimation();
         scheduleNextFrame(SystemClock.uptimeMillis());
@@ -295,6 +312,8 @@ final class CensorOverlayView extends View {
 
     /** Hide all censor pixels without treating an empty track list as reverse-mode content. */
     void clearContent() {
+        long nowMillis = SystemClock.uptimeMillis();
+        latestMutationUptime = nowMillis;
         tracks.clear();
         textTracks.clear();
         visualSteering.clear();
@@ -304,7 +323,7 @@ final class CensorOverlayView extends View {
         contentOffsetY = 0;
         textContentOffsetX = 0;
         textContentOffsetY = 0;
-        viewportMotion.reset(0f, 0f, SystemClock.uptimeMillis());
+        viewportMotion.reset(0f, 0f, nowMillis);
         motionAnimationWasActive = false;
         sourceFrameOffsetX = 0;
         sourceFrameOffsetY = 0;
@@ -316,6 +335,7 @@ final class CensorOverlayView extends View {
     }
 
     void setAppearance(CensorAppearance value) {
+        latestMutationUptime = SystemClock.uptimeMillis();
         CensorAppearance.Type previous = appearance.getType();
         appearance = value;
         solidRenderLayers.clear();
@@ -1034,7 +1054,12 @@ final class CensorOverlayView extends View {
 
     private long renderTimeMillis() {
         if (renderTimeOverride >= 0L) return renderTimeOverride;
-        if (presentationFrameTimeMillis >= 0L) return presentationFrameTimeMillis;
+        if (presentationFrameTimeMillis >= latestMutationUptime) {
+            return presentationFrameTimeMillis;
+        }
+        // A callback timestamp describes the vsync that began the traversal. Accessibility can
+        // publish newer state between that callback and onDraw; evaluating that mutation in the
+        // past deliberately renders one stale frame and corrupts input-to-draw diagnostics.
         return SystemClock.uptimeMillis();
     }
 

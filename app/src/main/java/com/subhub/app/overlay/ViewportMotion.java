@@ -33,9 +33,9 @@ final class ViewportMotion {
             long nowMillis,
             int viewportWidth,
             int viewportHeight,
-            boolean allowPrediction) {
-        x.addDelta(dx, nowMillis, viewportWidth, allowPrediction);
-        y.addDelta(dy, nowMillis, viewportHeight, allowPrediction);
+            boolean authoritative) {
+        x.addDelta(dx, nowMillis, viewportWidth, authoritative);
+        y.addDelta(dy, nowMillis, viewportHeight, authoritative);
     }
 
     Position position(long nowMillis) {
@@ -81,14 +81,18 @@ final class ViewportMotion {
                 float delta,
                 long nowMillis,
                 int viewportSize,
-                boolean allowPrediction) {
+                boolean authoritative) {
             float previouslyDisplayed = position(nowMillis);
             long previousPredictionAge = Math.max(0L, nowMillis - anchorTime);
             boolean correctingPrediction = predictionPeakDuration > 0L
                     && previousPredictionAge < predictionPeakDuration * 2L;
             exact += delta;
             long gap = lastEventTime <= 0L ? Long.MAX_VALUE : nowMillis - lastEventTime;
-            if (Math.abs(delta) < 0.5f) {
+            if (authoritative || Math.abs(delta) < 0.5f) {
+                // Accessibility reports where the viewport already is. Delaying that confirmed
+                // position creates a full-event residual on the first draw (multiple screens for
+                // a fling), so authoritative samples are exact immediately. Prediction below is
+                // solely the causal continuation between this sample and the next one.
                 interpolationStart = exact;
                 interpolationDuration = 0L;
                 phaseCorrection = false;
@@ -106,7 +110,7 @@ final class ViewportMotion {
                                             Math.round(gap * 0.15f)));
                 }
             }
-            configurePrediction(delta, gap, viewportSize, allowPrediction);
+            configurePrediction(delta, gap, viewportSize, authoritative);
             anchorTime = nowMillis;
             lastEventTime = nowMillis;
             lastDelta = delta;
@@ -156,10 +160,10 @@ final class ViewportMotion {
                 float delta,
                 long gap,
                 int viewportSize,
-                boolean allowPrediction) {
+                boolean authoritative) {
             predictionAmplitude = 0f;
             predictionPeakDuration = 0L;
-            if (!allowPrediction || Math.abs(delta) < 0.5f || gap == Long.MAX_VALUE
+            if (!authoritative || Math.abs(delta) < 0.5f || gap == Long.MAX_VALUE
                     || gap <= 0L || gap > MAX_SAMPLE_GAP_MS) return;
             float magnitude = Math.abs(delta);
             int direction = delta > 0f ? 1 : -1;

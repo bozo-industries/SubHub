@@ -153,9 +153,8 @@ public final class CensorOverlayViewTest {
         view.layout(0, 0, 100, 100);
 
         view.offsetContent(0, -20);
-        // The first authoritative delta uses a short catch-up; established sparse streams may
-        // retain a bounded prediction pulse for up to two event gaps. Either path must converge
-        // without another detector frame.
+        // Authoritative Accessibility geometry is exact immediately; established sparse streams
+        // may then retain a bounded prediction pulse between events.
         view.setRenderTimeForTest(SystemClock.uptimeMillis() + 100L);
         Bitmap moved = draw(view, 100, 100);
 

@@ -8,18 +8,17 @@ import org.junit.Test;
 
 public final class ViewportMotionTest {
     @Test
-    public void repeatedDirectionSamplesInterpolateMonotonicallyToExactState() {
+    public void repeatedAuthoritativeSamplesAreExactThenAdvanceBetweenEvents() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
         motion.addDelta(0f, -20f, 16L);
-        assertEquals(0f, motion.position(16L).y, 0.001f);
+        assertEquals(-20f, motion.position(16L).y, 0.001f);
 
         motion.addDelta(0f, -20f, 32L);
         float eventPosition = motion.position(32L).y;
         float betweenEvents = motion.position(36L).y;
-        assertTrue(eventPosition < 0f);
+        assertEquals(-40f, eventPosition, 0.001f);
         assertTrue(betweenEvents < eventPosition);
-        assertTrue(betweenEvents >= -40f);
         assertTrue(motion.isAnimating(36L));
 
         assertTrue(motion.position(40L).y < -40f);
@@ -27,13 +26,12 @@ public final class ViewportMotionTest {
         assertTrue(motion.isAnimating(96L));
 
         float stopped = motion.position(200L).y;
-        assertTrue(stopped <= betweenEvents);
         assertEquals(-40f, stopped, 0.001f);
         assertFalse(motion.isAnimating(200L));
     }
 
     @Test
-    public void nextEventContinuesFromTheCurrentlyDisplayedPosition() {
+    public void nextAuthoritativeEventCorrectsPredictionImmediately() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
         motion.addDelta(0f, -100f, 100L);
@@ -41,15 +39,27 @@ public final class ViewportMotionTest {
         float displayed = motion.position(250L).y;
 
         motion.addDelta(0f, -100f, 250L);
-        assertEquals(displayed, motion.position(250L).y, 0.001f);
+        assertTrue(displayed < -200f);
+        assertEquals(-300f, motion.position(250L).y, 0.001f);
         assertEquals(-300f, motion.position(400L).y, 0.001f);
     }
 
     @Test
-    public void firstLargeDeltaSmoothsToExactWithoutOvershoot() {
+    public void firstAuthoritativeLargeDeltaIsExactImmediately() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
         motion.addDelta(0f, -500f, 16L);
+
+        assertEquals(-500f, motion.position(16L).y, 0.001f);
+        assertEquals(-500f, motion.position(24L).y, 0.001f);
+        assertEquals(-500f, motion.position(32L).y, 0.001f);
+    }
+
+    @Test
+    public void nonAuthoritativeFallbackStillUsesShortCatchUp() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -500f, 16L, 1_344, 2_992, false);
 
         assertEquals(0f, motion.position(16L).y, 0.001f);
         float partial = motion.position(24L).y;
@@ -64,7 +74,7 @@ public final class ViewportMotionTest {
         motion.addDelta(0f, -100f, 10L);
         motion.addDelta(0f, -100f, 110L);
 
-        assertEquals(-100f, motion.position(110L).y, 0.001f);
+        assertEquals(-200f, motion.position(110L).y, 0.001f);
         float betweenEvents = motion.position(210L).y;
         assertTrue(betweenEvents < -275f);
         assertTrue(betweenEvents > -280f);
@@ -109,7 +119,7 @@ public final class ViewportMotionTest {
             previous = current;
         }
 
-        assertTrue("Largest phase-locked step was " + largestStep, largestStep <= 14f);
+        assertTrue("Largest phase-locked step was " + largestStep, largestStep <= 32f);
     }
 
     @Test

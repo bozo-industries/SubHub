@@ -59,6 +59,7 @@ foreach ($requestedPath in $Path) {
     $lastTime = $null
     $publishes = [Collections.Generic.List[object]]::new()
     $quality = [Collections.Generic.List[object]]::new()
+    $qualitySupplements = [Collections.Generic.List[object]]::new()
     $scrolls = [Collections.Generic.List[object]]::new()
     $textScans = [Collections.Generic.List[object]]::new()
     $textPublishes = [Collections.Generic.List[object]]::new()
@@ -133,7 +134,7 @@ foreach ($requestedPath in $Path) {
             })
             continue
         }
-        if ($line -match 'QUALITY_CACHE scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+)(?: identityLinked=(\d+) identityUnlinked=(\d+))?(?: pendingVisual=(\d+) deferredUnlinked=(\d+) confirmationRequested=(true|false))?') {
+        if ($line -match 'QUALITY_CACHE scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+)(?: identityLinked=(\d+) identityUnlinked=(\d+))?(?: pendingVisual=(\d+) deferredUnlinked=(\d+)(?: supplementedTracks=(\d+))? confirmationRequested=(true|false))?') {
             $quality.Add([pscustomobject]@{
                 time = $time
                 scrollId = [int] $Matches[1]
@@ -149,7 +150,17 @@ foreach ($requestedPath in $Path) {
                 identityUnlinked = if ($Matches[11]) { [int] $Matches[11] } else { 0 }
                 pendingVisual = if ($Matches[12]) { [int] $Matches[12] } else { 0 }
                 deferredUnlinked = if ($Matches[13]) { [int] $Matches[13] } else { 0 }
-                confirmationRequested = $Matches[14] -eq 'true'
+                supplementedTracks = if ($Matches[14]) { [int] $Matches[14] } else { 0 }
+                confirmationRequested = $Matches[15] -eq 'true'
+            })
+            continue
+        }
+        if ($line -match 'QUALITY_SUPPLEMENT_PUBLISH scrollId=(\d+) added=(\d+) afterMotionMs=(\d+)') {
+            $qualitySupplements.Add([pscustomobject]@{
+                time = $time
+                scrollId = [int] $Matches[1]
+                added = [int] $Matches[2]
+                afterMotion = [int] $Matches[3]
             })
             continue
         }
@@ -274,6 +285,9 @@ foreach ($requestedPath in $Path) {
             identityUnlinked = ($quality | Measure-Object -Property identityUnlinked -Sum).Sum
             pendingVisualCandidates = ($quality | Measure-Object -Property pendingVisual -Sum).Sum
             deferredUnlinkedCoverage = ($quality | Measure-Object -Property deferredUnlinked -Sum).Sum
+            supplementedTracks = ($qualitySupplements | Measure-Object -Property added -Sum).Sum
+            supplementPublishes = $qualitySupplements.Count
+            supplementAfterMotionMs = Get-Distribution @($qualitySupplements.afterMotion)
             confirmationRequests = @($quality | Where-Object confirmationRequested).Count
             confirmationRuns = @($lines | Where-Object {
                     $_ -match 'QUALITY_CONFIRMATION_RUN' }).Count

@@ -110,14 +110,25 @@ public final class OverlayController implements AutoCloseable {
                 0, 0, 0, 0, frameRelease);
     }
 
+    /** Publishes confirmed settled coverage while preserving any retained effect bitmap. */
+    public void updateTracksOnly(
+            List<TrackedObject> tracks,
+            int captureWidth,
+            int captureHeight,
+            int motionX,
+            int motionY) {
+        view.setTracksPreservingFrame(
+                tracks, captureWidth, captureHeight, motionX, motionY);
+    }
+
     /** Moves the current lightweight overlay immediately while the next inference is pending. */
     public void offsetContent(int deltaX, int deltaY) {
         offsetContent(deltaX, deltaY, true);
     }
 
-    /** Moves content while allowing prediction only for trustworthy viewport observations. */
-    public void offsetContent(int deltaX, int deltaY, boolean allowPrediction) {
-        view.offsetContent(deltaX, deltaY, allowPrediction);
+    /** Moves content, presenting trustworthy viewport observations without interpolation lag. */
+    public void offsetContent(int deltaX, int deltaY, boolean authoritative) {
+        view.offsetContent(deltaX, deltaY, authoritative);
     }
 
     /** Publishes stabilized Accessibility/OCR geometry without waiting behind visual inference. */

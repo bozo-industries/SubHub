@@ -105,7 +105,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final long QUALITY_REFRESH_INTERVAL_MS = 1_000L;
     private static final long QUALITY_SLOW_REFRESH_INTERVAL_MS = 2_500L;
     private static final long QUALITY_SLOW_RUNTIME_MS = 180L;
-    private static final long QUALITY_MOTION_SETTLE_MS = 850L;
+    // The screenshot API already enforces a 334 ms cadence, so an additional 850 ms quality gate
+    // delayed confirmed coverage into a visibly separate two-second render. Start refinement on
+    // the first platform-safe settled capture; generation fences still discard resumed motion.
+    private static final long QUALITY_MOTION_SETTLE_MS = MOTION_SETTLE_MS;
     private static final long QUALITY_RESULT_TTL_MS = 2_500L;
     private static final long QUALITY_CONFIRMATION_INTERVAL_MS = 250L;
 
@@ -651,6 +654,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 qualityConfirmationRequested.set(false);
                 qualityConfirmationBurstUsed.set(false);
             }
+            int supplementedTracks = tracker.supplementConfirmedQualityCoverage(
+                    qualityCoverage, System.nanoTime());
             cachedQualityVisual = new VisualDetectionSnapshot(
                     qualityCoverage, width, height, requestedScrollX, requestedScrollY,
                     SystemClock.uptimeMillis(), inferenceMotionGeneration);
@@ -674,6 +679,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     + " identityUnlinked=" + identity.unlinkedQuality()
                     + " pendingVisual=" + stabilizedQuality.pendingCandidates()
                     + " deferredUnlinked=" + deferredUnlinked
+                    + " supplementedTracks=" + supplementedTracks
                     + " confirmationRequested=" + confirmationRequested
                     + " cacheGeneration=" + inferenceMotionGeneration);
             // Quality is a background geometry cache. Publishing it as a second authority made
@@ -681,9 +687,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             // fast frame consumes this cache once through the ordinary tracker update.
             Bitmap qualityOverlayFrame = candidate.retainedSourceFrame
                     ? candidate.detachFrame() : null;
-            if (qualityOverlayFrame != null) {
-                List<TrackedObject> currentTracks = visualRenderTracks(
-                        tracker.activeTracks()).tracks();
+            if (qualityOverlayFrame != null || supplementedTracks > 0) {
+                List<TrackedObject> activeTracks = tracker.activeTracks();
+                VisualTrackArbitrator.Result renderArbitration =
+                        visualRenderTracks(activeTracks);
+                List<TrackedObject> currentTracks = renderArbitration.tracks();
+                if (supplementedTracks > 0) {
+                    recordSupplementedTrackState(activeTracks, width, height);
+                }
                 ScrollPosition current = currentScrollPosition();
                 InferenceScrollReprojector.ScreenMotion sourceMotion =
                         InferenceScrollReprojector.screenMotion(
@@ -692,10 +703,27 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 main.post(() -> {
                     if (isCurrentCapture(requestedEpoch) && overlay != null
                             && inferenceMotionGeneration == motionGeneration.get()) {
-                        overlay.update(currentTracks, width, height, qualityOverlayFrame,
-                                0, 0, sourceMotion.dx, sourceMotion.dy);
+                        if (qualityOverlayFrame != null) {
+                            overlay.update(currentTracks, width, height, qualityOverlayFrame,
+                                    0, 0, sourceMotion.dx, sourceMotion.dy);
+                        } else {
+                            overlay.updateTracksOnly(currentTracks, width, height, 0, 0);
+                        }
+                        if (supplementedTracks > 0) {
+                            VisualGeometryDelta geometry = recordVisualGeometry(currentTracks);
+                            Log.i(TAG, "QUALITY_SUPPLEMENT_PUBLISH scrollId=" + scrollTraceId
+                                    + " added=" + supplementedTracks
+                                    + " afterMotionMs=" + (lastMotionUptime <= 0L ? 0L
+                                    : SystemClock.uptimeMillis() - lastMotionUptime)
+                                    + " geometryMatched=" + geometry.matched
+                                    + " geometryChanged=" + geometry.changed
+                                    + " maxCenterDeltaPx=" + geometry.maxCenterDeltaPx
+                                    + " maxSizeDeltaPx=" + geometry.maxSizeDeltaPx
+                                    + " duplicatesSuppressed=" + renderArbitration.suppressed()
+                                    + " renderTracks=" + currentTracks.size());
+                        }
                     } else {
-                        qualityOverlayFrame.recycle();
+                        if (qualityOverlayFrame != null) qualityOverlayFrame.recycle();
                     }
                 });
             }
@@ -826,6 +854,34 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         });
     }
 
+    /** Mirrors fast-publish bookkeeping for confirmed tracks first exposed by quality inference. */
+    private void recordSupplementedTrackState(
+            List<TrackedObject> tracks,
+            int width,
+            int height) {
+        DetectorConfig currentConfig = detectorConfig;
+        int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
+                ? null : currentConfig.getEnabledCategories());
+        long now = System.currentTimeMillis();
+        if (recordedBlocks > 0) {
+            int charged = penance.recordInfraction(
+                    PenanceInfraction.NEW_DETECTION, recordedBlocks, now);
+            PenanceChargeNotifier.show(this, penance,
+                    PenanceInfraction.NEW_DETECTION, charged, now);
+            new AchievementManager(this).checkAchievements(stats.load());
+        }
+        int dwellInfractions = dwellTracker.update(
+                tracks, now, penance.getDwellSeconds() * 1_000L, false);
+        if (dwellInfractions > 0) {
+            int charged = penance.recordInfraction(
+                    PenanceInfraction.CENSORED_DWELL, dwellInfractions, now);
+            PenanceChargeNotifier.show(this, penance,
+                    PenanceInfraction.CENSORED_DWELL, charged, now);
+        }
+        tapTracker.update(tracks, width, height, now);
+        PopupStormManager.get().updateTrackedObjects(tracks, width, height);
+    }
+
     static long captureDelayMs(DetectorConfig config) {
         int threads = config == null ? 2 : config.getInferenceThreads();
         long floor;
@@ -893,7 +949,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (confirmationRequested) {
             return nowUptime - lastQualityUptime >= QUALITY_CONFIRMATION_INTERVAL_MS;
         }
-        if (!firstFrameReported || (qualityCacheEmpty && lastQualityUptime <= 0L)) return true;
+        if (!firstFrameReported || qualityCacheEmpty) return true;
         long interval = lastQualityRuntimeMs >= QUALITY_SLOW_RUNTIME_MS
                 ? QUALITY_SLOW_REFRESH_INTERVAL_MS : QUALITY_REFRESH_INTERVAL_MS;
         return nowUptime - lastQualityUptime >= interval;

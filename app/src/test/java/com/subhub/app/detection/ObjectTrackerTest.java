@@ -286,6 +286,36 @@ public final class ObjectTrackerTest {
     }
 
     @Test
+    public void confirmedQualityCoverageSupplementsWithoutAgingOrReshapingLiveTracks() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .confidenceThreshold(0.30f)
+                .build());
+        BBox liveBox = new BBox(100, 100, 180, 180);
+        int liveId = tracker.update(Collections.singletonList(
+                detection(liveBox)), 1_000_000_000L).get(0).getId();
+        Detection linked = new Detection("FACE_FEMALE", "face", 0.95f,
+                new BBox(80, 85, 230, 220), false, true,
+                Detection.ObservationSource.QUALITY_VISUAL,
+                Detection.GeometryQuality.MODEL, null);
+        linked.setTrackId(liveId);
+        Detection newCoverage = new Detection("FACE_FEMALE", "face", 0.95f,
+                new BBox(500, 300, 160, 180), false, true,
+                Detection.ObservationSource.QUALITY_VISUAL,
+                Detection.GeometryQuality.MODEL, null);
+
+        int added = tracker.supplementConfirmedQualityCoverage(
+                java.util.Arrays.asList(linked, newCoverage), 1_100_000_000L);
+        List<TrackedObject> tracks = tracker.activeTracks();
+
+        assertEquals(1, added);
+        assertEquals(2, tracks.size());
+        assertEquals(liveBox, tracks.get(0).getBox());
+        assertEquals(0, tracks.get(0).getFramesMissing());
+        assertTrue(tracks.get(1).isQualityOnly());
+        assertEquals(newCoverage.getTrackId(), tracks.get(1).getId());
+    }
+
+    @Test
     public void duplicateSupportForConsumedHintDoesNotCreateSecondTrack() {
         ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
         Detection original = new Detection("FACE_FEMALE", "face", 0.9f,

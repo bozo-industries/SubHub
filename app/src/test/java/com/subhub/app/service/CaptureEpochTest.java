@@ -232,11 +232,13 @@ public final class CaptureEpochTest {
                 tracker.getTrackingSmoothing(), 0f);
     }
 
-    @Test public void qualityRefinementWaitsOutsideTheCriticalScrollWindow() {
+    @Test public void qualityRefinementUsesTheFirstPlatformSafeSettledCapture() {
         assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
-                10_849L, 10_000L, 0L, true, true));
+                10_129L, 10_000L, 0L, true, true));
         assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
-                10_850L, 10_000L, 0L, true, true));
+                10_130L, 10_000L, 0L, true, true));
+        assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
+                11_500L, 10_000L, 11_400L, true, true));
         assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
                 11_500L, 10_000L, 11_000L, true, false));
         assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
@@ -259,11 +261,11 @@ public final class CaptureEpochTest {
 
     @Test public void qualityConfirmationBurstStillRespectsMotionAndFastWork() {
         assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
-                11_249L, 10_000L, 11_000L, true, false, 0L, false, true));
+                11_129L, 11_000L, 11_000L, true, false, 0L, false, true));
         assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
                 11_250L, 10_000L, 11_000L, true, false, 0L, false, true));
         assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
-                10_849L, 10_000L, 10_000L, true, false, 0L, false, true));
+                10_129L, 10_000L, 10_000L, true, false, 0L, false, true));
         assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
                 11_500L, 10_000L, 11_000L, true, false, 0L, true, true));
     }
