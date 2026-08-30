@@ -30,21 +30,29 @@ public final class DiagnosticsCensorLabActivityTest {
         if (CensorLabRecorder.isActive()) CensorLabRecorder.stop(context);
     }
 
-    @Test public void startAndStopExposeVisibleSyncMarkersAndShareState() {
+    @Test public void telemetryFallbackStopExposesMarkerAndShareState() {
         try (ActivityScenario<DiagnosticsActivity> scenario =
                      ActivityScenario.launch(DiagnosticsActivity.class)) {
-            scenario.onActivity(activity ->
-                    activity.findViewById(R.id.button_censor_lab_start).performClick());
+            scenario.onActivity(activity -> {
+                try {
+                    CensorLabRecorder.start(activity);
+                } catch (Exception error) {
+                    throw new AssertionError(error);
+                }
+                activity.findViewById(R.id.button_refresh).performClick();
+            });
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             scenario.onActivity(activity -> {
                 assertTrue(CensorLabRecorder.isActive());
-                assertTrue(activity.findViewById(R.id.censor_lab_sync_marker).getVisibility()
-                        == View.VISIBLE);
                 assertTrue(activity.findViewById(R.id.button_censor_lab_stop).isEnabled());
             });
 
             scenario.onActivity(activity ->
                     activity.findViewById(R.id.button_censor_lab_stop).performClick());
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            scenario.onActivity(activity -> assertTrue(
+                    activity.findViewById(R.id.censor_lab_sync_marker).getVisibility()
+                            == View.VISIBLE));
             SystemClock.sleep(1_500L);
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             scenario.onActivity(activity -> {

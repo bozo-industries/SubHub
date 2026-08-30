@@ -2,6 +2,7 @@ package com.subhub.app.diagnostics;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -9,25 +10,36 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Bounded, non-blocking event handoff used only while an explicit lab session is active. */
 final class CensorLabEventBuffer {
     static final int DEFAULT_CAPACITY = 50_000;
+    static final long DEFAULT_BYTE_CAPACITY = 16L * 1024L * 1024L;
 
     private final int capacity;
+    private final long byteCapacity;
     private final ConcurrentLinkedQueue<Event> events = new ConcurrentLinkedQueue<>();
     private final AtomicInteger accepted = new AtomicInteger();
+    private final AtomicLong acceptedBytes = new AtomicLong();
     private final AtomicLong dropped = new AtomicLong();
 
     CensorLabEventBuffer() {
-        this(DEFAULT_CAPACITY);
+        this(DEFAULT_CAPACITY, DEFAULT_BYTE_CAPACITY);
     }
 
     CensorLabEventBuffer(int capacity) {
+        this(capacity, DEFAULT_BYTE_CAPACITY);
+    }
+
+    CensorLabEventBuffer(int capacity, long byteCapacity) {
         this.capacity = Math.max(1, capacity);
+        this.byteCapacity = Math.max(1L, byteCapacity);
     }
 
     boolean offer(Event event) {
         if (event == null) return false;
         int slot = accepted.getAndIncrement();
-        if (slot >= capacity) {
+        long eventBytes = event.estimatedBytes();
+        long bytes = acceptedBytes.addAndGet(eventBytes);
+        if (slot >= capacity || bytes > byteCapacity) {
             accepted.decrementAndGet();
+            acceptedBytes.addAndGet(-eventBytes);
             dropped.incrementAndGet();
             return false;
         }
@@ -63,6 +75,14 @@ final class CensorLabEventBuffer {
             this.thread = thread;
             this.tag = tag;
             this.message = message;
+        }
+
+        long estimatedBytes() {
+            return 32L + utf8(thread) + utf8(tag) + utf8(message);
+        }
+
+        private static int utf8(String value) {
+            return value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
         }
     }
 }

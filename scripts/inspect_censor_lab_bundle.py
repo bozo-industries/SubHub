@@ -47,6 +47,19 @@ def inspect_bundle(path: Path) -> tuple[dict, list[dict], set[str]]:
         manifest = json.loads(archive.read("manifest.json"))
         if manifest.get("schemaVersion") != 1:
             raise ValueError("Unsupported Censor Lab schema")
+        has_video = "screen-recording.mp4" in names
+        recording = manifest.get("recording")
+        if isinstance(recording, dict) and "inAppScreenRecording" in recording:
+            privacy = manifest.get("privacy", {})
+            if bool(manifest.get("videoAttached")) != has_video:
+                raise ValueError("Manifest videoAttached does not match the bundle")
+            if bool(recording.get("inAppScreenRecording")) != has_video:
+                raise ValueError("Manifest recording state does not match the bundle")
+            if bool(privacy.get("pixelCapture")) != has_video:
+                raise ValueError("Manifest pixel-capture state does not match the bundle")
+            expected_kind = "mediaprojection-display" if has_video else "none"
+            if recording.get("videoKind") != expected_kind:
+                raise ValueError("Manifest video kind does not match the bundle")
         events = []
         for line_number, raw in enumerate(
                 archive.read("trace.ndjson").decode("utf-8").splitlines(), start=1):
@@ -110,6 +123,7 @@ def main() -> None:
         "events": len(events),
         "droppedEvents": manifest.get("droppedEvents", 0),
         "videoAttached": "screen-recording.mp4" in names,
+        "recording": manifest.get("recording", {}),
         "durationMs": round(
             (manifest["stoppedElapsedNanos"] - manifest["startedElapsedNanos"])
             / 1_000_000.0, 3),

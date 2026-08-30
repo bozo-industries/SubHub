@@ -1,10 +1,12 @@
 package com.subhub.app.diagnostics;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
+import android.media.projection.MediaProjectionConfig;
+import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -51,15 +53,34 @@ public final class DiagnosticsActivity extends AppCompatActivity {
     private ActivityDiagnosticsBinding binding;
     private SettingsRepository settings;
     private ControllerEditMode editMode;
+    private MediaProjectionManager projectionManager;
     private final ExecutorService labIo = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "censor-lab-export");
         thread.setDaemon(true);
         return thread;
     });
     private boolean labBusy;
-    private final ActivityResultLauncher<String[]> recordingPicker = registerForActivityResult(
-            new ActivityResultContracts.OpenDocument(), recording -> {
-                if (recording != null) exportAndShare(recording);
+    private boolean shareWhenReady;
+    private String startMarkerSession;
+    private String renderedLabFailure;
+    private final ActivityResultLauncher<Intent> recordingPermission = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+                    labBusy = false;
+                    Toast.makeText(this, R.string.diagnostics_lab_capture_cancelled,
+                            Toast.LENGTH_SHORT).show();
+                    renderLabState();
+                    return;
+                }
+                try {
+                    Intent service = CensorLabRecordingService.startIntent(
+                            this, result.getResultCode(), result.getData());
+                    ContextCompat.startForegroundService(this, service);
+                } catch (Exception error) {
+                    labBusy = false;
+                    showLabFailure(error);
+                }
+                renderLabState();
             });
 
     @Override
@@ -68,20 +89,14 @@ public final class DiagnosticsActivity extends AppCompatActivity {
         binding = ActivityDiagnosticsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         settings = new SettingsRepository(this);
+        projectionManager = (MediaProjectionManager)
+                getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         binding.buttonBack.setOnClickListener(view -> finish());
         binding.buttonRefresh.setOnClickListener(view -> render());
         binding.buttonCensorLabStart.setOnClickListener(view -> startLabSession());
         binding.buttonCensorLabStop.setOnClickListener(view -> stopLabSession());
-        binding.buttonCensorLabAttach.setOnClickListener(view -> {
-            if (CensorLabRecorder.isActive()) return;
-            if (CensorLabRecorder.latest(this) == null) {
-                Toast.makeText(this, R.string.diagnostics_lab_no_session,
-                        Toast.LENGTH_SHORT).show();
-                return;
-            }
-            recordingPicker.launch(new String[]{"video/*"});
-        });
-        binding.buttonCensorLabShareTrace.setOnClickListener(view -> exportAndShare(null));
+        binding.buttonCensorLabAttach.setOnClickListener(view -> exportAndShare(true));
+        binding.buttonCensorLabShareTrace.setOnClickListener(view -> exportAndShare(false));
         binding.switchDiagnosticsOverlay.setChecked(settings.preferences().getBoolean(
                 DiagnosticsRepository.PREF_OVERLAY, false));
         binding.switchDiagnosticsOverlay.setOnCheckedChangeListener((button, checked) ->
@@ -154,7 +169,8 @@ public final class DiagnosticsActivity extends AppCompatActivity {
         binding.permissionsStatus.setText(String.format(Locale.ROOT,
                 "Overlay permission: %s\nNotifications: %s\nMediaProjection capture: %s\nAccessibility capture: %s\nBattery optimization exemption: %s",
                 yesNo(Settings.canDrawOverlays(this)), yesNo(notifications),
-                running(ScreenCaptureService.isRunning()),
+                running(ScreenCaptureService.isRunning()
+                        || CensorLabRecordingService.isActive()),
                 running(ScreenshotAccessibilityService.isRunning()), yesNo(batteryExempt)));
 
         binding.buildStatus.setText(String.format(Locale.ROOT,
@@ -165,19 +181,51 @@ public final class DiagnosticsActivity extends AppCompatActivity {
     }
 
     private void startLabSession() {
-        if (labBusy || CensorLabRecorder.isActive()) return;
+        if (labBusy || CensorLabRecorder.isActive()
+                || CensorLabRecordingService.isActive()) return;
+        if (ScreenCaptureService.isRunning()) {
+            Toast.makeText(this, R.string.diagnostics_lab_projection_conflict,
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
         try {
-            CensorLabRecorder.SessionState session = CensorLabRecorder.start(this);
-            showSyncMarker(true, session.id);
-            Toast.makeText(this, R.string.diagnostics_lab_started, Toast.LENGTH_LONG).show();
+            labBusy = true;
+            shareWhenReady = false;
+            renderedLabFailure = null;
+            Intent request;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                request = projectionManager.createScreenCaptureIntent(
+                        MediaProjectionConfig.createConfigForDefaultDisplay());
+            } else {
+                request = projectionManager.createScreenCaptureIntent();
+            }
+            recordingPermission.launch(request);
             renderLabState();
         } catch (Exception error) {
+            labBusy = false;
             showLabFailure(error);
         }
     }
 
     private void stopLabSession() {
-        if (labBusy || !CensorLabRecorder.isActive()) return;
+        if (labBusy) return;
+        CensorLabRecordingService.Snapshot recording =
+                CensorLabRecordingService.snapshot();
+        if (recording.phase == CensorLabRecordingService.Phase.RECORDING
+                || recording.phase == CensorLabRecordingService.Phase.STARTING) {
+            String id = recording.sessionId == null
+                    ? CensorLabRecorder.activeSessionId() : recording.sessionId;
+            labBusy = true;
+            shareWhenReady = true;
+            showSyncMarker(false, id);
+            Toast.makeText(this, R.string.diagnostics_lab_stopping,
+                    Toast.LENGTH_SHORT).show();
+            startService(CensorLabRecordingService.stopIntent(
+                    this, 1_050L, "user-stop"));
+            renderLabState();
+            return;
+        }
+        if (!CensorLabRecorder.isActive()) return;
         String id = CensorLabRecorder.activeSessionId();
         labBusy = true;
         showSyncMarker(false, id);
@@ -203,7 +251,7 @@ public final class DiagnosticsActivity extends AppCompatActivity {
         });
     }
 
-    private void exportAndShare(Uri recording) {
+    private void exportAndShare(boolean includeVideo) {
         if (labBusy || CensorLabRecorder.isActive()) return;
         CensorLabRecorder.CompletedSession session = CensorLabRecorder.latest(this);
         if (session == null) {
@@ -217,19 +265,12 @@ public final class DiagnosticsActivity extends AppCompatActivity {
         labIo.execute(() -> {
             try {
                 File bundle = CensorLabBundleExporter.export(
-                        getApplicationContext(), session, recording);
-                Uri uri = FileProvider.getUriForFile(getApplicationContext(),
-                        getPackageName() + ".updates", bundle);
+                        getApplicationContext(), session, includeVideo);
                 runOnUiThread(() -> {
                     if (binding == null) return;
                     labBusy = false;
                     renderLabState();
-                    Intent send = new Intent(Intent.ACTION_SEND)
-                            .setType("application/zip")
-                            .putExtra(Intent.EXTRA_STREAM, uri)
-                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    startActivity(Intent.createChooser(send,
-                            getString(R.string.diagnostics_lab_share_chooser)));
+                    shareBundle(bundle);
                 });
             } catch (Exception error) {
                 runOnUiThread(() -> {
@@ -240,6 +281,18 @@ public final class DiagnosticsActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    private void shareBundle(File bundle) {
+        if (binding == null || bundle == null || !bundle.isFile()) return;
+        android.net.Uri uri = FileProvider.getUriForFile(getApplicationContext(),
+                getPackageName() + ".updates", bundle);
+        Intent send = new Intent(Intent.ACTION_SEND)
+                .setType("application/zip")
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(Intent.createChooser(send,
+                getString(R.string.diagnostics_lab_share_chooser)));
     }
 
     private void showSyncMarker(boolean starting, String id) {
@@ -259,7 +312,35 @@ public final class DiagnosticsActivity extends AppCompatActivity {
     private void renderLabState() {
         if (binding == null) return;
         CensorLabRecorder.SessionState state = CensorLabRecorder.state(this);
-        if (state.active) {
+        CensorLabRecordingService.Snapshot recording =
+                CensorLabRecordingService.snapshot();
+        if (recording.phase == CensorLabRecordingService.Phase.RECORDING) {
+            labBusy = false;
+            String sessionId = recording.sessionId == null ? state.id : recording.sessionId;
+            binding.censorLabStatus.setText(getString(R.string.diagnostics_lab_recording,
+                    sessionId, state.eventCount, state.droppedEvents));
+            if (sessionId != null && !sessionId.equals(startMarkerSession)) {
+                startMarkerSession = sessionId;
+                showSyncMarker(true, sessionId);
+                Toast.makeText(this, R.string.diagnostics_lab_started,
+                        Toast.LENGTH_LONG).show();
+            }
+        } else if (recording.phase == CensorLabRecordingService.Phase.STARTING) {
+            binding.censorLabStatus.setText(R.string.diagnostics_lab_preparing);
+        } else if (recording.phase == CensorLabRecordingService.Phase.STOPPING) {
+            binding.censorLabStatus.setText(R.string.diagnostics_lab_finalizing);
+        } else if (recording.phase == CensorLabRecordingService.Phase.FAILED) {
+            labBusy = false;
+            binding.censorLabStatus.setText(getString(R.string.diagnostics_lab_failed_status,
+                    recording.failure == null ? "Unknown failure" : recording.failure));
+            if (recording.failure != null
+                    && !recording.failure.equals(renderedLabFailure)) {
+                renderedLabFailure = recording.failure;
+                Toast.makeText(this, getString(
+                        R.string.diagnostics_lab_failed, recording.failure),
+                        Toast.LENGTH_LONG).show();
+            }
+        } else if (state.active) {
             binding.censorLabStatus.setText(getString(R.string.diagnostics_lab_active,
                     state.id, state.eventCount, state.droppedEvents));
         } else if (state.completed != null) {
@@ -270,11 +351,26 @@ public final class DiagnosticsActivity extends AppCompatActivity {
         } else {
             binding.censorLabStatus.setText(R.string.diagnostics_lab_idle);
         }
-        binding.buttonCensorLabStart.setEnabled(!labBusy && !state.active);
-        binding.buttonCensorLabStop.setEnabled(!labBusy && state.active);
-        boolean canShare = !labBusy && !state.active && state.completed != null;
+        boolean recordingActive = recording.phase == CensorLabRecordingService.Phase.STARTING
+                || recording.phase == CensorLabRecordingService.Phase.RECORDING
+                || recording.phase == CensorLabRecordingService.Phase.STOPPING;
+        binding.buttonCensorLabStart.setEnabled(!labBusy && !state.active && !recordingActive);
+        binding.buttonCensorLabStop.setEnabled(!labBusy
+                && (state.active || recording.phase == CensorLabRecordingService.Phase.RECORDING));
+        boolean canShare = !labBusy && !state.active && !recordingActive
+                && state.completed != null;
         binding.buttonCensorLabAttach.setEnabled(canShare);
+        binding.buttonCensorLabAttach.setText(state.completed != null
+                && state.completed.video != null
+                ? R.string.diagnostics_lab_share_capture
+                : R.string.diagnostics_lab_share_bundle);
         binding.buttonCensorLabShareTrace.setEnabled(canShare);
+        if (recording.phase == CensorLabRecordingService.Phase.READY
+                && shareWhenReady && recording.bundle != null) {
+            shareWhenReady = false;
+            labBusy = false;
+            binding.getRoot().post(() -> shareBundle(recording.bundle));
+        }
     }
 
     private void showLabFailure(Exception error) {

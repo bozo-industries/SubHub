@@ -1,7 +1,6 @@
 package com.subhub.app.diagnostics;
 
 import android.content.Context;
-import android.net.Uri;
 
 import org.json.JSONObject;
 
@@ -20,17 +19,19 @@ import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-/** Builds one portable, secret-free lab bundle with an optional system screen recording. */
+/** Builds one portable Lab bundle with an optional app-owned screen recording. */
 public final class CensorLabBundleExporter {
     private static final int COPY_BUFFER = 64 * 1024;
+    private static final long MAX_VIDEO_BYTES = 256L * 1024L * 1024L;
 
     private CensorLabBundleExporter() {}
 
     public static File export(Context context, CensorLabRecorder.CompletedSession session,
-            Uri video) throws IOException {
+            boolean includeVideo) throws IOException {
         if (session == null || !session.manifest.isFile() || !session.trace.isFile()) {
             throw new IOException("No completed Censor Lab session is available");
         }
+        File video = includeVideo ? trustedVideo(session) : null;
         File outputDirectory = new File(context.getCacheDir(), "censor-lab/exports");
         if (!outputDirectory.mkdirs() && !outputDirectory.isDirectory()) {
             throw new IOException("Could not create the diagnostics export directory");
@@ -38,14 +39,44 @@ public final class CensorLabBundleExporter {
         pruneExports(outputDirectory);
         File output = new File(outputDirectory, "subhub-censor-lab-" + session.id + '-'
                 + System.currentTimeMillis() + ".zip");
+        File partial = new File(outputDirectory, output.getName() + ".partial");
+        if (partial.exists() && !partial.delete()) {
+            throw new IOException("Could not clear the previous diagnostics export");
+        }
         try (ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(
-                new FileOutputStream(output), COPY_BUFFER))) {
+                new FileOutputStream(partial), COPY_BUFFER))) {
             zip.setLevel(Deflater.BEST_SPEED);
             JSONObject manifest;
             byte[] manifestBytes;
             try {
                 manifest = new JSONObject(readUtf8(session.manifest));
                 manifest.put("videoAttached", video != null);
+                JSONObject privacy = manifest.optJSONObject("privacy");
+                if (privacy == null) privacy = new JSONObject();
+                privacy.put("pixelCapture", video != null);
+                manifest.put("privacy", privacy);
+                JSONObject recording = manifest.optJSONObject("recording");
+                if (recording == null) recording = new JSONObject();
+                boolean sessionUsedEncoder = recording.optBoolean(
+                        "sessionUsedScreenEncoder",
+                        recording.optBoolean("inAppScreenRecording", false));
+                recording.put("inAppScreenRecording", video != null);
+                recording.put("sessionUsedScreenEncoder", sessionUsedEncoder);
+                recording.put("videoKind", video == null
+                        ? "none" : "mediaprojection-display");
+                if (video == null) {
+                    recording.put("width", 0);
+                    recording.put("height", 0);
+                    recording.put("frameRate", 0);
+                    recording.put("bitRate", 0);
+                    recording.put("startedElapsedNanos", 0L);
+                    recording.put("stoppedElapsedNanos", 0L);
+                    recording.put("bytes", 0L);
+                    recording.put("stopReason", "omitted-from-bundle");
+                    recording.put("measurementOverhead", sessionUsedEncoder
+                            ? "hardware screen encoder active; video omitted" : "none");
+                }
+                manifest.put("recording", recording);
                 manifestBytes = (manifest.toString(2) + "\n")
                         .getBytes(StandardCharsets.UTF_8);
             } catch (Exception error) {
@@ -56,21 +87,49 @@ public final class CensorLabBundleExporter {
             addBytes(zip, "README.txt", (
                     "SubHub Censor Lab bundle\n"
                     + "trace.ndjson contains sanitized timing and geometry telemetry only.\n"
-                    + "screen-recording.mp4 is present only when explicitly selected.\n"
+                    + "screen-recording.mp4 is present only after explicit Android screen-capture consent.\n"
+                    + "The recording is video-only; SubHub does not capture microphone audio.\n"
                     + "Use manifest elapsed timestamps and CensorLab SYNC markers to align video.\n")
                     .getBytes(StandardCharsets.UTF_8));
             if (video != null) {
-                try (InputStream stream = new BufferedInputStream(
-                        context.getContentResolver().openInputStream(video), COPY_BUFFER)) {
-                    if (stream == null) throw new IOException("Could not open the selected recording");
-                    addStream(zip, "screen-recording.mp4", stream);
-                }
+                // MP4 is already compressed. Deflate level zero avoids wasting CPU and delaying
+                // the ready-to-share bundle while retaining a streaming ZIP entry.
+                zip.setLevel(Deflater.NO_COMPRESSION);
+                addFile(zip, "screen-recording.mp4", video);
             }
+        } catch (IOException | RuntimeException error) {
+            partial.delete();
+            output.delete();
+            throw error;
+        }
+        if (!partial.renameTo(output)) {
+            partial.delete();
+            throw new IOException("Could not finalize the diagnostics export");
         }
         return output;
     }
 
+    private static File trustedVideo(CensorLabRecorder.CompletedSession session)
+            throws IOException {
+        File video = session.video;
+        if (video == null || !video.isFile() || video.length() <= 0L) return null;
+        if (video.length() > MAX_VIDEO_BYTES) {
+            throw new IOException("The Censor Lab recording exceeded its size limit");
+        }
+        String root = session.directory.getCanonicalPath() + File.separator;
+        if (!video.getCanonicalPath().startsWith(root)) {
+            throw new IOException("The Censor Lab recording is outside its session");
+        }
+        return video;
+    }
+
     private static void pruneExports(File directory) {
+        File[] partials = directory.listFiles(file -> file.isFile()
+                && file.getName().startsWith("subhub-censor-lab-")
+                && file.getName().endsWith(".partial"));
+        if (partials != null) {
+            for (File partial : partials) partial.delete();
+        }
         File[] exports = directory.listFiles(file -> file.isFile()
                 && file.getName().startsWith("subhub-censor-lab-")
                 && file.getName().endsWith(".zip"));

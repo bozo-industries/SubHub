@@ -103,7 +103,7 @@
                 android:id="@+id/button_censor_lab_attach"
                 style="@style/Widget.SubHub.PrimaryButton"
                 android:layout_marginTop="8dp"
-                android:text="@string/diagnostics_lab_attach" />
+                android:text="@string/diagnostics_lab_share_bundle" />
 
             <Button
                 android:id="@+id/button_censor_lab_share_trace"

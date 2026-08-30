@@ -31,18 +31,22 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Explicit, internal-only telemetry session. It never captures pixels or reads system logcat. */
+/** Explicit, internal-only telemetry session with an optional user-approved screen recording. */
 public final class CensorLabRecorder {
     private static final String PREFERENCES = "censor_lab_sessions";
     private static final String KEY_LATEST = "latest_session";
+    private static final String KEY_ACTIVE = "active_session";
     private static final String SESSION_ROOT = "censor-lab/sessions";
     private static final String TRACE_FILE = "trace.ndjson";
     private static final String MANIFEST_FILE = "manifest.json";
+    private static final String VIDEO_FILE = "screen-recording.mp4";
+    private static final int MAX_COMPLETED_SESSIONS = 3;
     private static final int MAX_FIELD_LENGTH = 2_048;
     private static final Object LOCK = new Object();
     private static final AtomicLong EVENT_SEQUENCE = new AtomicLong();
     private static volatile ActiveSession active;
     private static volatile CompletedSession latestCompleted;
+    private static volatile boolean finalizing;
 
     private CensorLabRecorder() {}
 
@@ -61,6 +65,11 @@ public final class CensorLabRecorder {
             return new SessionState(true, value.id, value.startedWallMillis,
                     value.buffer.size(), value.buffer.dropped(), null);
         }
+        synchronized (LOCK) {
+            if (active == null && !finalizing) {
+                discardAbandonedSession(context.getApplicationContext());
+            }
+        }
         CompletedSession latest = latest(context);
         return latest == null
                 ? new SessionState(false, null, 0L, 0, 0L, null)
@@ -72,6 +81,8 @@ public final class CensorLabRecorder {
         Context appContext = context.getApplicationContext();
         synchronized (LOCK) {
             if (active != null) return state(appContext);
+            if (finalizing) throw new IOException("The previous Censor Lab session is finalizing");
+            discardAbandonedSession(appContext);
             String id = shortId();
             File directory = sessionDirectory(appContext, id);
             if (!directory.mkdirs() && !directory.isDirectory()) {
@@ -80,8 +91,54 @@ public final class CensorLabRecorder {
             ActiveSession created = new ActiveSession(id, directory,
                     SystemClock.elapsedRealtimeNanos(), System.currentTimeMillis());
             active = created;
+            appContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit()
+                    .putString(KEY_ACTIVE, id).commit();
             add(created, "CensorLab", "SYNC_START session=" + id);
             return state(appContext);
+        }
+    }
+
+    /** Returns the private output file for the active in-app recording session. */
+    public static File activeVideoFile(Context context) throws IOException {
+        synchronized (LOCK) {
+            ActiveSession value = active;
+            if (value == null) throw new IOException("No active Censor Lab session");
+            File output = new File(value.directory, VIDEO_FILE);
+            String root = value.directory.getCanonicalPath() + File.separator;
+            if (!output.getCanonicalPath().startsWith(root)) {
+                throw new IOException("Invalid Censor Lab recording path");
+            }
+            return output;
+        }
+    }
+
+    public static void markVideoStarted(int width, int height, int frameRate, int bitRate) {
+        ActiveSession value = active;
+        if (value == null) return;
+        synchronized (value.eventLock) {
+            if (value.closed) return;
+            value.videoStartedElapsedNanos = SystemClock.elapsedRealtimeNanos();
+            value.videoWidth = Math.max(0, width);
+            value.videoHeight = Math.max(0, height);
+            value.videoFrameRate = Math.max(0, frameRate);
+            value.videoBitRate = Math.max(0, bitRate);
+            addLocked(value, "CensorLab", "VIDEO_START width=" + value.videoWidth
+                    + " height=" + value.videoHeight + " fps=" + value.videoFrameRate
+                    + " bitRate=" + value.videoBitRate);
+        }
+    }
+
+    public static void markVideoStopped(boolean valid, long bytes, String reason) {
+        ActiveSession value = active;
+        if (value == null) return;
+        synchronized (value.eventLock) {
+            if (value.closed) return;
+            value.videoStoppedElapsedNanos = SystemClock.elapsedRealtimeNanos();
+            value.videoValid = valid;
+            value.videoBytes = Math.max(0L, bytes);
+            value.videoStopReason = sanitize(reason, "unknown");
+            addLocked(value, "CensorLab", "VIDEO_STOP valid=" + valid
+                    + " bytes=" + value.videoBytes + " reason=" + value.videoStopReason);
         }
     }
 
@@ -101,25 +158,36 @@ public final class CensorLabRecorder {
         synchronized (LOCK) {
             ending = active;
             if (ending == null) return latest(appContext);
-            add(ending, "CensorLab", "SYNC_STOP session=" + ending.id);
-            active = null;
+            synchronized (ending.eventLock) {
+                addLocked(ending, "CensorLab", "SYNC_STOP session=" + ending.id);
+                ending.closed = true;
+                finalizing = true;
+                active = null;
+            }
         }
-        long stoppedElapsedNanos = SystemClock.elapsedRealtimeNanos();
-        long stoppedWallMillis = System.currentTimeMillis();
-        List<CensorLabEventBuffer.Event> events = ending.buffer.snapshot();
-        File trace = new File(ending.directory, TRACE_FILE);
-        writeTrace(trace, events);
-        File manifest = new File(ending.directory, MANIFEST_FILE);
-        writeManifest(appContext, ending, stoppedElapsedNanos, stoppedWallMillis,
-                events.size(), ending.buffer.dropped(), manifest);
-        CompletedSession completed = new CompletedSession(ending.id, ending.directory,
-                manifest, trace, ending.startedWallMillis, stoppedWallMillis,
-                events.size(), ending.buffer.dropped());
-        latestCompleted = completed;
-        appContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit()
-                .putString(KEY_LATEST, ending.id).apply();
-        pruneCompletedSessions(appContext, ending.id);
-        return completed;
+        try {
+            long stoppedElapsedNanos = SystemClock.elapsedRealtimeNanos();
+            long stoppedWallMillis = System.currentTimeMillis();
+            List<CensorLabEventBuffer.Event> events = ending.buffer.snapshot();
+            File trace = new File(ending.directory, TRACE_FILE);
+            writeTrace(trace, events);
+            File manifest = new File(ending.directory, MANIFEST_FILE);
+            writeManifest(appContext, ending, stoppedElapsedNanos, stoppedWallMillis,
+                    events.size(), ending.buffer.dropped(), manifest);
+            File video = new File(ending.directory, VIDEO_FILE);
+            if (!ending.videoValid || !video.isFile() || video.length() <= 0L) video = null;
+            CompletedSession completed = new CompletedSession(ending.id, ending.directory,
+                    manifest, trace, video, ending.startedWallMillis, stoppedWallMillis,
+                    events.size(), ending.buffer.dropped());
+            latestCompleted = completed;
+            appContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit()
+                    .remove(KEY_ACTIVE)
+                    .putString(KEY_LATEST, ending.id).commit();
+            pruneCompletedSessions(appContext, ending.id);
+            return completed;
+        } finally {
+            finalizing = false;
+        }
     }
 
     public static CompletedSession latest(Context context) {
@@ -135,7 +203,9 @@ public final class CensorLabRecorder {
         if (!manifest.isFile() || !trace.isFile()) return null;
         try {
             JSONObject stored = new JSONObject(readUtf8(manifest));
-            CompletedSession restored = new CompletedSession(id, directory, manifest, trace,
+            File video = new File(directory, VIDEO_FILE);
+            if (!video.isFile() || video.length() <= 0L) video = null;
+            CompletedSession restored = new CompletedSession(id, directory, manifest, trace, video,
                     stored.optLong("startedWallMillis"), stored.optLong("stoppedWallMillis"),
                     stored.optInt("eventCount"), stored.optLong("droppedEvents"));
             latestCompleted = restored;
@@ -146,6 +216,13 @@ public final class CensorLabRecorder {
     }
 
     private static void add(ActiveSession session, String tag, String message) {
+        synchronized (session.eventLock) {
+            if (session.closed) return;
+            addLocked(session, tag, message);
+        }
+    }
+
+    private static void addLocked(ActiveSession session, String tag, String message) {
         session.buffer.offer(new CensorLabEventBuffer.Event(
                 EVENT_SEQUENCE.incrementAndGet(), SystemClock.elapsedRealtimeNanos(),
                 System.currentTimeMillis(), sanitize(Thread.currentThread().getName(), "thread"),
@@ -205,6 +282,9 @@ public final class CensorLabRecorder {
             Collections.sort(categories);
             JSONArray enabledCategories = new JSONArray();
             for (String category : categories) enabledCategories.put(category);
+            File videoFile = new File(session.directory, VIDEO_FILE);
+            boolean videoAttached = session.videoValid && videoFile.isFile()
+                    && videoFile.length() > 0L;
             JSONObject manifest = new JSONObject()
                     .put("schemaVersion", 1)
                     .put("sessionId", session.id)
@@ -214,7 +294,7 @@ public final class CensorLabRecorder {
                     .put("stoppedWallMillis", stoppedWallMillis)
                     .put("eventCount", eventCount)
                     .put("droppedEvents", droppedEvents)
-                    .put("videoAttached", false)
+                    .put("videoAttached", videoAttached)
                     .put("app", new JSONObject()
                             .put("versionName", BuildConfig.VERSION_NAME)
                             .put("versionCode", BuildConfig.VERSION_CODE))
@@ -235,8 +315,24 @@ public final class CensorLabRecorder {
                             .put("captureScale", config.getCaptureScale())
                             .put("detectionIntervalMs", config.getDetectionIntervalMs())
                             .put("enabledCategories", enabledCategories))
+                    .put("recording", new JSONObject()
+                            .put("inAppScreenRecording", videoAttached)
+                            .put("sessionUsedScreenEncoder",
+                                    session.videoStartedElapsedNanos > 0L)
+                            .put("videoKind", videoAttached
+                                    ? "mediaprojection-display" : "none")
+                            .put("width", session.videoWidth)
+                            .put("height", session.videoHeight)
+                            .put("frameRate", session.videoFrameRate)
+                            .put("bitRate", session.videoBitRate)
+                            .put("startedElapsedNanos", session.videoStartedElapsedNanos)
+                            .put("stoppedElapsedNanos", session.videoStoppedElapsedNanos)
+                            .put("bytes", videoAttached ? videoFile.length() : 0L)
+                            .put("stopReason", sanitize(session.videoStopReason, "none"))
+                            .put("measurementOverhead", videoAttached
+                                    ? "hardware screen encoder active" : "none"))
                     .put("privacy", new JSONObject()
-                            .put("pixelCapture", false)
+                            .put("pixelCapture", videoAttached)
                             .put("ocrTextStored", false)
                             .put("foregroundPackageStored", false)
                             .put("transport", "Android share sheet only"));
@@ -257,7 +353,7 @@ public final class CensorLabRecorder {
     private static void pruneCompletedSessions(Context context, String keepId) {
         File root = new File(context.getFilesDir(), SESSION_ROOT);
         File[] listed = root.listFiles(file -> file.isDirectory() && validId(file.getName()));
-        if (listed == null || listed.length <= 5) return;
+        if (listed == null || listed.length <= MAX_COMPLETED_SESSIONS) return;
         List<File> sessions = new ArrayList<>();
         Collections.addAll(sessions, listed);
         sessions.sort((left, right) -> {
@@ -265,14 +361,32 @@ public final class CensorLabRecorder {
             if (right.getName().equals(keepId)) return 1;
             return Long.compare(sessionModified(right), sessionModified(left));
         });
-        for (int index = 5; index < sessions.size(); index++) {
+        for (int index = MAX_COMPLETED_SESSIONS; index < sessions.size(); index++) {
             File session = sessions.get(index);
             File manifest = new File(session, MANIFEST_FILE);
             File trace = new File(session, TRACE_FILE);
+            File video = new File(session, VIDEO_FILE);
             if (manifest.isFile()) manifest.delete();
             if (trace.isFile()) trace.delete();
+            if (video.isFile()) video.delete();
             session.delete();
         }
+    }
+
+    private static void discardAbandonedSession(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences(
+                PREFERENCES, Context.MODE_PRIVATE);
+        String id = preferences.getString(KEY_ACTIVE, null);
+        if (!validId(id)) return;
+        File directory = sessionDirectory(context, id);
+        File manifest = new File(directory, MANIFEST_FILE);
+        File trace = new File(directory, TRACE_FILE);
+        File video = new File(directory, VIDEO_FILE);
+        if (manifest.isFile()) manifest.delete();
+        if (trace.isFile()) trace.delete();
+        if (video.isFile()) video.delete();
+        directory.delete();
+        preferences.edit().remove(KEY_ACTIVE).commit();
     }
 
     private static long sessionModified(File directory) {
@@ -302,6 +416,17 @@ public final class CensorLabRecorder {
         final long startedElapsedNanos;
         final long startedWallMillis;
         final CensorLabEventBuffer buffer = new CensorLabEventBuffer();
+        final Object eventLock = new Object();
+        volatile boolean closed;
+        long videoStartedElapsedNanos;
+        long videoStoppedElapsedNanos;
+        int videoWidth;
+        int videoHeight;
+        int videoFrameRate;
+        int videoBitRate;
+        boolean videoValid;
+        long videoBytes;
+        String videoStopReason = "none";
 
         ActiveSession(String id, File directory, long startedElapsedNanos,
                 long startedWallMillis) {
@@ -336,18 +461,20 @@ public final class CensorLabRecorder {
         public final File directory;
         public final File manifest;
         public final File trace;
+        public final File video;
         public final long startedWallMillis;
         public final long stoppedWallMillis;
         public final int eventCount;
         public final long droppedEvents;
 
-        CompletedSession(String id, File directory, File manifest, File trace,
+        CompletedSession(String id, File directory, File manifest, File trace, File video,
                 long startedWallMillis, long stoppedWallMillis, int eventCount,
                 long droppedEvents) {
             this.id = id;
             this.directory = directory;
             this.manifest = manifest;
             this.trace = trace;
+            this.video = video;
             this.startedWallMillis = startedWallMillis;
             this.stoppedWallMillis = stoppedWallMillis;
             this.eventCount = eventCount;

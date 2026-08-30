@@ -57,12 +57,25 @@ gesture/motion count must be checked against raw tag counts before it is treated
 
 ## Remote Censor Lab bundles
 
-Diagnostics can start an explicit, bounded telemetry session without MediaProjection. The user
-records video with Android's system recorder, stops the session, optionally selects that video,
-and shares one ZIP. The bundle contains `manifest.json`, sanitized `trace.ndjson`, a short README,
-and `screen-recording.mp4` only when the user chose one. It never includes OCR text, URLs,
-foreground package names, screenshots collected by SubHub, installed-app inventories, credentials,
-or automatic network transport.
+Diagnostics can start one explicit, bounded, synchronized capture. `Start Lab Recording` opens
+Android's normal whole-display MediaProjection consent; after approval a dedicated Lab foreground
+service records video-only display evidence while the Accessibility censor pipeline remains the
+runtime under test. `Stop & Build ZIP` is asynchronous: it keeps the visible stop marker long
+enough to reach the recording, finalizes the MP4, seals the telemetry trace, and builds one ZIP
+without a Files picker. The ready bundle can be shared immediately or reopened from Diagnostics.
+
+The bundle contains `manifest.json`, sanitized `trace.ndjson`, a short README, and
+`screen-recording.mp4` only after that explicit consent. It never records microphone audio, OCR
+text, URLs, foreground package names, installed-app inventories, credentials, or automatic network
+transport. Recording stays in the private session directory, is capped by duration and size, and
+is retained under the same bounded session policy as telemetry. Screen Capture censor mode and Lab
+recording are mutually exclusive because Android 14+ permits one virtual display per one-use
+MediaProjection grant; the Lab recorder is intended to run beside Accessibility/App Mode.
+
+The manifest records the output dimensions, requested frame rate and bitrate, exact video start and
+stop timestamps, stop reason, and `measurementOverhead: hardware screen encoder active`. Visual
+recordings necessarily exercise the compositor and hardware encoder. Compare timing-critical runs
+against a telemetry-only capture before attributing an encoder-induced change to the censor lane.
 
 Inspect a received bundle with:
 

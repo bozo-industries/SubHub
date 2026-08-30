@@ -71,6 +71,29 @@ class InspectCensorLabBundleTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 inspect_bundle(bundle)
 
+    def test_requires_in_app_video_flags_to_match_archive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary) / "mismatch.zip"
+            manifest = {
+                "schemaVersion": 1,
+                "sessionId": "0123456789",
+                "startedElapsedNanos": 1,
+                "stoppedElapsedNanos": 2,
+                "eventCount": 0,
+                "videoAttached": True,
+                "recording": {
+                    "inAppScreenRecording": True,
+                    "videoKind": "mediaprojection-display",
+                },
+                "privacy": {"pixelCapture": True},
+            }
+            with zipfile.ZipFile(bundle, "w") as archive:
+                archive.writestr("manifest.json", json.dumps(manifest))
+                archive.writestr("trace.ndjson", "")
+                archive.writestr("README.txt", "test")
+            with self.assertRaises(ValueError):
+                inspect_bundle(bundle)
+
 
 if __name__ == "__main__":
     unittest.main()

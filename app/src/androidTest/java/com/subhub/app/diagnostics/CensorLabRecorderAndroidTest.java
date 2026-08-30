@@ -6,8 +6,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
-import android.net.Uri;
-
 import androidx.core.content.FileProvider;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -20,6 +18,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
@@ -59,23 +58,45 @@ public final class CensorLabRecorderAndroidTest {
         assertFalse(manifest.getJSONObject("privacy").getBoolean("ocrTextStored"));
         assertFalse(manifest.getJSONObject("privacy").getBoolean("foregroundPackageStored"));
 
-        File bundle = CensorLabBundleExporter.export(context, completed, null);
+        File bundle = CensorLabBundleExporter.export(context, completed, false);
         assertTrue(bundle.isFile());
         Set<String> entries = zipEntries(bundle);
         assertEquals(Set.of("manifest.json", "trace.ndjson", "README.txt"), entries);
         assertNotNull(FileProvider.getUriForFile(context,
                 context.getPackageName() + ".updates", bundle));
 
-        File videoDirectory = new File(context.getCacheDir(), "censor-lab/exports");
-        assertTrue(videoDirectory.isDirectory() || videoDirectory.mkdirs());
-        File video = new File(videoDirectory, "test-recording-" + completed.id + ".mp4");
+        CensorLabRecorder.start(context);
+        CensorLabRecorder.markVideoStarted(720, 1600, 60, 8_000_000);
+        File video = CensorLabRecorder.activeVideoFile(context);
         try (FileOutputStream output = new FileOutputStream(video)) {
             output.write(new byte[]{0, 0, 0, 20, 'f', 't', 'y', 'p'});
         }
-        Uri videoUri = FileProvider.getUriForFile(context,
-                context.getPackageName() + ".updates", video);
-        File videoBundle = CensorLabBundleExporter.export(context, completed, videoUri);
+        CensorLabRecorder.markVideoStopped(true, video.length(), "test-stop");
+        CensorLabRecorder.CompletedSession recorded = CensorLabRecorder.stop(context);
+        assertNotNull(recorded.video);
+        JSONObject recordedManifest = new JSONObject(read(recorded.manifest));
+        assertTrue(recordedManifest.getBoolean("videoAttached"));
+        assertTrue(recordedManifest.getJSONObject("privacy").getBoolean("pixelCapture"));
+        assertEquals("mediaprojection-display",
+                recordedManifest.getJSONObject("recording").getString("videoKind"));
+
+        File videoBundle = CensorLabBundleExporter.export(context, recorded, true);
         assertTrue(zipEntries(videoBundle).contains("screen-recording.mp4"));
+
+        File telemetryFromRecordedSession = CensorLabBundleExporter.export(
+                context, recorded, false);
+        assertFalse(zipEntries(telemetryFromRecordedSession).contains("screen-recording.mp4"));
+        JSONObject telemetryManifest = new JSONObject(
+                zipEntry(telemetryFromRecordedSession, "manifest.json"));
+        assertFalse(telemetryManifest.getBoolean("videoAttached"));
+        assertFalse(telemetryManifest.getJSONObject("privacy").getBoolean("pixelCapture"));
+        JSONObject telemetryRecording = telemetryManifest.getJSONObject("recording");
+        assertFalse(telemetryRecording.getBoolean("inAppScreenRecording"));
+        assertTrue(telemetryRecording.getBoolean("sessionUsedScreenEncoder"));
+        assertEquals(0L, telemetryRecording.getLong("bytes"));
+        assertEquals(0, telemetryRecording.getInt("width"));
+        assertTrue(telemetryRecording.getString("measurementOverhead")
+                .contains("video omitted"));
     }
 
     private static String read(File file) throws Exception {
@@ -95,5 +116,22 @@ public final class CensorLabRecorderAndroidTest {
             while ((entry = zip.getNextEntry()) != null) names.add(entry.getName());
         }
         return names;
+    }
+
+    private static String zipEntry(File file, String wanted) throws Exception {
+        try (ZipInputStream zip = new ZipInputStream(new FileInputStream(file))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (!wanted.equals(entry.getName())) continue;
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                byte[] buffer = new byte[4 * 1024];
+                int read;
+                while ((read = zip.read(buffer)) >= 0) {
+                    if (read > 0) bytes.write(buffer, 0, read);
+                }
+                return bytes.toString(StandardCharsets.UTF_8.name());
+            }
+        }
+        throw new AssertionError("Missing ZIP entry " + wanted);
     }
 }

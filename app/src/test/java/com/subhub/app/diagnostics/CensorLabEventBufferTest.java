@@ -27,6 +27,15 @@ public final class CensorLabEventBufferTest {
         assertFalse(CensorLabLog.allowed("LocalSmutModel", "recognized secret text"));
     }
 
+    @Test public void byteBudgetDropsLargeEventsBeforeMemoryCanGrowUnbounded() {
+        CensorLabEventBuffer buffer = new CensorLabEventBuffer(100, 80L);
+        assertTrue(buffer.offer(event(1L, "small")));
+        assertFalse(buffer.offer(event(2L, "x".repeat(100))));
+
+        assertEquals(1, buffer.size());
+        assertEquals(1L, buffer.dropped());
+    }
+
     private static CensorLabEventBuffer.Event event(long sequence, String message) {
         return new CensorLabEventBuffer.Event(sequence, sequence, sequence,
                 "test", "CensorMotion", message);
