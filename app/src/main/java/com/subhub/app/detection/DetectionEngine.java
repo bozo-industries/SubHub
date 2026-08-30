@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.RectF;
+import android.os.Process;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -39,18 +40,20 @@ public final class DetectionEngine implements AutoCloseable {
     private static final String PROVIDER_PREFS = "detector_provider_cache";
     private static final String PROVIDER_CONFIG_REVISION = "ep-v3";
     private static final float INV_255 = 1f / 255f;
-    private static final ExecutorService PREPROCESS_EXECUTOR =
-            Executors.newFixedThreadPool(3, runnable -> {
-                Thread thread = new Thread(runnable, "SubHub-model-input");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private static final ExecutorService REALTIME_PREPROCESS_EXECUTOR =
+            Executors.newFixedThreadPool(3, runnable -> preprocessThread(
+                    runnable, "SubHub-fast-input", Process.THREAD_PRIORITY_DISPLAY));
+    private static final ExecutorService QUALITY_PREPROCESS_EXECUTOR =
+            Executors.newFixedThreadPool(3, runnable -> preprocessThread(
+                    runnable, "SubHub-quality-input", Process.THREAD_PRIORITY_DEFAULT));
 
     private final Context context;
     private final OrtEnvironment environment;
     private final DetectionPostProcessor postProcessor = new DetectionPostProcessor();
     private final InferencePerformanceHints performanceHints;
     private final boolean latencyPriority;
+    private final boolean nnapiFp16Relaxation;
+    private final ExecutorService preprocessExecutor;
     private DetectorConfig config;
     private OrtSession session;
     private String inputName = "images";
@@ -74,9 +77,20 @@ public final class DetectionEngine implements AutoCloseable {
 
     public DetectionEngine(
             Context context, DetectorConfig config, boolean latencyPriority) {
+        this(context, config, latencyPriority, false);
+    }
+
+    DetectionEngine(
+            Context context,
+            DetectorConfig config,
+            boolean latencyPriority,
+            boolean nnapiFp16Relaxation) {
         this.context = context.getApplicationContext();
         this.config = config;
         this.latencyPriority = latencyPriority;
+        this.nnapiFp16Relaxation = nnapiFp16Relaxation;
+        this.preprocessExecutor = latencyPriority
+                ? REALTIME_PREPROCESS_EXECUTOR : QUALITY_PREPROCESS_EXECUTOR;
         this.environment = OrtEnvironment.getEnvironment();
         performanceHints = new InferencePerformanceHints(this.context);
         allocateBuffers(config.getInferenceResolution());
@@ -124,6 +138,22 @@ public final class DetectionEngine implements AutoCloseable {
         if (lastFailure instanceof IOException) throw (IOException) lastFailure;
         if (lastFailure instanceof OrtException) throw (OrtException) lastFailure;
         throw new IOException("No compatible ONNX model asset was found", lastFailure);
+    }
+
+    /** Device benchmark hook: creates one requested EP without provider-selection side effects. */
+    synchronized void initializeForProvider(String provider) throws IOException, OrtException {
+        closeSession();
+        String model = config.getModelFilename();
+        byte[] bytes = readAsset(model);
+        try (OrtSession.SessionOptions options = optionsFor(provider)) {
+            session = environment.createSession(bytes, options);
+        }
+        inputName = session.getInputNames().iterator().next();
+        activeProvider = provider;
+        activeModel = model;
+        Log.i(TAG, "Loaded " + model + " using forced provider " + provider
+                + " (profile=" + (latencyPriority ? "realtime" : "quality")
+                + ", fp16Relaxation=" + nnapiFp16Relaxation + ")");
     }
 
     public synchronized List<Detection> detect(Bitmap frame) throws OrtException {
@@ -242,7 +272,9 @@ public final class DetectionEngine implements AutoCloseable {
             options.setIntraOpNumThreads(threads);
             // NNAPI's reference CPU device is often slower than ORT's optimized CPU kernels.
             // Unsupported accelerator nodes still fall back to ORT without changing precision.
-            options.addNnapi(EnumSet.of(NNAPIFlags.CPU_DISABLED));
+            EnumSet<NNAPIFlags> flags = EnumSet.of(NNAPIFlags.CPU_DISABLED);
+            if (nnapiFp16Relaxation) flags.add(NNAPIFlags.USE_FP16);
+            options.addNnapi(flags);
         } else if ("XNNPACK".equals(provider)) {
             // XNNPACK owns a separate intra-op pool. A second multi-threaded ORT pool competes
             // with it and can make mobile inference slower while consuming substantially more CPU.
@@ -322,7 +354,8 @@ public final class DetectionEngine implements AutoCloseable {
         String identity = android.os.Build.FINGERPRINT + '|' + model + '|'
                 + config.getInferenceResolution() + '|' + config.getInferenceThreads()
                 + '|' + (latencyPriority ? "realtime" : "quality")
-                + '|' + PROVIDER_CONFIG_REVISION;
+                + '|' + PROVIDER_CONFIG_REVISION
+                + (nnapiFp16Relaxation ? "|nnapi-fp16" : "");
         return "provider_" + Integer.toHexString(identity.hashCode());
     }
 
@@ -349,9 +382,9 @@ public final class DetectionEngine implements AutoCloseable {
 
     private void populateInputValues(int plane) {
         CountDownLatch finished = new CountDownLatch(3);
-        PREPROCESS_EXECUTOR.execute(() -> fillChannel(plane, 0, 16, finished));
-        PREPROCESS_EXECUTOR.execute(() -> fillChannel(plane, plane, 8, finished));
-        PREPROCESS_EXECUTOR.execute(() -> fillChannel(plane, plane * 2, 0, finished));
+        preprocessExecutor.execute(() -> fillChannel(plane, 0, 16, finished));
+        preprocessExecutor.execute(() -> fillChannel(plane, plane, 8, finished));
+        preprocessExecutor.execute(() -> fillChannel(plane, plane * 2, 0, finished));
         boolean interrupted = false;
         while (true) {
             try {
@@ -369,11 +402,22 @@ public final class DetectionEngine implements AutoCloseable {
     private void fillChannel(int plane, int outputOffset, int shift, CountDownLatch finished) {
         try {
             for (int index = 0; index < plane; index++) {
-                inputValues[outputOffset + index] = ((pixels[index] >>> shift) & 0xff) * INV_255;
+                inputValues[outputOffset + index] =
+                        ((pixels[index] >>> shift) & 0xff) * INV_255;
             }
         } finally {
             finished.countDown();
         }
+    }
+
+    private static Thread preprocessThread(
+            Runnable runnable, String name, int androidPriority) {
+        Thread thread = new Thread(() -> {
+            Process.setThreadPriority(androidPriority);
+            runnable.run();
+        }, name);
+        thread.setDaemon(true);
+        return thread;
     }
 
     /** Keeps the native-backed tensor alive across frames instead of reallocating JNI storage. */
@@ -424,8 +468,8 @@ public final class DetectionEngine implements AutoCloseable {
     public synchronized void close() {
         performanceHints.close();
         closeSession();
-        directInput = null;
         inputValues = null;
+        directInput = null;
         if (letterbox != null) letterbox.recycle();
         letterbox = null;
         letterboxCanvas = null;

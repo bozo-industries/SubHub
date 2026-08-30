@@ -59,7 +59,11 @@ foreach ($requestedPath in $Path) {
     $lastTime = $null
     $publishes = [Collections.Generic.List[object]]::new()
     $quality = [Collections.Generic.List[object]]::new()
+    $streamingQuality = [Collections.Generic.List[object]]::new()
+    $streamingQualityDrops = [Collections.Generic.List[object]]::new()
     $qualitySupplements = [Collections.Generic.List[object]]::new()
+    $qualityRetires = [Collections.Generic.List[object]]::new()
+    $capturePhases = [Collections.Generic.List[object]]::new()
     $scrolls = [Collections.Generic.List[object]]::new()
     $textScans = [Collections.Generic.List[object]]::new()
     $textPublishes = [Collections.Generic.List[object]]::new()
@@ -68,6 +72,7 @@ foreach ($requestedPath in $Path) {
     $motionDraws = [Collections.Generic.List[object]]::new()
     $motionInputs = [Collections.Generic.List[object]]::new()
     $motionSettles = [Collections.Generic.List[object]]::new()
+    $gestureStarts = [Collections.Generic.List[object]]::new()
 
     foreach ($line in $lines) {
         $time = Get-TraceTime $line
@@ -76,7 +81,7 @@ foreach ($requestedPath in $Path) {
             $lastTime = $time
         }
 
-        if ($line -match 'OVERLAY_PUBLISH pass=(\S+) scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) tracks=(\d+) rawVisual=(\d+) cachedQuality=(\d+) qualityOnly=(\d+)(?: identityRealtimeLinked=(\d+) identityQualityLinked=(\d+) identityFused=(\d+) identityCarriedQuality=(\d+) identityUnlinkedQuality=(\d+))? geometryMatched=(\d+) geometryChanged=(\d+) maxCenterDeltaPx=(\d+) maxSizeDeltaPx=(\d+) dropped=(\d+)(?: duplicatesSuppressed=(\d+))?(?: qualityOnlyTracks=(\d+) renderTracks=(\d+))?') {
+        if ($line -match 'OVERLAY_PUBLISH pass=(\S+) scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+).*? tracks=(\d+) rawVisual=(\d+) cachedQuality=(\d+) qualityOnly=(\d+)(?: identityRealtimeLinked=(\d+) identityQualityLinked=(\d+) identityFused=(\d+) identityCarriedQuality=(\d+) identityUnlinkedQuality=(\d+))? geometryMatched=(\d+) geometryChanged=(\d+) maxCenterDeltaPx=(\d+) maxSizeDeltaPx=(\d+) dropped=(\d+)(?: duplicatesSuppressed=(\d+))?(?: qualityOnlyTracks=(\d+) renderTracks=(\d+))?(?: qualityActive=(true|false))?') {
             $item = [pscustomobject]@{
                 time = $time
                 pass = $Matches[1]
@@ -104,6 +109,7 @@ foreach ($requestedPath in $Path) {
                 duplicatesSuppressed = if ($Matches[23]) { [int] $Matches[23] } else { 0 }
                 qualityOnlyTracks = if ($Matches[24]) { [int] $Matches[24] } else { 0 }
                 renderTracks = if ($Matches[25]) { [int] $Matches[25] } else { [int] $Matches[9] }
+                qualityActive = $Matches[26] -eq 'true'
             }
             $publishes.Add($item)
             if ($item.pass -eq 'fast' -and $null -ne $time) { $fastPublishTimes.Add($time) }
@@ -134,8 +140,8 @@ foreach ($requestedPath in $Path) {
             })
             continue
         }
-        if ($line -match 'QUALITY_CACHE scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+)(?: identityLinked=(\d+) identityUnlinked=(\d+))?(?: pendingVisual=(\d+) deferredUnlinked=(\d+)(?: supplementedTracks=(\d+))? confirmationRequested=(true|false))?') {
-            $quality.Add([pscustomobject]@{
+        if ($line -match 'QUALITY_CACHE scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+)(?: identityLinked=(\d+) identityUnlinked=(\d+))?(?: pendingVisual=(\d+) deferredUnlinked=(\d+)(?: supplementedTracks=(\d+))?.*? confirmationRequested=(true|false))?') {
+            $qualityItem = [pscustomobject]@{
                 time = $time
                 scrollId = [int] $Matches[1]
                 captureAge = [int] $Matches[2]
@@ -152,15 +158,75 @@ foreach ($requestedPath in $Path) {
                 deferredUnlinked = if ($Matches[13]) { [int] $Matches[13] } else { 0 }
                 supplementedTracks = if ($Matches[14]) { [int] $Matches[14] } else { 0 }
                 confirmationRequested = $Matches[15] -eq 'true'
+                batchState = 'UNKNOWN'
+                cacheGeneration = $null
+            }
+            if ($line -match 'qualityBatchState=(\S+) cacheGeneration=(\d+)') {
+                $qualityItem.batchState = $Matches[1]
+                $qualityItem.cacheGeneration = [int] $Matches[2]
+            }
+            $quality.Add($qualityItem)
+            continue
+        }
+        if ($line -match 'QUALITY_STREAM_CACHE scrollId=(\d+) captureAgeMs=(\d+)(?: bitmapPrepareMs=(\d+))? inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+) pendingVisual=(\d+) sourceGeneration=(\d+) cacheGeneration=(\d+) reproject=(-?\d+),(-?\d+) dropped=(\d+)') {
+            $streamingQuality.Add([pscustomobject]@{
+                time = $time
+                scrollId = [int] $Matches[1]
+                captureAge = [int] $Matches[2]
+                bitmapPrepare = if ($Matches[3]) { [int] $Matches[3] } else { 0 }
+                inference = [int] $Matches[4]
+                preprocess = [int] $Matches[5]
+                runtime = [int] $Matches[6]
+                postprocess = [int] $Matches[7]
+                afterMotion = [int] $Matches[8]
+                rawVisual = [int] $Matches[9]
+                stableVisual = [int] $Matches[10]
+                pendingVisual = [int] $Matches[11]
+                sourceGeneration = [int] $Matches[12]
+                cacheGeneration = [int] $Matches[13]
+                reprojectAbs = [math]::Abs([int] $Matches[14]) +
+                    [math]::Abs([int] $Matches[15])
+                dropped = [int] $Matches[16]
             })
             continue
         }
-        if ($line -match 'QUALITY_SUPPLEMENT_PUBLISH scrollId=(\d+) added=(\d+) afterMotionMs=(\d+)') {
+        if ($line -match 'QUALITY_STREAM_DROP reason=(\S+) sourceGeneration=(\d+) currentGeneration=(\d+)') {
+            $streamingQualityDrops.Add([pscustomobject]@{
+                time = $time
+                reason = $Matches[1]
+                sourceGeneration = [int] $Matches[2]
+                currentGeneration = [int] $Matches[3]
+            })
+            continue
+        }
+        if ($line -match 'QUALITY_SUPPLEMENT_PUBLISH scrollId=(\d+) added=(\d+).*? afterMotionMs=(\d+)') {
             $qualitySupplements.Add([pscustomobject]@{
                 time = $time
                 scrollId = [int] $Matches[1]
                 added = [int] $Matches[2]
                 afterMotion = [int] $Matches[3]
+            })
+            continue
+        }
+        if ($line -match 'QUALITY_RETIRE_PUBLISH scrollId=(\d+) added=(\d+) retired=(\d+) afterMotionMs=(\d+)') {
+            $qualityRetires.Add([pscustomobject]@{
+                time = $time
+                scrollId = [int] $Matches[1]
+                added = [int] $Matches[2]
+                retired = [int] $Matches[3]
+                afterMotion = [int] $Matches[4]
+            })
+            continue
+        }
+        if ($line -match 'CAPTURE_PHASE requestToCaptureMs=(\d+) callbackDelayMs=(\d+) requestScroll=(-?\d+),(-?\d+) captureScroll=(-?\d+),(-?\d+) requestGeneration=(\d+) captureGeneration=(\d+) timelineResolved=(true|false)') {
+            $capturePhases.Add([pscustomobject]@{
+                time = $time
+                requestToCapture = [int] $Matches[1]
+                callbackDelay = [int] $Matches[2]
+                scrollDeltaAbs = [math]::Abs(([int] $Matches[5]) - ([int] $Matches[3])) +
+                    [math]::Abs(([int] $Matches[6]) - ([int] $Matches[4]))
+                generationDelta = ([int] $Matches[8]) - ([int] $Matches[7])
+                timelineResolved = $Matches[9] -eq 'true'
             })
             continue
         }
@@ -186,6 +252,17 @@ foreach ($requestedPath in $Path) {
                     [math]::Abs($rawX - $appliedX) + [math]::Abs($rawY - $appliedY)
                 }
                 explicitlyAmplified = $Matches[11] -eq 'true'
+            })
+            continue
+        }
+        if ($line -match 'I SubHubReplay: GESTURE_START index=(\d+) kind=(\S+) durationMs=(\d+) dx=(-?\d+) dy=(-?\d+)') {
+            $gestureStarts.Add([pscustomobject]@{
+                time = $time
+                index = [int] $Matches[1]
+                kind = $Matches[2]
+                duration = [int] $Matches[3]
+                deltaX = [int] $Matches[4]
+                deltaY = [int] $Matches[5]
             })
             continue
         }
@@ -217,6 +294,8 @@ foreach ($requestedPath in $Path) {
     $fast = @($publishes | Where-Object pass -eq 'fast')
     $activeFast = @($fast | Where-Object { $_.scrollId -gt 0 -and $_.afterMotion -ge 0 -and $_.afterMotion -le 500 })
     $settledFast = @($fast | Where-Object { $_.scrollId -eq 0 -or $_.afterMotion -gt 500 })
+    $fastWithQuality = @($fast | Where-Object qualityActive)
+    $fastWithoutQuality = @($fast | Where-Object { -not $_.qualityActive })
     $intervals = for ($index = 1; $index -lt $fastPublishTimes.Count; $index++) {
         ($fastPublishTimes[$index] - $fastPublishTimes[$index - 1]).TotalMilliseconds
     }
@@ -231,6 +310,22 @@ foreach ($requestedPath in $Path) {
         $scrolls | Where-Object { $_.appliedAbs -gt $_.rawAbs }) 'source'
     $dropNonzero = @($fast | Where-Object dropped -gt 0).Count
     $geometryJumps = @($fast | Where-Object maxCenterDelta -ge 100).Count
+    $activeDuplicateLike = @($activeFast | Where-Object {
+            $_.cachedQuality -eq 0 -and $_.tracks -ge ($_.rawVisual + 2) })
+    $swipeStarts = @($gestureStarts | Where-Object kind -eq 'swipe')
+    $gestureToScroll = foreach ($gesture in $swipeStarts) {
+        $deadline = $gesture.time.AddMilliseconds($gesture.duration + 600)
+        $firstScroll = $scrolls | Where-Object {
+            $_.time -ge $gesture.time -and $_.time -le $deadline -and $_.appliedAbs -gt 0
+        } | Sort-Object time | Select-Object -First 1
+        if ($null -ne $firstScroll) {
+            [pscustomobject]@{
+                index = $gesture.index
+                latency = ($firstScroll.time - $gesture.time).TotalMilliseconds
+                source = $firstScroll.source
+            }
+        }
+    }
     $durationSeconds = if ($null -ne $firstTime -and $null -ne $lastTime) {
         [math]::Round(($lastTime - $firstTime).TotalSeconds, 3)
     } else { 0 }
@@ -261,12 +356,28 @@ foreach ($requestedPath in $Path) {
             identityUnlinkedQuality = ($fast | Measure-Object -Property identityUnlinkedQuality -Sum).Sum
             qualityOnlyTracks = Get-Distribution @($fast.qualityOnlyTracks)
             renderTracks = Get-Distribution @($fast.renderTracks)
+            activeDuplicateLikePublishes = $activeDuplicateLike.Count
+            whileQualityActive = [ordered]@{
+                publishes = $fastWithQuality.Count
+                captureAgeMs = Get-Distribution @($fastWithQuality.captureAge)
+                runtimeMs = Get-Distribution @($fastWithQuality.runtime)
+            }
+            whileQualityIdle = [ordered]@{
+                publishes = $fastWithoutQuality.Count
+                captureAgeMs = Get-Distribution @($fastWithoutQuality.captureAge)
+                runtimeMs = Get-Distribution @($fastWithoutQuality.runtime)
+            }
         }
         activeScrollFast = [ordered]@{
             publishes = $activeFast.Count
             captureAgeMs = Get-Distribution @($activeFast.captureAge)
             inferenceMs = Get-Distribution @($activeFast.inference)
             runtimeMs = Get-Distribution @($activeFast.runtime)
+            geometryChangedPublishes = @(
+                $activeFast | Where-Object geometryChanged -gt 0).Count
+            centerJumpsAtLeast100px = @(
+                $activeFast | Where-Object maxCenterDelta -ge 100).Count
+            duplicateLikePublishes = $activeDuplicateLike.Count
         }
         settledFast = [ordered]@{
             publishes = $settledFast.Count
@@ -288,6 +399,11 @@ foreach ($requestedPath in $Path) {
             supplementedTracks = ($qualitySupplements | Measure-Object -Property added -Sum).Sum
             supplementPublishes = $qualitySupplements.Count
             supplementAfterMotionMs = Get-Distribution @($qualitySupplements.afterMotion)
+            supplementScrollIds = Get-GroupCounts @($qualitySupplements) 'scrollId'
+            retirePublishes = $qualityRetires.Count
+            retiredTracks = ($qualityRetires | Measure-Object -Property retired -Sum).Sum
+            retireAfterMotionMs = Get-Distribution @($qualityRetires.afterMotion)
+            batchStates = Get-GroupCounts @($quality) 'batchState'
             confirmationRequests = @($quality | Where-Object confirmationRequested).Count
             confirmationRuns = @($lines | Where-Object {
                     $_ -match 'QUALITY_CONFIRMATION_RUN' }).Count
@@ -295,6 +411,29 @@ foreach ($requestedPath in $Path) {
                     $_ -match 'QUALITY_CACHE_INVALIDATED reason=motion' }).Count
             cacheGenerationRejections = @($lines | Where-Object {
                     $_ -match 'QUALITY_CACHE_REJECTED reason=motion-generation' }).Count
+            streamingCaches = $streamingQuality.Count
+            streamingCaptureAgeMs = Get-Distribution @($streamingQuality.captureAge)
+            streamingBitmapPrepareMs = Get-Distribution @($streamingQuality.bitmapPrepare)
+            streamingInferenceMs = Get-Distribution @($streamingQuality.inference)
+            streamingRuntimeMs = Get-Distribution @($streamingQuality.runtime)
+            streamingPendingCandidates = ($streamingQuality |
+                Measure-Object -Property pendingVisual -Sum).Sum
+            streamingReprojectAbsPx = Get-Distribution @($streamingQuality.reprojectAbs)
+            streamingGenerationAdvance = Get-Distribution @($streamingQuality |
+                ForEach-Object { $_.cacheGeneration - $_.sourceGeneration })
+            streamingMaxDropped = if ($streamingQuality.Count) {
+                ($streamingQuality.dropped | Measure-Object -Maximum).Maximum
+            } else { 0 }
+            streamingStaleDrops = $streamingQualityDrops.Count
+            streamingDropReasons = Get-GroupCounts @($streamingQualityDrops) 'reason'
+        }
+        capturePhase = [ordered]@{
+            samples = $capturePhases.Count
+            requestToCaptureMs = Get-Distribution @($capturePhases.requestToCapture)
+            callbackDelayMs = Get-Distribution @($capturePhases.callbackDelay)
+            requestToCaptureScrollDeltaAbsPx = Get-Distribution @($capturePhases.scrollDeltaAbs)
+            generationChangedSamples = @($capturePhases | Where-Object generationDelta -ne 0).Count
+            timelineResolvedSamples = @($capturePhases | Where-Object timelineResolved).Count
         }
         scroll = [ordered]@{
             sessions = @($scrolls.id | Sort-Object -Unique).Count
@@ -311,6 +450,13 @@ foreach ($requestedPath in $Path) {
             evidence = Get-GroupCounts @($scrolls) 'evidence'
             adjustedPixels = ($scrolls | Measure-Object -Property adjusted -Sum).Sum
             explicitlyAmplifiedEvents = @($scrolls | Where-Object explicitlyAmplified).Count
+        }
+        gestureToScroll = [ordered]@{
+            swipeMarkers = $swipeStarts.Count
+            matched = @($gestureToScroll).Count
+            missed = $swipeStarts.Count - @($gestureToScroll).Count
+            firstAppliedEventMs = Get-Distribution @($gestureToScroll.latency)
+            sources = Get-GroupCounts @($gestureToScroll) 'source'
         }
         displayMotion = [ordered]@{
             inputs = $motionInputs.Count

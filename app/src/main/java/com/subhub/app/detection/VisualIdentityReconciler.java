@@ -21,7 +21,10 @@ public final class VisualIdentityReconciler {
     private static final float MIN_IOU = 0.20f;
     private static final float MIN_CONTAINMENT = 0.55f;
     private static final float MIN_AREA_RATIO = 0.35f;
-    private static final float MAX_CENTER_DELTA_RATIO = 0.45f;
+    // A one-frame-old quality observation can trail fast scroll motion by roughly half a box.
+    // Keep overlapping same-family observations on one identity without merging merely adjacent
+    // grid items: the IoU/containment gate below still requires meaningful shared area.
+    private static final float MAX_CENTER_DELTA_RATIO = 0.65f;
 
     private VisualIdentityReconciler() {}
 

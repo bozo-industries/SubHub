@@ -81,6 +81,33 @@ public final class VisualIdentityReconcilerTest {
         assertEquals(1, result.unlinkedQuality());
     }
 
+    @Test
+    public void halfHeightScrollPhaseOffsetStillFusesOneFace() {
+        Detection realtime = face(new BBox(100, 100, 180, 180));
+        Detection quality = qualityFace(new BBox(100, 190, 180, 180));
+
+        VisualIdentityReconciler.Result result = VisualIdentityReconciler.reconcile(
+                Collections.singletonList(realtime), Collections.singletonList(quality),
+                Collections.emptyList());
+
+        assertEquals(1, result.detections().size());
+        assertEquals(1, result.fused());
+        assertEquals(realtime.getBox(), result.detections().get(0).getBox());
+    }
+
+    @Test
+    public void nonOverlappingStackedFacesRemainIndependent() {
+        Detection realtime = face(new BBox(100, 100, 180, 180));
+        Detection quality = qualityFace(new BBox(100, 285, 180, 180));
+
+        VisualIdentityReconciler.Result result = VisualIdentityReconciler.reconcile(
+                Collections.singletonList(realtime), Collections.singletonList(quality),
+                Collections.emptyList());
+
+        assertEquals(2, result.detections().size());
+        assertEquals(0, result.fused());
+    }
+
     private static TrackedObject tracked(int id, Detection detection) {
         TrackedObject track = new TrackedObject(id, detection, 1_000_000_000L);
         track.update(detection, detection.getBox(), 0f, 0f, 1_100_000_000L);

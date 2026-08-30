@@ -23,6 +23,8 @@ param(
 
     [switch]$Replay,
 
+    [switch]$TraceMarkers,
+
     [string]$Serial,
 
     [int]$StartGesture = 1,
@@ -257,13 +259,25 @@ foreach ($gesture in $selected) {
         ([double]$gesture.deltaX * [double]$gesture.deltaX) +
         ([double]$gesture.deltaY * [double]$gesture.deltaY))
     $duration = [Math]::Max(1, [int][Math]::Round($gesture.durationMs / $Speed))
-    if ($distance -le $TapDistancePx -and $gesture.durationMs -le $TapDurationMs) {
+    $isTap = $distance -le $TapDistancePx -and $gesture.durationMs -le $TapDurationMs
+    $gestureKind = if ($isTap) { 'tap' } else { 'swipe' }
+    if ($TraceMarkers) {
+        & adb -s $Serial shell log -t SubHubReplay `
+            "GESTURE_START index=$($gesture.index) kind=$gestureKind durationMs=$duration dx=$($gesture.deltaX) dy=$($gesture.deltaY)" | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Gesture $($gesture.index) start marker failed." }
+    }
+    if ($isTap) {
         & adb -s $Serial shell input touchscreen tap $gesture.startX $gesture.startY | Out-Null
     } else {
         & adb -s $Serial shell input touchscreen swipe `
             $gesture.startX $gesture.startY $gesture.endX $gesture.endY $duration | Out-Null
     }
     if ($LASTEXITCODE -ne 0) { throw "Gesture $($gesture.index) injection failed." }
+    if ($TraceMarkers) {
+        & adb -s $Serial shell log -t SubHubReplay `
+            "GESTURE_END index=$($gesture.index)" | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Gesture $($gesture.index) end marker failed." }
+    }
 }
 
 $clock.Stop()

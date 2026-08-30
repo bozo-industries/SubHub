@@ -68,6 +68,19 @@ public final class CaptureEpochTest {
         assertTrue(ScreenshotAccessibilityService.usesContinuousMotionInference(ultra));
     }
 
+    @Test public void streamingQualityRequiresUltraAndASeparateLargerInput() {
+        DetectorConfig high = DetectorConfig.builder()
+                .inferenceThreads(3).inferenceResolution(512).build();
+        DetectorConfig ultraFastOnly = DetectorConfig.builder()
+                .inferenceThreads(4).inferenceResolution(320).build();
+        DetectorConfig ultra = DetectorConfig.builder()
+                .inferenceThreads(4).inferenceResolution(512).build();
+
+        assertFalse(ScreenshotAccessibilityService.usesStreamingQualityPipeline(high));
+        assertFalse(ScreenshotAccessibilityService.usesStreamingQualityPipeline(ultraFastOnly));
+        assertTrue(ScreenshotAccessibilityService.usesStreamingQualityPipeline(ultra));
+    }
+
     @Test public void ultraNeverRunsCompetingScreenshotMotion() {
         DetectorConfig ultra = DetectorConfig.builder().inferenceThreads(4).build();
 
