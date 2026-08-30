@@ -31,7 +31,7 @@ public final class ViewportMotionTest {
     }
 
     @Test
-    public void nextAuthoritativeEventCorrectsPredictionImmediately() {
+    public void nextAuthoritativeEventPreservesBoundedPresentationResidual() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
         motion.addDelta(0f, -100f, 100L);
@@ -40,8 +40,9 @@ public final class ViewportMotionTest {
 
         motion.addDelta(0f, -100f, 250L);
         assertTrue(displayed < -200f);
-        assertEquals(-300f, motion.position(250L).y, 0.001f);
-        assertEquals(-300f, motion.position(400L).y, 0.001f);
+        assertEquals(-100f, motion.position(250L).y - displayed, 0.001f);
+        assertTrue(motion.position(250L).y >= -364f);
+        assertEquals(-300f, motion.position(450L).y, 0.001f);
     }
 
     @Test
@@ -76,8 +77,7 @@ public final class ViewportMotionTest {
 
         assertEquals(-200f, motion.position(110L).y, 0.001f);
         float betweenEvents = motion.position(210L).y;
-        assertTrue(betweenEvents < -275f);
-        assertTrue(betweenEvents > -280f);
+        assertEquals(-264f, betweenEvents, 0.001f);
         assertTrue(motion.isAnimating(210L));
         assertEquals(-200f, motion.position(310L).y, 0.001f);
         assertFalse(motion.isAnimating(310L));
@@ -92,9 +92,38 @@ public final class ViewportMotionTest {
 
         float exact = -6_000f;
         float predicted = motion.position(210L).y;
-        assertTrue(predicted < exact - 350f);
-        assertTrue(predicted >= exact - 360f);
+        assertEquals(exact - 64f, predicted, 0.001f);
         assertEquals(exact, motion.position(310L).y, 0.001f);
+    }
+
+    @Test
+    public void presentationResidualNeverExceedsSixtyFourPixels() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -3_000f, 10L, 1_344, 2_992, true);
+        motion.addDelta(0f, -3_000f, 110L, 1_344, 2_992, true);
+
+        for (long now = 110L; now <= 310L; now += 4L) {
+            float exact = -6_000f;
+            assertTrue(Math.abs(motion.position(now).y - exact) <= 64.001f);
+        }
+    }
+
+    @Test
+    public void reversalKeepsEventTranslationContinuousAndSettlesWithoutOvershoot() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -100f, 10L);
+        motion.addDelta(0f, -100f, 110L);
+        float beforeReverse = motion.position(160L).y;
+
+        motion.addDelta(0f, 80f, 160L);
+
+        assertEquals(80f, motion.position(160L).y - beforeReverse, 0.001f);
+        for (long now = 160L; now <= 360L; now += 4L) {
+            assertTrue(motion.position(now).y <= -120f + 0.001f);
+        }
+        assertEquals(-120f, motion.position(360L).y, 0.001f);
     }
 
     @Test
@@ -113,6 +142,9 @@ public final class ViewportMotionTest {
             previous = current;
         }
         motion.addDelta(0f, -100f, 310L, 1_344, 2_992, true);
+        float afterEvent = motion.position(310L).y;
+        assertEquals(-100f, afterEvent - previous, 0.001f);
+        previous = afterEvent;
         for (long now = 318L; now <= 410L; now += 8L) {
             float current = motion.position(now).y;
             largestStep = Math.max(largestStep, Math.abs(current - previous));

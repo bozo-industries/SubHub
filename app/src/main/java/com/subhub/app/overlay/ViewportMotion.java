@@ -14,6 +14,10 @@ final class ViewportMotion {
     private static final float SAME_DIRECTION_LEAD = 0.78f;
     private static final float REVERSAL_LEAD = 0f;
     private static final float MAX_PREDICTION_VIEWPORT_FRACTION = 0.12f;
+    // Presentation may lead the last authoritative Accessibility sample, but it must never become
+    // a second, hidden scroll coordinate system. Sixty-four pixels preserves the lead measured in
+    // Pass 18 while bounding the residual that the next event has to reconcile.
+    private static final float MAX_PRESENTATION_RESIDUAL_PX = 64f;
 
     private final Axis x = new Axis();
     private final Axis y = new Axis();
@@ -62,6 +66,7 @@ final class ViewportMotion {
         private boolean phaseCorrection;
         private long lastEventTime;
         private float lastDelta;
+        private float predictionStartAmplitude;
         private float predictionAmplitude;
         private long predictionPeakDuration;
 
@@ -73,6 +78,7 @@ final class ViewportMotion {
             phaseCorrection = false;
             lastEventTime = 0L;
             lastDelta = 0f;
+            predictionStartAmplitude = 0f;
             predictionAmplitude = 0f;
             predictionPeakDuration = 0L;
         }
@@ -82,6 +88,7 @@ final class ViewportMotion {
                 long nowMillis,
                 int viewportSize,
                 boolean authoritative) {
+            float previousExact = exact;
             float previouslyDisplayed = position(nowMillis);
             long previousPredictionAge = Math.max(0L, nowMillis - anchorTime);
             boolean correctingPrediction = predictionPeakDuration > 0L
@@ -90,12 +97,15 @@ final class ViewportMotion {
             long gap = lastEventTime <= 0L ? Long.MAX_VALUE : nowMillis - lastEventTime;
             if (authoritative || Math.abs(delta) < 0.5f) {
                 // Accessibility reports where the viewport already is. Delaying that confirmed
-                // position creates a full-event residual on the first draw (multiple screens for
-                // a fling), so authoritative samples are exact immediately. Prediction below is
-                // solely the causal continuation between this sample and the next one.
+                // displacement creates a full-event residual on the first draw. Preserve only the
+                // bounded presentation residual from the preceding trajectory: the event moves
+                // the displayed censor by exactly delta instead of deleting the old lead and
+                // producing a visible correction step.
                 interpolationStart = exact;
                 interpolationDuration = 0L;
                 phaseCorrection = false;
+                predictionStartAmplitude = clamp(previouslyDisplayed - previousExact,
+                        -MAX_PRESENTATION_RESIDUAL_PX, MAX_PRESENTATION_RESIDUAL_PX);
             } else {
                 interpolationStart = previouslyDisplayed;
                 phaseCorrection = correctingPrediction;
@@ -109,6 +119,7 @@ final class ViewportMotion {
                                     Math.min(MAX_INTERPOLATION_MS,
                                             Math.round(gap * 0.15f)));
                 }
+                predictionStartAmplitude = 0f;
             }
             configurePrediction(delta, gap, viewportSize, authoritative);
             anchorTime = nowMillis;
@@ -132,21 +143,22 @@ final class ViewportMotion {
             }
             if (predictionPeakDuration <= 0L) return interpolated;
             long age = Math.max(0L, nowMillis - anchorTime);
-            float wave;
+            float residual;
             if (age <= predictionPeakDuration) {
-                // Accessibility deltas describe movement that already happened over the previous
-                // sparse event gap. Continue that measured velocity linearly toward the expected
-                // next sample instead of leaving the censor stationary for most of the interval.
-                wave = age / (float) predictionPeakDuration;
+                float progress = age / (float) predictionPeakDuration;
+                float smooth = progress * progress * (3f - 2f * progress);
+                residual = predictionStartAmplitude
+                        + (predictionAmplitude - predictionStartAmplitude) * smooth;
             } else {
                 float returnProgress = Math.min(1f,
                         (age - predictionPeakDuration) / (float) predictionPeakDuration);
                 float remaining = 1f - returnProgress;
                 // If no next event arrives, converge smoothly to authoritative position. The
                 // amplitude is viewport-bounded so even an abrupt fling end cannot run away.
-                wave = remaining * remaining;
+                residual = predictionAmplitude * remaining * remaining;
             }
-            return interpolated + predictionAmplitude * wave;
+            return interpolated + clamp(residual,
+                    -MAX_PRESENTATION_RESIDUAL_PX, MAX_PRESENTATION_RESIDUAL_PX);
         }
 
         boolean isAnimating(long nowMillis) {
@@ -164,7 +176,10 @@ final class ViewportMotion {
             predictionAmplitude = 0f;
             predictionPeakDuration = 0L;
             if (!authoritative || Math.abs(delta) < 0.5f || gap == Long.MAX_VALUE
-                    || gap <= 0L || gap > MAX_SAMPLE_GAP_MS) return;
+                    || gap <= 0L || gap > MAX_SAMPLE_GAP_MS) {
+                predictionStartAmplitude = 0f;
+                return;
+            }
             float magnitude = Math.abs(delta);
             int direction = delta > 0f ? 1 : -1;
             int previousDirection = lastDelta > 0f ? 1 : lastDelta < 0f ? -1 : 0;
@@ -179,11 +194,12 @@ final class ViewportMotion {
                 expectedMagnitude = magnitude * 0.5f;
             }
             float leadFraction = sameDirection ? SAME_DIRECTION_LEAD : REVERSAL_LEAD;
-            float maximum = Math.max(12f,
-                    Math.max(1, viewportSize) * MAX_PREDICTION_VIEWPORT_FRACTION);
+            float maximum = Math.min(MAX_PRESENTATION_RESIDUAL_PX, Math.max(12f,
+                    Math.max(1, viewportSize) * MAX_PREDICTION_VIEWPORT_FRACTION));
             predictionAmplitude = clamp(direction * expectedMagnitude * leadFraction,
                     -maximum, maximum);
-            if (Math.abs(predictionAmplitude) < 0.5f) return;
+            if (Math.abs(predictionAmplitude) < 0.5f
+                    && Math.abs(predictionStartAmplitude) < 0.5f) return;
             predictionPeakDuration = Math.max(MIN_PREDICTION_PEAK_MS,
                     Math.min(MAX_PREDICTION_PEAK_MS, gap));
         }

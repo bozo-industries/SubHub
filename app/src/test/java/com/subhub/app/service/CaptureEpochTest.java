@@ -270,7 +270,7 @@ public final class CaptureEpochTest {
                 11_500L, 10_000L, 11_000L, true, false, 0L, true, true));
     }
 
-    @Test public void pendingQualitySceneDefersOnlyUnlinkedCoverageAtomically() {
+    @Test public void pendingCandidatesDoNotDelayIndependentlyStableCoverage() {
         Detection linked = detection(10, 20, 100, 100);
         linked.setTrackId(42);
         Detection unlinkedA = detection(200, 20, 100, 100);
@@ -278,12 +278,12 @@ public final class CaptureEpochTest {
         List<Detection> quality = Arrays.asList(linked, unlinkedA, unlinkedB);
 
         List<Detection> pending = ScreenshotAccessibilityService
-                .transactionalQualityCoverage(quality, 2);
-        List<Detection> confirmed = ScreenshotAccessibilityService
-                .transactionalQualityCoverage(quality, 0);
+                .transactionalQualityCoverage(quality, 2, false);
+        List<Detection> closed = ScreenshotAccessibilityService
+                .transactionalQualityCoverage(quality, 0, true);
 
-        assertEquals(Collections.singletonList(linked), pending);
-        assertEquals(quality, confirmed);
+        assertEquals(quality, pending);
+        assertEquals(Collections.singletonList(linked), closed);
     }
 
     private static Detection detection(int x, int y, int width, int height) {

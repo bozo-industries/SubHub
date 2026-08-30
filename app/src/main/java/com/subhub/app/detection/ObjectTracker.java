@@ -14,6 +14,9 @@ import java.util.Set;
 public final class ObjectTracker {
     private static final float IOU_THRESHOLD = 0.20f;
     private static final float MAX_VELOCITY_PER_MS = 3f;
+    // Settled-model-only coverage must bridge the next settled pass. Aging it with every fast
+    // frame made boxes disappear immediately after scroll and reappear when quality caught up.
+    private static final float QUALITY_ONLY_GRACE_SECONDS = 2.5f;
 
     private final Map<Integer, TrackedObject> tracks = new LinkedHashMap<>();
     private DetectorConfig config;
@@ -140,6 +143,10 @@ public final class ObjectTracker {
                     : null;
             track.miss(predicted);
             float ageSeconds = (nowNanos - track.getLastSeenNanos()) / 1_000_000_000f;
+            if (track.isQualityOnly()) {
+                if (ageSeconds > QUALITY_ONLY_GRACE_SECONDS) iterator.remove();
+                continue;
+            }
             if ((!track.isVisible() && track.getFramesMissing() >= 1)
                     || (track.getFramesMissing() >= config.getMinRemoveFrames()
                     && ageSeconds > config.getTrackMaxAgeSeconds())) {
@@ -176,11 +183,13 @@ public final class ObjectTracker {
             TrackedObject hinted = tracks.get(detection.getTrackId());
             if (hinted != null && hinted.isActive()) {
                 detection.setTrackId(hinted.getId());
+                refreshQualityOnlyTrack(hinted, detection, nowNanos);
                 continue;
             }
             TrackedObject covering = coveringTrack(detection.getBox());
             if (covering != null) {
                 detection.setTrackId(covering.getId());
+                refreshQualityOnlyTrack(covering, detection, nowNanos);
                 continue;
             }
             if (detection.getConfidence() < config.getConfidenceThreshold()) continue;
@@ -191,6 +200,36 @@ public final class ObjectTracker {
             added++;
         }
         return added;
+    }
+
+    /** Ends the asynchronous grace period once a complete settled scene is available. */
+    public synchronized int finishQualityCoverageHandoff(List<Detection> settledCoverage) {
+        Set<Integer> supportedQualityTracks = new HashSet<>();
+        if (settledCoverage != null) {
+            for (Detection detection : settledCoverage) {
+                if (detection != null && detection.getTrackId() >= 0) {
+                    supportedQualityTracks.add(detection.getTrackId());
+                }
+            }
+        }
+        int retired = 0;
+        Iterator<Map.Entry<Integer, TrackedObject>> iterator = tracks.entrySet().iterator();
+        while (iterator.hasNext()) {
+            TrackedObject track = iterator.next().getValue();
+            if (track.isQualityOnly() && !supportedQualityTracks.contains(track.getId())) {
+                iterator.remove();
+                retired++;
+            }
+        }
+        return retired;
+    }
+
+    private static void refreshQualityOnlyTrack(
+            TrackedObject track,
+            Detection detection,
+            long nowNanos) {
+        if (!track.isQualityOnly()) return;
+        track.update(detection, track.getBox(), 0f, 0f, nowNanos);
     }
 
     public synchronized void clear() {

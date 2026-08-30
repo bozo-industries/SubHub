@@ -316,6 +316,76 @@ public final class ObjectTrackerTest {
     }
 
     @Test
+    public void qualityOnlyCoverageBridgesFastFramesUntilNextSettledPass() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .trackMaxAgeSeconds(0.20f)
+                .minRemoveFrames(1)
+                .build());
+        Detection quality = new Detection("FACE_FEMALE", "face", 0.95f,
+                new BBox(500, 300, 160, 180), false, true,
+                Detection.ObservationSource.QUALITY_VISUAL,
+                Detection.GeometryQuality.MODEL, null);
+        tracker.supplementConfirmedQualityCoverage(
+                Collections.singletonList(quality), 1_000_000_000L);
+
+        assertEquals(1, tracker.update(Collections.emptyList(), 1_800_000_000L).size());
+        assertEquals(1, tracker.update(Collections.emptyList(), 3_400_000_000L).size());
+        assertTrue(tracker.update(Collections.emptyList(), 3_600_000_000L).isEmpty());
+    }
+
+    @Test
+    public void settledObservationRefreshesQualityOnlyCoverageGracePeriod() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        Detection first = new Detection("FACE_FEMALE", "face", 0.95f,
+                new BBox(500, 300, 160, 180), false, true,
+                Detection.ObservationSource.QUALITY_VISUAL,
+                Detection.GeometryQuality.MODEL, null);
+        tracker.supplementConfirmedQualityCoverage(
+                Collections.singletonList(first), 1_000_000_000L);
+        Detection refreshed = new Detection("FACE_FEMALE", "face", 0.96f,
+                new BBox(492, 295, 170, 190), false, true,
+                Detection.ObservationSource.QUALITY_VISUAL,
+                Detection.GeometryQuality.MODEL, null);
+        refreshed.setTrackId(first.getTrackId());
+
+        assertEquals(0, tracker.supplementConfirmedQualityCoverage(
+                Collections.singletonList(refreshed), 3_000_000_000L));
+        assertEquals(1, tracker.update(Collections.emptyList(), 5_400_000_000L).size());
+        assertTrue(tracker.update(Collections.emptyList(), 5_600_000_000L).isEmpty());
+    }
+
+    @Test
+    public void completeSettledBatchEndsUnsupportedGraceImmediately() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        Detection retained = qualityDetection(new BBox(100, 100, 160, 180));
+        Detection retired = qualityDetection(new BBox(500, 300, 160, 180));
+        tracker.supplementConfirmedQualityCoverage(
+                java.util.Arrays.asList(retained, retired), 1_000_000_000L);
+
+        assertEquals(1, tracker.finishQualityCoverageHandoff(
+                Collections.singletonList(retained)));
+        assertEquals(1, tracker.activeTracks().size());
+        assertEquals(retained.getTrackId(), tracker.activeTracks().get(0).getId());
+    }
+
+    @Test
+    public void fastEvidenceAdoptsQualityOnlyTrackBeforeGraceExpires() {
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
+                .trackingSmoothing(1f)
+                .build());
+        Detection quality = qualityDetection(new BBox(100, 100, 160, 180));
+        tracker.supplementConfirmedQualityCoverage(
+                Collections.singletonList(quality), 1_000_000_000L);
+
+        List<TrackedObject> tracks = tracker.update(Collections.singletonList(
+                new Detection("FACE_FEMALE", "face", 0.90f,
+                        new BBox(102, 101, 160, 180), false, true)), 1_100_000_000L);
+
+        assertEquals(1, tracks.size());
+        assertFalse(tracks.get(0).isQualityOnly());
+    }
+
+    @Test
     public void duplicateSupportForConsumedHintDoesNotCreateSecondTrack() {
         ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
         Detection original = new Detection("FACE_FEMALE", "face", 0.9f,
@@ -373,5 +443,11 @@ public final class ObjectTrackerTest {
     private static Detection textDetection(BBox box) {
         return new Detection("TEXT_SMUT_OCR_EXPLICIT", "text_smut",
                 0.9f, box, true, false);
+    }
+
+    private static Detection qualityDetection(BBox box) {
+        return new Detection("FACE_FEMALE", "face", 0.95f,
+                box, false, true, Detection.ObservationSource.QUALITY_VISUAL,
+                Detection.GeometryQuality.MODEL, null);
     }
 }
