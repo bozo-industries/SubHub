@@ -18,7 +18,6 @@ import android.graphics.SweepGradient;
 import android.graphics.Typeface;
 import android.os.SystemClock;
 import android.os.Build;
-import android.util.Log;
 import android.graphics.RenderNode;
 import android.view.Choreographer;
 import android.view.View;
@@ -28,6 +27,7 @@ import com.subhub.app.capture.CustomImagePool;
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.TrackedObject;
+import com.subhub.app.diagnostics.CensorLabLog;
 import com.subhub.app.settings.CensorAppearance;
 
 import java.util.ArrayList;
@@ -1359,7 +1359,7 @@ final class CensorOverlayView extends View {
         motionDrawPending = true;
         if (forceTrace || now - lastMotionTraceInputUptime >= MOTION_TRACE_INTERVAL_MS) {
             lastMotionTraceInputUptime = now;
-            Log.i(MOTION_TAG, "INPUT seq=" + motionSequence + " source=" + source
+            CensorLabLog.i(MOTION_TAG, "INPUT seq=" + motionSequence + " source=" + source
                     + " dx=" + Math.round(dx) + " dy=" + Math.round(dy)
                     + " prediction="
                     + Math.round(viewportMotion.predictionAmplitude().x) + ','
@@ -1372,7 +1372,7 @@ final class CensorOverlayView extends View {
         long now = renderTimeMillis();
         if (motionDrawPending) {
             motionDrawPending = false;
-            Log.i(MOTION_TAG, "DRAW seq=" + motionSequence + " inputToDrawMs="
+            CensorLabLog.i(MOTION_TAG, "DRAW seq=" + motionSequence + " inputToDrawMs="
                     + Math.max(0L, now - motionInputUptime) + " visual="
                     + Math.round(renderContentOffsetX) + ',' + Math.round(renderContentOffsetY)
                     + " text=" + Math.round(textContentOffsetX + renderViewportLeadX) + ','
@@ -1381,7 +1381,7 @@ final class CensorOverlayView extends View {
                     + Math.round(renderViewportLeadY));
         }
         if (motionAnimationWasActive && !animationActive) {
-            Log.i(MOTION_TAG, "SETTLED seq=" + motionSequence + " inputToSettledMs="
+            CensorLabLog.i(MOTION_TAG, "SETTLED seq=" + motionSequence + " inputToSettledMs="
                     + Math.max(0L, now - motionInputUptime)
                     + " visual=" + Math.round(renderContentOffsetX) + ','
                     + Math.round(renderContentOffsetY));

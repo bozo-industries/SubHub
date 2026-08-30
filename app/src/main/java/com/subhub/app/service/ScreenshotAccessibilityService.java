@@ -42,6 +42,7 @@ import com.subhub.app.detection.text.TextDetectionCoordinateMapper;
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.detection.text.TextDetectionStabilizer;
 import com.subhub.app.diagnostics.DiagnosticsRepository;
+import com.subhub.app.diagnostics.CensorLabLog;
 import com.subhub.app.overlay.OverlayController;
 import com.subhub.app.popup.PopupStormManager;
 import com.subhub.app.penance.CensorTapTracker;
@@ -253,7 +254,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         long now = SystemClock.uptimeMillis();
         long idleMs = now - lastScrollTraceEventUptime;
         if (lastScrollTraceEventUptime > 0L && idleMs >= MOTION_SETTLE_MS) {
-            Log.i(TAG, "SCROLL_IDLE id=" + scrollTraceId + " afterLastEventMs=" + idleMs
+            CensorLabLog.i(TAG, "SCROLL_IDLE id=" + scrollTraceId + " afterLastEventMs=" + idleMs
                     + " durationMs=" + (now - scrollTraceStartedUptime));
         }
     };
@@ -517,7 +518,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             boolean continuousMotionInference = usesContinuousMotionInference(currentConfig);
             long sampledGeneration = capturePhase.motionGeneration;
             long motionSampledAt = SystemClock.uptimeMillis();
-            Log.i(TAG, "CAPTURE_PHASE requestToCaptureMs="
+            CensorLabLog.i(TAG, "CAPTURE_PHASE requestToCaptureMs="
                     + Math.max(0L, capturePhase.screenshotUptimeMillis
                     - requestedAtUptimeMillis)
                     + " callbackDelayMs=" + Math.max(0L,
@@ -539,7 +540,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 boolean applied = applyFrameMotion(
                         motion.dx, motion.dy, sampledGeneration,
                         capturePhase.screenshotUptimeMillis, motionSampledAt);
-                Log.i(TAG, "FRAME_MOTION dx=" + motion.dx + " dy=" + motion.dy
+                CensorLabLog.i(TAG, "FRAME_MOTION dx=" + motion.dx + " dy=" + motion.dy
                         + " applied=" + applied
                         + " afterAccessibilityMs=" + (lastScrollTraceEventUptime <= 0L
                                 ? 0L : motionSampledAt - lastScrollTraceEventUptime));
@@ -842,7 +843,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         lastQualityInferenceUptime = cachedAt;
         lastSuccessfulQualityDurationMs = quality.getLastInferenceMs() + bitmapPrepareMs;
-        Log.i(TAG, "QUALITY_STREAM_CACHE scrollId=" + scrollTraceId
+        CensorLabLog.i(TAG, "QUALITY_STREAM_CACHE scrollId=" + scrollTraceId
                 + " captureAgeMs=" + (cachedAt - candidate.capturedAtUptimeMillis)
                 + " bitmapPrepareMs=" + bitmapPrepareMs
                 + " inferenceMs=" + quality.getLastInferenceMs()
@@ -1122,7 +1123,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (fastPass && (requestedScrollX != candidate.scrollX
                 || requestedScrollY != candidate.scrollY
                 || inferenceMotionGeneration != candidate.motionGeneration)) {
-            Log.i(TAG, "CAPTURE_PHASE_REFRESH sourceScroll="
+            CensorLabLog.i(TAG, "CAPTURE_PHASE_REFRESH sourceScroll="
                     + candidate.scrollX + ',' + candidate.scrollY
                     + " refreshedScroll=" + requestedScrollX + ',' + requestedScrollY
                     + " sourceGeneration=" + candidate.motionGeneration
@@ -1250,7 +1251,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long preprocessMs = engine.getLastPreprocessMs();
             long runtimeMs = engine.getLastRuntimeMs();
             long postprocessMs = engine.getLastPostprocessMs();
-            Log.i(TAG, "QUALITY_CACHE scrollId=" + scrollTraceId
+            CensorLabLog.i(TAG, "QUALITY_CACHE scrollId=" + scrollTraceId
                     + " captureAgeMs=" + (cachedAt - candidate.capturedAtUptimeMillis)
                     + " inferenceMs=" + inferenceMs
                     + " preprocessMs=" + preprocessMs
@@ -1431,7 +1432,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 VisualGeometryDelta geometry = recordVisualGeometry(renderTracks);
                 long publishDelay = publishedAt - candidate.capturedAtUptimeMillis;
                 DiagnosticsRepository.recordPublishDelay(DIAGNOSTICS_MODE, publishDelay);
-                Log.i(TAG, "OVERLAY_PUBLISH pass=" + (fastPass ? "fast" : "quality")
+                CensorLabLog.i(TAG, "OVERLAY_PUBLISH pass=" + (fastPass ? "fast" : "quality")
                         + " scrollId=" + scrollTraceId
                         + " captureAgeMs=" + publishDelay
                         + " inferenceMs=" + inferenceMs
@@ -1732,10 +1733,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (gap > 250L) {
             scrollTraceId++;
             scrollTraceStartedUptime = nowUptime;
-            Log.i(TAG, "SCROLL_START id=" + scrollTraceId + " source=" + source);
+            CensorLabLog.i(TAG, "SCROLL_START id=" + scrollTraceId + " source=" + source);
         }
         lastScrollTraceEventUptime = nowUptime;
-        Log.i(TAG, "SCROLL_EVENT id=" + scrollTraceId + " source=" + source
+        CensorLabLog.i(TAG, "SCROLL_EVENT id=" + scrollTraceId + " source=" + source
                 + " gapMs=" + (gap == Long.MAX_VALUE ? 0L : gap)
                 + " eventAgeMs=" + eventAgeMs
                 + " rawDx=" + rawDx + " rawDy=" + rawDy
@@ -1918,7 +1919,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             return;
         }
         priorityCaptureSchedule = null;
-        Log.i(TAG, "SETTLED_CAPTURE_REQUEST scrollId=" + scrollTraceId
+        CensorLabLog.i(TAG, "SETTLED_CAPTURE_REQUEST scrollId=" + scrollTraceId
                 + " afterMotionMs=" + (lastMotionUptime <= 0L
                         ? 0L : now - lastMotionUptime)
                 + " platformGapMs=" + (now - lastScreenshotRequestUptime));
@@ -2012,7 +2013,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         currentScroll.scrollX, currentScroll.scrollY)
                         || textSceneGeneration.get() != scanSceneGeneration) {
                     textRefreshRequested.set(true);
-                    Log.i(TAG, "TEXT_SCAN discarded=stale candidates=" + mapped.size()
+                    CensorLabLog.i(TAG, "TEXT_SCAN discarded=stale candidates=" + mapped.size()
                             + " durationMs=" + (mappedUptime - scanStartedUptime)
                             + " rootMs=" + (rootReadyUptime - scanStartedUptime)
                             + " detectMs=" + (detectionCompleteUptime - rootReadyUptime)
@@ -2037,7 +2038,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         && contentQuietMs < CONTENT_TEXT_REFRESH_MS
                         && textContentStaleRetries.getAndIncrement() < 1) {
                     textRefreshRequested.set(true);
-                    Log.i(TAG, "TEXT_SCAN discarded=content-active candidates=" + mapped.size()
+                    CensorLabLog.i(TAG, "TEXT_SCAN discarded=content-active candidates=" + mapped.size()
                             + " durationMs=" + (mappedUptime - scanStartedUptime)
                             + " contentGeneration=" + scanContentGeneration + "->"
                             + currentContentGeneration
@@ -2059,7 +2060,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 DiagnosticsRepository.recordAccessibilityText(
                         DIAGNOSTICS_MODE, mapped.size(),
                         scene.getStableDetections().size());
-                Log.i(TAG, "TEXT_SCAN accepted candidates=" + mapped.size()
+                CensorLabLog.i(TAG, "TEXT_SCAN accepted candidates=" + mapped.size()
                         + " stable=" + scene.getStableDetections().size()
                         + " pending=" + scene.getPendingCandidates()
                         + " present=" + scene.getConfirmedPresent()
@@ -2384,7 +2385,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     && textSceneGeneration.get() != expectedSceneGeneration)
                     || (expectedContentGeneration >= 0L
                     && textContentGeneration.get() != expectedContentGeneration)) {
-                Log.i(TAG, "TEXT_PUBLISH skipped=stale source=" + source);
+                CensorLabLog.i(TAG, "TEXT_PUBLISH skipped=stale source=" + source);
                 return;
             }
             int width = Math.max(1, latestCaptureWidth);
@@ -2405,7 +2406,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     current.scrollX, current.scrollY,
                     viewport.width(), viewport.height());
             long now = SystemClock.uptimeMillis();
-            Log.i(TAG, "TEXT_PUBLISH source=" + source + " regions=" + detections.size()
+            CensorLabLog.i(TAG, "TEXT_PUBLISH source=" + source + " regions=" + detections.size()
                     + " unchangedSkipped=" + skippedUnchangedTextPublishes
                     + " afterMotionMs=" + (lastMotionUptime <= 0L
                             ? 0L : now - lastMotionUptime));

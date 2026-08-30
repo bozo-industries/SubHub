@@ -54,3 +54,29 @@ retained for comparison, while `correctedAlignment` replaces disagreements with 
 background evidence around each censor; lazy-loaded masonry reflow must not be scored as censor
 detachment. The trace analyzer accepts both Android `threadtime` and `time` logcat prefixes; a zero
 gesture/motion count must be checked against raw tag counts before it is treated as evidence.
+
+## Remote Censor Lab bundles
+
+Diagnostics can start an explicit, bounded telemetry session without MediaProjection. The user
+records video with Android's system recorder, stops the session, optionally selects that video,
+and shares one ZIP. The bundle contains `manifest.json`, sanitized `trace.ndjson`, a short README,
+and `screen-recording.mp4` only when the user chose one. It never includes OCR text, URLs,
+foreground package names, screenshots collected by SubHub, installed-app inventories, credentials,
+or automatic network transport.
+
+Inspect a received bundle with:
+
+`python scripts/inspect_censor_lab_bundle.py <bundle.zip> --extract-dir <new-directory>`
+
+The generated `trace.log` is accepted by `scripts/analyze_censor_trace.ps1`; `sync-markers.json`
+maps the visible start/stop cards onto monotonic trace time. Never extract unknown ZIP paths or
+merge an untrusted bundle into an existing directory.
+
+Android compatibility notes learned from this path:
+
+- Compile availability is governed by the Android SDK stubs, not the configured Java language
+  level. Avoid Java SE convenience APIs such as `Files.readString` when the Android API surface
+  does not expose them; use bounded UTF-8 streams.
+- An application `Context` is intentionally not a visual context and `getDisplay()` may throw.
+  Background diagnostics should resolve display metadata through `WindowManager`, or receive an
+  explicit display-scoped context when the exact window matters.
