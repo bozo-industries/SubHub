@@ -57,6 +57,36 @@ public final class VisualTrackArbitratorTest {
         assertEquals(1, result.suppressed());
     }
 
+    @Test
+    public void freshReacquisitionUsesOldRenderIdentityAcrossHalfHeightOffset() {
+        TrackedObject stale = tracked(41, new BBox(100, 200, 180, 180), 7);
+        stale.miss(stale.getBox());
+        TrackedObject fresh = tracked(82, new BBox(100, 286, 176, 184), 2);
+
+        VisualTrackArbitrator.Result result = VisualTrackArbitrator.arbitrate(
+                List.of(stale, fresh));
+
+        assertEquals(1, result.tracks().size());
+        assertEquals(41, result.tracks().get(0).getId());
+        assertEquals(fresh.getBox(), result.tracks().get(0).getBox());
+        assertEquals(1, result.suppressed());
+        assertEquals(1, result.handedOff());
+    }
+
+    @Test
+    public void oneFrameReacquisitionCannotPullEstablishedRenderGeometry() {
+        TrackedObject stale = tracked(41, new BBox(100, 200, 180, 180), 7);
+        stale.miss(stale.getBox());
+        TrackedObject oneFrame = tracked(82, new BBox(100, 286, 176, 184), 1);
+
+        VisualTrackArbitrator.Result result = VisualTrackArbitrator.arbitrate(
+                List.of(stale, oneFrame));
+
+        assertEquals(1, result.tracks().size());
+        assertEquals(stale.getBox(), result.tracks().get(0).getBox());
+        assertEquals(0, result.handedOff());
+    }
+
     private static TrackedObject tracked(int id, BBox box, int observations) {
         Detection detection = new Detection("FACE_FEMALE", "face", 0.90f,
                 box, true, true);

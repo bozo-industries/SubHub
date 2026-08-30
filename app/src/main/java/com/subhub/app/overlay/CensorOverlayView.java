@@ -94,6 +94,8 @@ final class CensorOverlayView extends View {
     private float sourceFrameOffsetY;
     private float textContentOffsetX;
     private float textContentOffsetY;
+    private boolean worldSpaceTracks;
+    private boolean worldSpaceText;
     private long motionSequence;
     private long motionInputUptime;
     private long lastMotionTraceInputUptime;
@@ -107,6 +109,7 @@ final class CensorOverlayView extends View {
     private long activeRenderTimeMillis;
     private float maxExtrapolationMs = 180f;
     private boolean frameCallbackPosted;
+    private long frameCallbackGeneration;
     private float activePredictionX;
     private float activePredictionY;
     private final Choreographer.FrameCallback frameCallback = frameTimeNanos -> {
@@ -203,6 +206,8 @@ final class CensorOverlayView extends View {
             int sourceMotionX,
             int sourceMotionY,
             Runnable latestFrameRelease) {
+        if (worldSpaceTracks) visualSteering.clear();
+        worldSpaceTracks = false;
         List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
         for (TrackedObject track : value) snapshots.add(RenderTrackSnapshot.from(track));
         tracksPublishedAtMillis = SystemClock.uptimeMillis();
@@ -226,7 +231,7 @@ final class CensorOverlayView extends View {
         tracks = snapshots;
         contentOffsetX = motionX;
         contentOffsetY = motionY;
-        viewportMotion.reset(contentOffsetX, contentOffsetY, tracksPublishedAtMillis);
+        viewportMotion.rebase(contentOffsetX, contentOffsetY, tracksPublishedAtMillis);
         motionAnimationWasActive = false;
         sourceFrameOffsetX = sourceMotionX;
         sourceFrameOffsetY = sourceMotionY;
@@ -247,12 +252,84 @@ final class CensorOverlayView extends View {
         scheduleNextFrame(tracksPublishedAtMillis);
     }
 
+    /**
+     * Publishes Accessibility tracks in one stable content space. Viewport events move only the
+     * camera; detector publication never rebases or translates existing renderer geometry.
+     */
+    void setWorldTracks(
+            List<TrackedObject> value,
+            int sourceWidth,
+            int sourceHeight,
+            Bitmap latestFrame,
+            long trackCameraX,
+            long trackCameraY,
+            long sourceCameraX,
+            long sourceCameraY,
+            int viewportWidth,
+            int viewportHeight,
+            Runnable latestFrameRelease) {
+        if (!worldSpaceTracks) visualSteering.clear();
+        List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
+        for (TrackedObject track : value) {
+            snapshots.add(RenderTrackSnapshot.fromWorld(
+                    track, trackCameraX, trackCameraY,
+                    sourceWidth, sourceHeight, viewportWidth, viewportHeight));
+        }
+        tracksPublishedAtMillis = SystemClock.uptimeMillis();
+        latestMutationUptime = tracksPublishedAtMillis;
+        captureWidth = Math.max(1, sourceWidth);
+        captureHeight = Math.max(1, sourceHeight);
+        Set<Integer> visualIds = new HashSet<>();
+        for (RenderTrackSnapshot track : snapshots) {
+            visualIds.add(track.id());
+            visualSteering.updateTarget(track.id(), track.box(), captureWidth, captureHeight,
+                    tracksPublishedAtMillis, true);
+        }
+        visualSteering.retain(visualIds);
+        tracks = snapshots;
+        worldSpaceTracks = true;
+        // World geometry minus this absolute source camera maps back into the retained bitmap.
+        sourceFrameOffsetX = sourceCameraX;
+        sourceFrameOffsetY = sourceCameraY;
+        if (frame != latestFrame) {
+            releaseFrame();
+            frame = latestFrame;
+            frameRelease = latestFrameRelease;
+        } else if (latestFrameRelease != null) {
+            frameRelease = latestFrameRelease;
+        }
+        Set<Integer> activeIds = new HashSet<>();
+        for (RenderTrackSnapshot track : tracks) activeIds.add(track.id());
+        for (RenderTrackSnapshot track : textTracks) activeIds.add(track.id());
+        solidRenderLayers.keySet().retainAll(activeIds);
+        customImages.retainAssignments(activeIds);
+        setVisibility(tracks.isEmpty() && textTracks.isEmpty() ? INVISIBLE : VISIBLE);
+        postInvalidateOnAnimation();
+        scheduleNextFrame(tracksPublishedAtMillis);
+    }
+
+    void setWorldTracksPreservingFrame(
+            List<TrackedObject> value,
+            int sourceWidth,
+            int sourceHeight,
+            long trackCameraX,
+            long trackCameraY,
+            int viewportWidth,
+            int viewportHeight) {
+        setWorldTracks(value, sourceWidth, sourceHeight, frame,
+                trackCameraX, trackCameraY,
+                Math.round(sourceFrameOffsetX), Math.round(sourceFrameOffsetY),
+                viewportWidth, viewportHeight, frameRelease);
+    }
+
     void setTextDetections(
             List<Detection> detections,
             int sourceWidth,
             int sourceHeight,
             int motionX,
             int motionY) {
+        if (worldSpaceText) textSteering.clear();
+        worldSpaceText = false;
         List<RenderTrackSnapshot> snapshots = new ArrayList<>(detections.size());
         for (Detection detection : detections) {
             if (detection != null) snapshots.add(RenderTrackSnapshot.fromTextDetection(detection));
@@ -292,23 +369,91 @@ final class CensorOverlayView extends View {
         scheduleNextFrame(SystemClock.uptimeMillis());
     }
 
+    void setWorldTextDetections(
+            List<Detection> detections,
+            int sourceWidth,
+            int sourceHeight,
+            long cameraX,
+            long cameraY,
+            int viewportWidth,
+            int viewportHeight) {
+        if (!worldSpaceText) textSteering.clear();
+        List<RenderTrackSnapshot> snapshots = new ArrayList<>(detections.size());
+        for (Detection detection : detections) {
+            if (detection != null) {
+                snapshots.add(RenderTrackSnapshot.fromWorldTextDetection(
+                        detection, cameraX, cameraY,
+                        sourceWidth, sourceHeight, viewportWidth, viewportHeight));
+            }
+        }
+        long nowMillis = SystemClock.uptimeMillis();
+        latestMutationUptime = nowMillis;
+        textCaptureWidth = Math.max(1, sourceWidth);
+        textCaptureHeight = Math.max(1, sourceHeight);
+        Set<Integer> textIds = new HashSet<>();
+        for (RenderTrackSnapshot track : snapshots) {
+            textIds.add(track.id());
+            textSteering.updateTarget(track.id(), track.box(),
+                    textCaptureWidth, textCaptureHeight, nowMillis, false);
+        }
+        textSteering.retain(textIds);
+        textTracks = snapshots;
+        worldSpaceText = true;
+        Set<Integer> activeIds = new HashSet<>();
+        for (RenderTrackSnapshot track : tracks) activeIds.add(track.id());
+        for (RenderTrackSnapshot track : textTracks) activeIds.add(track.id());
+        solidRenderLayers.keySet().retainAll(activeIds);
+        customImages.retainAssignments(activeIds);
+        setVisibility(tracks.isEmpty() && textTracks.isEmpty() ? INVISIBLE : VISIBLE);
+        postInvalidateOnAnimation();
+        scheduleNextFrame(nowMillis);
+    }
+
     void offsetContent(int deltaX, int deltaY) {
         offsetContent(deltaX, deltaY, true);
     }
 
     void offsetContent(int deltaX, int deltaY, boolean authoritative) {
-        if (tracks.isEmpty() && textTracks.isEmpty()) return;
+        offsetContent(deltaX, deltaY, authoritative, SystemClock.uptimeMillis());
+    }
+
+    void offsetContent(
+            int deltaX,
+            int deltaY,
+            boolean authoritative,
+            long effectiveUptimeMillis) {
         long nowMillis = SystemClock.uptimeMillis();
         latestMutationUptime = nowMillis;
         contentOffsetX += deltaX;
         contentOffsetY += deltaY;
         textContentOffsetX += deltaX;
         textContentOffsetY += deltaY;
+        // Event-source time belongs to the capture-phase timeline. Presentation cannot begin
+        // before this callback reaches the overlay, so anchoring animation in historical time
+        // compresses or entirely skips its first visible segment when delivery is delayed.
         viewportMotion.addDelta(deltaX, deltaY, nowMillis,
                 Math.max(1, getWidth()), Math.max(1, getHeight()), authoritative);
         noteMotionInput("event", deltaX, deltaY, true);
+        if (tracks.isEmpty() && textTracks.isEmpty()) return;
         postInvalidateOnAnimation();
         scheduleNextFrame(SystemClock.uptimeMillis());
+    }
+
+    /** Moves presentation from a fast Accessibility bounds sample without aging tracker state. */
+    void offsetPresentation(int deltaX, int deltaY) {
+        if (tracks.isEmpty() && textTracks.isEmpty()) return;
+        long nowMillis = SystemClock.uptimeMillis();
+        latestMutationUptime = nowMillis;
+        if (deltaX == 0 && deltaY == 0) {
+            viewportMotion.settlePresentation(nowMillis);
+            noteMotionInput("anchor-settle", 0, 0, false);
+        } else {
+            viewportMotion.addPresentationDelta(deltaX, deltaY, nowMillis,
+                    Math.max(1, getWidth()), Math.max(1, getHeight()));
+            noteMotionInput("anchor-poll", deltaX, deltaY, false);
+        }
+        postInvalidateOnAnimation();
+        scheduleNextFrame(nowMillis);
     }
 
     /** Hide all censor pixels without treating an empty track list as reverse-mode content. */
@@ -324,6 +469,8 @@ final class CensorOverlayView extends View {
         contentOffsetY = 0;
         textContentOffsetX = 0;
         textContentOffsetY = 0;
+        worldSpaceTracks = false;
+        worldSpaceText = false;
         viewportMotion.reset(0f, 0f, nowMillis);
         motionAnimationWasActive = false;
         sourceFrameOffsetX = 0;
@@ -428,8 +575,8 @@ final class CensorOverlayView extends View {
             BBox predicted = visualBox(track, ageMs);
             activePredictionX = (predicted.getX() - track.box().getX()) * scaleX;
             activePredictionY = (predicted.getY() - track.box().getY()) * scaleY;
-            setPaddedRect(predicted, scaleX, scaleY, textRegion);
-            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+            setTrackRect(predicted, scaleX, scaleY, textRegion,
+                    renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
             drawEffect(canvas, drawRect, track.id(), appearance.getType(),
                     appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
@@ -444,15 +591,17 @@ final class CensorOverlayView extends View {
         if (textTracks.isEmpty()) return;
         float savedOffsetX = renderContentOffsetX;
         float savedOffsetY = renderContentOffsetY;
-        renderContentOffsetX = textContentOffsetX + renderViewportLeadX;
-        renderContentOffsetY = textContentOffsetY + renderViewportLeadY;
+        renderContentOffsetX = worldSpaceText ? savedOffsetX
+                : textContentOffsetX + renderViewportLeadX;
+        renderContentOffsetY = worldSpaceText ? savedOffsetY
+                : textContentOffsetY + renderViewportLeadY;
         float scaleX = (float) getWidth() / textCaptureWidth;
         float scaleY = (float) getHeight() / textCaptureHeight;
         activePredictionX = 0f;
         activePredictionY = 0f;
         for (RenderTrackSnapshot track : textTracks) {
-            setPaddedRect(textBox(track), scaleX, scaleY, true);
-            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+            setTrackRect(textBox(track), scaleX, scaleY, true,
+                    renderContentOffsetX, renderContentOffsetY, worldSpaceText);
             drawEffect(canvas, drawRect, track.id(), appearance.getType(),
                     appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
@@ -472,9 +621,10 @@ final class CensorOverlayView extends View {
         float ageMs = renderAgeMillis();
         for (RenderTrackSnapshot track : tracks) {
             BBox predicted = visualBox(track, ageMs);
-            setPaddedRect(predicted, scaleX, scaleY,
-                    "text_smut".equals(track.category()));
-            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+            setTrackRect(predicted, scaleX, scaleY,
+                    "text_smut".equals(track.category()),
+                    renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
+            if (drawRect.isEmpty()) continue;
             int width = Math.max(1, Math.round(drawRect.width()));
             int height = Math.max(1, Math.round(drawRect.height()));
             SolidRenderLayer layer = solidRenderLayers.get(track.id());
@@ -494,13 +644,16 @@ final class CensorOverlayView extends View {
         if (textTracks.isEmpty()) return;
         float savedOffsetX = renderContentOffsetX;
         float savedOffsetY = renderContentOffsetY;
-        renderContentOffsetX = textContentOffsetX + renderViewportLeadX;
-        renderContentOffsetY = textContentOffsetY + renderViewportLeadY;
+        renderContentOffsetX = worldSpaceText ? savedOffsetX
+                : textContentOffsetX + renderViewportLeadX;
+        renderContentOffsetY = worldSpaceText ? savedOffsetY
+                : textContentOffsetY + renderViewportLeadY;
         float scaleX = (float) getWidth() / textCaptureWidth;
         float scaleY = (float) getHeight() / textCaptureHeight;
         for (RenderTrackSnapshot track : textTracks) {
-            setPaddedRect(textBox(track), scaleX, scaleY, true);
-            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+            setTrackRect(textBox(track), scaleX, scaleY, true,
+                    renderContentOffsetX, renderContentOffsetY, worldSpaceText);
+            if (drawRect.isEmpty()) continue;
             int width = Math.max(1, Math.round(drawRect.width()));
             int height = Math.max(1, Math.round(drawRect.height()));
             SolidRenderLayer layer = solidRenderLayers.get(track.id());
@@ -552,9 +705,9 @@ final class CensorOverlayView extends View {
         float ageMs = renderAgeMillis();
         for (RenderTrackSnapshot track : tracks) {
             BBox predicted = visualBox(track, ageMs);
-            setPaddedRect(predicted, scaleX, scaleY,
-                    "text_smut".equals(track.category()));
-            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+            setTrackRect(predicted, scaleX, scaleY,
+                    "text_smut".equals(track.category()),
+                    renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
             RectF hole = new RectF(drawRect);
             holes.add(hole);
             drawShape(canvas, hole, clear);
@@ -562,13 +715,15 @@ final class CensorOverlayView extends View {
         if (!textTracks.isEmpty()) {
             float savedOffsetX = renderContentOffsetX;
             float savedOffsetY = renderContentOffsetY;
-            renderContentOffsetX = textContentOffsetX + renderViewportLeadX;
-            renderContentOffsetY = textContentOffsetY + renderViewportLeadY;
+            renderContentOffsetX = worldSpaceText ? savedOffsetX
+                    : textContentOffsetX + renderViewportLeadX;
+            renderContentOffsetY = worldSpaceText ? savedOffsetY
+                    : textContentOffsetY + renderViewportLeadY;
             float textScaleX = (float) getWidth() / textCaptureWidth;
             float textScaleY = (float) getHeight() / textCaptureHeight;
             for (RenderTrackSnapshot track : textTracks) {
-                setPaddedRect(textBox(track), textScaleX, textScaleY, true);
-                drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+                setTrackRect(textBox(track), textScaleX, textScaleY, true,
+                        renderContentOffsetX, renderContentOffsetY, worldSpaceText);
                 RectF hole = new RectF(drawRect);
                 holes.add(hole);
                 drawShape(canvas, hole, clear);
@@ -593,6 +748,38 @@ final class CensorOverlayView extends View {
                 Math.max(0, box.getY() * scaleY - vertical),
                 Math.min(getWidth(), box.getRight() * scaleX + horizontal),
                 Math.min(getHeight(), box.getBottom() * scaleY + vertical));
+    }
+
+    private void setTrackRect(
+            BBox box,
+            float scaleX,
+            float scaleY,
+            boolean textRegion,
+            float offsetX,
+            float offsetY,
+            boolean worldSpace) {
+        if (!worldSpace) {
+            setPaddedRect(box, scaleX, scaleY, textRegion);
+            drawRect.offset(offsetX, offsetY);
+            return;
+        }
+        float padding = textRegion
+                ? Math.min(0.025f, appearance.getSizePadding())
+                : appearance.getSizePadding();
+        float horizontal = box.getWidth() * padding * scaleX;
+        float vertical = box.getHeight() * padding * scaleY;
+        // Apply the camera before clipping. Clipping a world box first destroys offscreen state
+        // and is the reason a translated track cannot faithfully re-enter the viewport.
+        float left = box.getX() * scaleX + offsetX - horizontal;
+        float top = box.getY() * scaleY + offsetY - vertical;
+        float right = box.getRight() * scaleX + offsetX + horizontal;
+        float bottom = box.getBottom() * scaleY + offsetY + vertical;
+        if (right <= 0f || bottom <= 0f || left >= getWidth() || top >= getHeight()) {
+            drawRect.setEmpty();
+            return;
+        }
+        drawRect.set(Math.max(0f, left), Math.max(0f, top),
+                Math.min(getWidth(), right), Math.min(getHeight(), bottom));
     }
 
     private void drawEffect(
@@ -984,19 +1171,21 @@ final class CensorOverlayView extends View {
         float ageMs = renderAgeMillis();
         for (RenderTrackSnapshot track : tracks) {
             BBox predicted = visualBox(track, ageMs);
-            setPaddedRect(predicted, scaleX, scaleY,
-                    "text_smut".equals(track.category()));
-            drawRect.offset(renderContentOffsetX, renderContentOffsetY);
+            setTrackRect(predicted, scaleX, scaleY,
+                    "text_smut".equals(track.category()),
+                    renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
             addLabelPlacement(drawRect, track.id());
         }
 
         float textScaleX = (float) getWidth() / textCaptureWidth;
         float textScaleY = (float) getHeight() / textCaptureHeight;
-        float textOffsetX = textContentOffsetX + renderViewportLeadX;
-        float textOffsetY = textContentOffsetY + renderViewportLeadY;
+        float textOffsetX = worldSpaceText ? renderContentOffsetX
+                : textContentOffsetX + renderViewportLeadX;
+        float textOffsetY = worldSpaceText ? renderContentOffsetY
+                : textContentOffsetY + renderViewportLeadY;
         for (RenderTrackSnapshot track : textTracks) {
-            setPaddedRect(textBox(track), textScaleX, textScaleY, true);
-            drawRect.offset(textOffsetX, textOffsetY);
+            setTrackRect(textBox(track), textScaleX, textScaleY, true,
+                    textOffsetX, textOffsetY, worldSpaceText);
             addLabelPlacement(drawRect, track.id());
         }
 
@@ -1144,7 +1333,23 @@ final class CensorOverlayView extends View {
                 && !hasActiveSteering(nowMillis)
                 && !motionDrawPending)) return;
         frameCallbackPosted = true;
-        Choreographer.getInstance().postFrameCallback(frameCallback);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            postExpectedPresentationCallback(++frameCallbackGeneration);
+        } else {
+            Choreographer.getInstance().postFrameCallback(frameCallback);
+        }
+    }
+
+    @SuppressLint("NewApi")
+    private void postExpectedPresentationCallback(long generation) {
+        Choreographer.getInstance().postVsyncCallback(vsyncData -> {
+            if (!frameCallbackPosted || generation != frameCallbackGeneration) return;
+            frameCallbackPosted = false;
+            presentationFrameTimeMillis = vsyncData.getPreferredFrameTimeline()
+                    .getExpectedPresentationTimeNanos() / 1_000_000L;
+            invalidate();
+            scheduleNextFrame(presentationFrameTimeMillis);
+        });
     }
 
     private void noteMotionInput(String source, float dx, float dy, boolean forceTrace) {
@@ -1186,7 +1391,10 @@ final class CensorOverlayView extends View {
 
     private void stopFrameCallback() {
         if (!frameCallbackPosted) return;
-        Choreographer.getInstance().removeFrameCallback(frameCallback);
+        frameCallbackGeneration++;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            Choreographer.getInstance().removeFrameCallback(frameCallback);
+        }
         frameCallbackPosted = false;
     }
 

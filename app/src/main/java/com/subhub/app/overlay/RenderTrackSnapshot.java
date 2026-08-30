@@ -21,16 +21,55 @@ final class RenderTrackSnapshot {
                 track.getVelocityY());
     }
 
-    static RenderTrackSnapshot fromTextDetection(Detection detection) {
-        String anchor = detection.getAnchorKey();
-        BBox box = detection.getBox();
-        String identity = anchor == null || anchor.isEmpty()
-                ? detection.getClassName() + '|' + box.getCenterX() / 32 + '|'
-                        + box.getCenterY() / 24 + '|' + box.getWidth() / 32
-                : anchor;
-        int stableTextId = -1 - (identity.hashCode() & 0x3fffffff);
+    static RenderTrackSnapshot fromWorld(
+            TrackedObject track,
+            long cameraX,
+            long cameraY,
+            int sourceWidth,
+            int sourceHeight,
+            int viewportWidth,
+            int viewportHeight) {
         return new RenderTrackSnapshot(
-                stableTextId, detection.getCategory(), box, 0f, 0f);
+                track.getId(),
+                track.getCategory(),
+                ContentSpaceCoordinates.toWorld(track.getBox(), cameraX, cameraY,
+                        sourceWidth, sourceHeight, viewportWidth, viewportHeight),
+                track.getVelocityX(),
+                track.getVelocityY());
+    }
+
+    static RenderTrackSnapshot fromTextDetection(Detection detection) {
+        BBox box = detection.getBox();
+        return new RenderTrackSnapshot(
+                stableTextId(detection, box), detection.getCategory(), box, 0f, 0f);
+    }
+
+    static RenderTrackSnapshot fromWorldTextDetection(
+            Detection detection,
+            long cameraX,
+            long cameraY,
+            int sourceWidth,
+            int sourceHeight,
+            int viewportWidth,
+            int viewportHeight) {
+        BBox world = ContentSpaceCoordinates.toWorld(
+                detection.getBox(), cameraX, cameraY,
+                sourceWidth, sourceHeight, viewportWidth, viewportHeight);
+        return new RenderTrackSnapshot(
+                stableTextId(detection, world),
+                detection.getCategory(),
+                world,
+                0f,
+                0f);
+    }
+
+    private static int stableTextId(Detection detection, BBox identityBox) {
+        String anchor = detection.getAnchorKey();
+        String identity = anchor == null || anchor.isEmpty()
+                ? detection.getClassName() + '|' + identityBox.getCenterX() / 32 + '|'
+                        + identityBox.getCenterY() / 24 + '|' + identityBox.getWidth() / 32
+                : anchor;
+        return -1 - (identity.hashCode() & 0x3fffffff);
     }
 
     RenderTrackSnapshot(

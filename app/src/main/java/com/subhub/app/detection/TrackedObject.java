@@ -84,6 +84,31 @@ public final class TrackedObject {
     /** Immutable-by-convention renderer handoff detached from subsequent tracker mutation. */
     public TrackedObject snapshot() { return new TrackedObject(this); }
 
+    /**
+     * Preserves this stable identity while presenting geometry from a freshly reacquired track.
+     * Used only by render arbitration; tracker state and detection bookkeeping remain untouched.
+     */
+    TrackedObject renderSnapshotWithGeometryFrom(TrackedObject geometrySource) {
+        TrackedObject rendered = new TrackedObject(this);
+        if (geometrySource == null) return rendered;
+        rendered.box = geometrySource.box;
+        rendered.rawBox = geometrySource.rawBox;
+        rendered.predictionOriginBox = geometrySource.predictionOriginBox;
+        rendered.confidence = Math.max(confidence, geometrySource.confidence);
+        rendered.lastSeenNanos = geometrySource.lastSeenNanos;
+        rendered.framesMissing = 0;
+        rendered.velocityX = geometrySource.velocityX;
+        rendered.velocityY = geometrySource.velocityY;
+        rendered.visible = true;
+        rendered.active = true;
+        if (geometrySource.anchorKey != null) rendered.anchorKey = geometrySource.anchorKey;
+        if (geometrySource.observationSource != null) {
+            rendered.observationSource = geometrySource.observationSource;
+        }
+        rendered.qualityOnly = qualityOnly && geometrySource.qualityOnly;
+        return rendered;
+    }
+
     void update(Detection detection, BBox renderedBox, float dx, float dy, long nowNanos) {
         rawBox = detection.getBox();
         box = renderedBox;

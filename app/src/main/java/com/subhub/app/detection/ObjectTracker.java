@@ -144,7 +144,12 @@ public final class ObjectTracker {
             track.miss(predicted);
             float ageSeconds = (nowNanos - track.getLastSeenNanos()) / 1_000_000_000f;
             if (track.isQualityOnly()) {
-                if (ageSeconds > QUALITY_ONLY_GRACE_SECONDS) iterator.remove();
+                // Fast inference is supplemental and may miss regions already confirmed by the
+                // quality model. Detector omission is not proof that the region disappeared;
+                // this asynchronous wall clock is the hard leak-prevention cap.
+                if (ageSeconds > QUALITY_ONLY_GRACE_SECONDS) {
+                    iterator.remove();
+                }
                 continue;
             }
             if ((!track.isVisible() && track.getFramesMissing() >= 1)
@@ -200,28 +205,6 @@ public final class ObjectTracker {
             added++;
         }
         return added;
-    }
-
-    /** Ends the asynchronous grace period once a complete settled scene is available. */
-    public synchronized int finishQualityCoverageHandoff(List<Detection> settledCoverage) {
-        Set<Integer> supportedQualityTracks = new HashSet<>();
-        if (settledCoverage != null) {
-            for (Detection detection : settledCoverage) {
-                if (detection != null && detection.getTrackId() >= 0) {
-                    supportedQualityTracks.add(detection.getTrackId());
-                }
-            }
-        }
-        int retired = 0;
-        Iterator<Map.Entry<Integer, TrackedObject>> iterator = tracks.entrySet().iterator();
-        while (iterator.hasNext()) {
-            TrackedObject track = iterator.next().getValue();
-            if (track.isQualityOnly() && !supportedQualityTracks.contains(track.getId())) {
-                iterator.remove();
-                retired++;
-            }
-        }
-        return retired;
     }
 
     private static void refreshQualityOnlyTrack(

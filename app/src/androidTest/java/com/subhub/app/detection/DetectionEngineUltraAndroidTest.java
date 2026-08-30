@@ -18,6 +18,7 @@ import org.junit.runner.RunWith;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -60,7 +61,7 @@ public final class DetectionEngineUltraAndroidTest {
         }
     }
 
-    @Test public void cpuAndNnapiLanesOverlapInWallClockTime() throws Exception {
+    @Test public void fastLanePreemptsInFlightQualityInsteadOfCompeting() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         DetectorConfig qualityConfig = DetectionPreset.ULTRA
                 .applyTo(DetectorConfig.builder()).build();
@@ -78,38 +79,69 @@ public final class DetectionEngineUltraAndroidTest {
                 fast.initialize();
                 quality.detect(qualityFrame, 1080, 2400);
                 fast.detect(fastFrame, 1080, 2400);
-                long[] sequential = new long[5];
-                long[] concurrent = new long[5];
-                for (int index = 0; index < sequential.length; index++) {
-                    long sequentialStarted = SystemClock.elapsedRealtimeNanos();
-                    fast.detect(fastFrame, 1080, 2400);
-                    quality.detect(qualityFrame, 1080, 2400);
-                    sequential[index] = SystemClock.elapsedRealtimeNanos() - sequentialStarted;
-
-                    long concurrentStarted = SystemClock.elapsedRealtimeNanos();
-                    Future<?> fastRun = workers.submit(() -> detectUnchecked(
-                            fast, fastFrame));
-                    Future<?> qualityRun = workers.submit(() -> detectUnchecked(
-                            quality, qualityFrame));
-                    fastRun.get();
-                    qualityRun.get();
-                    concurrent[index] = SystemClock.elapsedRealtimeNanos() - concurrentStarted;
+                long[] unpreemptedFast = new long[15];
+                long[] preemptedFast = new long[15];
+                long[] cancellation = new long[15];
+                Random order = new Random(23L);
+                int pairedWins = 0;
+                for (int index = 0; index < unpreemptedFast.length; index++) {
+                    if (order.nextBoolean()) {
+                        preemptedFast[index] = measureFastDuringQuality(
+                                workers, quality, fast, qualityFrame, fastFrame,
+                                true, cancellation, index);
+                        unpreemptedFast[index] = measureFastDuringQuality(
+                                workers, quality, fast, qualityFrame, fastFrame,
+                                false, cancellation, index);
+                    } else {
+                        unpreemptedFast[index] = measureFastDuringQuality(
+                                workers, quality, fast, qualityFrame, fastFrame,
+                                false, cancellation, index);
+                        preemptedFast[index] = measureFastDuringQuality(
+                                workers, quality, fast, qualityFrame, fastFrame,
+                                true, cancellation, index);
+                    }
+                    if (preemptedFast[index] < unpreemptedFast[index]) pairedWins++;
                 }
-                Arrays.sort(sequential);
-                Arrays.sort(concurrent);
-                long sequentialMedian = sequential[2];
-                long concurrentMedian = concurrent[2];
-                Log.i(TAG, "sequential=" + sequentialMedian / 1_000_000f
-                        + " ms concurrent=" + concurrentMedian / 1_000_000f
+                Arrays.sort(unpreemptedFast);
+                Arrays.sort(preemptedFast);
+                Arrays.sort(cancellation);
+                long unpreemptedFastMedian = unpreemptedFast[7];
+                long preemptedFastMedian = preemptedFast[7];
+                long cancellationMedian = cancellation[7];
+                Log.i(TAG, "unpreemptedFast=" + unpreemptedFastMedian / 1_000_000f
+                        + " ms preemptedFast=" + preemptedFastMedian / 1_000_000f
+                        + " ms unpreemptedP95=" + unpreemptedFast[14] / 1_000_000f
+                        + " ms preemptedP95=" + preemptedFast[14] / 1_000_000f
+                        + " ms cancellation=" + cancellationMedian / 1_000_000f
+                        + " ms pairedWins=" + pairedWins + '/' + unpreemptedFast.length
                         + " ms fastProvider=" + fast.getActiveProvider()
                         + " qualityProvider=" + quality.getActiveProvider());
-                assertTrue("Independent providers should overlap rather than serialize",
-                        concurrentMedian < sequentialMedian);
+                assertTrue("Preemption must reduce fast-lane contention",
+                        preemptedFastMedian < unpreemptedFastMedian);
+                assertTrue("Preemption must win a majority of paired trials",
+                        pairedWins >= 9);
             }
         } finally {
             workers.shutdownNow();
             qualityFrame.recycle();
             fastFrame.recycle();
+        }
+    }
+
+    @Test public void staleAdmissionTokenCancelsQualityBeforeNativeExecution() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        DetectorConfig qualityConfig = DetectionPreset.ULTRA
+                .applyTo(DetectorConfig.builder()).build();
+        Bitmap frame = Bitmap.createBitmap(230, 512, Bitmap.Config.ARGB_8888);
+        new Canvas(frame).drawColor(Color.rgb(74, 20, 95));
+        try (DetectionEngine quality = new DetectionEngine(context, qualityConfig, false)) {
+            quality.initialize();
+            List<Detection> result = quality.detect(frame, 1080, 2400, () -> true);
+            assertTrue(result.isEmpty());
+            assertTrue(quality.wasLastRunCancelled());
+            assertTrue(!quality.isNativeInferenceRunning());
+        } finally {
+            frame.recycle();
         }
     }
 
@@ -146,12 +178,51 @@ public final class DetectionEngineUltraAndroidTest {
         return timings[2];
     }
 
-    private static void detectUnchecked(DetectionEngine engine, Bitmap frame) {
-        try {
-            engine.detect(frame, 1080, 2400);
-        } catch (Exception error) {
-            throw new RuntimeException(error);
+    private static long measureFastDuringQuality(
+            ExecutorService workers,
+            DetectionEngine quality,
+            DetectionEngine fast,
+            Bitmap qualityFrame,
+            Bitmap fastFrame,
+            boolean preempt,
+            long[] cancellations,
+            int index) throws Exception {
+        Future<List<Detection>> qualityRun = workers.submit(() ->
+                quality.detect(qualityFrame, 1080, 2400));
+        awaitNativeInference(quality, qualityRun);
+        long cancellationStarted = 0L;
+        if (preempt) {
+            cancellationStarted = SystemClock.elapsedRealtimeNanos();
+            assertTrue("An in-flight quality run must accept preemption",
+                    quality.cancelActiveInference());
         }
+        long fastStarted = SystemClock.elapsedRealtimeNanos();
+        fast.detect(fastFrame, 1080, 2400);
+        long fastElapsed = SystemClock.elapsedRealtimeNanos() - fastStarted;
+        List<Detection> qualityOutput = qualityRun.get();
+        if (preempt) {
+            cancellations[index] = SystemClock.elapsedRealtimeNanos() - cancellationStarted;
+            assertTrue("Cancelled quality output must be reported as cancelled",
+                    quality.wasLastRunCancelled());
+            assertTrue("Cancelled quality output must never escape the engine",
+                    qualityOutput.isEmpty());
+            assertTrue("A completed cancellation must close its preemption window",
+                    !quality.cancelActiveInference());
+        }
+        return fastElapsed;
+    }
+
+    private static void awaitNativeInference(
+            DetectionEngine engine,
+            Future<?> run) throws Exception {
+        long deadline = SystemClock.uptimeMillis() + 2_000L;
+        while (!engine.isNativeInferenceRunning()
+                && !run.isDone()
+                && SystemClock.uptimeMillis() < deadline) {
+            SystemClock.sleep(1L);
+        }
+        assertTrue("Quality inference must still be running for the contention probe",
+                engine.isNativeInferenceRunning());
     }
 
     private static ProviderTiming measureProviderVariant(

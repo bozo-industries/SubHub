@@ -67,6 +67,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -113,6 +114,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final long QUALITY_RESULT_TTL_MS = 2_500L;
     private static final long STREAMING_QUALITY_RESULT_TTL_MS = 1_000L;
     private static final long QUALITY_CONFIRMATION_INTERVAL_MS = 250L;
+    private static final long QUALITY_DEFAULT_EXECUTION_BUDGET_MS = 220L;
+    private static final long QUALITY_EXECUTION_GUARD_MS = 32L;
+    private static final long QUALITY_MAX_EXCLUSIVE_WINDOW_MS = 300L;
 
     private final AtomicBoolean processing = new AtomicBoolean();
     private final AtomicBoolean inferenceDraining = new AtomicBoolean();
@@ -130,16 +134,25 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final AtomicLong droppedInferenceFrames = new AtomicLong();
     private final AtomicLong droppedQualityInferenceFrames = new AtomicLong();
     private final AtomicLong staleQualityInferenceFrames = new AtomicLong();
+    private final AtomicLong qualityInferencePreemptions = new AtomicLong();
+    private final AtomicLong qualityInferenceCancelledRuns = new AtomicLong();
+    private final AtomicLong fastSubmissionSequence = new AtomicLong();
     private final AtomicLong cumulativeScrollX = new AtomicLong();
     private final AtomicLong cumulativeScrollY = new AtomicLong();
     private final AtomicLong pendingTrackerOffsetX = new AtomicLong();
     private final AtomicLong pendingTrackerOffsetY = new AtomicLong();
+    private volatile long trackerScrollX;
+    private volatile long trackerScrollY;
     private final AtomicLong motionGeneration = new AtomicLong();
     private final AtomicLong textSceneGeneration = new AtomicLong();
     private final AtomicLong textContentGeneration = new AtomicLong();
     private final Object scrollStateLock = new Object();
     private final AtomicBoolean firstFrameReported = new AtomicBoolean();
+    private final AtomicBoolean firstOverlayReported = new AtomicBoolean();
     private final AtomicBoolean initializing = new AtomicBoolean();
+    private final AtomicBoolean qualityInitializing = new AtomicBoolean();
+    private final FastPriorityInferenceGate inferenceGate = new FastPriorityInferenceGate();
+    private final AtomicLong startupSessionSequence = new AtomicLong();
     private final AtomicBoolean hardcoreGuardRefreshQueued = new AtomicBoolean();
     private final AtomicBoolean textRefreshRequested = new AtomicBoolean(true);
     private final AtomicBoolean textRefreshRunning = new AtomicBoolean();
@@ -170,8 +183,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile ScheduledFuture<?> priorityCaptureSchedule;
     private SettingsRepository settings;
     private StatsRepository stats;
-    private DetectionEngine detector;
-    private DetectionEngine fastDetector;
+    private volatile DetectionEngine detector;
+    private volatile DetectionEngine fastDetector;
     private ObjectTracker tracker;
     private SmutTextClassifier smutTextClassifier;
     private AccessibilityTextSmutDetector accessibilityText;
@@ -199,6 +212,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile long lastMotionUptime;
     private volatile long lastInferenceUptime;
     private volatile long lastQualityInferenceUptime;
+    private volatile long lastSuccessfulQualityDurationMs;
+    private volatile long activeStartupSession;
+    private volatile long lastFastOverlayGeneration = Long.MIN_VALUE;
     private volatile long lastScreenshotRequestUptime;
     private volatile long lastScrollDiagnosticUptime;
     private volatile long scrollTraceId;
@@ -305,32 +321,35 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         try {
             DetectorConfig config = settings.loadDetectorConfig();
             DetectorConfig fastConfig = fastDetectorConfig(config);
+            long startupSession = activeStartupSession;
             detectorConfig = config;
             textSmutConfig = settings.loadTextSmutConfig();
             warmTextModels(config);
-            if (detector == null) {
-                detector = new DetectionEngine(this, config, false);
-                detector.initialize();
-            } else {
-                detector.setConfig(config);
-            }
+            long fastInitStarted = SystemClock.uptimeMillis();
+            Log.i(TAG, "STARTUP session=" + startupSession
+                    + " phase=fast-init-begin uptimeMs=" + fastInitStarted);
             if (fastDetector == null) {
                 fastDetector = new DetectionEngine(this, fastConfig, true);
                 fastDetector.initialize();
             } else {
                 fastDetector.setConfig(fastConfig);
             }
+            Log.i(TAG, "STARTUP session=" + startupSession
+                    + " phase=fast-init-end durationMs="
+                    + (SystemClock.uptimeMillis() - fastInitStarted)
+                    + " uptimeMs=" + SystemClock.uptimeMillis()
+                    + " provider=" + fastDetector.getActiveProvider());
             DetectorConfig trackerConfig = accessibilityTrackerConfig(config);
             if (tracker == null) tracker = new ObjectTracker(trackerConfig);
             else tracker.setConfig(trackerConfig);
             tracker.clear();
             if (!recognitionActive) {
-                Log.i(TAG, "Detector prewarmed; capture remains asleep");
+                Log.i(TAG, "Fast detector prewarmed; capture remains asleep");
                 return;
             }
             DiagnosticsRepository.begin(DIAGNOSTICS_MODE, config.getInferenceResolution());
-            DiagnosticsRepository.ready(DIAGNOSTICS_MODE, detector.getActiveProvider(),
-                    detector.getActiveModel(), config.getInferenceResolution());
+            DiagnosticsRepository.ready(DIAGNOSTICS_MODE, fastDetector.getActiveProvider(),
+                    fastDetector.getActiveModel(), fastConfig.getInferenceResolution());
             ScheduledFuture<?> existing = captureSchedule;
             if (existing != null) existing.cancel(false);
             captureSchedule = worker.scheduleWithFixedDelay(
@@ -352,12 +371,79 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
     }
 
+    private void scheduleQualityDetectorInitialization(DetectorConfig requestedConfig) {
+        ScheduledExecutorService qualityWorker = qualityInferenceWorker;
+        if (!running || requestedConfig == null || qualityWorker == null
+                || qualityWorker.isShutdown()
+                || !qualityInitializing.compareAndSet(false, true)) return;
+        try {
+            qualityWorker.execute(() -> initializeQualityDetector(requestedConfig));
+        } catch (RejectedExecutionException rejected) {
+            qualityInitializing.set(false);
+            Log.i(TAG, "QUALITY_ENGINE_SKIP reason=executor-shutdown");
+        }
+    }
+
+    /** Warms optional refinement without holding time-to-first-censor behind provider setup. */
+    private void initializeQualityDetector(DetectorConfig requestedConfig) {
+        DetectionEngine candidate = null;
+        long startupSession = activeStartupSession;
+        long started = SystemClock.uptimeMillis();
+        Log.i(TAG, "STARTUP session=" + startupSession
+                + " phase=quality-init-begin uptimeMs=" + started);
+        try {
+            DetectionEngine current = detector;
+            if (current != null) {
+                current.setConfig(requestedConfig);
+                Log.i(TAG, "STARTUP session=" + startupSession
+                        + " phase=quality-init-end durationMs="
+                        + (SystemClock.uptimeMillis() - started)
+                        + " uptimeMs=" + SystemClock.uptimeMillis() + " reused=true");
+                return;
+            }
+            candidate = new DetectionEngine(this, requestedConfig, false);
+            DetectionEngine realtime = fastDetector;
+            candidate.initializeWithoutBenchmark(
+                    realtime == null ? "CPU" : realtime.getActiveProvider());
+            if (!running) return;
+            DetectorConfig latestConfig = detectorConfig;
+            if (latestConfig != null) candidate.setConfig(latestConfig);
+            detector = candidate;
+            candidate = null;
+            Log.i(TAG, "QUALITY_ENGINE_READY provider=" + detector.getActiveProvider()
+                    + " model=" + detector.getActiveModel()
+                    + " fastFrames=" + fastSubmissionSequence.get()
+                    + " initMs=" + (SystemClock.uptimeMillis() - started));
+            Log.i(TAG, "STARTUP session=" + startupSession
+                    + " phase=quality-init-end durationMs="
+                    + (SystemClock.uptimeMillis() - started)
+                    + " uptimeMs=" + SystemClock.uptimeMillis());
+        } catch (Exception error) {
+            Log.w(TAG, "Quality refinement will remain unavailable", error);
+        } finally {
+            if (candidate != null) candidate.close();
+            qualityInitializing.set(false);
+        }
+    }
+
     @RequiresApi(Build.VERSION_CODES.R)
     private void requestScreenshot() {
         if (!running || !recognitionActive) return;
         long requestUptime = SystemClock.uptimeMillis();
         if (requestUptime - lastScreenshotRequestUptime
                 < ACCESSIBILITY_SCREENSHOT_INTERVAL_MS) return;
+        long qualityActiveMs = inferenceGate.qualityActiveMs(System.nanoTime());
+        if (shouldYieldCaptureToQuality(
+                inferenceGate.isQualityActive(), settledInferenceNeeded.get(),
+                lastFastOverlayGeneration == motionGeneration.get(), qualityActiveMs)) {
+            Log.i(TAG, "QUALITY_WINDOW action=yield-fast activeMs=" + qualityActiveMs);
+            return;
+        }
+        if (inferenceGate.isQualityActive()
+                && qualityActiveMs > QUALITY_MAX_EXCLUSIVE_WINDOW_MS) {
+            Log.i(TAG, "QUALITY_WINDOW action=expire activeMs=" + qualityActiveMs);
+            preemptQualityInference("exclusive-window-expired");
+        }
         if (!processing.compareAndSet(false, true)) return;
         lastScreenshotRequestUptime = requestUptime;
         long requestedEpoch = captureEpoch.token();
@@ -440,7 +526,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     + " captureScroll=" + sourceScrollX + ',' + sourceScrollY
                     + " requestGeneration=" + requestedGeneration
                     + " captureGeneration=" + sampledGeneration
-                    + " timelineResolved=" + capturePhase.resolvedFromMotion);
+                    + " timelineResolved=" + capturePhase.resolvedFromMotion
+                    + " phaseUncertain=" + capturePhase.phaseUncertain
+                    + " eventDeliveryDelayMs=" + capturePhase.maximumDeliveryDelayMs);
             boolean estimateFrameMotion = shouldEstimateFrameMotion(
                     currentConfig, motionSampledAt, lastScrollTraceEventUptime);
             ScrollFrameMotionEstimator.Motion motion = motionEstimator == null
@@ -448,7 +536,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     ? ScrollFrameMotionEstimator.Motion.NONE : motionEstimator.update(wrapped);
             if (!estimateFrameMotion && motionEstimator != null) motionEstimator.reset();
             if (motion.moved()) {
-                boolean applied = applyFrameMotion(motion.dx, motion.dy, sampledGeneration);
+                boolean applied = applyFrameMotion(
+                        motion.dx, motion.dy, sampledGeneration,
+                        capturePhase.screenshotUptimeMillis, motionSampledAt);
                 Log.i(TAG, "FRAME_MOTION dx=" + motion.dx + " dy=" + motion.dy
                         + " applied=" + applied
                         + " afterAccessibilityMs=" + (lastScrollTraceEventUptime <= 0L
@@ -484,11 +574,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long inferenceMotionGeneration = sampledGeneration;
             if (!isCurrentCapture(requestedEpoch)) return;
             int inferenceResolution = currentConfig == null
-                    ? 320 : currentConfig.getInferenceResolution();
-            boolean streamingQuality = usesStreamingQualityPipeline(currentConfig)
-                    && detector != null && fastDetector != null && detector != fastDetector;
-            int fastFrameResolution = streamingQuality && !overlayNeedsSourceFrame
-                    ? FAST_INFERENCE_RESOLUTION : inferenceResolution;
+                    ? FAST_INFERENCE_RESOLUTION : currentConfig.getInferenceResolution();
+            boolean streamingFast = usesStreamingQualityPipeline(currentConfig)
+                    && fastDetector != null;
+            boolean streamingQualityReady = streamingFast
+                    && detector != null && detector != fastDetector;
+            int fastFrameResolution = fastInferenceFrameResolution(
+                    currentConfig, fastDetector != null, overlayNeedsSourceFrame);
             InferenceBitmapPreparer.Prepared prepared = InferenceBitmapPreparer.prepare(
                     wrapped, fastFrameResolution,
                     overlayNeedsSourceFrame);
@@ -499,26 +591,33 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (priorityFrame && motionSettled) {
                 settledInferenceNeeded.compareAndSet(true, false);
             }
-            enqueueInference(new InferenceFrame(frame, requestedEpoch, sourceScrollX,
+            long submittedFastSequence = enqueueInference(new InferenceFrame(
+                    frame, requestedEpoch, sourceScrollX,
                     sourceScrollY, inferenceMotionGeneration,
                     prepared.sourceWidth, prepared.sourceHeight,
                     prepared.retainedSourceFrame, continuousMotionInference,
-                    qualityRefine && !streamingQuality,
-                    qualityRefine && qualityConfirmation && !streamingQuality,
-                    requestedAtUptimeMillis));
+                    qualityRefine && !streamingFast,
+                    qualityRefine && qualityConfirmation && !streamingFast,
+                    requestedAtUptimeMillis,
+                    requestedScrollX, requestedScrollY, requestedGeneration,
+                    capturePhase.screenshotUptimeMillis,
+                    capturePhase.phaseUncertain,
+                    capturePhase.maximumDeliveryDelayMs));
             frame = null;
             maybeRequestOcr(wrapped, requestedEpoch, sourceScrollX, sourceScrollY,
                     inferenceMotionGeneration, currentConfig);
             // Transfer the immutable hardware screenshot to the quality lane instead of making
             // its 512 px software copy on the latency-critical capture callback. One retained
             // source is allowed; replacement and motion both close it immediately.
-            if (streamingQuality && qualityRefine
+            if (submittedFastSequence != Long.MIN_VALUE
+                    && streamingQualityReady && qualityRefine
                     && pendingQualityInference.get() == null
                     && !qualityInferenceDraining.get()) {
                 enqueueQualityInference(new QualityInferenceFrame(
                         wrapped, buffer, requestedEpoch, sourceScrollX, sourceScrollY,
                         inferenceMotionGeneration, wrapped.getWidth(), wrapped.getHeight(),
-                        inferenceResolution, capturePhase.screenshotUptimeMillis));
+                        inferenceResolution, capturePhase.screenshotUptimeMillis,
+                        submittedFastSequence));
                 wrapped = null;
                 buffer = null;
             }
@@ -533,19 +632,36 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
     }
 
-    private void enqueueInference(InferenceFrame candidate) {
+    private long enqueueInference(InferenceFrame candidate) {
         if (!running || inferenceWorker == null || inferenceWorker.isShutdown()) {
             candidate.recycle();
-            return;
+            return Long.MIN_VALUE;
         }
+        candidate.fastDemand = inferenceGate.registerFastDemand();
+        long submissionSequence;
+        synchronized (scrollStateLock) {
+            submissionSequence = fastSubmissionSequence.incrementAndGet();
+            candidate.fastSubmissionSequence = submissionSequence;
+        }
+        // A fresh real-time frame outranks optional quality refinement. ORT cancellation is
+        // best-effort, but requesting it here avoids the check-then-start race where an idle
+        // quality lane begins immediately before new fast work arrives.
+        preemptQualityInference("fast-arrived");
         InferenceFrame replaced = pendingInference.getAndSet(candidate);
         if (replaced != null) {
             droppedInferenceFrames.incrementAndGet();
             replaced.recycle();
         }
         if (inferenceWorker != null && inferenceDraining.compareAndSet(false, true)) {
-            inferenceWorker.execute(this::drainInferenceQueue);
+            try {
+                inferenceWorker.execute(this::drainInferenceQueue);
+            } catch (RejectedExecutionException rejected) {
+                inferenceDraining.set(false);
+                discardPendingInference();
+                return Long.MIN_VALUE;
+            }
         }
+        return submissionSequence;
     }
 
     private void enqueueQualityInference(QualityInferenceFrame candidate) {
@@ -567,7 +683,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 || pendingQualityInference.get() == null
                 || inferenceDraining.get() || pendingInference.get() != null) return;
         if (qualityInferenceDraining.compareAndSet(false, true)) {
-            qualityInferenceWorker.execute(this::drainQualityInferenceQueue);
+            try {
+                qualityInferenceWorker.execute(this::drainQualityInferenceQueue);
+            } catch (RejectedExecutionException rejected) {
+                qualityInferenceDraining.set(false);
+                QualityInferenceFrame stranded = pendingQualityInference.getAndSet(null);
+                if (stranded != null) stranded.recycle();
+            }
         }
     }
 
@@ -600,6 +722,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         DetectionEngine quality = detector;
         long currentGeneration = motionGeneration.get();
         if (quality == null || !isCurrentCapture(candidate.epoch)) return;
+        if (candidate.fastSubmissionSequence != fastSubmissionSequence.get()) {
+            logStreamingQualityDrop("fast-sequence-before", candidate, currentGeneration);
+            return;
+        }
         if (candidate.motionGeneration != currentGeneration
                 || (lastMotionUptime > 0L
                 && SystemClock.uptimeMillis() - lastMotionUptime < QUALITY_MOTION_SETTLE_MS)) {
@@ -607,20 +733,52 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             return;
         }
         long prepareStarted = SystemClock.elapsedRealtimeNanos();
+        Log.i(TAG, "QUALITY_PREPARE_BEGIN sourceFastSequence="
+                + candidate.fastSubmissionSequence
+                + " generation=" + candidate.motionGeneration
+                + " uptimeNanos=" + prepareStarted);
         InferenceBitmapPreparer.Prepared prepared = InferenceBitmapPreparer.prepare(
                 candidate.sourceFrame, candidate.inferenceResolution, false);
+        long prepareEnded = SystemClock.elapsedRealtimeNanos();
         long bitmapPrepareMs = Math.max(0L, Math.round(
-                (SystemClock.elapsedRealtimeNanos() - prepareStarted) / 1_000_000d));
+                (prepareEnded - prepareStarted) / 1_000_000d));
+        Log.i(TAG, "QUALITY_PREPARE_END sourceFastSequence="
+                + candidate.fastSubmissionSequence
+                + " generation=" + candidate.motionGeneration
+                + " durationMs=" + bitmapPrepareMs
+                + " uptimeNanos=" + prepareEnded);
         if (prepared == null) return;
+        if (qualityCancellationRequested(candidate)) {
+            if (!prepared.bitmap.isRecycled()) prepared.bitmap.recycle();
+            logStreamingQualityDrop(
+                    "fast-sequence-after-prepare", candidate, motionGeneration.get());
+            return;
+        }
+        FastPriorityInferenceGate.QualityAdmission admission = tryAcquireQualityGate();
+        if (!admission.admitted()) {
+            if (!prepared.bitmap.isRecycled()) prepared.bitmap.recycle();
+            logQualityGateSkip(admission.rejection(), candidate.fastSubmissionSequence);
+            return;
+        }
         List<Detection> detected;
-        try {
+        try (FastPriorityInferenceGate.Lease ignored = admission.lease()) {
             detected = quality.detect(
-                    prepared.bitmap, candidate.sourceWidth, candidate.sourceHeight);
+                    prepared.bitmap, candidate.sourceWidth, candidate.sourceHeight,
+                    () -> qualityCancellationRequested(candidate));
         } finally {
             if (!prepared.bitmap.isRecycled()) prepared.bitmap.recycle();
         }
+        if (quality.wasLastRunCancelled()) {
+            logQualityCancellation("stream-fast-preempted", quality);
+            return;
+        }
         int rawVisualCount = detected.size();
         if (!isCurrentCapture(candidate.epoch)) return;
+
+        if (candidate.fastSubmissionSequence != fastSubmissionSequence.get()) {
+            logStreamingQualityDrop("fast-sequence-after", candidate, motionGeneration.get());
+            return;
+        }
 
         currentGeneration = motionGeneration.get();
         if (candidate.motionGeneration != currentGeneration) {
@@ -645,20 +803,45 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         VisualDetectionStabilizer.UpdateResult stabilized =
                 qualityVisualStabilizer.updateWithMetrics(aligned, detectorConfig);
         List<Detection> coverage = markQualityCoverage(stabilized.stableDetections());
+        VisualIdentityReconciler.Result identity = VisualIdentityReconciler.reconcile(
+                Collections.emptyList(), coverage, tracker.activeTracks());
+        coverage = identity.detections();
+        boolean completeScene = stabilized.pendingCandidates() <= 0;
         long cachedAt = SystemClock.uptimeMillis();
+        int retiredQualityTracks = 0;
+        boolean cachePreserved;
         synchronized (scrollStateLock) {
             currentGeneration = motionGeneration.get();
-            if (candidate.motionGeneration != currentGeneration) {
+            if (candidate.motionGeneration != currentGeneration
+                    || candidate.fastSubmissionSequence != fastSubmissionSequence.get()) {
                 qualityVisualStabilizer.clear();
                 logStreamingQualityDrop(
-                        "motion-generation-commit", candidate, currentGeneration);
+                        candidate.motionGeneration != currentGeneration
+                                ? "motion-generation-commit" : "fast-sequence-commit",
+                        candidate, currentGeneration);
                 return;
             }
-            cachedQualityVisual = new VisualDetectionSnapshot(
-                    coverage, candidate.sourceWidth, candidate.sourceHeight,
-                    current.scrollX, current.scrollY, cachedAt, currentGeneration);
+            // Commit the new scene and retire disproven quality-only identities as one
+            // generation-fenced transaction. Until a complete scene exists, the previous cache
+            // remains reusable by every fast frame so confirmed coverage cannot flash away.
+            // Detector omission is not negative evidence. Quality-only coverage remains until
+            // positive fast evidence adopts it, viewport motion removes it, or its asynchronous
+            // wall-clock grace expires.
+            retiredQualityTracks = 0;
+            VisualDetectionSnapshot previous = cachedQualityVisual;
+            int previousCount = previous != VisualDetectionSnapshot.EMPTY
+                    && previous.motionGeneration == currentGeneration
+                    ? previous.detections.size() : 0;
+            cachePreserved = !shouldReplaceQualityCache(
+                    previousCount, coverage.size(), completeScene);
+            if (!cachePreserved) {
+                cachedQualityVisual = new VisualDetectionSnapshot(
+                        coverage, candidate.sourceWidth, candidate.sourceHeight,
+                        current.scrollX, current.scrollY, cachedAt, currentGeneration);
+            }
         }
         lastQualityInferenceUptime = cachedAt;
+        lastSuccessfulQualityDurationMs = quality.getLastInferenceMs() + bitmapPrepareMs;
         Log.i(TAG, "QUALITY_STREAM_CACHE scrollId=" + scrollTraceId
                 + " captureAgeMs=" + (cachedAt - candidate.capturedAtUptimeMillis)
                 + " bitmapPrepareMs=" + bitmapPrepareMs
@@ -671,11 +854,38 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 + " rawVisual=" + rawVisualCount
                 + " stableVisual=" + coverage.size()
                 + " pendingVisual=" + stabilized.pendingCandidates()
+                + " completeScene=" + completeScene
+                + " cachePreserved=" + cachePreserved
+                + " identityLinked=" + identity.qualityLinked()
+                + " identityUnlinked=" + identity.unlinkedQuality()
+                + " retiredQualityTracks=" + retiredQualityTracks
                 + " sourceGeneration=" + candidate.motionGeneration
                 + " cacheGeneration=" + currentGeneration
+                + " sourceFastSequence=" + candidate.fastSubmissionSequence
+                + " currentFastSequence=" + fastSubmissionSequence.get()
                 + " reproject=" + (-deltaX) + ',' + (-deltaY)
                 + " dropped=" + droppedQualityInferenceFrames.get()
-                + " staleDropped=" + staleQualityInferenceFrames.get());
+                + " staleDropped=" + staleQualityInferenceFrames.get()
+                + " preemptions=" + qualityInferencePreemptions.get()
+                + " cancelledRuns=" + qualityInferenceCancelledRuns.get());
+    }
+
+    private void preemptQualityInference(String reason) {
+        DetectionEngine quality = detector;
+        if (quality == null || !quality.cancelActiveInference()) return;
+        long count = qualityInferencePreemptions.incrementAndGet();
+        Log.i(TAG, "QUALITY_PREEMPT reason=" + reason
+                + " count=" + count
+                + " fastPending=" + (pendingInference.get() != null)
+                + " qualityActive=" + qualityInferenceDraining.get());
+    }
+
+    private void logQualityCancellation(String reason, DetectionEngine quality) {
+        long count = qualityInferenceCancelledRuns.incrementAndGet();
+        Log.i(TAG, "QUALITY_DROP reason=" + reason
+                + " cancellationMs=" + quality.getLastCancellationMs()
+                + " cancelledRuns=" + count
+                + " preemptions=" + qualityInferencePreemptions.get());
     }
 
     private void logStreamingQualityDrop(
@@ -684,7 +894,71 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         Log.i(TAG, "QUALITY_STREAM_DROP reason=" + reason
                 + " sourceGeneration=" + candidate.motionGeneration
                 + " currentGeneration=" + currentGeneration
+                + " sourceFastSequence=" + candidate.fastSubmissionSequence
+                + " currentFastSequence=" + fastSubmissionSequence.get()
                 + " staleDropped=" + dropped);
+    }
+
+    private FastPriorityInferenceGate.QualityAdmission tryAcquireQualityGate() {
+        long nowUptime = SystemClock.uptimeMillis();
+        long availableSlackMs = qualityAvailableSlackMs(
+                lastScreenshotRequestUptime, nowUptime);
+        long requiredBudgetMs = qualityExecutionBudgetMs(lastSuccessfulQualityDurationMs);
+        return inferenceGate.tryAcquireQuality(availableSlackMs, requiredBudgetMs);
+    }
+
+    private void logQualityGateSkip(
+            FastPriorityInferenceGate.QualityRejection rejection,
+            long sourceFastSequence) {
+        Log.i(TAG, "QUALITY_GATE_SKIP reason=" + rejection.name().toLowerCase()
+                + " fastDemand=" + inferenceGate.hasFastDemand()
+                + " activeLane=" + inferenceGate.activeLane().name().toLowerCase()
+                + " sourceFastSequence=" + sourceFastSequence
+                + " currentFastSequence=" + fastSubmissionSequence.get());
+    }
+
+    private boolean qualityCancellationRequested(QualityInferenceFrame candidate) {
+        return candidate == null
+                || !isCurrentCapture(candidate.epoch)
+                || !isQualitySubmissionCurrent(
+                        candidate.motionGeneration, motionGeneration.get(),
+                        candidate.fastSubmissionSequence, fastSubmissionSequence.get());
+    }
+
+    private boolean qualityCancellationRequested(InferenceFrame candidate) {
+        return candidate == null
+                || !isCurrentCapture(candidate.epoch)
+                || !isQualitySubmissionCurrent(
+                        candidate.motionGeneration, motionGeneration.get(),
+                        candidate.fastSubmissionSequence, fastSubmissionSequence.get());
+    }
+
+    static boolean isQualitySubmissionCurrent(
+            long sourceMotionGeneration,
+            long currentMotionGeneration,
+            long sourceFastSequence,
+            long currentFastSequence) {
+        return sourceMotionGeneration == currentMotionGeneration
+                && sourceFastSequence == currentFastSequence;
+    }
+
+    static boolean isFastSubmissionCurrent(
+            long sourceFastSequence,
+            long currentFastSequence) {
+        return sourceFastSequence == currentFastSequence;
+    }
+
+    static long qualityAvailableSlackMs(long lastScreenshotRequestUptime, long nowUptime) {
+        if (lastScreenshotRequestUptime <= 0L) return 0L;
+        long nextMandatoryFast = lastScreenshotRequestUptime
+                + (ACCESSIBILITY_SCREENSHOT_INTERVAL_MS * 2L);
+        return Math.max(0L, nextMandatoryFast - nowUptime);
+    }
+
+    static long qualityExecutionBudgetMs(long lastSuccessfulDurationMs) {
+        if (lastSuccessfulDurationMs <= 0L) return QUALITY_DEFAULT_EXECUTION_BUDGET_MS;
+        return Math.max(160L, Math.min(320L,
+                lastSuccessfulDurationMs + QUALITY_EXECUTION_GUARD_MS));
     }
 
     /** Runs warmed ONNX work independently so screenshot motion sampling never waits on ML. */
@@ -710,7 +984,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (pendingInference.get() != null && inferenceWorker != null
                     && !inferenceWorker.isShutdown()
                     && inferenceDraining.compareAndSet(false, true)) {
-                inferenceWorker.execute(this::drainInferenceQueue);
+                try {
+                    inferenceWorker.execute(this::drainInferenceQueue);
+                } catch (RejectedExecutionException rejected) {
+                    inferenceDraining.set(false);
+                    discardPendingInference();
+                }
             } else {
                 scheduleQualityInferenceIfFastIdle();
             }
@@ -722,7 +1001,22 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (realtime == null) return;
         boolean hasSeparateQuality = detector != null && detector != realtime;
         boolean qualityPlanned = candidate.qualityRefine && hasSeparateQuality;
-        runInferencePass(candidate, realtime, true, !qualityPlanned);
+        FastPriorityInferenceGate.FastDemand fastDemand = candidate.fastDemand;
+        if (fastDemand == null) return;
+        try (FastPriorityInferenceGate.Lease lease = fastDemand.acquire()) {
+            if (!isFastSubmissionCurrent(
+                    candidate.fastSubmissionSequence, fastSubmissionSequence.get())) {
+                Log.i(TAG, "FAST_DROP reason=superseded-after-gate sourceSequence="
+                        + candidate.fastSubmissionSequence + " currentSequence="
+                        + fastSubmissionSequence.get() + " waitMs=" + lease.waitMs());
+                return;
+            }
+            if (lease.waitMs() > 0L) {
+                Log.i(TAG, "INFERENCE_GATE lane=fast waitMs=" + lease.waitMs()
+                        + " sequence=" + candidate.fastSubmissionSequence);
+            }
+            runInferencePass(candidate, realtime, true, !qualityPlanned);
+        }
         if (!qualityPlanned) return;
         if (!isCurrentCapture(candidate.epoch)
                 || candidate.motionGeneration != motionGeneration.get()
@@ -752,18 +1046,26 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!candidate.retainedSourceFrame) return;
         Bitmap sourceFrame = candidate.detachFrame();
         if (sourceFrame == null) return;
-        List<TrackedObject> currentTracks = visualRenderTracks(
-                tracker.activeTracks()).tracks();
-        ScrollPosition current = currentScrollPosition();
-        InferenceScrollReprojector.ScreenMotion sourceMotion =
-                InferenceScrollReprojector.screenMotion(
-                        candidate.scrollX, candidate.scrollY,
-                        current.scrollX, current.scrollY);
+        WorldTrackFrame worldFrame = captureWorldTrackFrame();
+        List<TrackedObject> currentTracks = worldFrame.tracks;
+        long trackCameraX = worldFrame.cameraX;
+        long trackCameraY = worldFrame.cameraY;
+        Rect viewport = screenBounds();
         main.post(() -> {
             if (isCurrentCapture(candidate.epoch) && overlay != null) {
-                overlay.update(currentTracks, candidate.sourceWidth, candidate.sourceHeight,
-                        sourceFrame, 0, 0, sourceMotion.dx, sourceMotion.dy);
-                Log.i(TAG, "SOURCE_FRAME_PUBLISH reason=" + reason);
+                // A scroll callback may have arrived after the screenshot callback but before an
+                // optional quality pass yielded. The retained bitmap still belongs to the hardware
+                // capture timestamp, not to the callback's first estimate of that timestamp.
+                CaptureScrollTimeline.Phase sourcePhase = resolveCapturePhase(candidate);
+                overlay.updateWorld(
+                        currentTracks, candidate.sourceWidth, candidate.sourceHeight,
+                        sourceFrame, trackCameraX, trackCameraY,
+                        sourcePhase.scrollX, sourcePhase.scrollY,
+                        viewport.width(), viewport.height());
+                Log.i(TAG, "SOURCE_FRAME_PUBLISH reason=" + reason
+                        + " sourceScroll=" + sourcePhase.scrollX + ',' + sourcePhase.scrollY
+                        + " sourceGeneration=" + sourcePhase.motionGeneration
+                        + " phaseUncertain=" + sourcePhase.phaseUncertain);
             } else {
                 sourceFrame.recycle();
             }
@@ -781,12 +1083,53 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         Bitmap frame = candidate.frame;
         long requestedEpoch = candidate.epoch;
-        long requestedScrollX = candidate.scrollX;
-        long requestedScrollY = candidate.scrollY;
-        long inferenceMotionGeneration = candidate.motionGeneration;
         int width = candidate.sourceWidth;
         int height = candidate.sourceHeight;
-        List<Detection> visualDetections = engine.detect(frame, width, height);
+        List<Detection> visualDetections;
+        if (fastPass) {
+            visualDetections = engine.detect(frame, width, height);
+        } else {
+            FastPriorityInferenceGate.QualityAdmission admission = tryAcquireQualityGate();
+            if (!admission.admitted()) {
+                logQualityGateSkip(admission.rejection(), candidate.fastSubmissionSequence);
+                publishRetainedSourceFrame(candidate, "quality-gate-" + admission.rejection());
+                return;
+            }
+            try (FastPriorityInferenceGate.Lease ignored = admission.lease()) {
+                visualDetections = engine.detect(frame, width, height,
+                        () -> qualityCancellationRequested(candidate));
+            }
+        }
+        if (!fastPass && engine.wasLastRunCancelled()) {
+            logQualityCancellation("fast-preempted", engine);
+            publishRetainedSourceFrame(candidate, "quality-preempted");
+            return;
+        }
+        CaptureScrollTimeline.Phase refreshedCapturePhase = fastPass
+                ? resolveCapturePhase(candidate)
+                : null;
+        long requestedScrollX = refreshedCapturePhase == null
+                ? candidate.scrollX : refreshedCapturePhase.scrollX;
+        long requestedScrollY = refreshedCapturePhase == null
+                ? candidate.scrollY : refreshedCapturePhase.scrollY;
+        long inferenceMotionGeneration = refreshedCapturePhase == null
+                ? candidate.motionGeneration : refreshedCapturePhase.motionGeneration;
+        boolean capturePhaseUncertain = refreshedCapturePhase == null
+                ? candidate.capturePhaseUncertain : refreshedCapturePhase.phaseUncertain;
+        long captureEventDeliveryDelayMs = refreshedCapturePhase == null
+                ? candidate.captureEventDeliveryDelayMs
+                : refreshedCapturePhase.maximumDeliveryDelayMs;
+        if (fastPass && (requestedScrollX != candidate.scrollX
+                || requestedScrollY != candidate.scrollY
+                || inferenceMotionGeneration != candidate.motionGeneration)) {
+            Log.i(TAG, "CAPTURE_PHASE_REFRESH sourceScroll="
+                    + candidate.scrollX + ',' + candidate.scrollY
+                    + " refreshedScroll=" + requestedScrollX + ',' + requestedScrollY
+                    + " sourceGeneration=" + candidate.motionGeneration
+                    + " refreshedGeneration=" + inferenceMotionGeneration
+                    + " phaseUncertain=" + capturePhaseUncertain
+                    + " eventDeliveryDelayMs=" + captureEventDeliveryDelayMs);
+        }
         int rawVisualCount = visualDetections.size();
         if (!fastPass && pendingInference.get() != null) {
             publishRetainedSourceFrame(candidate, "fast-arrived-during-quality");
@@ -794,6 +1137,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (!fastPass && (!isCurrentCapture(requestedEpoch)
                 || inferenceMotionGeneration != motionGeneration.get()
+                || candidate.fastSubmissionSequence != fastSubmissionSequence.get()
                 || SystemClock.uptimeMillis() - lastMotionUptime < MOTION_SETTLE_MS)) {
             return;
         }
@@ -824,6 +1168,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 }
             }
         } else {
+            if (qualityCancellationRequested(candidate)) {
+                publishRetainedSourceFrame(candidate, "quality-sequence-stale");
+                return;
+            }
             VisualDetectionStabilizer.UpdateResult stabilizedQuality =
                     qualityVisualStabilizer.updateWithMetrics(
                             visualDetections, detectorConfig);
@@ -843,42 +1191,61 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     qualityCoverage, stabilizedQuality.pendingCandidates(),
                     batchAlreadyCommitted || batchAlreadyClosed);
             int deferredUnlinked = reconciledCoverageCount - qualityCoverage.size();
-            int supplementedTracks = tracker.supplementConfirmedQualityCoverage(
-                    qualityCoverage, System.nanoTime());
             boolean completeQualityScene = stabilizedQuality.pendingCandidates() <= 0;
-            int retiredQualityTracks = completeQualityScene
-                    ? tracker.finishQualityCoverageHandoff(qualityCoverage) : 0;
-            if (supplementedTracks > 0) {
-                qualityBatchCommittedGeneration.set(inferenceMotionGeneration);
-                qualityBatchClosedGeneration.set(inferenceMotionGeneration);
-                qualityConfirmationRequested.set(false);
-            } else if (candidate.qualityConfirmation || completeQualityScene) {
-                // A generation receives one bounded confirmation opportunity. Later periodic
-                // refreshes may strengthen existing identities, but cannot spawn a delayed second
-                // visible wave into an already settled scene.
-                qualityBatchClosedGeneration.set(inferenceMotionGeneration);
-                qualityConfirmationRequested.set(false);
+            int supplementedTracks;
+            int retiredQualityTracks = 0;
+            boolean confirmationRequested;
+            String qualityBatchState;
+            long cachedAt;
+            boolean cachePreserved;
+            synchronized (scrollStateLock) {
+                if (qualityCancellationRequested(candidate)) {
+                    qualityVisualStabilizer.clear();
+                    publishRetainedSourceFrame(candidate, "quality-sequence-stale-commit");
+                    return;
+                }
+                supplementedTracks = tracker.supplementConfirmedQualityCoverage(
+                        qualityCoverage, System.nanoTime());
+                if (supplementedTracks > 0) {
+                    qualityBatchCommittedGeneration.set(inferenceMotionGeneration);
+                    qualityBatchClosedGeneration.set(inferenceMotionGeneration);
+                    qualityConfirmationRequested.set(false);
+                } else if (candidate.qualityConfirmation || completeQualityScene) {
+                    // A generation receives one bounded confirmation opportunity. Later periodic
+                    // refreshes may strengthen existing identities, but cannot spawn a delayed
+                    // second visible wave into an already settled scene.
+                    qualityBatchClosedGeneration.set(inferenceMotionGeneration);
+                    qualityConfirmationRequested.set(false);
+                }
+                boolean batchClosed = qualityBatchClosedGeneration.get()
+                        == inferenceMotionGeneration;
+                confirmationRequested = false;
+                if (!batchClosed && stabilizedQuality.pendingCandidates() > 0
+                        && qualityConfirmationBurstUsed.compareAndSet(false, true)) {
+                    qualityConfirmationRequested.set(true);
+                    confirmationRequested = true;
+                } else if (stabilizedQuality.pendingCandidates() <= 0 || batchClosed) {
+                    qualityConfirmationRequested.set(false);
+                }
+                qualityBatchState = qualityBatchCommittedGeneration.get()
+                        == inferenceMotionGeneration ? "COMMITTED"
+                        : batchClosed ? "CLOSED" : confirmationRequested
+                                || qualityConfirmationRequested.get()
+                                ? "CONFIRMATION_ARMED" : "OPEN";
+                cachedAt = SystemClock.uptimeMillis();
+                VisualDetectionSnapshot previous = cachedQualityVisual;
+                int previousCount = previous != VisualDetectionSnapshot.EMPTY
+                        && previous.motionGeneration == inferenceMotionGeneration
+                        ? previous.detections.size() : 0;
+                cachePreserved = !shouldReplaceQualityCache(
+                        previousCount, qualityCoverage.size(), completeQualityScene);
+                if (!cachePreserved) {
+                    cachedQualityVisual = new VisualDetectionSnapshot(
+                            qualityCoverage, width, height, requestedScrollX, requestedScrollY,
+                            cachedAt, inferenceMotionGeneration);
+                }
             }
-            boolean batchClosed = qualityBatchClosedGeneration.get()
-                    == inferenceMotionGeneration;
-            boolean confirmationRequested = false;
-            if (!batchClosed && stabilizedQuality.pendingCandidates() > 0
-                    && qualityConfirmationBurstUsed.compareAndSet(false, true)) {
-                qualityConfirmationRequested.set(true);
-                confirmationRequested = true;
-            } else if (stabilizedQuality.pendingCandidates() <= 0 || batchClosed) {
-                qualityConfirmationRequested.set(false);
-            }
-            String qualityBatchState = qualityBatchCommittedGeneration.get()
-                    == inferenceMotionGeneration ? "COMMITTED"
-                    : batchClosed ? "CLOSED" : confirmationRequested
-                            || qualityConfirmationRequested.get()
-                            ? "CONFIRMATION_ARMED" : "OPEN";
-            cachedQualityVisual = new VisualDetectionSnapshot(
-                    qualityCoverage, width, height, requestedScrollX, requestedScrollY,
-                    SystemClock.uptimeMillis(), inferenceMotionGeneration);
             cachedQualityCount = visualDetections.size();
-            long cachedAt = SystemClock.uptimeMillis();
             long inferenceMs = engine.getLastInferenceMs();
             long preprocessMs = engine.getLastPreprocessMs();
             long runtimeMs = engine.getLastRuntimeMs();
@@ -901,7 +1268,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     + " retiredQualityTracks=" + retiredQualityTracks
                     + " confirmationRequested=" + confirmationRequested
                     + " qualityBatchState=" + qualityBatchState
+                    + " cachePreserved=" + cachePreserved
                     + " cacheGeneration=" + inferenceMotionGeneration);
+            lastSuccessfulQualityDurationMs = engine.getLastInferenceMs();
             // Quality is a background geometry cache. Publishing it as a second authority made
             // a still box alternate between fast and quality rectangles every refresh. The next
             // fast frame consumes this cache once through the ordinary tracker update.
@@ -910,25 +1279,30 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (qualityOverlayFrame != null || supplementedTracks > 0
                     || retiredQualityTracks > 0) {
                 List<TrackedObject> activeTracks = tracker.activeTracks();
-                VisualTrackArbitrator.Result renderArbitration =
-                        visualRenderTracks(activeTracks);
-                List<TrackedObject> currentTracks = renderArbitration.tracks();
+                WorldTrackFrame worldFrame = captureWorldTrackFrame();
+                VisualTrackArbitrator.Result renderArbitration = worldFrame.arbitration;
+                List<TrackedObject> currentTracks = worldFrame.tracks;
                 if (supplementedTracks > 0) {
                     recordSupplementedTrackState(activeTracks, width, height);
                 }
-                ScrollPosition current = currentScrollPosition();
-                InferenceScrollReprojector.ScreenMotion sourceMotion =
-                        InferenceScrollReprojector.screenMotion(
-                                requestedScrollX, requestedScrollY,
-                                current.scrollX, current.scrollY);
+                long trackCameraX = worldFrame.cameraX;
+                long trackCameraY = worldFrame.cameraY;
+                Rect viewport = screenBounds();
                 main.post(() -> {
                     if (isCurrentCapture(requestedEpoch) && overlay != null
-                            && inferenceMotionGeneration == motionGeneration.get()) {
+                            && inferenceMotionGeneration == motionGeneration.get()
+                            && candidate.fastSubmissionSequence
+                                    == fastSubmissionSequence.get()) {
                         if (qualityOverlayFrame != null) {
-                            overlay.update(currentTracks, width, height, qualityOverlayFrame,
-                                    0, 0, sourceMotion.dx, sourceMotion.dy);
+                            overlay.updateWorld(currentTracks, width, height,
+                                    qualityOverlayFrame,
+                                    trackCameraX, trackCameraY,
+                                    requestedScrollX, requestedScrollY,
+                                    viewport.width(), viewport.height());
                         } else {
-                            overlay.updateTracksOnly(currentTracks, width, height, 0, 0);
+                            overlay.updateWorldTracksOnly(currentTracks, width, height,
+                                    trackCameraX, trackCameraY,
+                                    viewport.width(), viewport.height());
                         }
                         if (supplementedTracks > 0 || retiredQualityTracks > 0) {
                             VisualGeometryDelta geometry = recordVisualGeometry(currentTracks);
@@ -997,7 +1371,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         long preprocessMs = engine.getLastPreprocessMs();
         long runtimeMs = engine.getLastRuntimeMs();
         long postprocessMs = engine.getLastPostprocessMs();
-        if (firstFrameReported.compareAndSet(false, true)) {
+        boolean firstFastFrame = firstFrameReported.compareAndSet(false, true);
+        if (firstFastFrame) {
             Log.i(TAG, "First accessibility fast frame processed in "
                     + inferenceMs + " ms at " + width + "x" + height);
         }
@@ -1029,6 +1404,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 InferenceScrollReprojector.screenMotion(
                         requestedScrollX, requestedScrollY,
                         alignment.scrollX, alignment.scrollY);
+        Rect publicationViewport = screenBounds();
         main.post(() -> {
             if (isCurrentCapture(requestedEpoch) && overlay != null
                     && (candidate.continuousMotionInference
@@ -1038,12 +1414,21 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         InferenceScrollReprojector.screenMotion(
                                 alignment.scrollX, alignment.scrollY,
                                 current.scrollX, current.scrollY);
-                overlay.setDiagnostics(diagnosticText);
-                overlay.update(renderTracks, width, height, overlayFrame,
-                        liveMotion.dx, liveMotion.dy,
-                        sourceFrameMotion.dx, sourceFrameMotion.dy);
-                VisualGeometryDelta geometry = recordVisualGeometry(renderTracks);
                 long publishedAt = SystemClock.uptimeMillis();
+                overlay.setDiagnostics(diagnosticText);
+                overlay.updateWorld(renderTracks, width, height, overlayFrame,
+                        alignment.scrollX, alignment.scrollY,
+                        requestedScrollX, requestedScrollY,
+                        publicationViewport.width(), publicationViewport.height());
+                lastFastOverlayGeneration = motionGeneration.get();
+                if (firstOverlayReported.compareAndSet(false, true)) {
+                    Log.i(TAG, "STARTUP session=" + activeStartupSession
+                            + " phase=first-fast-overlay uptimeMs=" + publishedAt);
+                    // Session/provider construction can contend for the same resources as the
+                    // fast lane. Optional refinement starts only after coverage is visible.
+                    scheduleQualityDetectorInitialization(detectorConfig);
+                }
+                VisualGeometryDelta geometry = recordVisualGeometry(renderTracks);
                 long publishDelay = publishedAt - candidate.capturedAtUptimeMillis;
                 DiagnosticsRepository.recordPublishDelay(DIAGNOSTICS_MODE, publishDelay);
                 Log.i(TAG, "OVERLAY_PUBLISH pass=" + (fastPass ? "fast" : "quality")
@@ -1062,6 +1447,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + sourceFrameMotion.dy
                         + " liveReproject=" + liveMotion.dx + ',' + liveMotion.dy
                         + " captureGeneration=" + inferenceMotionGeneration
+                        + " capturePhaseUncertain=" + capturePhaseUncertain
+                        + " captureEventDelayMs=" + captureEventDeliveryDelayMs
                         + " currentGeneration=" + motionGeneration.get()
                         + " tracks=" + tracks.size()
                         + " rawVisual=" + rawVisualCount
@@ -1078,13 +1465,25 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + " maxSizeDeltaPx=" + geometry.maxSizeDeltaPx
                         + " dropped=" + droppedInferenceFrames.get()
                         + " duplicatesSuppressed=" + renderArbitration.suppressed()
+                        + " renderHandOffs=" + renderArbitration.handedOff()
                         + " qualityOnlyTracks=" + publishedQualityOnlyTrackCount
                         + " renderTracks=" + renderTracks.size()
-                        + " qualityActive=" + qualityInferenceDraining.get());
+                        + " qualityActive=" + qualityInferenceDraining.get()
+                        + " qualityPreemptions=" + qualityInferencePreemptions.get()
+                        + " qualityCancelledRuns=" + qualityInferenceCancelledRuns.get());
             } else if (overlayFrame != null) {
                 overlayFrame.recycle();
             }
         });
+    }
+
+    private CaptureScrollTimeline.Phase resolveCapturePhase(InferenceFrame candidate) {
+        return captureScrollTimeline.resolve(
+                candidate.screenshotUptimeMillis,
+                candidate.capturedAtUptimeMillis,
+                candidate.requestedScrollX,
+                candidate.requestedScrollY,
+                candidate.requestedGeneration);
     }
 
     /** Mirrors fast-publish bookkeeping for confirmed tracks first exposed by quality inference. */
@@ -1207,6 +1606,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return linkedCoverage;
     }
 
+    static boolean shouldReplaceQualityCache(
+            int previousCount,
+            int candidateCount,
+            boolean completeScene) {
+        if (Math.max(0, previousCount) == 0) return true;
+        return Math.max(0, candidateCount) > 0 && completeScene;
+    }
+
     static boolean usesContinuousMotionInference(DetectorConfig config) {
         return config != null && config.getInferenceThreads() >= 4;
     }
@@ -1214,6 +1621,26 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     static boolean usesStreamingQualityPipeline(DetectorConfig config) {
         return usesContinuousMotionInference(config)
                 && config.getInferenceResolution() > FAST_INFERENCE_RESOLUTION;
+    }
+
+    static boolean shouldYieldCaptureToQuality(
+            boolean qualityActive,
+            boolean settledFastFrameNeeded,
+            boolean fastCoverageEstablished,
+            long qualityActiveMs) {
+        return qualityActive && !settledFastFrameNeeded && fastCoverageEstablished
+                && Math.max(0L, qualityActiveMs) <= QUALITY_MAX_EXCLUSIVE_WINDOW_MS;
+    }
+
+    static int fastInferenceFrameResolution(
+            DetectorConfig config,
+            boolean fastDetectorReady,
+            boolean sourceFrameRequired) {
+        int configured = config == null
+                ? FAST_INFERENCE_RESOLUTION : config.getInferenceResolution();
+        return fastDetectorReady && !sourceFrameRequired
+                && usesStreamingQualityPipeline(config)
+                ? FAST_INFERENCE_RESOLUTION : configured;
     }
 
     private static ScheduledExecutorService newScheduledWorker(
@@ -1255,18 +1682,29 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return ACCESSIBILITY_SCREENSHOT_INTERVAL_MS;
     }
 
-    private boolean applyFrameMotion(int dx, int dy, long expectedGeneration) {
+    private boolean applyFrameMotion(
+            int dx,
+            int dy,
+            long expectedGeneration,
+            long effectiveUptimeMillis,
+            long receivedUptimeMillis) {
         if (dx == 0 && dy == 0) return false;
         synchronized (scrollStateLock) {
             if (!motionGeneration.compareAndSet(expectedGeneration, expectedGeneration + 1L)) {
                 return false;
             }
         }
-        applyScrollMotion(dx, dy, false, false);
+        applyScrollMotion(dx, dy, false, false,
+                effectiveUptimeMillis, receivedUptimeMillis);
         return true;
     }
 
-    private void applyEventMotion(int dx, int dy, boolean allowPrediction) {
+    private void applyEventMotion(
+            int dx,
+            int dy,
+            boolean allowPrediction,
+            long effectiveUptimeMillis,
+            long receivedUptimeMillis) {
         if (dx == 0 && dy == 0) return;
         synchronized (scrollStateLock) {
             motionGeneration.incrementAndGet();
@@ -1274,7 +1712,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         // Establish the next screenshot as a fresh visual baseline. Otherwise the estimator sees
         // the same movement Android just reported and translates every censor a second time.
         if (motionEstimator != null) motionEstimator.reset();
-        applyScrollMotion(dx, dy, true, allowPrediction);
+        applyScrollMotion(dx, dy, true, allowPrediction,
+                effectiveUptimeMillis, receivedUptimeMillis);
     }
 
     private void traceScrollEvent(
@@ -1312,7 +1751,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             int dx,
             int dy,
             boolean alreadyOnMainThread,
-            boolean allowPrediction) {
+            boolean allowPrediction,
+            long effectiveUptimeMillis,
+            long receivedUptimeMillis) {
         if (dx == 0 && dy == 0) return;
         qualityVisualStabilizer.clear();
         qualityConfirmationRequested.set(false);
@@ -1329,7 +1770,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     + " generation=" + motionGeneration.get());
         }
         resetTextConfirmationForMotion();
-        lastMotionUptime = SystemClock.uptimeMillis();
+        long receivedAt = Math.max(0L, receivedUptimeMillis);
+        long effectiveAt = Math.max(0L, Math.min(effectiveUptimeMillis, receivedAt));
+        lastMotionUptime = receivedAt;
         settledInferenceNeeded.set(true);
         // cumulativeScroll stores content-scroll direction; dx/dy are screen movement.
         synchronized (scrollStateLock) {
@@ -1337,8 +1780,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             cumulativeScrollY.addAndGet(-dy);
             pendingTrackerOffsetX.addAndGet(dx);
             pendingTrackerOffsetY.addAndGet(dy);
-            captureScrollTimeline.record(lastMotionUptime,
-                    cumulativeScrollX.get(), cumulativeScrollY.get(), motionGeneration.get());
+            captureScrollTimeline.record(effectiveAt, receivedAt,
+                    -dx, -dy, motionGeneration.get());
         }
         offsetVisualGeometryHistory(dx, dy);
         android.util.DisplayMetrics tapMetrics = getResources().getDisplayMetrics();
@@ -1354,7 +1797,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         queueSettledCapture();
         Runnable moveOverlay = () -> {
             if (recognitionActive && overlay != null) {
-                overlay.offsetContent(dx, dy, allowPrediction);
+                overlay.offsetContent(dx, dy, allowPrediction, effectiveAt);
             }
         };
         if (alreadyOnMainThread || Looper.myLooper() == main.getLooper()) moveOverlay.run();
@@ -1402,8 +1845,33 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             dx = saturatingInt(pendingTrackerOffsetX.getAndSet(0L));
             dy = saturatingInt(pendingTrackerOffsetY.getAndSet(0L));
         }
-        if (tracker != null) tracker.offsetActiveTracks(dx, dy, width, height);
+        if (tracker != null) {
+            synchronized (tracker) {
+                tracker.offsetActiveTracks(dx, dy, width, height);
+                trackerScrollX = scrollX;
+                trackerScrollY = scrollY;
+            }
+        } else {
+            trackerScrollX = scrollX;
+            trackerScrollY = scrollY;
+        }
         return new ScrollAlignment(scrollX, scrollY);
+    }
+
+    /** Atomically detaches renderer geometry from its tracker-camera coordinate phase. */
+    private WorldTrackFrame captureWorldTrackFrame() {
+        ObjectTracker currentTracker = tracker;
+        if (currentTracker == null) {
+            VisualTrackArbitrator.Result empty = visualRenderTracks(Collections.emptyList());
+            return new WorldTrackFrame(empty, trackerScrollX, trackerScrollY,
+                    motionGeneration.get());
+        }
+        synchronized (currentTracker) {
+            VisualTrackArbitrator.Result arbitration = visualRenderTracks(
+                    currentTracker.activeTracks());
+            return new WorldTrackFrame(arbitration, trackerScrollX, trackerScrollY,
+                    motionGeneration.get());
+        }
     }
 
     private ScrollPosition currentScrollPosition() {
@@ -1424,6 +1892,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void discardPendingQualityInference() {
         QualityInferenceFrame pending = pendingQualityInference.getAndSet(null);
         if (pending != null) pending.recycle();
+        preemptQualityInference("quality-invalidated");
     }
 
     /** Coalesces movement into the earliest screenshot Android's platform gate will accept. */
@@ -1931,7 +2400,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 return;
             }
             lastPublishedTextFingerprint = fingerprint;
-            overlay.updateText(detections, width, height, 0, 0);
+            Rect viewport = screenBounds();
+            overlay.updateWorldText(detections, width, height,
+                    current.scrollX, current.scrollY,
+                    viewport.width(), viewport.height());
             long now = SystemClock.uptimeMillis();
             Log.i(TAG, "TEXT_PUBLISH source=" + source + " regions=" + detections.size()
                     + " unchangedSkipped=" + skippedUnchangedTextPublishes
@@ -2364,7 +2836,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                 ? "direction-suppressed" : "accessibility",
                         rawMotion.evidence.name(), motion.adjustedPixels(), motion.amplified());
                 if (motion.moved()) {
-                    applyEventMotion(motion.dx, motion.dy, motion.authoritative);
+                    applyEventMotion(motion.dx, motion.dy, motion.authoritative,
+                            sourceTime, scrollNow);
                 } else {
                     if (rawMotion.moved() && motionEstimator != null) {
                         // Prevent screenshot phase-correlation from applying a rejected producer
@@ -2553,8 +3026,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         accessibilityTextCandidatesPresent = false;
         textRefreshRequested.set(true);
         main.post(() -> {
-            if (overlay != null) overlay.updateText(
-                    Collections.emptyList(), latestCaptureWidth, latestCaptureHeight, 0, 0);
+            if (overlay != null) {
+                Rect viewport = screenBounds();
+                ScrollPosition current = currentScrollPosition();
+                overlay.updateWorldText(Collections.emptyList(),
+                        latestCaptureWidth, latestCaptureHeight,
+                        current.scrollX, current.scrollY,
+                        viewport.width(), viewport.height());
+            }
         });
     }
 
@@ -2739,10 +3218,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void activateRecognition() {
         if (recognitionActive || !running || worker == null) return;
         captureEpoch.invalidate();
+        activeStartupSession = startupSessionSequence.incrementAndGet();
+        Log.i(TAG, "STARTUP session=" + activeStartupSession
+                + " phase=activation uptimeMs=" + SystemClock.uptimeMillis());
         recognitionActive = true;
         droppedInferenceFrames.set(0L);
         Log.i(TAG, "Recognition activated for foreground package " + foregroundPackage);
         firstFrameReported.set(false);
+        firstOverlayReported.set(false);
+        lastFastOverlayGeneration = Long.MIN_VALUE;
         resetScrollCompensation();
         overlay = new OverlayController(
                 this, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY);
@@ -2792,7 +3276,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             cumulativeScrollY.set(0L);
             pendingTrackerOffsetX.set(0L);
             pendingTrackerOffsetY.set(0L);
+            trackerScrollX = 0L;
+            trackerScrollY = 0L;
         }
+        captureScrollTimeline.clear();
         cacheAccessibilityText(TextDetectionSnapshot.EMPTY);
         clearCachedOcr();
         cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
@@ -2859,6 +3346,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private final int sourceHeight;
         private final int inferenceResolution;
         private final long capturedAtUptimeMillis;
+        private final long fastSubmissionSequence;
 
         private QualityInferenceFrame(
                 Bitmap sourceFrame,
@@ -2870,7 +3358,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 int sourceWidth,
                 int sourceHeight,
                 int inferenceResolution,
-                long capturedAtUptimeMillis) {
+                long capturedAtUptimeMillis,
+                long fastSubmissionSequence) {
             this.sourceFrame = sourceFrame;
             this.sourceBuffer = sourceBuffer;
             this.epoch = epoch;
@@ -2881,6 +3370,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             this.sourceHeight = sourceHeight;
             this.inferenceResolution = inferenceResolution;
             this.capturedAtUptimeMillis = capturedAtUptimeMillis;
+            this.fastSubmissionSequence = fastSubmissionSequence;
         }
 
         private void recycle() {
@@ -2904,6 +3394,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private final boolean qualityRefine;
         private final boolean qualityConfirmation;
         private final long capturedAtUptimeMillis;
+        private final long requestedScrollX;
+        private final long requestedScrollY;
+        private final long requestedGeneration;
+        private final long screenshotUptimeMillis;
+        private final boolean capturePhaseUncertain;
+        private final long captureEventDeliveryDelayMs;
+        private long fastSubmissionSequence = Long.MIN_VALUE;
+        private FastPriorityInferenceGate.FastDemand fastDemand;
 
         private InferenceFrame(
                 Bitmap frame,
@@ -2917,7 +3415,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 boolean continuousMotionInference,
                 boolean qualityRefine,
                 boolean qualityConfirmation,
-                long capturedAtUptimeMillis) {
+                long capturedAtUptimeMillis,
+                long requestedScrollX,
+                long requestedScrollY,
+                long requestedGeneration,
+                long screenshotUptimeMillis,
+                boolean capturePhaseUncertain,
+                long captureEventDeliveryDelayMs) {
             this.frame = frame;
             this.epoch = epoch;
             this.scrollX = scrollX;
@@ -2930,6 +3434,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             this.qualityRefine = qualityRefine;
             this.qualityConfirmation = qualityConfirmation;
             this.capturedAtUptimeMillis = capturedAtUptimeMillis;
+            this.requestedScrollX = requestedScrollX;
+            this.requestedScrollY = requestedScrollY;
+            this.requestedGeneration = requestedGeneration;
+            this.screenshotUptimeMillis = screenshotUptimeMillis;
+            this.capturePhaseUncertain = capturePhaseUncertain;
+            this.captureEventDeliveryDelayMs = Math.max(0L, captureEventDeliveryDelayMs);
         }
 
         private Bitmap detachFrame() {
@@ -2939,6 +3449,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
 
         private void recycle() {
+            if (fastDemand != null) fastDemand.close();
+            fastDemand = null;
             if (frame != null && !frame.isRecycled()) frame.recycle();
             frame = null;
         }
@@ -2959,6 +3471,26 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             this.changed = changed;
             this.maxCenterDeltaPx = maxCenterDeltaPx;
             this.maxSizeDeltaPx = maxSizeDeltaPx;
+        }
+    }
+
+    private static final class WorldTrackFrame {
+        private final VisualTrackArbitrator.Result arbitration;
+        private final List<TrackedObject> tracks;
+        private final long cameraX;
+        private final long cameraY;
+        private final long motionGeneration;
+
+        private WorldTrackFrame(
+                VisualTrackArbitrator.Result arbitration,
+                long cameraX,
+                long cameraY,
+                long motionGeneration) {
+            this.arbitration = arbitration;
+            this.tracks = arbitration.tracks();
+            this.cameraX = cameraX;
+            this.cameraY = cameraY;
+            this.motionGeneration = motionGeneration;
         }
     }
 

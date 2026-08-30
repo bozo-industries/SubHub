@@ -1,5 +1,9 @@
 # Censor pipeline V2
 
+Pass history, rollback anchors, rejected experiments, and eligibility rules live in the
+[censor performance lab](censor-lab/README.md). Read its registry before starting a new
+performance pass so an earlier failed vector is not repeated under a new pass number.
+
 The live censor is a display-rate scene renderer fed by slower, asynchronous observations. It no
 longer treats detector completion as a render frame.
 

@@ -61,6 +61,16 @@ foreach ($requestedPath in $Path) {
     $quality = [Collections.Generic.List[object]]::new()
     $streamingQuality = [Collections.Generic.List[object]]::new()
     $streamingQualityDrops = [Collections.Generic.List[object]]::new()
+    $qualityPreempts = [Collections.Generic.List[object]]::new()
+    $qualityCancellations = [Collections.Generic.List[object]]::new()
+    $qualityGateSkips = [Collections.Generic.List[object]]::new()
+    $fastGateWaits = [Collections.Generic.List[object]]::new()
+    $qualityWindows = [Collections.Generic.List[object]]::new()
+    $nativeRuns = [Collections.Generic.List[object]]::new()
+    $nativeBegins = @{}
+    $qualityPrepares = [Collections.Generic.List[object]]::new()
+    $qualityPrepareBegins = @{}
+    $startupEvents = [Collections.Generic.List[object]]::new()
     $qualitySupplements = [Collections.Generic.List[object]]::new()
     $qualityRetires = [Collections.Generic.List[object]]::new()
     $capturePhases = [Collections.Generic.List[object]]::new()
@@ -72,6 +82,9 @@ foreach ($requestedPath in $Path) {
     $motionDraws = [Collections.Generic.List[object]]::new()
     $motionInputs = [Collections.Generic.List[object]]::new()
     $motionSettles = [Collections.Generic.List[object]]::new()
+    $anchorSets = [Collections.Generic.List[object]]::new()
+    $anchorPhases = [Collections.Generic.List[object]]::new()
+    $anchorRejects = [Collections.Generic.List[object]]::new()
     $gestureStarts = [Collections.Generic.List[object]]::new()
 
     foreach ($line in $lines) {
@@ -81,7 +94,7 @@ foreach ($requestedPath in $Path) {
             $lastTime = $time
         }
 
-        if ($line -match 'OVERLAY_PUBLISH pass=(\S+) scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+).*? tracks=(\d+) rawVisual=(\d+) cachedQuality=(\d+) qualityOnly=(\d+)(?: identityRealtimeLinked=(\d+) identityQualityLinked=(\d+) identityFused=(\d+) identityCarriedQuality=(\d+) identityUnlinkedQuality=(\d+))? geometryMatched=(\d+) geometryChanged=(\d+) maxCenterDeltaPx=(\d+) maxSizeDeltaPx=(\d+) dropped=(\d+)(?: duplicatesSuppressed=(\d+))?(?: qualityOnlyTracks=(\d+) renderTracks=(\d+))?(?: qualityActive=(true|false))?') {
+        if ($line -match 'OVERLAY_PUBLISH pass=(\S+) scrollId=(\d+) captureAgeMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+).*? tracks=(\d+) rawVisual=(\d+) cachedQuality=(\d+) qualityOnly=(\d+)(?: identityRealtimeLinked=(\d+) identityQualityLinked=(\d+) identityFused=(\d+) identityCarriedQuality=(\d+) identityUnlinkedQuality=(\d+))? geometryMatched=(\d+) geometryChanged=(\d+) maxCenterDeltaPx=(\d+) maxSizeDeltaPx=(\d+) dropped=(\d+)(?: duplicatesSuppressed=(\d+))?(?: renderHandOffs=(\d+))?(?: qualityOnlyTracks=(\d+) renderTracks=(\d+))?(?: qualityActive=(true|false))?(?: qualityCacheReusesSkipped=(\d+))?(?: qualityPreemptions=(\d+) qualityCancelledRuns=(\d+))?$') {
             $item = [pscustomobject]@{
                 time = $time
                 pass = $Matches[1]
@@ -107,23 +120,54 @@ foreach ($requestedPath in $Path) {
                 maxSizeDelta = [int] $Matches[21]
                 dropped = [int] $Matches[22]
                 duplicatesSuppressed = if ($Matches[23]) { [int] $Matches[23] } else { 0 }
-                qualityOnlyTracks = if ($Matches[24]) { [int] $Matches[24] } else { 0 }
-                renderTracks = if ($Matches[25]) { [int] $Matches[25] } else { [int] $Matches[9] }
-                qualityActive = $Matches[26] -eq 'true'
+                renderHandOffs = if ($Matches[24]) { [int] $Matches[24] } else { 0 }
+                qualityOnlyTracks = if ($Matches[25]) { [int] $Matches[25] } else { 0 }
+                renderTracks = if ($Matches[26]) { [int] $Matches[26] } else { [int] $Matches[9] }
+                qualityActive = $Matches[27] -eq 'true'
+                qualityCacheReusesSkipped = if ($Matches[28]) { [long] $Matches[28] } else { 0L }
+                qualityPreemptions = if ($Matches[29]) { [long] $Matches[29] } else { 0L }
+                qualityCancelledRuns = if ($Matches[30]) { [long] $Matches[30] } else { 0L }
             }
             $publishes.Add($item)
             if ($item.pass -eq 'fast' -and $null -ne $time) { $fastPublishTimes.Add($time) }
             continue
         }
-        if ($line -match 'CensorMotion: INPUT .*prediction=(-?\d+),(-?\d+) predictionPeakMs=(\d+)') {
+        if ($line -match 'CensorMotion(?:\(\d+\))?: INPUT .*source=(\S+).*prediction=(-?\d+),(-?\d+) predictionPeakMs=(\d+)') {
             $motionInputs.Add([pscustomobject]@{
                 time = $time
-                predictionAbs = [math]::Abs([int] $Matches[1]) + [math]::Abs([int] $Matches[2])
-                predictionPeak = [int] $Matches[3]
+                source = $Matches[1]
+                predictionAbs = [math]::Abs([int] $Matches[2]) + [math]::Abs([int] $Matches[3])
+                predictionPeak = [int] $Matches[4]
             })
             continue
         }
-        if ($line -match 'CensorMotion: DRAW .*inputToDrawMs=(\d+).*?(?:viewportLead=(-?\d+),(-?\d+))?$') {
+        if ($line -match 'CensorAnchorPoll(?:\(\d+\))?: ANCHOR_SET count=(\d+) candidates=(\d+) visited=(\d+) selectionMs=(\d+)') {
+            $anchorSets.Add([pscustomobject]@{
+                time = $time
+                count = [int] $Matches[1]
+                candidates = [int] $Matches[2]
+                visited = [int] $Matches[3]
+                selection = [int] $Matches[4]
+            })
+            continue
+        }
+        if ($line -match 'CensorAnchorPoll(?:\(\d+\))?: ANCHOR_PHASE dx=(-?\d+) dy=(-?\d+) latencyMs=(\d+) intervalMs=(\d+) contributors=(\d+) refreshed=(\d+) rejected=(\d+)') {
+            $anchorPhases.Add([pscustomobject]@{
+                time = $time
+                displacement = [math]::Abs([int] $Matches[1]) + [math]::Abs([int] $Matches[2])
+                latency = [int] $Matches[3]
+                interval = [int] $Matches[4]
+                contributors = [int] $Matches[5]
+                refreshed = [int] $Matches[6]
+                rejected = [int] $Matches[7]
+            })
+            continue
+        }
+        if ($line -match 'CensorAnchorPoll(?:\(\d+\))?: ANCHOR_REJECT .*reason=(\S+)') {
+            $anchorRejects.Add([pscustomobject]@{ time = $time; reason = $Matches[1] })
+            continue
+        }
+        if ($line -match 'CensorMotion(?:\(\d+\))?: DRAW .*inputToDrawMs=(\d+).*?(?:viewportLead=(-?\d+),(-?\d+))?$') {
             $leadX = if ($Matches[2]) { [int] $Matches[2] } else { 0 }
             $leadY = if ($Matches[3]) { [int] $Matches[3] } else { 0 }
             $motionDraws.Add([pscustomobject]@{
@@ -133,7 +177,7 @@ foreach ($requestedPath in $Path) {
             })
             continue
         }
-        if ($line -match 'CensorMotion: SETTLED .*inputToSettledMs=(\d+)') {
+        if ($line -match 'CensorMotion(?:\(\d+\))?: SETTLED .*inputToSettledMs=(\d+)') {
             $motionSettles.Add([pscustomobject]@{
                 time = $time
                 inputToSettled = [int] $Matches[1]
@@ -168,7 +212,7 @@ foreach ($requestedPath in $Path) {
             $quality.Add($qualityItem)
             continue
         }
-        if ($line -match 'QUALITY_STREAM_CACHE scrollId=(\d+) captureAgeMs=(\d+)(?: bitmapPrepareMs=(\d+))? inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+) pendingVisual=(\d+) sourceGeneration=(\d+) cacheGeneration=(\d+) reproject=(-?\d+),(-?\d+) dropped=(\d+)') {
+        if ($line -match 'QUALITY_STREAM_CACHE scrollId=(\d+) captureAgeMs=(\d+)(?: bitmapPrepareMs=(\d+))? inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) stableVisual=(\d+) pendingVisual=(\d+)(?: completeScene=(true|false)(?: cachePreserved=(true|false))? identityLinked=(\d+) identityUnlinked=(\d+) retiredQualityTracks=(\d+))? sourceGeneration=(\d+) cacheGeneration=(\d+)(?: sourceFastSequence=\d+ currentFastSequence=\d+)? reproject=(-?\d+),(-?\d+) dropped=(\d+)') {
             $streamingQuality.Add([pscustomobject]@{
                 time = $time
                 scrollId = [int] $Matches[1]
@@ -182,11 +226,16 @@ foreach ($requestedPath in $Path) {
                 rawVisual = [int] $Matches[9]
                 stableVisual = [int] $Matches[10]
                 pendingVisual = [int] $Matches[11]
-                sourceGeneration = [int] $Matches[12]
-                cacheGeneration = [int] $Matches[13]
-                reprojectAbs = [math]::Abs([int] $Matches[14]) +
-                    [math]::Abs([int] $Matches[15])
-                dropped = [int] $Matches[16]
+                completeScene = $Matches[12] -eq 'true'
+                cachePreserved = $Matches[13] -eq 'true'
+                identityLinked = if ($Matches[14]) { [int] $Matches[14] } else { 0 }
+                identityUnlinked = if ($Matches[15]) { [int] $Matches[15] } else { 0 }
+                retiredQualityTracks = if ($Matches[16]) { [int] $Matches[16] } else { 0 }
+                sourceGeneration = [int] $Matches[17]
+                cacheGeneration = [int] $Matches[18]
+                reprojectAbs = [math]::Abs([int] $Matches[19]) +
+                    [math]::Abs([int] $Matches[20])
+                dropped = [int] $Matches[21]
             })
             continue
         }
@@ -196,6 +245,104 @@ foreach ($requestedPath in $Path) {
                 reason = $Matches[1]
                 sourceGeneration = [int] $Matches[2]
                 currentGeneration = [int] $Matches[3]
+            })
+            continue
+        }
+        if ($line -match 'QUALITY_PREEMPT reason=(\S+) count=(\d+)') {
+            $qualityPreempts.Add([pscustomobject]@{
+                time = $time
+                reason = $Matches[1]
+                count = [long] $Matches[2]
+            })
+            continue
+        }
+        if ($line -match 'QUALITY_DROP reason=(\S+) cancellationMs=(\d+) cancelledRuns=(\d+) preemptions=(\d+)') {
+            $qualityCancellations.Add([pscustomobject]@{
+                time = $time
+                reason = $Matches[1]
+                cancellation = [long] $Matches[2]
+                cancelledRuns = [long] $Matches[3]
+                preemptions = [long] $Matches[4]
+            })
+            continue
+        }
+        if ($line -match 'QUALITY_GATE_SKIP reason=(\S+).*activeLane=(\S+)') {
+            $qualityGateSkips.Add([pscustomobject]@{
+                time = $time
+                reason = $Matches[1]
+                activeLane = $Matches[2]
+            })
+            continue
+        }
+        if ($line -match 'INFERENCE_GATE lane=fast waitMs=(\d+)') {
+            $fastGateWaits.Add([pscustomobject]@{
+                time = $time
+                wait = [long] $Matches[1]
+            })
+            continue
+        }
+        if ($line -match 'QUALITY_WINDOW action=(\S+) activeMs=(\d+)') {
+            $qualityWindows.Add([pscustomobject]@{
+                time = $time
+                action = $Matches[1]
+                active = [long] $Matches[2]
+            })
+            continue
+        }
+        if ($line -match 'INFERENCE_NATIVE_BEGIN lane=(fast|quality) runId=(\d+) provider=(\S+) uptimeNanos=(\d+)') {
+            $nativeBegins[$Matches[2]] = [pscustomobject]@{
+                lane = $Matches[1]
+                runId = [long] $Matches[2]
+                provider = $Matches[3]
+                startedNanos = [long] $Matches[4]
+            }
+            continue
+        }
+        if ($line -match 'QUALITY_PREPARE_BEGIN sourceFastSequence=(\d+) generation=(\d+) uptimeNanos=(\d+)') {
+            $qualityPrepareBegins[$Matches[1]] = [pscustomobject]@{
+                sourceFastSequence = [long] $Matches[1]
+                generation = [long] $Matches[2]
+                startedNanos = [long] $Matches[3]
+            }
+            continue
+        }
+        if ($line -match 'QUALITY_PREPARE_END sourceFastSequence=(\d+) generation=(\d+) durationMs=(\d+) uptimeNanos=(\d+)') {
+            $begin = $qualityPrepareBegins[$Matches[1]]
+            if ($null -ne $begin) {
+                $qualityPrepares.Add([pscustomobject]@{
+                    sourceFastSequence = $begin.sourceFastSequence
+                    generation = $begin.generation
+                    duration = [long] $Matches[3]
+                    startedNanos = $begin.startedNanos
+                    endedNanos = [long] $Matches[4]
+                })
+                $qualityPrepareBegins.Remove($Matches[1])
+            }
+            continue
+        }
+        if ($line -match 'INFERENCE_NATIVE_END lane=(fast|quality) runId=(\d+) status=(\S+) durationMs=(\d+) uptimeNanos=(\d+)') {
+            $begin = $nativeBegins[$Matches[2]]
+            if ($null -ne $begin) {
+                $nativeRuns.Add([pscustomobject]@{
+                    lane = $begin.lane
+                    runId = $begin.runId
+                    provider = $begin.provider
+                    status = $Matches[3]
+                    duration = [long] $Matches[4]
+                    startedNanos = $begin.startedNanos
+                    endedNanos = [long] $Matches[5]
+                })
+                $nativeBegins.Remove($Matches[2])
+            }
+            continue
+        }
+        if ($line -match 'STARTUP session=(\d+) phase=(\S+)') {
+            $startupEvents.Add([pscustomobject]@{
+                time = $time
+                session = [long] $Matches[1]
+                phase = $Matches[2]
+                uptimeMs = if ($line -match 'uptimeMs=(\d+)') { [long] $Matches[1] } else { $null }
+                durationMs = if ($line -match 'durationMs=(\d+)') { [long] $Matches[1] } else { $null }
             })
             continue
         }
@@ -255,7 +402,7 @@ foreach ($requestedPath in $Path) {
             })
             continue
         }
-        if ($line -match 'I SubHubReplay: GESTURE_START index=(\d+) kind=(\S+) durationMs=(\d+) dx=(-?\d+) dy=(-?\d+)') {
+        if ($line -match 'SubHubReplay(?:\(\d+\))?: GESTURE_START index=(\d+) kind=(\S+) durationMs=(\d+) dx=(-?\d+) dy=(-?\d+)') {
             $gestureStarts.Add([pscustomobject]@{
                 time = $time
                 index = [int] $Matches[1]
@@ -329,6 +476,53 @@ foreach ($requestedPath in $Path) {
     $durationSeconds = if ($null -ne $firstTime -and $null -ne $lastTime) {
         [math]::Round(($lastTime - $firstTime).TotalSeconds, 3)
     } else { 0 }
+    $fastNativeRuns = @($nativeRuns | Where-Object lane -eq 'fast')
+    $qualityNativeRuns = @($nativeRuns | Where-Object lane -eq 'quality')
+    $nativeOverlapPairs = @(
+        foreach ($fastRun in $fastNativeRuns) {
+            foreach ($qualityRun in $qualityNativeRuns) {
+                if (($fastRun.startedNanos -lt $qualityRun.endedNanos) -and
+                        ($qualityRun.startedNanos -lt $fastRun.endedNanos)) {
+                    [pscustomobject]@{
+                        fastRunId = $fastRun.runId
+                        qualityRunId = $qualityRun.runId
+                    }
+                }
+            }
+        })
+    $prepareFastOverlapPairs = @(
+        foreach ($fastRun in $fastNativeRuns) {
+            foreach ($prepare in $qualityPrepares) {
+                if (($fastRun.startedNanos -lt $prepare.endedNanos) -and
+                        ($prepare.startedNanos -lt $fastRun.endedNanos)) {
+                    [pscustomobject]@{
+                        fastRunId = $fastRun.runId
+                        sourceFastSequence = $prepare.sourceFastSequence
+                    }
+                }
+            }
+        })
+    $startupSessionSummaries = @(
+        foreach ($group in @($startupEvents | Where-Object session -gt 0 |
+                Group-Object session | Sort-Object Name)) {
+            $activation = $group.Group | Where-Object phase -eq 'activation' |
+                Select-Object -First 1
+            $firstOverlay = $group.Group | Where-Object phase -eq 'first-fast-overlay' |
+                Select-Object -First 1
+            $qualityBegin = $group.Group | Where-Object phase -eq 'quality-init-begin' |
+                Select-Object -First 1
+            [pscustomobject]@{
+                session = [long] $group.Name
+                activationToFirstOverlayMs = if ($null -ne $activation.uptimeMs -and
+                        $null -ne $firstOverlay.uptimeMs) {
+                    $firstOverlay.uptimeMs - $activation.uptimeMs
+                } else { $null }
+                qualityStartedAfterFirstOverlay = if ($null -eq $qualityBegin) { $null } else {
+                    $null -ne $firstOverlay.uptimeMs -and
+                        $qualityBegin.uptimeMs -gt $firstOverlay.uptimeMs
+                }
+            }
+        })
 
     $summary = [ordered]@{
         file = $resolved
@@ -348,12 +542,22 @@ foreach ($requestedPath in $Path) {
             centerJumpsAtLeast100px = $geometryJumps
             duplicateSuppressions = ($fast | Measure-Object -Property duplicatesSuppressed -Sum).Sum
             duplicateSuppressionPublishes = @($fast | Where-Object duplicatesSuppressed -gt 0).Count
+            renderHandOffs = ($fast | Measure-Object -Property renderHandOffs -Sum).Sum
             qualityOnlyObservations = ($fast | Measure-Object -Property qualityOnly -Sum).Sum
             identityRealtimeLinked = ($fast | Measure-Object -Property identityRealtimeLinked -Sum).Sum
             identityQualityLinked = ($fast | Measure-Object -Property identityQualityLinked -Sum).Sum
             identityFused = ($fast | Measure-Object -Property identityFused -Sum).Sum
             identityCarriedQuality = ($fast | Measure-Object -Property identityCarriedQuality -Sum).Sum
             identityUnlinkedQuality = ($fast | Measure-Object -Property identityUnlinkedQuality -Sum).Sum
+            reusedQualityCacheSkips = if ($fast.Count) {
+                ($fast.qualityCacheReusesSkipped | Measure-Object -Maximum).Maximum
+            } else { 0 }
+            qualityPreemptions = if ($fast.Count) {
+                ($fast.qualityPreemptions | Measure-Object -Maximum).Maximum
+            } else { 0 }
+            qualityCancelledRuns = if ($fast.Count) {
+                ($fast.qualityCancelledRuns | Measure-Object -Maximum).Maximum
+            } else { 0 }
             qualityOnlyTracks = Get-Distribution @($fast.qualityOnlyTracks)
             renderTracks = Get-Distribution @($fast.renderTracks)
             activeDuplicateLikePublishes = $activeDuplicateLike.Count
@@ -418,6 +622,16 @@ foreach ($requestedPath in $Path) {
             streamingRuntimeMs = Get-Distribution @($streamingQuality.runtime)
             streamingPendingCandidates = ($streamingQuality |
                 Measure-Object -Property pendingVisual -Sum).Sum
+            streamingCompleteScenes = @($streamingQuality |
+                Where-Object completeScene).Count
+            streamingPreservedCaches = @($streamingQuality |
+                Where-Object cachePreserved).Count
+            streamingIdentityLinked = ($streamingQuality |
+                Measure-Object -Property identityLinked -Sum).Sum
+            streamingIdentityUnlinked = ($streamingQuality |
+                Measure-Object -Property identityUnlinked -Sum).Sum
+            streamingRetiredQualityTracks = ($streamingQuality |
+                Measure-Object -Property retiredQualityTracks -Sum).Sum
             streamingReprojectAbsPx = Get-Distribution @($streamingQuality.reprojectAbs)
             streamingGenerationAdvance = Get-Distribution @($streamingQuality |
                 ForEach-Object { $_.cacheGeneration - $_.sourceGeneration })
@@ -426,6 +640,37 @@ foreach ($requestedPath in $Path) {
             } else { 0 }
             streamingStaleDrops = $streamingQualityDrops.Count
             streamingDropReasons = Get-GroupCounts @($streamingQualityDrops) 'reason'
+            preemptionRequests = $qualityPreempts.Count
+            preemptionReasons = Get-GroupCounts @($qualityPreempts) 'reason'
+            cancelledRuns = $qualityCancellations.Count
+            cancellationReasons = Get-GroupCounts @($qualityCancellations) 'reason'
+            cancellationMs = Get-Distribution @($qualityCancellations.cancellation)
+            gateSkips = $qualityGateSkips.Count
+            gateSkipReasons = Get-GroupCounts @($qualityGateSkips) 'reason'
+            stableCaptureWindows = Get-GroupCounts @($qualityWindows) 'action'
+            stableCaptureWindowMs = Get-Distribution @($qualityWindows.active)
+        }
+        inferenceGate = [ordered]@{
+            fastWaitMs = Get-Distribution @($fastGateWaits.wait)
+            nativeRuns = $nativeRuns.Count
+            incompleteNativeRuns = $nativeBegins.Count
+            fastNativeRuntimeMs = Get-Distribution @($fastNativeRuns.duration)
+            qualityNativeRuntimeMs = Get-Distribution @($qualityNativeRuns.duration)
+            qualityNativeStatuses = Get-GroupCounts @($qualityNativeRuns) 'status'
+            fastQualityNativeOverlapPairs = $nativeOverlapPairs.Count
+            qualityPrepareMs = Get-Distribution @($qualityPrepares.duration)
+            incompleteQualityPrepares = $qualityPrepareBegins.Count
+            qualityPrepareFastNativeOverlapPairs = $prepareFastOverlapPairs.Count
+        }
+        startup = [ordered]@{
+            events = $startupEvents.Count
+            sessions = @($startupEvents.session | Sort-Object -Unique).Count
+            phases = Get-GroupCounts @($startupEvents) 'phase'
+            phaseEvents = @($startupEvents)
+            activationToFirstOverlayMs = Get-Distribution @(
+                $startupSessionSummaries.activationToFirstOverlayMs)
+            qualityBeforeFirstOverlayViolations = @($startupSessionSummaries |
+                Where-Object qualityStartedAfterFirstOverlay -eq $false).Count
         }
         capturePhase = [ordered]@{
             samples = $capturePhases.Count
@@ -460,6 +705,7 @@ foreach ($requestedPath in $Path) {
         }
         displayMotion = [ordered]@{
             inputs = $motionInputs.Count
+            inputSources = Get-GroupCounts @($motionInputs) 'source'
             predictionAmplitudeAbsPx = Get-Distribution @($motionInputs.predictionAbs)
             predictionPeakMs = Get-Distribution @($motionInputs.predictionPeak)
             draws = $motionDraws.Count
@@ -467,6 +713,19 @@ foreach ($requestedPath in $Path) {
             viewportLeadAbsPx = Get-Distribution @($motionDraws.leadAbs)
             settles = $motionSettles.Count
             inputToSettledMs = Get-Distribution @($motionSettles.inputToSettled)
+        }
+        anchorPolling = [ordered]@{
+            selections = $anchorSets.Count
+            selectedAnchors = Get-Distribution @($anchorSets.count)
+            selectionCandidates = Get-Distribution @($anchorSets.candidates)
+            selectionMs = Get-Distribution @($anchorSets.selection)
+            phaseLogs = $anchorPhases.Count
+            phaseDisplacementPx = Get-Distribution @($anchorPhases.displacement)
+            latencyMs = Get-Distribution @($anchorPhases.latency)
+            intervalMs = Get-Distribution @($anchorPhases.interval)
+            contributors = Get-Distribution @($anchorPhases.contributors)
+            rejects = $anchorRejects.Count
+            rejectReasons = Get-GroupCounts @($anchorRejects) 'reason'
         }
         text = [ordered]@{
             scans = $textScans.Count

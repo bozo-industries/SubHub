@@ -81,6 +81,53 @@ public final class CaptureEpochTest {
         assertTrue(ScreenshotAccessibilityService.usesStreamingQualityPipeline(ultra));
     }
 
+    @Test public void ultraKeepsFastFramesCompactBeforeQualityIsReady() {
+        DetectorConfig ultra = DetectorConfig.builder()
+                .inferenceThreads(4).inferenceResolution(512).build();
+
+        assertEquals(320, ScreenshotAccessibilityService.fastInferenceFrameResolution(
+                ultra, true, false));
+        assertEquals(512, ScreenshotAccessibilityService.fastInferenceFrameResolution(
+                ultra, false, false));
+        assertEquals(512, ScreenshotAccessibilityService.fastInferenceFrameResolution(
+                ultra, true, true));
+    }
+
+    @Test public void stableCaptureYieldsOnlyOneBoundedWindowToQuality() {
+        assertTrue(ScreenshotAccessibilityService.shouldYieldCaptureToQuality(
+                true, false, true, 180L));
+        assertFalse(ScreenshotAccessibilityService.shouldYieldCaptureToQuality(
+                true, true, true, 180L));
+        assertFalse(ScreenshotAccessibilityService.shouldYieldCaptureToQuality(
+                true, false, true, 301L));
+        assertFalse(ScreenshotAccessibilityService.shouldYieldCaptureToQuality(
+                false, false, true, 0L));
+        assertFalse(ScreenshotAccessibilityService.shouldYieldCaptureToQuality(
+                true, false, false, 180L));
+    }
+
+    @Test public void qualityBudgetFitsOnlyBeforeTheSecondStableCaptureDeadline() {
+        assertEquals(220L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(0L));
+        assertEquals(192L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(160L));
+        assertEquals(320L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(500L));
+        assertEquals(468L, ScreenshotAccessibilityService.qualityAvailableSlackMs(
+                1_000L, 1_200L));
+        assertEquals(0L, ScreenshotAccessibilityService.qualityAvailableSlackMs(
+                1_000L, 1_700L));
+    }
+
+    @Test public void fastFrameBlockedBehindQualityMustStillBeNewest() {
+        assertTrue(ScreenshotAccessibilityService.isFastSubmissionCurrent(7L, 7L));
+        assertFalse(ScreenshotAccessibilityService.isFastSubmissionCurrent(7L, 8L));
+    }
+
+    @Test public void partialOrEmptyQualityCannotShrinkAnExistingCache() {
+        assertFalse(ScreenshotAccessibilityService.shouldReplaceQualityCache(4, 0, true));
+        assertFalse(ScreenshotAccessibilityService.shouldReplaceQualityCache(4, 2, false));
+        assertTrue(ScreenshotAccessibilityService.shouldReplaceQualityCache(4, 3, true));
+        assertTrue(ScreenshotAccessibilityService.shouldReplaceQualityCache(0, 1, false));
+    }
+
     @Test public void ultraNeverRunsCompetingScreenshotMotion() {
         DetectorConfig ultra = DetectorConfig.builder().inferenceThreads(4).build();
 
@@ -270,6 +317,15 @@ public final class CaptureEpochTest {
         assertTrue(ScreenshotAccessibilityService.isQualityCacheGenerationCurrent(12L, 12L));
         assertFalse(ScreenshotAccessibilityService.isQualityCacheGenerationCurrent(12L, 13L));
         assertFalse(ScreenshotAccessibilityService.isQualityCacheGenerationCurrent(13L, 12L));
+    }
+
+    @Test public void qualityCommitCannotCrossANewerFastSubmission() {
+        assertTrue(ScreenshotAccessibilityService.isQualitySubmissionCurrent(
+                12L, 12L, 40L, 40L));
+        assertFalse(ScreenshotAccessibilityService.isQualitySubmissionCurrent(
+                12L, 12L, 40L, 41L));
+        assertFalse(ScreenshotAccessibilityService.isQualitySubmissionCurrent(
+                12L, 13L, 40L, 40L));
     }
 
     @Test public void qualityConfirmationBurstStillRespectsMotionAndFastWork() {

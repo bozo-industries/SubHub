@@ -9,6 +9,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.os.SystemClock;
 import android.view.View;
 
@@ -27,6 +28,7 @@ import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -192,6 +194,195 @@ public final class CensorOverlayViewTest {
         view.release();
     }
 
+    @Test public void worldSpaceBirthSharesTheEstablishedTrackCamera() {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.setAppearance(new CensorAppearance(
+                CensorAppearance.Type.BOX, 1, 0f, false, false,
+                CensorAppearance.BorderEffect.CLASSIC, false, Color.MAGENTA,
+                List.of(), false, 100, "rectangle", "SubHub", "Blocked"));
+        view.measure(exactly(100), exactly(100));
+        view.layout(0, 0, 100, 100);
+
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        List<TrackedObject> tracks = tracker.update(List.of(new Detection(
+                "EXPOSED_A", "EXPOSED", 1f,
+                new BBox(10, 40, 20, 20), true, true)));
+        view.setWorldTracks(tracks, 100, 100, null,
+                0L, 0L, 0L, 0L, 100, 100, null);
+
+        long eventTime = SystemClock.uptimeMillis();
+        view.offsetContent(0, -20, true, eventTime);
+        tracker.offsetActiveTracks(0, -20, 100, 100);
+        tracks = tracker.update(List.of(
+                new Detection("EXPOSED_A", "EXPOSED", 1f,
+                        new BBox(10, 20, 20, 20), true, true),
+                new Detection("EXPOSED_B", "EXPOSED", 1f,
+                        new BBox(60, 60, 20, 20), true, true)));
+        view.setWorldTracks(tracks, 100, 100, null,
+                0L, 20L, 0L, 20L, 100, 100, null);
+
+        for (long frameOffset : new long[] {0L, 8L, 17L}) {
+            view.setRenderTimeForTest(eventTime + frameOffset);
+            Bitmap firstFrame = draw(view, 100, 100);
+            int establishedTop = firstOpaqueY(firstFrame, 20);
+            int bornTop = firstOpaqueY(firstFrame, 70);
+            assertTrue("Established track is visible on frame " + frameOffset,
+                    establishedTop >= 0);
+            assertTrue("Mid-scroll birth is visible on frame " + frameOffset, bornTop >= 0);
+            assertEquals("Both tracks must share one camera on frame " + frameOffset,
+                    40, bornTop - establishedTop);
+            firstFrame.recycle();
+        }
+        view.setRenderTimeForTest(eventTime + 100L);
+
+        Bitmap rendered = draw(view, 100, 100);
+
+        assertEquals("Established track follows the canonical camera",
+                Color.BLACK, rendered.getPixel(20, 30));
+        assertEquals("A track born during motion uses that same camera",
+                Color.BLACK, rendered.getPixel(70, 70));
+        assertEquals("The established box is not left at its pre-scroll phase",
+                Color.TRANSPARENT, rendered.getPixel(20, 50));
+        rendered.recycle();
+        view.release();
+    }
+
+    @Test public void delayedEventTimestampDoesNotStartPresentationInThePast() {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.setAppearance(new CensorAppearance(
+                CensorAppearance.Type.BOX, 1, 0f, false, false,
+                CensorAppearance.BorderEffect.CLASSIC, false, Color.MAGENTA,
+                List.of(), false, 100, "rectangle", "SubHub", "Blocked"));
+        view.measure(exactly(100), exactly(100));
+        view.layout(0, 0, 100, 100);
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        List<TrackedObject> tracks = tracker.update(List.of(new Detection(
+                "EXPOSED_A", "EXPOSED", 1f,
+                new BBox(20, 40, 20, 20), true, true)));
+        view.setWorldTracks(tracks, 100, 100, null,
+                0L, 0L, 0L, 0L, 100, 100, null);
+
+        long received = SystemClock.uptimeMillis();
+        view.offsetContent(0, -20, true, received - 100L);
+        view.setRenderTimeForTest(received);
+        Bitmap firstDrawableFrame = draw(view, 100, 100);
+
+        int firstTop = firstOpaqueY(firstDrawableFrame, 30);
+        assertTrue("Presentation begins when the callback can first be drawn: " + firstTop,
+                firstTop >= 20 && firstTop <= 21);
+        firstDrawableFrame.recycle();
+        view.release();
+    }
+
+    @Test public void worldSourceFrameUsesItsOwnCameraAtNonUnitScale() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.setAppearance(new CensorAppearance(
+                CensorAppearance.Type.PIXELATE, 1, 0f, false, false,
+                CensorAppearance.BorderEffect.CLASSIC, false, Color.MAGENTA,
+                List.of(), false, 100, "rectangle", "SubHub", "Blocked"));
+        int sourceWidth = 320;
+        int sourceHeight = 714;
+        int viewportWidth = 1344;
+        int viewportHeight = 2992;
+        view.measure(exactly(viewportWidth), exactly(viewportHeight));
+        view.layout(0, 0, viewportWidth, viewportHeight);
+
+        long now = SystemClock.uptimeMillis();
+        view.offsetContent(0, -900, true, now);
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        List<TrackedObject> tracks = tracker.update(List.of(new Detection(
+                "EXPOSED_A", "EXPOSED", 1f,
+                new BBox(100, 63, 80, 20), true, true)));
+        view.setWorldTracks(tracks, sourceWidth, sourceHeight,
+                gradient(sourceWidth, sourceHeight, 0),
+                0L, 900L, 0L, 600L,
+                viewportWidth, viewportHeight, null);
+        view.setRenderTimeForTest(now + 400L);
+
+        Bitmap rendered = draw(view, viewportWidth, viewportHeight);
+        Field sourceRectField = CensorOverlayView.class.getDeclaredField("sourceRect");
+        sourceRectField.setAccessible(true);
+        Rect sampled = new Rect((Rect) sourceRectField.get(view));
+
+        assertEquals("World geometry should sample the object in the older source frame",
+                135, sampled.top);
+        assertEquals(155, sampled.bottom);
+        assertTrue("The effect should be drawn at the current camera phase",
+                opaquePixels(rendered, 410, 260, 770, 355) > 100);
+        rendered.recycle();
+        view.release();
+    }
+
+    @Test public void worldTrackCanLeaveAndReenterWithoutLosingGeometry() {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.setAppearance(new CensorAppearance(
+                CensorAppearance.Type.BOX, 1, 0f, false, false,
+                CensorAppearance.BorderEffect.CLASSIC, false, Color.MAGENTA,
+                List.of(), false, 100, "rectangle", "SubHub", "Blocked"));
+        view.measure(exactly(100), exactly(100));
+        view.layout(0, 0, 100, 100);
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        List<TrackedObject> tracks = tracker.update(List.of(new Detection(
+                "EXPOSED_A", "EXPOSED", 1f,
+                new BBox(20, 20, 30, 20), true, true)));
+        view.setWorldTracks(tracks, 100, 100, null,
+                0L, 0L, 0L, 0L, 100, 100, null);
+
+        long now = SystemClock.uptimeMillis();
+        view.offsetContent(0, -60, true, now);
+        view.setRenderTimeForTest(now + 400L);
+        Bitmap outside = draw(view, 100, 100);
+        assertEquals(0, opaquePixels(outside, 0, 0, 100, 100));
+
+        view.offsetContent(0, 50, true, now + 401L);
+        view.setRenderTimeForTest(now + 800L);
+        Bitmap returned = draw(view, 100, 100);
+        assertEquals(Color.BLACK, returned.getPixel(30, 20));
+
+        outside.recycle();
+        returned.recycle();
+        view.release();
+    }
+
+    @Test public void worldTextPublicationDoesNotApplyTheCameraTwice() {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.setAppearance(new CensorAppearance(
+                CensorAppearance.Type.BOX, 1, 0f, false, false,
+                CensorAppearance.BorderEffect.CLASSIC, false, Color.MAGENTA,
+                List.of(), false, 100, "rectangle", "SubHub", "Blocked"));
+        view.measure(exactly(100), exactly(100));
+        view.layout(0, 0, 100, 100);
+        Detection initial = new Detection(
+                "TEXT_EXPLICIT", "text_smut", 0.95f,
+                new BBox(20, 40, 60, 20), true, true,
+                Detection.ObservationSource.ACCESSIBILITY,
+                Detection.GeometryQuality.EXACT, "node:stable");
+        view.setWorldTextDetections(List.of(initial), 100, 100,
+                0L, 0L, 100, 100);
+
+        long now = SystemClock.uptimeMillis();
+        view.offsetContent(0, -20, true, now);
+        Detection currentScreen = new Detection(
+                "TEXT_EXPLICIT", "text_smut", 0.95f,
+                new BBox(20, 20, 60, 20), true, true,
+                Detection.ObservationSource.ACCESSIBILITY,
+                Detection.GeometryQuality.EXACT, "node:stable");
+        view.setWorldTextDetections(List.of(currentScreen), 100, 100,
+                0L, 20L, 100, 100);
+        view.setRenderTimeForTest(now + 400L);
+        Bitmap rendered = draw(view, 100, 100);
+
+        assertEquals(Color.BLACK, rendered.getPixel(50, 30));
+        assertEquals(Color.TRANSPARENT, rendered.getPixel(50, 50));
+        rendered.recycle();
+        view.release();
+    }
+
     @Test public void replacingPooledSourceFrameReturnsOwnershipExactlyOnce() {
         Context context = ApplicationProvider.getApplicationContext();
         CensorOverlayView view = new CensorOverlayView(context);
@@ -276,6 +467,13 @@ public final class CensorOverlayViewTest {
             }
         }
         return count;
+    }
+
+    private static int firstOpaqueY(Bitmap bitmap, int x) {
+        for (int y = 0; y < bitmap.getHeight(); y++) {
+            if (Color.alpha(bitmap.getPixel(x, y)) > 240) return y;
+        }
+        return -1;
     }
 
     private static int exactly(int pixels) {

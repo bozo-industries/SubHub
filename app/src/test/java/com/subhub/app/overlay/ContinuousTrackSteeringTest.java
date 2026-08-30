@@ -45,18 +45,36 @@ public final class ContinuousTrackSteeringTest {
     }
 
     @Test
-    public void repeatedMotionKeepsAdvancingBetweenDetectorObservations() {
+    public void measuredCorrectionConvergesWithoutASecondPredictivePass() {
         ContinuousTrackSteering steering = new ContinuousTrackSteering();
         steering.updateTarget(1, box(0), 1000, 1000, 0L, true);
         steering.updateTarget(1, box(100), 1000, 1000, 100L, true);
-        int first = steering.position(1, 1000, 1000, 150L).getX();
-        int second = steering.position(1, 1000, 1000, 175L).getX();
-        int third = steering.position(1, 1000, 1000, 200L).getX();
+        int first = steering.position(1, 1000, 1000, 116L).getX();
+        int second = steering.position(1, 1000, 1000, 132L).getX();
+        int third = steering.position(1, 1000, 1000, 164L).getX();
+        int settled = steering.position(1, 1000, 1000, 300L).getX();
 
         assertTrue(first > 0);
         assertTrue(second > first);
         assertTrue(third > second);
-        assertTrue(steering.isAnimating(200L));
+        assertTrue(third <= 100);
+        assertEquals(100, settled);
+        assertFalse(steering.isAnimating(300L));
+    }
+
+    @Test
+    public void detectorCorrectionNeverOvershootsItsMeasuredTarget() {
+        ContinuousTrackSteering steering = new ContinuousTrackSteering();
+        steering.updateTarget(1, box(100), 1000, 1000, 0L, true);
+        steering.updateTarget(1, box(400), 1000, 1000, 100L, true);
+
+        int previous = 100;
+        for (long now = 108L; now <= 260L; now += 8L) {
+            int current = steering.position(1, 1000, 1000, now).getX();
+            assertTrue(current >= previous);
+            assertTrue(current <= 400);
+            previous = current;
+        }
     }
 
     @Test

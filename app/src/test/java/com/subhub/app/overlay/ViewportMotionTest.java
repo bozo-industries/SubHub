@@ -8,56 +8,110 @@ import org.junit.Test;
 
 public final class ViewportMotionTest {
     @Test
-    public void repeatedAuthoritativeSamplesAreExactThenAdvanceBetweenEvents() {
+    public void firstAuthoritativeSampleCoversMeasuredPositionImmediately() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
-        motion.addDelta(0f, -20f, 16L);
-        assertEquals(-20f, motion.position(16L).y, 0.001f);
 
-        motion.addDelta(0f, -20f, 32L);
-        float eventPosition = motion.position(32L).y;
-        float betweenEvents = motion.position(36L).y;
-        assertEquals(-40f, eventPosition, 0.001f);
-        assertTrue(betweenEvents < eventPosition);
-        assertTrue(motion.isAnimating(36L));
-
-        assertTrue(motion.position(40L).y < -40f);
-        assertTrue(motion.position(96L).y < -40f);
-        assertTrue(motion.isAnimating(96L));
-
-        float stopped = motion.position(200L).y;
-        assertEquals(-40f, stopped, 0.001f);
-        assertFalse(motion.isAnimating(200L));
-    }
-
-    @Test
-    public void nextAuthoritativeEventPreservesBoundedPresentationResidual() {
-        ViewportMotion motion = new ViewportMotion();
-        motion.reset(0f, 0f, 0L);
-        motion.addDelta(0f, -100f, 100L);
-        motion.addDelta(0f, -100f, 200L);
-        float displayed = motion.position(250L).y;
-
-        motion.addDelta(0f, -100f, 250L);
-        assertTrue(displayed < -200f);
-        assertEquals(-100f, motion.position(250L).y - displayed, 0.001f);
-        assertTrue(motion.position(250L).y >= -364f);
-        assertEquals(-300f, motion.position(450L).y, 0.001f);
-    }
-
-    @Test
-    public void firstAuthoritativeLargeDeltaIsExactImmediately() {
-        ViewportMotion motion = new ViewportMotion();
-        motion.reset(0f, 0f, 0L);
-        motion.addDelta(0f, -500f, 16L);
+        motion.addDelta(0f, -500f, 16L, 1_344, 2_992, true);
 
         assertEquals(-500f, motion.position(16L).y, 0.001f);
-        assertEquals(-500f, motion.position(24L).y, 0.001f);
-        assertEquals(-500f, motion.position(32L).y, 0.001f);
+        assertTrue(motion.position(32L).y < -500f);
     }
 
     @Test
-    public void nonAuthoritativeFallbackStillUsesShortCatchUp() {
+    public void steadySparseStreamRebasesEveryEventToMeasuredPosition() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        long now = 16L;
+        motion.addDelta(0f, -400f, now, 1_344, 2_992, true);
+
+        float largestDisplayStep = 0f;
+        float previous = motion.position(now).y;
+        for (int event = 1; event <= 7; event++) {
+            long nextEvent = now + 114L;
+            for (long frame = now + 8L; frame < nextEvent; frame += 8L) {
+                float current = motion.position(frame).y;
+                assertTrue("Trajectory reversed at " + frame, current <= previous + 0.001f);
+                largestDisplayStep = Math.max(largestDisplayStep, Math.abs(current - previous));
+                previous = current;
+            }
+            float beforeEvent = motion.position(nextEvent).y;
+            motion.addDelta(0f, -400f, nextEvent, 1_344, 2_992, true);
+            float afterEvent = motion.position(nextEvent).y;
+            float exact = -400f * (event + 1);
+            assertTrue(Math.abs(afterEvent - exact) <= 2_992f * 0.08f + 0.001f);
+            assertTrue(Math.abs(afterEvent - beforeEvent) <= 2_992f * 0.08f + 0.001f);
+            largestDisplayStep = Math.max(largestDisplayStep,
+                    Math.abs(afterEvent - previous));
+            previous = afterEvent;
+            now = nextEvent;
+        }
+
+        assertTrue("Display step was " + largestDisplayStep,
+                largestDisplayStep <= 2_992f * 0.08f + 0.001f);
+    }
+
+    @Test
+    public void deceleratingStreamDoesNotReverseWhileEventsContinue() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        long[] times = {16L, 130L, 244L, 358L, 472L};
+        float[] deltas = {-420f, -350f, -260f, -160f, -80f};
+        float previous = 0f;
+        for (int index = 0; index < times.length; index++) {
+            float before = motion.position(times[index]).y;
+            motion.addDelta(0f, deltas[index], times[index], 1_344, 2_992, true);
+            float after = motion.position(times[index]).y;
+            float expected = 0f;
+            for (int deltaIndex = 0; deltaIndex <= index; deltaIndex++) {
+                expected += deltas[deltaIndex];
+            }
+            assertTrue(Math.abs(after - expected) <= 2_992f * 0.08f + 0.001f);
+            assertTrue(after <= previous + 0.001f);
+            previous = after;
+        }
+    }
+
+    @Test
+    public void reversalCorrectionIsBoundedAndTurnsTowardNewDirection() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -300f, 16L, 1_344, 2_992, true);
+        motion.addDelta(0f, -300f, 130L, 1_344, 2_992, true);
+        float beforeReverse = motion.position(244L).y;
+
+        motion.addDelta(0f, 240f, 244L, 1_344, 2_992, true);
+        float atReverse = motion.position(244L).y;
+        float afterReverse = motion.position(284L).y;
+
+        assertTrue(Math.abs(atReverse - -360f) <= 2_992f * 0.08f + 0.001f);
+        assertTrue(Math.abs(atReverse - beforeReverse) <= 96.001f);
+        assertTrue(afterReverse > atReverse);
+    }
+
+    @Test
+    public void predictionSettlesBackToLastMeasurementWithoutDrift() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -300f, 16L, 1_344, 2_992, true);
+        motion.addDelta(0f, -300f, 130L, 1_344, 2_992, true);
+
+        assertTrue(motion.isAnimating(200L));
+        assertEquals(-600f, motion.position(500L).y, 0.001f);
+        assertFalse(motion.isAnimating(500L));
+    }
+
+    @Test
+    public void flingPredictionIsViewportBounded() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -5_000f, 16L, 1_344, 2_992, true);
+
+        assertTrue(Math.abs(motion.predictionAmplitude().y) <= 2_992f * 0.18f + 0.001f);
+    }
+
+    @Test
+    public void nonAuthoritativeFallbackUsesOnlyOneDisplayFrame() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
         motion.addDelta(0f, -500f, 16L, 1_344, 2_992, false);
@@ -69,98 +123,89 @@ public final class ViewportMotionTest {
     }
 
     @Test
-    public void steadySparseEventsAdvanceBetweenSamplesAndReturnToExactIfScrollingStops() {
+    public void detectorCoordinateRebasePreservesLivePollPhaseAcrossEvent() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
-        motion.addDelta(0f, -100f, 10L);
-        motion.addDelta(0f, -100f, 110L);
+        motion.addDelta(0f, -300f, 16L, 1_344, 2_992, true);
+        motion.addPresentationDelta(0f, -40f, 80L, 1_344, 2_992);
+        motion.rebase(0f, 0f, 88L);
+        motion.addPresentationDelta(0f, -30f, 96L, 1_344, 2_992);
+        float beforeEvent = motion.position(112L).y;
 
-        assertEquals(-200f, motion.position(110L).y, 0.001f);
-        float betweenEvents = motion.position(210L).y;
-        assertEquals(-264f, betweenEvents, 0.001f);
-        assertTrue(motion.isAnimating(210L));
-        assertEquals(-200f, motion.position(310L).y, 0.001f);
-        assertFalse(motion.isAnimating(310L));
+        motion.addDelta(0f, -260f, 112L, 1_344, 2_992, true);
+
+        assertEquals(beforeEvent, motion.position(112L).y, 0.001f);
+        assertTrue(Math.abs(motion.predictionAmplitude().y)
+                <= 2_992f * 0.45f + 0.001f);
     }
 
     @Test
-    public void predictionIsBoundedForViewportSizedFlingDeltas() {
+    public void presentationSamplesApplyMeasuredPhaseAndContinueBetweenPolls() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
-        motion.addDelta(0f, -3_000f, 10L, 1_344, 2_992, true);
-        motion.addDelta(0f, -3_000f, 110L, 1_344, 2_992, true);
 
-        float exact = -6_000f;
-        float predicted = motion.position(210L).y;
-        assertEquals(exact - 64f, predicted, 0.001f);
-        assertEquals(exact, motion.position(310L).y, 0.001f);
+        motion.addPresentationDelta(0f, -180f, 40L, 1_344, 2_992);
+        assertEquals(-180f, motion.position(40L).y, 0.001f);
+        assertTrue(motion.position(48L).y < -180f);
+        motion.addPresentationDelta(0f, -180f, 80L, 1_344, 2_992);
+        motion.addPresentationDelta(0f, -180f, 120L, 1_344, 2_992);
+
+        assertTrue(Math.abs(motion.predictionAmplitude().y)
+                <= 2_992f * 0.45f + 0.001f);
     }
 
     @Test
-    public void presentationResidualNeverExceedsSixtyFourPixels() {
+    public void phaseLockedEventDoesNotApplyPolledIntervalTwice() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
-        motion.addDelta(0f, -3_000f, 10L, 1_344, 2_992, true);
-        motion.addDelta(0f, -3_000f, 110L, 1_344, 2_992, true);
+        motion.addDelta(0f, -240f, 16L, 1_344, 2_992, true);
+        motion.addPresentationDelta(0f, -60f, 48L, 1_344, 2_992);
+        motion.addPresentationDelta(0f, -60f, 64L, 1_344, 2_992);
+        float beforeEvent = motion.position(72L).y;
 
-        for (long now = 110L; now <= 310L; now += 4L) {
-            float exact = -6_000f;
-            assertTrue(Math.abs(motion.position(now).y - exact) <= 64.001f);
-        }
+        motion.addDelta(0f, -120f, 72L, 1_344, 2_992, true);
+
+        assertEquals(beforeEvent, motion.position(72L).y, 0.001f);
     }
 
     @Test
-    public void reversalKeepsEventTranslationContinuousAndSettlesWithoutOvershoot() {
+    public void measuredZeroBrakesPredictionImmediatelyAndCanBeReconciled() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
-        motion.addDelta(0f, -100f, 10L);
-        motion.addDelta(0f, -100f, 110L);
-        float beforeReverse = motion.position(160L).y;
+        motion.addDelta(0f, -200f, 16L, 1_344, 2_992, true);
+        motion.addPresentationDelta(0f, -80f, 48L, 1_344, 2_992);
+        motion.addPresentationDelta(0f, -80f, 64L, 1_344, 2_992);
+        assertTrue(motion.position(72L).y < -360f);
 
-        motion.addDelta(0f, 80f, 160L);
+        motion.settlePresentation(80L);
 
-        assertEquals(80f, motion.position(160L).y - beforeReverse, 0.001f);
-        for (long now = 160L; now <= 360L; now += 4L) {
-            assertTrue(motion.position(now).y <= -120f + 0.001f);
-        }
-        assertEquals(-120f, motion.position(360L).y, 0.001f);
+        assertEquals(-360f, motion.position(96L).y, 0.001f);
+        motion.addDelta(0f, -160f, 104L, 1_344, 2_992, true);
+        assertEquals(-360f, motion.position(120L).y, 0.001f);
+        assertEquals(-360f, motion.position(160L).y, 0.001f);
     }
 
     @Test
-    public void sparsePhaseLockedStreamHasNoLargeCorrectionFrame() {
+    public void sparseFlingCannotLeaveRenderedViewportFarBehindMeasurement() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
-        motion.addDelta(0f, -100f, 10L, 1_344, 2_992, true);
-        motion.addDelta(0f, -100f, 110L, 1_344, 2_992, true);
-        motion.addDelta(0f, -100f, 210L, 1_344, 2_992, true);
+        motion.addDelta(0f, -900f, 16L, 1_344, 2_992, true);
+        motion.addDelta(0f, -2_600f, 130L, 1_344, 2_992, true);
 
-        float previous = motion.position(210L).y;
-        float largestStep = 0f;
-        for (long now = 218L; now <= 310L; now += 8L) {
-            float current = motion.position(now).y;
-            largestStep = Math.max(largestStep, Math.abs(current - previous));
-            previous = current;
-        }
-        motion.addDelta(0f, -100f, 310L, 1_344, 2_992, true);
-        float afterEvent = motion.position(310L).y;
-        assertEquals(-100f, afterEvent - previous, 0.001f);
-        previous = afterEvent;
-        for (long now = 318L; now <= 410L; now += 8L) {
-            float current = motion.position(now).y;
-            largestStep = Math.max(largestStep, Math.abs(current - previous));
-            previous = current;
-        }
-
-        assertTrue("Largest phase-locked step was " + largestStep, largestStep <= 32f);
+        float phaseError = Math.abs(motion.position(130L).y - -3_500f);
+        assertTrue(phaseError <= 2_992f * 0.08f + 0.001f);
     }
 
     @Test
-    public void deceleratingFinalSampleDoesNotPredictAnOvershoot() {
+    public void delayedCallbackReplaysTrajectoryFromEventSourceTime() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
-        motion.addDelta(0f, -100f, 10L);
-        motion.addDelta(0f, -40f, 110L);
 
-        assertEquals(-140f, motion.position(210L).y, 0.001f);
+        // Called at t=130, but Android says the scroll observation became effective at t=100.
+        motion.addDelta(0f, -240f, 100L, 1_344, 2_992, true);
+
+        assertEquals(-240f, motion.position(100L).y, 0.001f);
+        assertTrue("The next presentation must include elapsed motion, not restart at callback",
+                motion.position(130L).y < -240f);
     }
 }

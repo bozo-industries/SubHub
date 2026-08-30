@@ -99,6 +99,23 @@ public final class OverlayController implements AutoCloseable {
                 motionX, motionY, sourceMotionX, sourceMotionY);
     }
 
+    /** Publishes Accessibility geometry in stable content coordinates. */
+    public void updateWorld(
+            List<TrackedObject> tracks,
+            int captureWidth,
+            int captureHeight,
+            Bitmap frame,
+            long trackCameraX,
+            long trackCameraY,
+            long sourceCameraX,
+            long sourceCameraY,
+            int viewportWidth,
+            int viewportHeight) {
+        view.setWorldTracks(tracks, captureWidth, captureHeight, frame,
+                trackCameraX, trackCameraY, sourceCameraX, sourceCameraY,
+                viewportWidth, viewportHeight, null);
+    }
+
     /** Publishes a pooled source frame whose release returns it to capture instead of recycling. */
     public void updatePooledFrame(
             List<TrackedObject> tracks,
@@ -121,6 +138,19 @@ public final class OverlayController implements AutoCloseable {
                 tracks, captureWidth, captureHeight, motionX, motionY);
     }
 
+    /** Publishes settled Accessibility coverage without changing the canonical camera. */
+    public void updateWorldTracksOnly(
+            List<TrackedObject> tracks,
+            int captureWidth,
+            int captureHeight,
+            long trackCameraX,
+            long trackCameraY,
+            int viewportWidth,
+            int viewportHeight) {
+        view.setWorldTracksPreservingFrame(tracks, captureWidth, captureHeight,
+                trackCameraX, trackCameraY, viewportWidth, viewportHeight);
+    }
+
     /** Moves the current lightweight overlay immediately while the next inference is pending. */
     public void offsetContent(int deltaX, int deltaY) {
         offsetContent(deltaX, deltaY, true);
@@ -131,6 +161,23 @@ public final class OverlayController implements AutoCloseable {
         view.offsetContent(deltaX, deltaY, authoritative);
     }
 
+    /**
+     * Applies a viewport observation. Event time is retained by the capture timeline; the view
+     * begins presentation only when this call reaches the UI thread.
+     */
+    public void offsetContent(
+            int deltaX,
+            int deltaY,
+            boolean authoritative,
+            long effectiveUptimeMillis) {
+        view.offsetContent(deltaX, deltaY, authoritative, effectiveUptimeMillis);
+    }
+
+    /** Applies presentation-only motion sampled from a refreshable Accessibility node. */
+    public void offsetPresentation(int deltaX, int deltaY) {
+        view.offsetPresentation(deltaX, deltaY);
+    }
+
     /** Publishes stabilized Accessibility/OCR geometry without waiting behind visual inference. */
     public void updateText(
             List<Detection> detections,
@@ -139,6 +186,19 @@ public final class OverlayController implements AutoCloseable {
             int motionX,
             int motionY) {
         view.setTextDetections(detections, captureWidth, captureHeight, motionX, motionY);
+    }
+
+    /** Publishes Accessibility/OCR text in the same world space as visual tracks. */
+    public void updateWorldText(
+            List<Detection> detections,
+            int captureWidth,
+            int captureHeight,
+            long cameraX,
+            long cameraY,
+            int viewportWidth,
+            int viewportHeight) {
+        view.setWorldTextDetections(detections, captureWidth, captureHeight,
+                cameraX, cameraY, viewportWidth, viewportHeight);
     }
 
     /** Immediately removes rendered content while keeping the lightweight window ready. */

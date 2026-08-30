@@ -9,6 +9,9 @@ public final class VisualTrackArbitrator {
     private static final float MIN_IOU = 0.72f;
     private static final float MIN_SIZE_RATIO = 0.80f;
     private static final float MAX_CENTER_DISTANCE_RATIO = 0.12f;
+    private static final float MOTION_MIN_IOU = 0.20f;
+    private static final float MOTION_MIN_SIZE_RATIO = 0.68f;
+    private static final int MIN_REACQUIRED_OBSERVATIONS = 2;
 
     private VisualTrackArbitrator() {}
 
@@ -30,13 +33,28 @@ public final class VisualTrackArbitrator {
 
         List<TrackedObject> selected = new ArrayList<>(candidates.size());
         int suppressed = 0;
+        int handedOff = 0;
         for (TrackedObject candidate : candidates) {
             boolean duplicate = false;
-            for (TrackedObject existing : selected) {
+            for (int index = 0; index < selected.size(); index++) {
+                TrackedObject existing = selected.get(index);
                 boolean crossSourceDuplicate = candidate.isQualityOnly() != existing.isQualityOnly()
                         && VisualIdentityReconciler.likelySameIdentity(candidate, existing);
                 if (crossSourceDuplicate || nearDuplicate(candidate.getBox(), existing.getBox())) {
                     duplicate = true;
+                    break;
+                }
+                if (motionReacquisitionDuplicate(candidate, existing)) {
+                    duplicate = true;
+                    TrackedObject stale = candidate.getFramesMissing() > 0 ? candidate : existing;
+                    TrackedObject fresh = stale == candidate ? existing : candidate;
+                    if (stale == existing
+                            && fresh.getFramesTracked() >= MIN_REACQUIRED_OBSERVATIONS) {
+                        // Keep the old renderer ID so its on-screen trajectory does not disappear
+                        // and respawn, but steer it toward the fresh observation's geometry.
+                        selected.set(index, existing.renderSnapshotWithGeometryFrom(fresh));
+                        handedOff++;
+                    }
                     break;
                 }
             }
@@ -46,7 +64,7 @@ public final class VisualTrackArbitrator {
                 selected.add(candidate.snapshot());
             }
         }
-        return new Result(selected, suppressed);
+        return new Result(selected, suppressed, handedOff);
     }
 
     static boolean nearDuplicate(BBox first, BBox second) {
@@ -66,6 +84,23 @@ public final class VisualTrackArbitrator {
         return first.intersectionOverUnion(second) >= MIN_IOU;
     }
 
+    private static boolean motionReacquisitionDuplicate(
+            TrackedObject first,
+            TrackedObject second) {
+        if (first == null || second == null
+                || first.getFramesMissing() == second.getFramesMissing()
+                || first.getFramesMissing() > 0 && second.getFramesMissing() > 0
+                || !first.getCategory().equals(second.getCategory())) return false;
+        BBox firstBox = first.getBox();
+        BBox secondBox = second.getBox();
+        if (firstBox == null || secondBox == null
+                || ratio(firstBox.getWidth(), secondBox.getWidth()) < MOTION_MIN_SIZE_RATIO
+                || ratio(firstBox.getHeight(), secondBox.getHeight()) < MOTION_MIN_SIZE_RATIO) {
+            return false;
+        }
+        return firstBox.intersectionOverUnion(secondBox) >= MOTION_MIN_IOU;
+    }
+
     private static float ratio(int first, int second) {
         int maximum = Math.max(first, second);
         return maximum <= 0 ? 0f : Math.min(first, second) / (float) maximum;
@@ -74,13 +109,20 @@ public final class VisualTrackArbitrator {
     public static final class Result {
         private final List<TrackedObject> tracks;
         private final int suppressed;
+        private final int handedOff;
 
         Result(List<TrackedObject> tracks, int suppressed) {
+            this(tracks, suppressed, 0);
+        }
+
+        Result(List<TrackedObject> tracks, int suppressed, int handedOff) {
             this.tracks = tracks;
             this.suppressed = suppressed;
+            this.handedOff = handedOff;
         }
 
         public List<TrackedObject> tracks() { return tracks; }
         public int suppressed() { return suppressed; }
+        public int handedOff() { return handedOff; }
     }
 }

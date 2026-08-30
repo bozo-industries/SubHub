@@ -25,6 +25,10 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OnnxValue;
@@ -40,6 +44,7 @@ public final class DetectionEngine implements AutoCloseable {
     private static final String PROVIDER_PREFS = "detector_provider_cache";
     private static final String PROVIDER_CONFIG_REVISION = "ep-v3";
     private static final float INV_255 = 1f / 255f;
+    private static final AtomicLong NATIVE_RUN_SEQUENCE = new AtomicLong();
     private static final ExecutorService REALTIME_PREPROCESS_EXECUTOR =
             Executors.newFixedThreadPool(3, runnable -> preprocessThread(
                     runnable, "SubHub-fast-input", Process.THREAD_PRIORITY_DISPLAY));
@@ -70,6 +75,9 @@ public final class DetectionEngine implements AutoCloseable {
     private long lastPreprocessMs;
     private long lastRuntimeMs;
     private long lastPostprocessMs;
+    private volatile boolean lastRunCancelled;
+    private volatile long lastCancellationMs;
+    private final AtomicReference<InferenceRun> activeInference = new AtomicReference<>();
 
     public DetectionEngine(Context context, DetectorConfig config) {
         this(context, config, true);
@@ -140,6 +148,55 @@ public final class DetectionEngine implements AutoCloseable {
         throw new IOException("No compatible ONNX model asset was found", lastFailure);
     }
 
+    /**
+     * Creates a session without running provider benchmarks. Live Accessibility startup uses this
+     * for optional quality refinement so provider selection cannot compete with real-time work.
+     */
+    public synchronized void initializeWithoutBenchmark(String fallbackProvider)
+            throws IOException, OrtException {
+        closeSession();
+        String model = config.getModelFilename();
+        byte[] bytes = readAsset(model);
+        String cacheKey = providerCacheKey(model);
+        SharedPreferences providerPrefs = context.getSharedPreferences(
+                PROVIDER_PREFS, Context.MODE_PRIVATE);
+        String cachedProvider = providerPrefs.getString(cacheKey, null);
+        List<String> providers = new java.util.ArrayList<>();
+        addUniqueProvider(providers, cachedProvider);
+        addUniqueProvider(providers, "NNAPI");
+        addUniqueProvider(providers, fallbackProvider);
+        addUniqueProvider(providers, "CPU");
+        Exception lastFailure = null;
+        for (String provider : providers) {
+            try (OrtSession.SessionOptions options = optionsFor(provider)) {
+                session = environment.createSession(bytes, options);
+                inputName = session.getInputNames().iterator().next();
+                activeProvider = provider;
+                activeModel = model;
+                providerPrefs.edit().putString(cacheKey, provider).apply();
+                Log.i(TAG, "Loaded " + model + " using direct provider " + provider
+                        + " (profile=" + (latencyPriority ? "realtime" : "quality") + ")");
+                return;
+            } catch (Exception error) {
+                lastFailure = error;
+                closeSession();
+                if (provider.equals(cachedProvider)) {
+                    providerPrefs.edit().remove(cacheKey).apply();
+                }
+                Log.w(TAG, "Direct provider " + provider + " rejected " + model
+                        + ": " + error.getMessage());
+            }
+        }
+        if (lastFailure instanceof IOException) throw (IOException) lastFailure;
+        if (lastFailure instanceof OrtException) throw (OrtException) lastFailure;
+        throw new IOException("No direct provider could initialize " + model, lastFailure);
+    }
+
+    private static void addUniqueProvider(List<String> providers, String provider) {
+        if (provider == null || provider.trim().isEmpty() || providers.contains(provider)) return;
+        providers.add(provider);
+    }
+
     /** Device benchmark hook: creates one requested EP without provider-selection side effects. */
     synchronized void initializeForProvider(String provider) throws IOException, OrtException {
         closeSession();
@@ -164,79 +221,182 @@ public final class DetectionEngine implements AutoCloseable {
     /** Detects from a pre-scaled bitmap while mapping results to the original source frame. */
     public synchronized List<Detection> detect(
             Bitmap frame, int sourceWidth, int sourceHeight) throws OrtException {
+        return detect(frame, sourceWidth, sourceHeight, null);
+    }
+
+    /** Quality-only overload with a lock-free admission token owned by the caller. */
+    public synchronized List<Detection> detect(
+            Bitmap frame,
+            int sourceWidth,
+            int sourceHeight,
+            BooleanSupplier cancellationProbe) throws OrtException {
         if (session == null || frame == null || frame.getWidth() <= 0 || frame.getHeight() <= 0) {
             return Collections.emptyList();
         }
         sourceWidth = Math.max(1, sourceWidth);
         sourceHeight = Math.max(1, sourceHeight);
+        InferenceRun inferenceRun = latencyPriority ? null : new InferenceRun();
+        lastRunCancelled = false;
+        if (inferenceRun != null && !activeInference.compareAndSet(null, inferenceRun)) {
+            inferenceRun.close();
+            throw new IllegalStateException("Quality inference is already active");
+        }
         long started = SystemClock.elapsedRealtimeNanos();
-        performanceHints.begin(latencyPriority
-                ? config.getDetectionIntervalMs()
-                : Math.max(200L, config.getDetectionIntervalMs()));
-        int size = config.getInferenceResolution();
-        float scale = (float) size / Math.max(sourceWidth, sourceHeight);
-        int expectedWidth = Math.max(1, Math.round(sourceWidth * scale));
-        int expectedHeight = Math.max(1, Math.round(sourceHeight * scale));
-        if (frame.getWidth() == expectedWidth && frame.getHeight() == expectedHeight
-                && expectedWidth <= size && expectedHeight <= size) {
-            // Accessibility already paid for a hardware-accelerated downscale before readback.
-            // Write that compact bitmap directly into the letterboxed pixel stride instead of
-            // software-scaling/copying it through a second Canvas on every inference pass.
-            Arrays.fill(pixels, Color.BLACK);
-            frame.getPixels(pixels, 0, size, 0, 0, expectedWidth, expectedHeight);
-        } else {
-            letterbox.eraseColor(Color.BLACK);
-            letterboxCanvas.drawBitmap(
-                    frame,
-                    null,
-                    new RectF(0f, 0f, sourceWidth * scale, sourceHeight * scale),
-                    null);
-            letterbox.getPixels(pixels, 0, size, 0, 0, size, size);
-        }
-
-        int plane = size * size;
-        populateInputValues(plane);
-        directInput.clear();
-        directInput.put(inputValues, 0, plane * 3);
-        directInput.flip();
-
-        ensureInputTensor(size);
-        long runtimeStarted = SystemClock.elapsedRealtimeNanos();
-        try (OrtSession.Result result = session.run(inferenceInputs)) {
-            long runtimeFinished = SystemClock.elapsedRealtimeNanos();
-            OnnxValue value = result.get(0);
-            if (!(value instanceof OnnxTensor)) {
-                Log.e(TAG, "Unexpected model output type: " + value.getClass());
-                return Collections.emptyList();
+        try {
+            if (shouldCancel(inferenceRun, cancellationProbe)) {
+                return recordCancelledRun(started);
             }
-            OnnxTensor output = (OnnxTensor) value;
-            TensorInfo info = output.getInfo();
-            long[] shape = info.getShape();
-            if (shape.length != 3 || shape[0] != 1L
-                    || shape[1] < DetectionPostProcessor.OUTPUT_FEATURES
-                    || shape[1] > Integer.MAX_VALUE || shape[2] <= 0L
-                    || shape[2] > Integer.MAX_VALUE) {
-                Log.e(TAG, "Unexpected model output shape: "
-                        + java.util.Arrays.toString(shape));
-                return Collections.emptyList();
+            performanceHints.begin(latencyPriority
+                    ? config.getDetectionIntervalMs()
+                    : Math.max(200L, config.getDetectionIntervalMs()));
+            int size = config.getInferenceResolution();
+            float scale = (float) size / Math.max(sourceWidth, sourceHeight);
+            int expectedWidth = Math.max(1, Math.round(sourceWidth * scale));
+            int expectedHeight = Math.max(1, Math.round(sourceHeight * scale));
+            if (frame.getWidth() == expectedWidth && frame.getHeight() == expectedHeight
+                    && expectedWidth <= size && expectedHeight <= size) {
+                // Accessibility already paid for a hardware-accelerated downscale before readback.
+                // Write that compact bitmap directly into the letterboxed pixel stride instead of
+                // software-scaling/copying it through a second Canvas on every inference pass.
+                Arrays.fill(pixels, Color.BLACK);
+                frame.getPixels(pixels, 0, size, 0, 0, expectedWidth, expectedHeight);
+            } else {
+                letterbox.eraseColor(Color.BLACK);
+                letterboxCanvas.drawBitmap(
+                        frame,
+                        null,
+                        new RectF(0f, 0f, sourceWidth * scale, sourceHeight * scale),
+                        null);
+                letterbox.getPixels(pixels, 0, size, 0, 0, size, size);
             }
-            FloatBuffer outputBuffer = output.getFloatBuffer();
-            List<Detection> detections = postProcessor.decode(
-                    outputBuffer,
-                    (int) shape[1],
-                    (int) shape[2],
-                    sourceWidth,
-                    sourceHeight,
-                    size,
-                    config);
-            long finished = SystemClock.elapsedRealtimeNanos();
-            lastPreprocessMs = nanosToMillis(runtimeStarted - started);
-            lastRuntimeMs = nanosToMillis(runtimeFinished - runtimeStarted);
-            lastPostprocessMs = nanosToMillis(finished - runtimeFinished);
-            lastInferenceMs = nanosToMillis(finished - started);
-            performanceHints.report(finished - started);
-            return detections;
+
+            int plane = size * size;
+            populateInputValues(plane);
+            directInput.clear();
+            directInput.put(inputValues, 0, plane * 3);
+            directInput.flip();
+            if (shouldCancel(inferenceRun, cancellationProbe)) {
+                return recordCancelledRun(started);
+            }
+
+            ensureInputTensor(size);
+            long runtimeStarted = SystemClock.elapsedRealtimeNanos();
+            long nativeRunId = NATIVE_RUN_SEQUENCE.incrementAndGet();
+            String lane = latencyPriority ? "fast" : "quality";
+            boolean nativeCompleted = false;
+            OrtSession.Result nativeResult;
+            if (inferenceRun != null) inferenceRun.enterNativeRun();
+            Log.i(TAG, "INFERENCE_NATIVE_BEGIN lane=" + lane
+                    + " runId=" + nativeRunId
+                    + " provider=" + activeProvider
+                    + " uptimeNanos=" + runtimeStarted);
+            try {
+                nativeResult = inferenceRun == null
+                        ? session.run(inferenceInputs)
+                        : session.run(inferenceInputs, inferenceRun.options);
+                nativeCompleted = true;
+            } catch (OrtException error) {
+                if (shouldCancel(inferenceRun, cancellationProbe)) {
+                    return recordCancelledRun(started);
+                }
+                throw error;
+            } finally {
+                if (inferenceRun != null) inferenceRun.leaveNativeRun();
+                long nativeEnded = SystemClock.elapsedRealtimeNanos();
+                boolean cancelled = inferenceRun != null
+                        && inferenceRun.isCancellationRequested();
+                Log.i(TAG, "INFERENCE_NATIVE_END lane=" + lane
+                        + " runId=" + nativeRunId
+                        + " status=" + (cancelled ? "cancelled"
+                                : nativeCompleted ? "completed" : "error")
+                        + " durationMs=" + nanosToMillis(nativeEnded - runtimeStarted)
+                        + " uptimeNanos=" + nativeEnded);
+            }
+            try (OrtSession.Result result = nativeResult) {
+                long runtimeFinished = SystemClock.elapsedRealtimeNanos();
+                if (inferenceRun != null && inferenceRun.isCancellationRequested()) {
+                    return recordCancelledRun(started);
+                }
+                OnnxValue value = result.get(0);
+                if (!(value instanceof OnnxTensor)) {
+                    Log.e(TAG, "Unexpected model output type: " + value.getClass());
+                    return Collections.emptyList();
+                }
+                OnnxTensor output = (OnnxTensor) value;
+                TensorInfo info = output.getInfo();
+                long[] shape = info.getShape();
+                if (shape.length != 3 || shape[0] != 1L
+                        || shape[1] < DetectionPostProcessor.OUTPUT_FEATURES
+                        || shape[1] > Integer.MAX_VALUE || shape[2] <= 0L
+                        || shape[2] > Integer.MAX_VALUE) {
+                    Log.e(TAG, "Unexpected model output shape: "
+                            + java.util.Arrays.toString(shape));
+                    return Collections.emptyList();
+                }
+                FloatBuffer outputBuffer = output.getFloatBuffer();
+                List<Detection> detections = postProcessor.decode(
+                        outputBuffer,
+                        (int) shape[1],
+                        (int) shape[2],
+                        sourceWidth,
+                        sourceHeight,
+                        size,
+                        config);
+                long finished = SystemClock.elapsedRealtimeNanos();
+                // Close the cancellation window before making decoded output observable. A fast
+                // frame and this commit race on the same monitor: whichever wins determines
+                // whether the quality result is discarded or may safely reach the caller.
+                if (shouldCancel(inferenceRun, cancellationProbe)
+                        || (inferenceRun != null && !inferenceRun.finishForCommit())) {
+                    return recordCancelledRun(started);
+                }
+                lastPreprocessMs = nanosToMillis(runtimeStarted - started);
+                lastRuntimeMs = nanosToMillis(runtimeFinished - runtimeStarted);
+                lastPostprocessMs = nanosToMillis(finished - runtimeFinished);
+                lastInferenceMs = nanosToMillis(finished - started);
+                performanceHints.report(finished - started);
+                return detections;
+            }
+        } finally {
+            if (inferenceRun != null) {
+                activeInference.compareAndSet(inferenceRun, null);
+                inferenceRun.close();
+            }
         }
+    }
+
+    /** Best-effort cancellation used only to give newly arrived real-time work priority. */
+    public boolean cancelActiveInference() {
+        InferenceRun inferenceRun = activeInference.get();
+        return inferenceRun != null && inferenceRun.cancel();
+    }
+
+    public boolean wasLastRunCancelled() { return lastRunCancelled; }
+    public long getLastCancellationMs() { return lastCancellationMs; }
+    public boolean isNativeInferenceRunning() {
+        InferenceRun inferenceRun = activeInference.get();
+        return inferenceRun != null && inferenceRun.isNativeRunActive();
+    }
+
+    private static boolean shouldCancel(
+            InferenceRun inferenceRun,
+            BooleanSupplier cancellationProbe) {
+        if (inferenceRun == null) return false;
+        if (inferenceRun.isCancellationRequested()) return true;
+        if (cancellationProbe == null || !cancellationProbe.getAsBoolean()) return false;
+        inferenceRun.cancel();
+        return true;
+    }
+
+    private List<Detection> recordCancelledRun(long startedNanos) {
+        long elapsed = SystemClock.elapsedRealtimeNanos() - startedNanos;
+        lastRunCancelled = true;
+        lastCancellationMs = nanosToMillis(elapsed);
+        lastInferenceMs = lastCancellationMs;
+        lastPreprocessMs = 0L;
+        lastRuntimeMs = 0L;
+        lastPostprocessMs = 0L;
+        return Collections.emptyList();
     }
 
     public synchronized void setConfig(DetectorConfig value) {
@@ -461,6 +621,49 @@ public final class DetectionEngine implements AutoCloseable {
             this.session = session;
             this.provider = provider;
             this.benchmarkNanos = benchmarkNanos;
+        }
+    }
+
+    private static final class InferenceRun implements AutoCloseable {
+        final OrtSession.RunOptions options;
+        private final AtomicBoolean cancellationRequested = new AtomicBoolean();
+        private volatile boolean nativeRunActive;
+        private boolean commitClosed;
+        private boolean closed;
+
+        InferenceRun() throws OrtException {
+            options = new OrtSession.RunOptions();
+        }
+
+        synchronized boolean cancel() {
+            if (closed || commitClosed
+                    || !cancellationRequested.compareAndSet(false, true)) return false;
+            try {
+                options.setTerminate(true);
+            } catch (OrtException error) {
+                Log.w(TAG, "Could not preempt quality inference", error);
+            }
+            // Even if the execution provider cannot interrupt its current native call, the
+            // software cancellation remains authoritative and its result will not be committed.
+            return true;
+        }
+
+        synchronized boolean finishForCommit() {
+            if (closed || cancellationRequested.get()) return false;
+            commitClosed = true;
+            return true;
+        }
+
+        boolean isCancellationRequested() { return cancellationRequested.get(); }
+        boolean isNativeRunActive() { return nativeRunActive; }
+        void enterNativeRun() { nativeRunActive = true; }
+        void leaveNativeRun() { nativeRunActive = false; }
+
+        @Override
+        public synchronized void close() {
+            if (closed) return;
+            closed = true;
+            options.close();
         }
     }
 

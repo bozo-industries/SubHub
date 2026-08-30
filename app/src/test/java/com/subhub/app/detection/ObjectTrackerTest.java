@@ -316,7 +316,7 @@ public final class ObjectTrackerTest {
     }
 
     @Test
-    public void qualityOnlyCoverageBridgesFastFramesUntilNextSettledPass() {
+    public void fastMissesCannotEndQualityCoverageBeforeHardGraceCap() {
         ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder()
                 .trackMaxAgeSeconds(0.20f)
                 .minRemoveFrames(1)
@@ -328,8 +328,8 @@ public final class ObjectTrackerTest {
         tracker.supplementConfirmedQualityCoverage(
                 Collections.singletonList(quality), 1_000_000_000L);
 
+        assertEquals(1, tracker.update(Collections.emptyList(), 1_400_000_000L).size());
         assertEquals(1, tracker.update(Collections.emptyList(), 1_800_000_000L).size());
-        assertEquals(1, tracker.update(Collections.emptyList(), 3_400_000_000L).size());
         assertTrue(tracker.update(Collections.emptyList(), 3_600_000_000L).isEmpty());
     }
 
@@ -352,20 +352,6 @@ public final class ObjectTrackerTest {
                 Collections.singletonList(refreshed), 3_000_000_000L));
         assertEquals(1, tracker.update(Collections.emptyList(), 5_400_000_000L).size());
         assertTrue(tracker.update(Collections.emptyList(), 5_600_000_000L).isEmpty());
-    }
-
-    @Test
-    public void completeSettledBatchEndsUnsupportedGraceImmediately() {
-        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
-        Detection retained = qualityDetection(new BBox(100, 100, 160, 180));
-        Detection retired = qualityDetection(new BBox(500, 300, 160, 180));
-        tracker.supplementConfirmedQualityCoverage(
-                java.util.Arrays.asList(retained, retired), 1_000_000_000L);
-
-        assertEquals(1, tracker.finishQualityCoverageHandoff(
-                Collections.singletonList(retained)));
-        assertEquals(1, tracker.activeTracks().size());
-        assertEquals(retained.getTrackId(), tracker.activeTracks().get(0).getId());
     }
 
     @Test

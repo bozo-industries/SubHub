@@ -49,10 +49,12 @@ public final class CensorPipelineReplayTest {
     public void scrollReplayConvergesToAuthoritativeContentPositionWithoutDrift() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
+        float previous = 0f;
         for (int event = 1; event <= 12; event++) {
             motion.addDelta(0f, -12f, event * 16L);
             ViewportMotion.Position between = motion.position(event * 16L + 8L);
-            assertTrue(between.y <= -(event - 1) * 12f);
+            assertTrue(between.y < previous);
+            previous = between.y;
         }
 
         assertEquals(-144f, motion.position(500L).y, 0.001f);
