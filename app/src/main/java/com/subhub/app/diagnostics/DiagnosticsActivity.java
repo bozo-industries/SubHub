@@ -18,6 +18,7 @@ import com.subhub.app.databinding.ActivityDiagnosticsBinding;
 import com.subhub.app.detection.DetectorConfig;
 import com.subhub.app.pack.PackManager;
 import com.subhub.app.security.ControllerEditMode;
+import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.subhub.app.settings.SettingsRepository;
@@ -50,8 +51,13 @@ public final class DiagnosticsActivity extends AppCompatActivity {
         binding.switchDiagnosticsOverlay.setOnCheckedChangeListener((button, checked) ->
                 settings.preferences().edit().putBoolean(
                         DiagnosticsRepository.PREF_OVERLAY, checked).apply());
-        editMode = ControllerEditMode.bind(this, binding.buttonEditLock, editing ->
-                binding.switchDiagnosticsOverlay.setEnabled(editing));
+        if (ControllerPinManager.isDomModeActive()) {
+            editMode = ControllerEditMode.bind(this, binding.buttonEditLock, editing ->
+                    binding.switchDiagnosticsOverlay.setEnabled(editing));
+        } else {
+            binding.buttonEditLock.setVisibility(android.view.View.GONE);
+            binding.switchDiagnosticsOverlay.setEnabled(false);
+        }
         render();
     }
 

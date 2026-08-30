@@ -2,6 +2,7 @@ package com.subhub.app;
 
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.action.ViewActions.scrollTo;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -27,6 +28,7 @@ import androidx.test.runner.lifecycle.Stage;
 
 import com.subhub.app.appmode.AppModeActivity;
 import com.subhub.app.atmosphere.AtmosphereActivity;
+import com.subhub.app.diagnostics.DiagnosticsActivity;
 import com.subhub.app.penance.PenanceActivity;
 import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.settings.FeatureModuleManager;
@@ -144,6 +146,22 @@ public final class SubHubNavigationTest {
                         activity.findViewById(R.id.nav_settings).getVisibility());
                 assertNotNull(activity.findViewById(R.id.nav_settings).getBackground());
             });
+        } finally {
+            ControllerPinManager.enterDomMode();
+        }
+    }
+
+    @Test public void subSettingsDiagnosticsOpensReadOnlyInsteadOfReturningHome() {
+        ControllerPinManager.enterSubMode();
+        try (ActivityScenario<GlobalSettingsActivity> ignored =
+                     ActivityScenario.launch(GlobalSettingsActivity.class)) {
+            onView(withId(R.id.button_diagnostics)).perform(scrollTo(), click());
+            Activity destination = resumedActivity(DiagnosticsActivity.class);
+            assertEquals(DiagnosticsActivity.class, destination.getClass());
+            assertEquals(View.GONE,
+                    destination.findViewById(R.id.button_edit_lock).getVisibility());
+            assertFalse(destination.findViewById(R.id.switch_diagnostics_overlay).isEnabled());
+            destination.finish();
         } finally {
             ControllerPinManager.enterDomMode();
         }
