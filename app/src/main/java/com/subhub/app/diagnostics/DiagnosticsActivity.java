@@ -27,6 +27,7 @@ import com.subhub.app.BuildConfig;
 import com.subhub.app.R;
 import com.subhub.app.databinding.ActivityDiagnosticsBinding;
 import com.subhub.app.detection.DetectorConfig;
+import com.subhub.app.capture.MediaProjectionLeaseRegistry;
 import com.subhub.app.pack.PackManager;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.ControllerPinManager;
@@ -183,7 +184,8 @@ public final class DiagnosticsActivity extends AppCompatActivity {
     private void startLabSession() {
         if (labBusy || CensorLabRecorder.isActive()
                 || CensorLabRecordingService.isActive()) return;
-        if (ScreenCaptureService.isRunning()) {
+        if (ScreenCaptureService.isRunning()
+                || MediaProjectionLeaseRegistry.owner() != null) {
             Toast.makeText(this, R.string.diagnostics_lab_projection_conflict,
                     Toast.LENGTH_LONG).show();
             return;

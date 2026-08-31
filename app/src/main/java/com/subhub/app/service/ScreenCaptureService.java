@@ -30,6 +30,7 @@ import com.subhub.app.appmode.ProtectionSessionManager;
 import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.appmode.ResumeNotificationManager;
 import com.subhub.app.capture.ScreenCaptureManager;
+import com.subhub.app.capture.MediaProjectionLeaseRegistry;
 import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.DetectionEngine;
 import com.subhub.app.detection.DetectorConfig;
@@ -91,6 +92,7 @@ public final class ScreenCaptureService extends Service {
     private volatile DetectorConfig detectorConfig;
     private volatile boolean overlayNeedsSourceFrame;
     private volatile boolean explicitlyStoppedByController;
+    private final AtomicBoolean projectionLeaseHeld = new AtomicBoolean();
 
     public static Intent startIntent(Context context, int resultCode, Intent resultData) {
         return new Intent(context, ScreenCaptureService.class)
@@ -132,6 +134,16 @@ public final class ScreenCaptureService extends Service {
             return START_NOT_STICKY;
         }
         if (!ACTION_START.equals(intent.getAction()) || running) return START_NOT_STICKY;
+        if (!MediaProjectionLeaseRegistry.acquire(
+                MediaProjectionLeaseRegistry.Owner.PROTECTION)) {
+            explicitlyStoppedByController = true;
+            ProtectionSessionManager.markMediaProjectionExplicitlyStopped(this);
+            new AppModeManager(this).setArmed(false);
+            ResumeNotificationManager.cancel(this);
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        }
+        projectionLeaseHeld.set(true);
 
         startForeground(NOTIFICATION_ID, buildNotification());
         Intent projectionData = projectionData(intent);
@@ -401,6 +413,10 @@ public final class ScreenCaptureService extends Service {
         if (activeOverlay != null) activeOverlay.close();
         PopupStormManager.get().stop();
         if (projection != null) projection.stop();
+        if (projectionLeaseHeld.compareAndSet(true, false)) {
+            MediaProjectionLeaseRegistry.release(
+                    MediaProjectionLeaseRegistry.Owner.PROTECTION);
+        }
         stopForeground(STOP_FOREGROUND_REMOVE);
         if (!explicitlyStoppedByController) {
             CommitmentManager.reinforceProtection(this);

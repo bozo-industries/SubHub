@@ -14,6 +14,7 @@
 | [25](passes/pass-25.md) | partial-success | One content-space camera for every render source | 24 | Keep the camera/timeline work, but the Pixel exposed fast → partial quality → complete quality → periodic refresh waves. Never let a cache become delayed render authority again. |
 | [26](passes/pass-26.md) | partial-success | One atomic scene transaction and vsync commit per exact capture | 25 | Kept: exactly-once inference mailbox plus latest-only display-tick queue. Still visibly constrained by new evidence arriving at screenshot cadence. |
 | [27](passes/pass-27.md) | device-gate-pending | Bounded content-space memory and first-vsync re-entry | 26 | Primitive bounded cache and render-only re-entry are implemented; Pixel must prove return-scroll hit rate and navigation safety before acceptance. |
+| [28](passes/pass-28.md) | candidate | Full-screen MediaProjection teacher calibration | 27 | First Pixel artifact is baseline-only: it exposed marker-edge, gesture-group, future-leak, and surface-churn defects. The next run uses causal fitting, sticky surface identity, and real touch boundaries. |
 
 ## Current anchors
 
@@ -22,5 +23,6 @@
   `B680B4A35A2409DB6993FA189934885F0C9F408CF01846661282DBAAFC5A6442`.
 - Frozen uploaded candidate: Pass23, SHA-256
   `F974FDF148C3C36D48E6490F8562B31B3E69CB76D47CAC37A1F38EECCB842344`.
-- Current worktree: Pass27 device candidate from the retained Pass26 transaction/tick core. It must not overwrite the
+- Installed worktree anchor: Pass27 device candidate from the retained Pass26 transaction/tick core.
+- Current experiment: Pass28 full-screen teacher calibration. It must not overwrite the
   frozen Pass22d, Pass23, Pass24, or Pass25 artifacts.

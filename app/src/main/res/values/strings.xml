@@ -238,6 +238,7 @@ Maximum coverage · flagship devices</string>
     <string name="diagnostics_lab_failed">Censor Lab failed: %1$s</string>
     <string name="diagnostics_lab_capture_cancelled">Screen recording was cancelled. Nothing was captured.</string>
     <string name="diagnostics_lab_projection_conflict">Stop Screen Capture mode first. Lab recording runs alongside Accessibility/App Mode.</string>
+    <string name="screen_capture_projection_conflict">Stop the active Lab recording before starting Screen Capture mode.</string>
     <string name="diagnostics_lab_share_chooser">Share SubHub Censor Lab bundle</string>
     <string name="diagnostics_lab_notification_channel">Censor Lab recording</string>
     <string name="diagnostics_lab_notification_title">SubHub Censor Lab</string>

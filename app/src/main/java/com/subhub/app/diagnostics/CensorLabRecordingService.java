@@ -30,6 +30,7 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 import com.subhub.app.R;
+import com.subhub.app.capture.MediaProjectionLeaseRegistry;
 import com.subhub.app.service.ScreenCaptureService;
 
 import java.io.File;
@@ -63,6 +64,7 @@ public final class CensorLabRecordingService extends Service {
     private final Object resourceLock = new Object();
     private final Object stopRequestLock = new Object();
     private final AtomicBoolean terminal = new AtomicBoolean();
+    private final AtomicBoolean projectionLeaseHeld = new AtomicBoolean();
     private ScheduledExecutorService worker;
     private MediaProjection projection;
     private MediaProjection.Callback projectionCallback;
@@ -115,13 +117,27 @@ public final class CensorLabRecordingService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) return START_NOT_STICKY;
         if (ACTION_STOP.equals(intent.getAction())) {
-            requestStop(intent.getLongExtra(EXTRA_STOP_DELAY_MS, 0L),
-                    intent.getStringExtra(EXTRA_STOP_REASON));
+            if (isActive()) {
+                requestStop(intent.getLongExtra(EXTRA_STOP_DELAY_MS, 0L),
+                        intent.getStringExtra(EXTRA_STOP_REASON));
+            } else {
+                // A delayed/duplicate stop after finalization must not recreate an idle service
+                // record which can look like an active MediaProjection owner.
+                stopSelf(startId);
+            }
             return START_NOT_STICKY;
         }
         if (!ACTION_START.equals(intent.getAction()) || isActive() || terminal.get()) {
             return START_NOT_STICKY;
         }
+        if (!MediaProjectionLeaseRegistry.acquire(
+                MediaProjectionLeaseRegistry.Owner.CENSOR_LAB)) {
+            setState(new Snapshot(Phase.FAILED, null, null,
+                    "Another screen-capture session is already active"));
+            stopSelf(startId);
+            return START_NOT_STICKY;
+        }
+        projectionLeaseHeld.set(true);
 
         setState(new Snapshot(Phase.STARTING, null, null, null));
         NotificationManager notifications = getSystemService(NotificationManager.class);
@@ -329,6 +345,7 @@ public final class CensorLabRecordingService extends Service {
                         CensorLabRecorder.activeSessionId(), null, safeFailure(error)));
             }
             stopForeground(STOP_FOREGROUND_REMOVE);
+            releaseProjectionLease();
             if (state.phase == Phase.READY) publishReadyNotification();
             stopSelf();
             ScheduledExecutorService executor = worker;
@@ -348,6 +365,7 @@ public final class CensorLabRecordingService extends Service {
         }
         setState(new Snapshot(Phase.FAILED, null, null, safeFailure(error)));
         stopForeground(STOP_FOREGROUND_REMOVE);
+        releaseProjectionLease();
         stopSelf();
         ScheduledExecutorService executor = worker;
         if (executor != null) executor.shutdownNow();
@@ -376,6 +394,13 @@ public final class CensorLabRecordingService extends Service {
             }
             projection = null;
             projectionCallback = null;
+        }
+    }
+
+    private void releaseProjectionLease() {
+        if (projectionLeaseHeld.compareAndSet(true, false)) {
+            MediaProjectionLeaseRegistry.release(
+                    MediaProjectionLeaseRegistry.Owner.CENSOR_LAB);
         }
     }
 
@@ -542,6 +567,7 @@ public final class CensorLabRecordingService extends Service {
         if (error == null) return "Unknown failure";
         String message = error.getMessage();
         if (message != null && (message.startsWith("Screen Capture mode")
+                || message.startsWith("Another screen-capture")
                 || message.startsWith("Android screen-capture")
                 || message.startsWith("Not enough free space")
                 || message.startsWith("No compatible H.264"))) return message;
@@ -564,6 +590,7 @@ public final class CensorLabRecordingService extends Service {
         } else if (worker != null && !worker.isShutdown()) {
             worker.shutdownNow();
         }
+        if (terminal.get()) releaseProjectionLease();
         super.onDestroy();
     }
 

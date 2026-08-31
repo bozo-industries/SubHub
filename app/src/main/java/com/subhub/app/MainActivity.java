@@ -32,6 +32,7 @@ import androidx.core.content.ContextCompat;
 import com.subhub.app.databinding.ActivityMainBinding;
 import com.subhub.app.appmode.AppModeActivity;
 import com.subhub.app.capture.ExportActivity;
+import com.subhub.app.capture.MediaProjectionLeaseRegistry;
 import com.subhub.app.commitment.CommitmentActivity;
 import com.subhub.app.commitment.CommitmentManager;
 import com.subhub.app.penance.PenanceActivity;
@@ -337,6 +338,12 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void requestProjection() {
+        if (MediaProjectionLeaseRegistry.owner() != null) {
+            new AppModeManager(this).setArmed(false);
+            updateProtectionButton(false);
+            showStatus(R.string.screen_capture_projection_conflict);
+            return;
+        }
         projectionPermission.launch(projectionManager.createScreenCaptureIntent());
     }
 

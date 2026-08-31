@@ -62,15 +62,17 @@ final class CensorLabEventBuffer {
     static final class Event {
         final long sequence;
         final long elapsedNanos;
+        final long uptimeMillis;
         final long wallMillis;
         final String thread;
         final String tag;
         final String message;
 
-        Event(long sequence, long elapsedNanos, long wallMillis, String thread,
+        Event(long sequence, long elapsedNanos, long uptimeMillis, long wallMillis, String thread,
                 String tag, String message) {
             this.sequence = sequence;
             this.elapsedNanos = elapsedNanos;
+            this.uptimeMillis = uptimeMillis;
             this.wallMillis = wallMillis;
             this.thread = thread;
             this.tag = tag;
@@ -78,7 +80,7 @@ final class CensorLabEventBuffer {
         }
 
         long estimatedBytes() {
-            return 32L + utf8(thread) + utf8(tag) + utf8(message);
+            return 40L + utf8(thread) + utf8(tag) + utf8(message);
         }
 
         private static int utf8(String value) {

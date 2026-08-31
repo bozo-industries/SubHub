@@ -11,6 +11,7 @@ import android.view.WindowManager;
 import com.subhub.app.BuildConfig;
 import com.subhub.app.detection.DetectorConfig;
 import com.subhub.app.settings.SettingsRepository;
+import com.subhub.app.settings.CensorAppearance;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -225,6 +226,7 @@ public final class CensorLabRecorder {
     private static void addLocked(ActiveSession session, String tag, String message) {
         session.buffer.offer(new CensorLabEventBuffer.Event(
                 EVENT_SEQUENCE.incrementAndGet(), SystemClock.elapsedRealtimeNanos(),
+                SystemClock.uptimeMillis(),
                 System.currentTimeMillis(), sanitize(Thread.currentThread().getName(), "thread"),
                 sanitize(tag, "Unknown"), sanitize(message, "")));
     }
@@ -238,6 +240,7 @@ public final class CensorLabRecorder {
                     JSONObject line = new JSONObject()
                             .put("sequence", event.sequence)
                             .put("elapsedNanos", event.elapsedNanos)
+                            .put("observedUptimeMillis", event.uptimeMillis)
                             .put("wallMillis", event.wallMillis)
                             .put("thread", event.thread)
                             .put("tag", event.tag)
@@ -269,6 +272,7 @@ public final class CensorLabRecorder {
         try {
             SettingsRepository settings = new SettingsRepository(context);
             DetectorConfig config = settings.loadDetectorConfig();
+            CensorAppearance appearance = settings.loadAppearance();
             DiagnosticsRepository.Snapshot runtime = DiagnosticsRepository.snapshot();
             DisplayMetrics metrics = context.getResources().getDisplayMetrics();
             float refreshRate = 0f;
@@ -287,6 +291,7 @@ public final class CensorLabRecorder {
                     && videoFile.length() > 0L;
             JSONObject manifest = new JSONObject()
                     .put("schemaVersion", 1)
+                    .put("traceSchemaVersion", 2)
                     .put("sessionId", session.id)
                     .put("startedElapsedNanos", session.startedElapsedNanos)
                     .put("stoppedElapsedNanos", stoppedElapsedNanos)
@@ -314,6 +319,13 @@ public final class CensorLabRecorder {
                             .put("inferenceResolution", config.getInferenceResolution())
                             .put("captureScale", config.getCaptureScale())
                             .put("detectionIntervalMs", config.getDetectionIntervalMs())
+                            .put("overlayAppearance", new JSONObject()
+                                    .put("type", appearance.getType().getPreferenceValue())
+                                    .put("showBorder", appearance.isShowBorder())
+                                    .put("borderColor", appearance.getBorderColor())
+                                    .put("showText", appearance.isShowText())
+                                    .put("sizePadding", appearance.getSizePadding())
+                                    .put("reverseMode", appearance.isReverseMode()))
                             .put("enabledCategories", enabledCategories))
                     .put("recording", new JSONObject()
                             .put("inAppScreenRecording", videoAttached)

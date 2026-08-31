@@ -44,6 +44,7 @@ import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.detection.text.TextDetectionStabilizer;
 import com.subhub.app.diagnostics.DiagnosticsRepository;
 import com.subhub.app.diagnostics.CensorLabLog;
+import com.subhub.app.diagnostics.CensorLabRecorder;
 import com.subhub.app.overlay.OverlayController;
 import com.subhub.app.popup.PopupStormManager;
 import com.subhub.app.penance.CensorTapTracker;
@@ -66,6 +67,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -99,6 +101,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     // AOSP enforces a strict >333 ms per-window request interval. Schedule at the first safe
     // millisecond instead of leaving an extra 16 ms idle on every capture.
     private static final long ACCESSIBILITY_SCREENSHOT_INTERVAL_MS = 334L;
+    private static final int CALIBRATION_MAX_LIVE_BOXES = 16;
+    private static final int CALIBRATION_MAX_TOTAL_BOXES = 24;
     private static final long OCR_INTERVAL_MS = 3_000L;
     private static final long OCR_CONFIRM_INTERVAL_MS = 650L;
     private static final long OCR_MOTION_SETTLE_MS = 600L;
@@ -190,6 +194,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final AtomicLong visualDocumentEpoch = new AtomicLong(1L);
     private final AtomicInteger activeApplicationWindowId = new AtomicInteger(-1);
     private volatile String activeScrollSurfaceKey = "";
+    private volatile int activeScrollSurfaceWindowId = -1;
+    private volatile long activeScrollTelemetryToken;
+    private volatile byte activeScrollSurfaceConfidence =
+            AccessibilitySurfaceIdentityResolver.CONFIDENCE_LOW;
+    private volatile long activeScrollSurfaceLastTrustedUptime;
+    private volatile int activeScrollSurfaceLowReuseCount;
     private long lastWorldCacheQueryX = Long.MIN_VALUE;
     private long lastWorldCacheQueryY = Long.MIN_VALUE;
     private long lastWorldCacheQueryDocument = Long.MIN_VALUE;
@@ -243,6 +253,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile long scrollTraceId;
     private volatile long scrollTraceStartedUptime;
     private volatile long lastScrollTraceEventUptime;
+    private volatile long touchTraceId;
+    private volatile long touchTraceStartedUptime;
+    private volatile boolean touchInteractionActive;
     private String lastPublishedTextFingerprint = "";
     private long skippedUnchangedTextPublishes;
     private final Map<Integer, BBox> lastPublishedVisualBoxes = new HashMap<>();
@@ -1108,6 +1121,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         sourceFrame, trackCameraX, trackCameraY,
                         sourcePhase.scrollX, sourcePhase.scrollY,
                         viewport.width(), viewport.height());
+                traceCalibrationScene(
+                        "source:" + candidate.fastSubmissionSequence,
+                        currentTracks, Collections.emptyList(),
+                        candidate.sourceWidth, candidate.sourceHeight,
+                        trackCameraX, trackCameraY,
+                        cumulativeScrollX.get(), cumulativeScrollY.get());
                 Log.i(TAG, "SOURCE_FRAME_PUBLISH reason=" + reason
                         + " sourceScroll=" + sourcePhase.scrollX + ',' + sourcePhase.scrollY
                         + " sourceGeneration=" + sourcePhase.motionGeneration
@@ -1402,6 +1421,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                     trackCameraX, trackCameraY,
                                     viewport.width(), viewport.height());
                         }
+                        traceCalibrationScene(
+                                "quality:" + candidate.fastSubmissionSequence,
+                                currentTracks, Collections.emptyList(),
+                                width, height, trackCameraX, trackCameraY,
+                                cumulativeScrollX.get(), cumulativeScrollY.get());
                         if (supplementedTracks > 0 || retiredQualityTracks > 0) {
                             VisualGeometryDelta geometry = recordVisualGeometry(currentTracks);
                             String handoffEvent = supplementedTracks > 0
@@ -1541,6 +1565,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         alignment.scrollX, alignment.scrollY,
                         requestedScrollX, requestedScrollY,
                         publicationViewport.width(), publicationViewport.height());
+                traceCalibrationScene(
+                        publishedSceneCommit == null ? "legacy"
+                                : publishedSceneCommit.key().toString(),
+                        renderTracks, cachedRenderRegions,
+                        width, height, alignment.scrollX, alignment.scrollY,
+                        current.scrollX, current.scrollY);
                 lastFastOverlayGeneration = motionGeneration.get();
                 long publishDelay = publishedAt - candidate.capturedAtUptimeMillis;
                 if (publishedSceneCommit != null) {
@@ -1624,6 +1654,72 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 presenter.submit(presentation);
             }
         });
+    }
+
+    /** Numeric-only teacher record used to mask/score censors against the recorded pixels. */
+    private void traceCalibrationScene(
+            String sceneId,
+            List<TrackedObject> live,
+            List<Detection> cached,
+            int width,
+            int height,
+            long trackCameraX,
+            long trackCameraY,
+            long currentCameraX,
+            long currentCameraY) {
+        if (!CensorLabRecorder.isActive()) return;
+        StringBuilder liveBoxes = new StringBuilder(512);
+        StringBuilder cachedBoxes = new StringBuilder(256);
+        int liveCount = appendCalibrationTrackBoxes(
+                liveBoxes, live, CALIBRATION_MAX_LIVE_BOXES);
+        int cachedCount = appendCalibrationDetectionBoxes(cachedBoxes, cached,
+                Math.max(0, CALIBRATION_MAX_TOTAL_BOXES - liveCount));
+        CensorLabLog.i(TAG, "CALIBRATION_SCENE id=" + sceneId
+                + " size=" + width + 'x' + height
+                + " trackCamera=" + trackCameraX + ',' + trackCameraY
+                + " currentCamera=" + currentCameraX + ',' + currentCameraY
+                + " liveCount=" + (live == null ? 0 : live.size())
+                + " cachedCount=" + (cached == null ? 0 : cached.size())
+                + " encodedLive=" + liveCount
+                + " encodedCached=" + cachedCount
+                + " liveBoxes=" + liveBoxes
+                + " cachedBoxes=" + cachedBoxes);
+    }
+
+    private static int appendCalibrationTrackBoxes(
+            StringBuilder output, List<TrackedObject> tracks, int limit) {
+        int written = 0;
+        if (tracks == null || limit <= 0) return written;
+        for (TrackedObject track : tracks) {
+            if (track == null || written >= limit) break;
+            if (written > 0) output.append(';');
+            appendCalibrationBox(output, track.getBox());
+            output.append(',').append(track.getId());
+            written++;
+        }
+        return written;
+    }
+
+    private static int appendCalibrationDetectionBoxes(
+            StringBuilder output, List<Detection> detections, int limit) {
+        int written = 0;
+        if (detections == null || limit <= 0) return written;
+        for (Detection detection : detections) {
+            if (detection == null || written >= limit) break;
+            if (written > 0) output.append(';');
+            appendCalibrationBox(output, detection.getBox());
+            written++;
+        }
+        return written;
+    }
+
+    private static void appendCalibrationBox(StringBuilder output, BBox box) {
+        if (box == null) {
+            output.append("0,0,0,0");
+            return;
+        }
+        output.append(box.getX()).append(',').append(box.getY()).append(',')
+                .append(box.getWidth()).append(',').append(box.getHeight());
     }
 
     private CaptureScrollTimeline.Phase resolveCapturePhase(InferenceFrame candidate) {
@@ -1837,18 +1933,31 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return ACCESSIBILITY_SCREENSHOT_INTERVAL_MS;
     }
 
-    private boolean acceptScrollSurface(String surfaceKey) {
+    private boolean acceptScrollSurface(
+            String surfaceKey,
+            AccessibilitySurfaceIdentityResolver.Identity identity,
+            long trustedAtUptime) {
         String safe = surfaceKey == null ? "" : surfaceKey.trim();
         if (safe.isEmpty()) return false;
         int removed;
         long document;
+        boolean changed;
         synchronized (worldCacheLock) {
-            if (safe.equals(activeScrollSurfaceKey)) return false;
-            removed = contentSpaceRegionCache.clear();
+            changed = !safe.equals(activeScrollSurfaceKey);
+            removed = changed ? contentSpaceRegionCache.clear() : 0;
             activeScrollSurfaceKey = safe;
-            document = visualDocumentEpoch.incrementAndGet();
-            resetWorldCacheQueryLocked();
+            activeScrollSurfaceWindowId = identity == null ? -1 : identity.windowId;
+            activeScrollTelemetryToken = identity == null ? 0L : identity.telemetryToken();
+            activeScrollSurfaceConfidence = identity == null
+                    ? AccessibilitySurfaceIdentityResolver.CONFIDENCE_LOW
+                    : identity.confidence;
+            activeScrollSurfaceLastTrustedUptime = Math.max(0L, trustedAtUptime);
+            activeScrollSurfaceLowReuseCount = 0;
+            document = changed ? visualDocumentEpoch.incrementAndGet()
+                    : visualDocumentEpoch.get();
+            if (changed) resetWorldCacheQueryLocked();
         }
+        if (!changed) return false;
         // A freshly identified surface must earn its own committed observations. Seeding it with
         // tracks from the previous surface is precisely how nested lists inherit stale boxes.
         invalidateCurrentScene("world-surface-change");
@@ -1858,13 +1967,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void disableWorldCacheForUnstableSurface(
-            AccessibilitySurfaceIdentityResolver.Identity identity) {
+            AccessibilitySurfaceIdentityResolver.Identity identity,
+            String expectedActiveSurface) {
         int removed;
         long document;
         synchronized (worldCacheLock) {
+            if (!Objects.equals(activeScrollSurfaceKey, expectedActiveSurface)) return;
             if (activeScrollSurfaceKey == null || activeScrollSurfaceKey.isEmpty()) return;
             removed = contentSpaceRegionCache.clear();
             activeScrollSurfaceKey = "";
+            activeScrollSurfaceWindowId = -1;
+            activeScrollTelemetryToken = 0L;
+            activeScrollSurfaceConfidence = AccessibilitySurfaceIdentityResolver.CONFIDENCE_LOW;
+            activeScrollSurfaceLastTrustedUptime = 0L;
+            activeScrollSurfaceLowReuseCount = 0;
             document = visualDocumentEpoch.incrementAndGet();
             resetWorldCacheQueryLocked();
         }
@@ -1887,6 +2003,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         synchronized (worldCacheLock) {
             removed = contentSpaceRegionCache.clear();
             activeScrollSurfaceKey = "";
+            activeScrollSurfaceWindowId = -1;
+            activeScrollTelemetryToken = 0L;
+            activeScrollSurfaceConfidence = AccessibilitySurfaceIdentityResolver.CONFIDENCE_LOW;
+            activeScrollSurfaceLastTrustedUptime = 0L;
+            activeScrollSurfaceLowReuseCount = 0;
             document = visualDocumentEpoch.incrementAndGet();
             resetWorldCacheQueryLocked();
         }
@@ -2028,6 +2149,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void traceScrollEvent(
             long nowUptime,
+            long sourceUptime,
             long eventAgeMs,
             int rawDx,
             int rawDy,
@@ -2036,7 +2158,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             String source,
             String evidence,
             int adjustedPixels,
-            boolean amplified) {
+            boolean amplified,
+            long surfaceTelemetryToken,
+            byte surfaceConfidence,
+            boolean surfaceCacheable,
+            byte observedSurfaceConfidence,
+            ScrollSurfaceHysteresis.Decision surfaceDecision) {
         long gap = lastScrollTraceEventUptime <= 0L
                 ? Long.MAX_VALUE : nowUptime - lastScrollTraceEventUptime;
         if (gap > 250L) {
@@ -2052,9 +2179,42 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 + " dx=" + dx + " dy=" + dy
                 + " evidence=" + evidence
                 + " adjustedPx=" + adjustedPixels
-                + " amplified=" + amplified);
+                + " amplified=" + amplified
+                + " sourceUptimeMs=" + sourceUptime
+                + " receivedUptimeMs=" + nowUptime
+                + " surfaceToken=" + Long.toUnsignedString(surfaceTelemetryToken, 16)
+                + " surfaceConfidence=" + surfaceConfidence
+                + " surfaceCacheable=" + surfaceCacheable
+                + " observedSurfaceConfidence=" + observedSurfaceConfidence
+                + " surfaceDecision=" + (surfaceDecision == null
+                        ? "UNKNOWN" : surfaceDecision.name())
+                + " touchId=" + touchTraceId
+                + " touchActive=" + touchInteractionActive
+                + " sinceTouchStartMs=" + (touchInteractionActive
+                        ? Math.max(0L, nowUptime - touchTraceStartedUptime) : -1L)
+                + " documentEpoch=" + visualDocumentEpoch.get());
         main.removeCallbacks(settledScrollTrace);
         main.postDelayed(settledScrollTrace, MOTION_SETTLE_MS);
+    }
+
+    private void traceTouchInteraction(AccessibilityEvent event, boolean started) {
+        long now = SystemClock.uptimeMillis();
+        long source = event == null ? now : event.getEventTime();
+        if (source <= 0L || source > now) source = now;
+        if (started) {
+            touchTraceId++;
+            touchTraceStartedUptime = now;
+            touchInteractionActive = true;
+        }
+        long duration = touchTraceStartedUptime <= 0L
+                ? 0L : Math.max(0L, now - touchTraceStartedUptime);
+        CensorLabLog.i(TAG, "CALIBRATION_TOUCH id=" + touchTraceId
+                + " phase=" + (started ? "start" : "end")
+                + " sourceUptimeMs=" + source
+                + " receivedUptimeMs=" + now
+                + " eventAgeMs=" + Math.max(0L, now - source)
+                + " durationMs=" + duration);
+        if (!started) touchInteractionActive = false;
     }
 
     private void applyScrollMotion(
@@ -3156,6 +3316,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void handleAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
+        int eventType = event.getEventType();
+        if (eventType == AccessibilityEvent.TYPE_TOUCH_INTERACTION_START
+                || eventType == AccessibilityEvent.TYPE_TOUCH_INTERACTION_END) {
+            traceTouchInteraction(
+                    event, eventType == AccessibilityEvent.TYPE_TOUCH_INTERACTION_START);
+            return;
+        }
         String packageName = event.getPackageName() == null
                 ? "" : event.getPackageName().toString();
         if (!packageName.isEmpty()) guardForegroundPackage = packageName;
@@ -3174,21 +3341,56 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
             if (recognitionActive && packageName.equals(foregroundPackage)) {
+                long scrollNow = SystemClock.uptimeMillis();
                 AccessibilitySurfaceIdentityResolver.Identity surfaceIdentity =
                         scrollSurfaceIdentityResolver.resolve(event);
                 String cacheSurface = cacheSurfaceKey(surfaceIdentity);
-                String motionSurface = cacheSurface.isEmpty()
-                        ? AccessibilityScrollMotionResolver.surfaceKey(event) : cacheSurface;
-                if (surfaceIdentity.isCacheable()) {
-                    if (acceptScrollSurface(cacheSurface)) {
+                long surfaceTelemetryToken = surfaceIdentity.telemetryToken();
+                byte surfaceConfidence = surfaceIdentity.confidence;
+                boolean surfaceCacheable = surfaceIdentity.isCacheable();
+                ScrollSurfaceHysteresis.Decision surfaceDecision =
+                        ScrollSurfaceHysteresis.Decision.DISABLE;
+                String reusableSurface = "";
+                String decisionActiveSurface;
+                long reusableToken = 0L;
+                byte reusableConfidence = AccessibilitySurfaceIdentityResolver.CONFIDENCE_LOW;
+                synchronized (worldCacheLock) {
+                    decisionActiveSurface = activeScrollSurfaceKey;
+                    surfaceDecision = ScrollSurfaceHysteresis.decide(
+                            surfaceIdentity.isCacheable(), surfaceIdentity.windowId,
+                            activeScrollSurfaceKey != null
+                                    && !activeScrollSurfaceKey.isEmpty(),
+                            activeScrollSurfaceWindowId, scrollNow,
+                            activeScrollSurfaceLastTrustedUptime,
+                            activeScrollSurfaceLowReuseCount);
+                    if (surfaceDecision == ScrollSurfaceHysteresis.Decision.REUSE_ACTIVE) {
+                        activeScrollSurfaceLowReuseCount++;
+                        reusableSurface = activeScrollSurfaceKey;
+                        reusableToken = activeScrollTelemetryToken;
+                        reusableConfidence = activeScrollSurfaceConfidence;
+                    }
+                }
+                if (surfaceDecision == ScrollSurfaceHysteresis.Decision.USE_OBSERVED) {
+                    if (acceptScrollSurface(cacheSurface, surfaceIdentity, scrollNow)) {
                         CensorLabLog.i(TAG, "WORLD_CACHE_SURFACE token="
                                 + Long.toUnsignedString(surfaceIdentity.telemetryToken(), 16)
                                 + " confidence=" + surfaceIdentity.confidence
                                 + " cacheable=true");
                     }
+                } else if (surfaceDecision == ScrollSurfaceHysteresis.Decision.REUSE_ACTIVE) {
+                    // Chrome/WebView can alternate a stable scroll-owner event with a virtual
+                    // companion event whose source cannot be resolved. Keep the proven surface
+                    // instead of clearing history every other callback.
+                    cacheSurface = reusableSurface;
+                    surfaceTelemetryToken = reusableToken;
+                    surfaceConfidence = reusableConfidence;
+                    surfaceCacheable = true;
                 } else {
-                    disableWorldCacheForUnstableSurface(surfaceIdentity);
+                    disableWorldCacheForUnstableSurface(
+                            surfaceIdentity, decisionActiveSurface);
                 }
+                String motionSurface = cacheSurface.isEmpty()
+                        ? AccessibilityScrollMotionResolver.surfaceKey(event) : cacheSurface;
                 int viewportWidth = latestCaptureWidth;
                 int viewportHeight = latestCaptureHeight;
                 if (viewportWidth <= 1 || viewportHeight <= 1) {
@@ -3198,7 +3400,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 }
                 AccessibilityScrollMotionResolver.Motion rawMotion = scrollMotionResolver.resolve(
                         event, viewportWidth, viewportHeight, motionSurface);
-                long scrollNow = SystemClock.uptimeMillis();
                 long sourceTime = event.getEventTime();
                 if (sourceTime <= 0L || sourceTime > scrollNow) sourceTime = scrollNow;
                 long eventAgeMs = Math.max(0L, scrollNow - sourceTime);
@@ -3210,13 +3411,16 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     Log.d(TAG, "Scroll event screen motion raw=" + rawMotion.dx + ','
                             + rawMotion.dy + " filtered=" + motion.dx + ',' + motion.dy);
                 }
-                traceScrollEvent(scrollNow, eventAgeMs, rawMotion.dx, rawMotion.dy,
+                traceScrollEvent(scrollNow, sourceTime, eventAgeMs,
+                        rawMotion.dx, rawMotion.dy,
                         motion.dx, motion.dy,
                         motion.authoritative ? "accessibility-authoritative"
                                 : motion.rapidReversal ? "rapid-reversal"
                                 : rawMotion.moved() && !motion.moved()
                                 ? "direction-suppressed" : "accessibility",
-                        rawMotion.evidence.name(), motion.adjustedPixels(), motion.amplified());
+                        rawMotion.evidence.name(), motion.adjustedPixels(), motion.amplified(),
+                        surfaceTelemetryToken, surfaceConfidence, surfaceCacheable,
+                        surfaceIdentity.confidence, surfaceDecision);
                 if (motion.moved()) {
                     applyEventMotion(motion.dx, motion.dy, motion.authoritative,
                             sourceTime, scrollNow);
@@ -3711,6 +3915,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         scrollDeltaStabilizer.reset();
         main.removeCallbacks(settledScrollTrace);
         lastScrollTraceEventUptime = 0L;
+        touchInteractionActive = false;
+        touchTraceStartedUptime = 0L;
         textRefreshRequested.set(true);
         main.removeCallbacks(settledTextRefresh);
     }

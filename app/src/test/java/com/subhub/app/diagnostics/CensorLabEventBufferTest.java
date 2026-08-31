@@ -23,6 +23,9 @@ public final class CensorLabEventBufferTest {
         assertTrue(CensorLabLog.allowed("ScreenshotA11y", "SCROLL_EVENT id=2 dy=80"));
         assertTrue(CensorLabLog.allowed("ScreenshotA11y", "SCENE_COMMIT id=4:8:2:10"));
         assertTrue(CensorLabLog.allowed("ScreenshotA11y", "WORLD_CACHE_QUERY entries=8"));
+        assertTrue(CensorLabLog.allowed("ScreenshotA11y", "CALIBRATION_SCENE id=4:8"));
+        assertTrue(CensorLabLog.allowed("ScreenshotA11y", "CALIBRATION_TOUCH id=2 phase=start"));
+        assertFalse(CensorLabLog.allowed("ScreenshotA11y", "CALIBRATION_PRIVATE arbitrary"));
         assertTrue(CensorLabLog.allowed("ScreenshotA11y", "TEXT_SCAN accepted candidates=4"));
         assertFalse(CensorLabLog.allowed("ScreenshotA11y",
                 "Recognition activated for foreground package com.example.private"));
@@ -39,7 +42,7 @@ public final class CensorLabEventBufferTest {
     }
 
     private static CensorLabEventBuffer.Event event(long sequence, String message) {
-        return new CensorLabEventBuffer.Event(sequence, sequence, sequence,
+        return new CensorLabEventBuffer.Event(sequence, sequence, sequence, sequence,
                 "test", "CensorMotion", message);
     }
 }
