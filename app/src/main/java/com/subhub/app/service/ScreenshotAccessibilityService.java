@@ -10,6 +10,7 @@ import android.os.Looper;
 import android.os.Process;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.Choreographer;
 import android.view.Display;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
@@ -68,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -118,6 +120,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final long QUALITY_DEFAULT_EXECUTION_BUDGET_MS = 220L;
     private static final long QUALITY_EXECUTION_GUARD_MS = 32L;
     private static final long QUALITY_MAX_EXCLUSIVE_WINDOW_MS = 300L;
+    /** Hard capture-to-visible budget; lane joining stops early enough to make the next vsync. */
+    private static final long ATOMIC_SCENE_VISIBLE_DEADLINE_MS = 280L;
+    private static final long ATOMIC_SCENE_JOIN_GUARD_MS = 32L;
 
     private final AtomicBoolean processing = new AtomicBoolean();
     private final AtomicBoolean inferenceDraining = new AtomicBoolean();
@@ -138,6 +143,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final AtomicLong qualityInferencePreemptions = new AtomicLong();
     private final AtomicLong qualityInferenceCancelledRuns = new AtomicLong();
     private final AtomicLong fastSubmissionSequence = new AtomicLong();
+    private final SceneTransactionCoordinator<Detection> sceneCoordinator =
+            new SceneTransactionCoordinator<>(SystemClock::uptimeMillis);
+    private final AtomicReference<SceneContext> currentScene = new AtomicReference<>();
+    private final Object sceneLifecycleLock = new Object();
+    private volatile LatestFrameBroker<PendingScenePresentation> scenePresenter;
     private final AtomicLong cumulativeScrollX = new AtomicLong();
     private final AtomicLong cumulativeScrollY = new AtomicLong();
     private final AtomicLong pendingTrackerOffsetX = new AtomicLong();
@@ -374,7 +384,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void scheduleQualityDetectorInitialization(DetectorConfig requestedConfig) {
         ScheduledExecutorService qualityWorker = qualityInferenceWorker;
-        if (!running || requestedConfig == null || qualityWorker == null
+        if (!running || requestedConfig == null || !usesAtomicScenePipeline(requestedConfig)
+                || qualityWorker == null
                 || qualityWorker.isShutdown()
                 || !qualityInitializing.compareAndSet(false, true)) return;
         try {
@@ -564,22 +575,19 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             lastInferenceUptime = nowUptime;
             boolean motionSettled = lastMotionUptime <= 0L
                     || nowUptime - lastMotionUptime >= MOTION_SETTLE_MS;
-            boolean qualityConfirmation = qualityConfirmationRequested.get();
-            boolean qualityRefine = shouldRunQualityRefinement(
-                    nowUptime, lastMotionUptime, lastQualityInferenceUptime,
-                    firstFrameReported.get(),
-                    cachedQualityVisual == VisualDetectionSnapshot.EMPTY,
-                    detector == null ? 0L : detector.getLastRuntimeMs(),
-                    pendingInference.get() != null,
-                    qualityConfirmation);
             long inferenceMotionGeneration = sampledGeneration;
             if (!isCurrentCapture(requestedEpoch)) return;
             int inferenceResolution = currentConfig == null
                     ? FAST_INFERENCE_RESOLUTION : currentConfig.getInferenceResolution();
-            boolean streamingFast = usesStreamingQualityPipeline(currentConfig)
+            boolean streamingFast = usesAtomicScenePipeline(currentConfig)
                     && fastDetector != null;
             boolean streamingQualityReady = streamingFast
                     && detector != null && detector != fastDetector;
+            // Ultra no longer opens an independent periodic render lane. Once motion settles,
+            // both engines observe this exact screenshot concurrently and join one transaction.
+            // During motion only the fast lane is eligible, so quality can never delay tracking.
+            boolean qualityRefine = streamingFast && streamingQualityReady && motionSettled
+                    && !textRefreshRunning.get();
             int fastFrameResolution = fastInferenceFrameResolution(
                     currentConfig, fastDetector != null, overlayNeedsSourceFrame);
             InferenceBitmapPreparer.Prepared prepared = InferenceBitmapPreparer.prepare(
@@ -592,18 +600,29 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (priorityFrame && motionSettled) {
                 settledInferenceNeeded.compareAndSet(true, false);
             }
+            long submissionSequence;
+            synchronized (scrollStateLock) {
+                submissionSequence = fastSubmissionSequence.incrementAndGet();
+            }
+            SceneContext scene = streamingFast
+                    ? beginScene(requestedEpoch, submissionSequence,
+                            inferenceMotionGeneration, capturePhase.screenshotUptimeMillis,
+                            requestedAtUptimeMillis,
+                            motionSettled, qualityRefine)
+                    : null;
             long submittedFastSequence = enqueueInference(new InferenceFrame(
                     frame, requestedEpoch, sourceScrollX,
                     sourceScrollY, inferenceMotionGeneration,
                     prepared.sourceWidth, prepared.sourceHeight,
                     prepared.retainedSourceFrame, continuousMotionInference,
-                    qualityRefine && !streamingFast,
-                    qualityRefine && qualityConfirmation && !streamingFast,
+                    false,
+                    false,
                     requestedAtUptimeMillis,
                     requestedScrollX, requestedScrollY, requestedGeneration,
                     capturePhase.screenshotUptimeMillis,
                     capturePhase.phaseUncertain,
-                    capturePhase.maximumDeliveryDelayMs));
+                    capturePhase.maximumDeliveryDelayMs,
+                    submissionSequence, scene));
             frame = null;
             maybeRequestOcr(wrapped, requestedEpoch, sourceScrollX, sourceScrollY,
                     inferenceMotionGeneration, currentConfig);
@@ -611,14 +630,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             // its 512 px software copy on the latency-critical capture callback. One retained
             // source is allowed; replacement and motion both close it immediately.
             if (submittedFastSequence != Long.MIN_VALUE
-                    && streamingQualityReady && qualityRefine
-                    && pendingQualityInference.get() == null
-                    && !qualityInferenceDraining.get()) {
+                    && streamingQualityReady && qualityRefine && scene != null) {
                 enqueueQualityInference(new QualityInferenceFrame(
                         wrapped, buffer, requestedEpoch, sourceScrollX, sourceScrollY,
                         inferenceMotionGeneration, wrapped.getWidth(), wrapped.getHeight(),
                         inferenceResolution, capturePhase.screenshotUptimeMillis,
-                        submittedFastSequence));
+                        submittedFastSequence, scene));
                 wrapped = null;
                 buffer = null;
             }
@@ -635,15 +652,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private long enqueueInference(InferenceFrame candidate) {
         if (!running || inferenceWorker == null || inferenceWorker.isShutdown()) {
+            invalidateScene(candidate.scene, "fast-worker-unavailable");
             candidate.recycle();
             return Long.MIN_VALUE;
         }
         candidate.fastDemand = inferenceGate.registerFastDemand();
-        long submissionSequence;
-        synchronized (scrollStateLock) {
-            submissionSequence = fastSubmissionSequence.incrementAndGet();
-            candidate.fastSubmissionSequence = submissionSequence;
-        }
+        long submissionSequence = candidate.fastSubmissionSequence;
         // A fresh real-time frame outranks optional quality refinement. ORT cancellation is
         // best-effort, but requesting it here avoids the check-then-start race where an idle
         // quality lane begins immediately before new fast work arrives.
@@ -651,6 +665,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         InferenceFrame replaced = pendingInference.getAndSet(candidate);
         if (replaced != null) {
             droppedInferenceFrames.incrementAndGet();
+            invalidateScene(replaced.scene, "fast-pending-replaced");
             replaced.recycle();
         }
         if (inferenceWorker != null && inferenceDraining.compareAndSet(false, true)) {
@@ -659,10 +674,67 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             } catch (RejectedExecutionException rejected) {
                 inferenceDraining.set(false);
                 discardPendingInference();
+                invalidateScene(candidate.scene, "fast-executor-rejected");
                 return Long.MIN_VALUE;
             }
         }
         return submissionSequence;
+    }
+
+    private SceneContext beginScene(
+            long epoch,
+            long fastSequence,
+            long generation,
+            long screenshotUptimeMillis,
+            long requestedAtUptimeMillis,
+            boolean motionSettled,
+            boolean qualityExpected) {
+        SceneTransactionCoordinator.SceneKey key =
+                new SceneTransactionCoordinator.SceneKey(
+                        epoch, fastSequence, generation, screenshotUptimeMillis);
+        SceneTransactionCoordinator.Mode mode = qualityExpected
+                ? SceneTransactionCoordinator.Mode.SETTLED_ATOMIC
+                : motionSettled ? SceneTransactionCoordinator.Mode.SETTLED_FAST_ONLY
+                : SceneTransactionCoordinator.Mode.ACTIVE_FAST;
+        long visibleDeadline = requestedAtUptimeMillis + ATOMIC_SCENE_VISIBLE_DEADLINE_MS;
+        long joinDeadline = visibleDeadline - ATOMIC_SCENE_JOIN_GUARD_MS;
+        SceneTransactionCoordinator.BeginResult begun;
+        SceneContext next = new SceneContext(
+                key, joinDeadline, visibleDeadline);
+        synchronized (sceneLifecycleLock) {
+            begun = sceneCoordinator.begin(key, mode, qualityExpected, joinDeadline);
+            SceneContext previous = currentScene.getAndSet(next);
+            if (previous != null && previous != next) previous.cancel("superseded");
+        }
+        CensorLabLog.i(TAG, "SCENE_BEGIN id=" + key
+                + " mode=" + mode.name()
+                + " qualityExpected=" + qualityExpected
+                + " joinDeadlineUptimeMs=" + joinDeadline
+                + " visibleDeadlineUptimeMs=" + visibleDeadline
+                + " superseded=" + (begun.superseded() == null
+                        ? "none" : begun.superseded().toString()));
+        return next;
+    }
+
+    private void invalidateScene(SceneContext scene, String reason) {
+        if (scene == null) return;
+        synchronized (sceneLifecycleLock) {
+            sceneCoordinator.invalidate(scene.key);
+            scene.cancel(reason);
+        }
+        CensorLabLog.i(TAG, "SCENE_INVALIDATE id=" + scene.key + " reason=" + reason);
+    }
+
+    private void invalidateCurrentScene(String reason) {
+        SceneTransactionCoordinator.SceneKey invalidated;
+        synchronized (sceneLifecycleLock) {
+            invalidated = sceneCoordinator.invalidateCurrent();
+            SceneContext scene = currentScene.get();
+            if (scene != null) scene.cancel(reason);
+        }
+        if (invalidated != null) {
+            CensorLabLog.i(TAG, "SCENE_INVALIDATE id=" + invalidated + " reason=" + reason);
+        }
     }
 
     private void enqueueQualityInference(QualityInferenceFrame candidate) {
@@ -673,16 +745,16 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         QualityInferenceFrame replaced = pendingQualityInference.getAndSet(candidate);
         if (replaced != null) {
             droppedQualityInferenceFrames.incrementAndGet();
+            if (replaced.scene != null) replaced.scene.cancel("quality-pending-replaced");
             replaced.recycle();
         }
-        scheduleQualityInferenceIfFastIdle();
+        scheduleQualityInference();
     }
 
-    /** Quality may fill otherwise idle accelerator time, but never gets ahead of fast work. */
-    private void scheduleQualityInferenceIfFastIdle() {
+    /** Same-scene quality starts immediately; the Pixel bake-off proved parallel full frames win. */
+    private void scheduleQualityInference() {
         if (!running || qualityInferenceWorker == null || qualityInferenceWorker.isShutdown()
-                || pendingQualityInference.get() == null
-                || inferenceDraining.get() || pendingInference.get() != null) return;
+                || pendingQualityInference.get() == null) return;
         if (qualityInferenceDraining.compareAndSet(false, true)) {
             try {
                 qualityInferenceWorker.execute(this::drainQualityInferenceQueue);
@@ -695,13 +767,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     /**
-     * Uses NNAPI opportunistically after the CPU fast lane drains. Results never receive direct
-     * render authority and are abandoned instead of reprojected when the viewport phase changes.
+     * Runs the same-capture quality observation concurrently. It can complete a scene transaction
+     * but never touches the tracker, cache, or renderer itself.
      */
     private void drainQualityInferenceQueue() {
         try {
             while (running) {
-                if (inferenceDraining.get() || pendingInference.get() != null) return;
                 QualityInferenceFrame candidate = pendingQualityInference.getAndSet(null);
                 if (candidate == null) return;
                 try {
@@ -715,14 +786,19 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             }
         } finally {
             qualityInferenceDraining.set(false);
-            scheduleQualityInferenceIfFastIdle();
+            scheduleQualityInference();
         }
     }
 
     private void runStreamingQualityInference(QualityInferenceFrame candidate) throws Exception {
         DetectionEngine quality = detector;
+        SceneContext scene = candidate.scene;
         long currentGeneration = motionGeneration.get();
-        if (quality == null || !isCurrentCapture(candidate.epoch)) return;
+        if (quality == null || scene == null || !isCurrentCapture(candidate.epoch)) return;
+        if (textRefreshRunning.get()) {
+            logStreamingQualityDrop("text-active-before", candidate, currentGeneration);
+            return;
+        }
         if (candidate.fastSubmissionSequence != fastSubmissionSequence.get()) {
             logStreamingQualityDrop("fast-sequence-before", candidate, currentGeneration);
             return;
@@ -755,14 +831,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     "fast-sequence-after-prepare", candidate, motionGeneration.get());
             return;
         }
-        FastPriorityInferenceGate.QualityAdmission admission = tryAcquireQualityGate();
-        if (!admission.admitted()) {
-            if (!prepared.bitmap.isRecycled()) prepared.bitmap.recycle();
-            logQualityGateSkip(admission.rejection(), candidate.fastSubmissionSequence);
-            return;
-        }
         List<Detection> detected;
-        try (FastPriorityInferenceGate.Lease ignored = admission.lease()) {
+        try {
             detected = quality.detect(
                     prepared.bitmap, candidate.sourceWidth, candidate.sourceHeight,
                     () -> qualityCancellationRequested(candidate));
@@ -786,85 +856,38 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             logStreamingQualityDrop("motion-generation-after", candidate, currentGeneration);
             return;
         }
-        ScrollPosition current = currentScrollPosition();
-        long deltaX = current.scrollX - candidate.scrollX;
-        long deltaY = current.scrollY - candidate.scrollY;
-        Rect viewport = screenBounds();
-        if (Math.abs(deltaX) > viewport.width() || Math.abs(deltaY) > viewport.height()) {
-            Log.i(TAG, "QUALITY_STREAM_DROP reason=viewport-disjoint sourceGeneration="
-                    + candidate.motionGeneration + " currentGeneration=" + currentGeneration
-                    + " scrollDelta=" + deltaX + ',' + deltaY);
-            return;
+        // One single-frame precision gate replaces the old multi-capture stabilizer. Marginal
+        // quality-only observations remain invisible instead of appearing as a delayed second
+        // or third wave. Reconciliation with the fast observation happens exactly once below.
+        List<Detection> coverage = markQualityCoverage(
+                FastVisualGate.filter(detected, detectorConfig));
+        long readyAt = SystemClock.uptimeMillis();
+        SceneTransactionCoordinator.Transition<Detection> transition =
+                sceneCoordinator.submitQuality(scene.key, coverage);
+        if (transition.committed()) scene.deliver(transition.commit());
+        if (transition.status() == SceneTransactionCoordinator.Status.DROPPED_STALE
+                || transition.status() == SceneTransactionCoordinator.Status.DROPPED_CLOSED) {
+            CensorLabLog.i(TAG, "SCENE_LATE_DROP id=" + scene.key
+                    + " lane=quality status=" + transition.status().name());
         }
-        List<Detection> aligned = shiftDetectionSource(
-                detected, candidate.sourceWidth, candidate.sourceHeight,
-                candidate.scrollX, candidate.scrollY,
-                candidate.sourceWidth, candidate.sourceHeight,
-                current.scrollX, current.scrollY);
-        VisualDetectionStabilizer.UpdateResult stabilized =
-                qualityVisualStabilizer.updateWithMetrics(aligned, detectorConfig);
-        List<Detection> coverage = markQualityCoverage(stabilized.stableDetections());
-        VisualIdentityReconciler.Result identity = VisualIdentityReconciler.reconcile(
-                Collections.emptyList(), coverage, tracker.activeTracks());
-        coverage = identity.detections();
-        boolean completeScene = stabilized.pendingCandidates() <= 0;
-        long cachedAt = SystemClock.uptimeMillis();
-        int retiredQualityTracks = 0;
-        boolean cachePreserved;
-        synchronized (scrollStateLock) {
-            currentGeneration = motionGeneration.get();
-            if (candidate.motionGeneration != currentGeneration
-                    || candidate.fastSubmissionSequence != fastSubmissionSequence.get()) {
-                qualityVisualStabilizer.clear();
-                logStreamingQualityDrop(
-                        candidate.motionGeneration != currentGeneration
-                                ? "motion-generation-commit" : "fast-sequence-commit",
-                        candidate, currentGeneration);
-                return;
-            }
-            // Commit the new scene and retire disproven quality-only identities as one
-            // generation-fenced transaction. Until a complete scene exists, the previous cache
-            // remains reusable by every fast frame so confirmed coverage cannot flash away.
-            // Detector omission is not negative evidence. Quality-only coverage remains until
-            // positive fast evidence adopts it, viewport motion removes it, or its asynchronous
-            // wall-clock grace expires.
-            retiredQualityTracks = 0;
-            VisualDetectionSnapshot previous = cachedQualityVisual;
-            int previousCount = previous != VisualDetectionSnapshot.EMPTY
-                    && previous.motionGeneration == currentGeneration
-                    ? previous.detections.size() : 0;
-            cachePreserved = !shouldReplaceQualityCache(
-                    previousCount, coverage.size(), completeScene);
-            if (!cachePreserved) {
-                cachedQualityVisual = new VisualDetectionSnapshot(
-                        coverage, candidate.sourceWidth, candidate.sourceHeight,
-                        current.scrollX, current.scrollY, cachedAt, currentGeneration);
-            }
-        }
-        lastQualityInferenceUptime = cachedAt;
+        lastQualityInferenceUptime = readyAt;
         lastSuccessfulQualityDurationMs = quality.getLastInferenceMs() + bitmapPrepareMs;
-        CensorLabLog.i(TAG, "QUALITY_STREAM_CACHE scrollId=" + scrollTraceId
-                + " captureAgeMs=" + (cachedAt - candidate.capturedAtUptimeMillis)
+        CensorLabLog.i(TAG, "QUALITY_READY id=" + scene.key
+                + " scrollId=" + scrollTraceId
+                + " captureAgeMs=" + (readyAt - candidate.capturedAtUptimeMillis)
                 + " bitmapPrepareMs=" + bitmapPrepareMs
                 + " inferenceMs=" + quality.getLastInferenceMs()
                 + " preprocessMs=" + quality.getLastPreprocessMs()
                 + " runtimeMs=" + quality.getLastRuntimeMs()
                 + " postprocessMs=" + quality.getLastPostprocessMs()
                 + " afterMotionMs=" + (lastMotionUptime <= 0L
-                        ? 0L : cachedAt - lastMotionUptime)
+                        ? 0L : readyAt - lastMotionUptime)
                 + " rawVisual=" + rawVisualCount
-                + " stableVisual=" + coverage.size()
-                + " pendingVisual=" + stabilized.pendingCandidates()
-                + " completeScene=" + completeScene
-                + " cachePreserved=" + cachePreserved
-                + " identityLinked=" + identity.qualityLinked()
-                + " identityUnlinked=" + identity.unlinkedQuality()
-                + " retiredQualityTracks=" + retiredQualityTracks
+                + " acceptedVisual=" + coverage.size()
+                + " transactionStatus=" + transition.status().name()
                 + " sourceGeneration=" + candidate.motionGeneration
-                + " cacheGeneration=" + currentGeneration
                 + " sourceFastSequence=" + candidate.fastSubmissionSequence
                 + " currentFastSequence=" + fastSubmissionSequence.get()
-                + " reproject=" + (-deltaX) + ',' + (-deltaY)
                 + " dropped=" + droppedQualityInferenceFrames.get()
                 + " staleDropped=" + staleQualityInferenceFrames.get()
                 + " preemptions=" + qualityInferencePreemptions.get()
@@ -920,6 +943,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private boolean qualityCancellationRequested(QualityInferenceFrame candidate) {
         return candidate == null
+                || candidate.scene == null
+                || candidate.scene.cancelled.get()
+                || textRefreshRunning.get()
                 || !isCurrentCapture(candidate.epoch)
                 || !isQualitySubmissionCurrent(
                         candidate.motionGeneration, motionGeneration.get(),
@@ -928,6 +954,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private boolean qualityCancellationRequested(InferenceFrame candidate) {
         return candidate == null
+                || candidate.scene != null && candidate.scene.cancelled.get()
                 || !isCurrentCapture(candidate.epoch)
                 || !isQualitySubmissionCurrent(
                         candidate.motionGeneration, motionGeneration.get(),
@@ -992,7 +1019,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     discardPendingInference();
                 }
             } else {
-                scheduleQualityInferenceIfFastIdle();
+                scheduleQualityInference();
             }
         }
     }
@@ -1149,13 +1176,55 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         int identityFused = 0;
         int identityCarriedQuality = 0;
         int identityUnlinkedQuality = 0;
+        SceneTransactionCoordinator.Commit<Detection> sceneCommit = null;
         if (fastPass) {
             visualDetections = FastVisualGate.filter(visualDetections, detectorConfig);
-            List<Detection> cachedQuality = cachedQualityForFrame(
-                    width, height, requestedScrollX, requestedScrollY);
-            cachedQualityCount = cachedQuality.size();
+            List<Detection> qualityForScene;
+            SceneContext scene = candidate.scene;
+            if (scene != null) {
+                long fastReadyAt = SystemClock.uptimeMillis();
+                SceneTransactionCoordinator.Transition<Detection> fastTransition =
+                        sceneCoordinator.submitFast(scene.key, visualDetections);
+                if (fastTransition.committed()) scene.deliver(fastTransition.commit());
+                CensorLabLog.i(TAG, "FAST_READY id=" + scene.key
+                        + " captureAgeMs="
+                        + (fastReadyAt - candidate.capturedAtUptimeMillis)
+                        + " rawVisual=" + rawVisualCount
+                        + " acceptedVisual=" + visualDetections.size()
+                        + " transactionStatus=" + fastTransition.status().name());
+                sceneCommit = fastTransition.commit();
+                if (sceneCommit == null
+                        && fastTransition.status()
+                                == SceneTransactionCoordinator.Status.WAITING) {
+                    sceneCommit = scene.awaitCommit();
+                    if (sceneCommit == null && !scene.cancelled.get()) {
+                        SceneTransactionCoordinator.Transition<Detection> deadline =
+                                sceneCoordinator.deadline(scene.key);
+                        if (deadline.committed()) scene.deliver(deadline.commit());
+                        sceneCommit = deadline.commit();
+                        if (sceneCommit == null) sceneCommit = scene.deliveredCommit.get();
+                        CensorLabLog.i(TAG, "SCENE_TIMEOUT id=" + scene.key
+                                + " status=" + deadline.status().name()
+                                + " captureAgeMs=" + Math.max(0L,
+                                SystemClock.uptimeMillis()
+                                        - candidate.capturedAtUptimeMillis));
+                    }
+                }
+                if (sceneCommit == null) {
+                    CensorLabLog.i(TAG, "FAST_DROP reason=scene-closed id=" + scene.key
+                            + " sourceSequence=" + candidate.fastSubmissionSequence
+                            + " currentSequence=" + fastSubmissionSequence.get());
+                    return;
+                }
+                visualDetections = new ArrayList<>(sceneCommit.fastObservations());
+                qualityForScene = sceneCommit.qualityObservations();
+            } else {
+                qualityForScene = cachedQualityForFrame(
+                        width, height, requestedScrollX, requestedScrollY);
+            }
+            cachedQualityCount = qualityForScene.size();
             VisualIdentityReconciler.Result identity = VisualIdentityReconciler.reconcile(
-                    visualDetections, cachedQuality, tracker.activeTracks());
+                    visualDetections, qualityForScene, tracker.activeTracks());
             visualDetections = identity.detections();
             identityRealtimeLinked = identity.realtimeLinked();
             identityQualityLinked = identity.qualityLinked();
@@ -1340,17 +1409,26 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!isCurrentCapture(requestedEpoch)
                 || (!candidate.continuousMotionInference
                 && inferenceMotionGeneration != motionGeneration.get())) return;
-        ScrollAlignment alignment = consumeTrackerMotion(width, height);
-        if (!candidate.continuousMotionInference
-                && inferenceMotionGeneration != motionGeneration.get()) return;
-        if (candidate.continuousMotionInference) {
-            Rect viewport = screenBounds();
-            detections = InferenceScrollReprojector.toCurrentViewport(
-                    detections, width, height, viewport.width(), viewport.height(),
-                    requestedScrollX, requestedScrollY,
-                    alignment.scrollX, alignment.scrollY);
+        ScrollAlignment alignment;
+        List<TrackedObject> tracks;
+        synchronized (sceneLifecycleLock) {
+            if (sceneCommit != null && !sceneCoordinator.isPresentationCurrent(sceneCommit)) {
+                CensorLabLog.i(TAG, "SCENE_LATE_DROP id=" + sceneCommit.key()
+                        + " lane=commit reason=not-current-before-tracker");
+                return;
+            }
+            alignment = consumeTrackerMotion(width, height);
+            if (!candidate.continuousMotionInference
+                    && inferenceMotionGeneration != motionGeneration.get()) return;
+            if (candidate.continuousMotionInference) {
+                Rect viewport = screenBounds();
+                detections = InferenceScrollReprojector.toCurrentViewport(
+                        detections, width, height, viewport.width(), viewport.height(),
+                        requestedScrollX, requestedScrollY,
+                        alignment.scrollX, alignment.scrollY);
+            }
+            tracks = tracker.update(detections);
         }
-        List<TrackedObject> tracks = tracker.update(detections);
         VisualTrackArbitrator.Result renderArbitration = visualRenderTracks(tracks);
         List<TrackedObject> renderTracks = renderArbitration.tracks();
         int qualityOnlyTrackCount = 0;
@@ -1401,15 +1479,19 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         int publishedIdentityCarriedQuality = identityCarriedQuality;
         int publishedIdentityUnlinkedQuality = identityUnlinkedQuality;
         int publishedQualityOnlyTrackCount = qualityOnlyTrackCount;
+        SceneTransactionCoordinator.Commit<Detection> publishedSceneCommit = sceneCommit;
         InferenceScrollReprojector.ScreenMotion sourceFrameMotion =
                 InferenceScrollReprojector.screenMotion(
                         requestedScrollX, requestedScrollY,
                         alignment.scrollX, alignment.scrollY);
         Rect publicationViewport = screenBounds();
         main.post(() -> {
-            if (isCurrentCapture(requestedEpoch) && overlay != null
+            Runnable publication = () -> {
+                if (isCurrentCapture(requestedEpoch) && overlay != null
                     && (candidate.continuousMotionInference
-                    || inferenceMotionGeneration == motionGeneration.get())) {
+                    || inferenceMotionGeneration == motionGeneration.get())
+                    && (publishedSceneCommit == null
+                    || sceneCoordinator.isPresentationCurrent(publishedSceneCommit))) {
                 ScrollPosition current = currentScrollPosition();
                 InferenceScrollReprojector.ScreenMotion liveMotion =
                         InferenceScrollReprojector.screenMotion(
@@ -1422,6 +1504,18 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         requestedScrollX, requestedScrollY,
                         publicationViewport.width(), publicationViewport.height());
                 lastFastOverlayGeneration = motionGeneration.get();
+                long publishDelay = publishedAt - candidate.capturedAtUptimeMillis;
+                if (publishedSceneCommit != null) {
+                    CensorLabLog.i(TAG, "SCENE_COMMIT id=" + publishedSceneCommit.key()
+                            + " kind=" + publishedSceneCommit.kind().name()
+                            + " captureAgeMs=" + publishDelay
+                            + " fast=" + publishedSceneCommit.fastObservations().size()
+                            + " quality="
+                            + publishedSceneCommit.qualityObservations().size()
+                            + " renderTracks=" + renderTracks.size()
+                            + " visibleDeadlineMiss=" + (candidate.scene != null
+                            && publishedAt > candidate.scene.visibleDeadlineUptimeMillis));
+                }
                 if (firstOverlayReported.compareAndSet(false, true)) {
                     Log.i(TAG, "STARTUP session=" + activeStartupSession
                             + " phase=first-fast-overlay uptimeMs=" + publishedAt);
@@ -1430,7 +1524,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     scheduleQualityDetectorInitialization(detectorConfig);
                 }
                 VisualGeometryDelta geometry = recordVisualGeometry(renderTracks);
-                long publishDelay = publishedAt - candidate.capturedAtUptimeMillis;
                 DiagnosticsRepository.recordPublishDelay(DIAGNOSTICS_MODE, publishDelay);
                 CensorLabLog.i(TAG, "OVERLAY_PUBLISH pass=" + (fastPass ? "fast" : "quality")
                         + " scrollId=" + scrollTraceId
@@ -1472,8 +1565,25 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + " qualityActive=" + qualityInferenceDraining.get()
                         + " qualityPreemptions=" + qualityInferencePreemptions.get()
                         + " qualityCancelledRuns=" + qualityInferenceCancelledRuns.get());
-            } else if (overlayFrame != null) {
-                overlayFrame.recycle();
+                } else if (overlayFrame != null) {
+                    overlayFrame.recycle();
+                }
+            };
+            if (publishedSceneCommit == null) {
+                publication.run();
+                return;
+            }
+            PendingScenePresentation presentation = new PendingScenePresentation(
+                    publishedSceneCommit.key().toString(), publication, () -> {
+                        if (overlayFrame != null && !overlayFrame.isRecycled()) {
+                            overlayFrame.recycle();
+                        }
+                    });
+            LatestFrameBroker<PendingScenePresentation> presenter = scenePresenter;
+            if (presenter == null) {
+                presentation.dispose();
+            } else {
+                presenter.submit(presentation);
             }
         });
     }
@@ -1624,6 +1734,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 && config.getInferenceResolution() > FAST_INFERENCE_RESOLUTION;
     }
 
+    /** HIGH and ULTRA have a distinct higher-resolution settled observation to join atomically. */
+    static boolean usesAtomicScenePipeline(DetectorConfig config) {
+        return config != null && config.getInferenceThreads() >= 3
+                && config.getInferenceResolution() > FAST_INFERENCE_RESOLUTION;
+    }
+
     static boolean shouldYieldCaptureToQuality(
             boolean qualityActive,
             boolean settledFastFrameNeeded,
@@ -1640,7 +1756,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         int configured = config == null
                 ? FAST_INFERENCE_RESOLUTION : config.getInferenceResolution();
         return fastDetectorReady && !sourceFrameRequired
-                && usesStreamingQualityPipeline(config)
+                && usesAtomicScenePipeline(config)
                 ? FAST_INFERENCE_RESOLUTION : configured;
     }
 
@@ -1756,6 +1872,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long effectiveUptimeMillis,
             long receivedUptimeMillis) {
         if (dx == 0 && dy == 0) return;
+        invalidateCurrentScene("motion");
         qualityVisualStabilizer.clear();
         qualityConfirmationRequested.set(false);
         qualityConfirmationBurstUsed.set(false);
@@ -1887,7 +2004,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void discardPendingInference() {
         InferenceFrame pending = pendingInference.getAndSet(null);
-        if (pending != null) pending.recycle();
+        if (pending != null) {
+            invalidateScene(pending.scene, "fast-pending-discarded");
+            pending.recycle();
+        }
     }
 
     private void discardPendingQualityInference() {
@@ -2756,6 +2876,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         textRefreshRequested.set(true);
         if (detector != null) detector.setConfig(config);
         if (fastDetector != null) fastDetector.setConfig(fastDetectorConfig(config));
+        if (usesAtomicScenePipeline(config) && detector == null
+                && firstOverlayReported.get()) {
+            scheduleQualityDetectorInitialization(config);
+        }
         if (tracker != null) tracker.setConfig(accessibilityTrackerConfig(config));
         PopupStormManager.get().reloadSettings(this);
         main.post(() -> {
@@ -3238,6 +3362,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         overlay.setMaxExtrapolationMs(0f);
         overlay.setDiagnostics(diagnosticsOverlayText());
         overlay.show();
+        LatestFrameBroker<PendingScenePresentation> oldPresenter = scenePresenter;
+        if (oldPresenter != null) oldPresenter.close();
+        scenePresenter = createScenePresenter();
         PopupStormManager.get().start(this);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             worker.execute(this::initializePipeline);
@@ -3248,6 +3375,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!recognitionActive && overlay == null) return;
         recognitionActive = false;
         captureEpoch.invalidate();
+        invalidateCurrentScene("recognition-deactivated");
         Log.i(TAG, "Recognition suspended for foreground package " + foregroundPackage);
         ScheduledFuture<?> schedule = captureSchedule;
         captureSchedule = null;
@@ -3257,6 +3385,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (prioritySchedule != null) prioritySchedule.cancel(false);
         discardPendingInference();
         discardPendingQualityInference();
+        LatestFrameBroker<PendingScenePresentation> presenter = scenePresenter;
+        scenePresenter = null;
+        if (presenter != null) presenter.close();
         DiagnosticsRepository.stop(DIAGNOSTICS_MODE);
         if (overlay != null) overlay.close();
         overlay = null;
@@ -3268,6 +3399,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void resetScrollCompensation() {
+        invalidateCurrentScene("scroll-state-reset");
         cancelPendingTextConfirmation();
         ScheduledFuture<?> prioritySchedule = priorityCaptureSchedule;
         priorityCaptureSchedule = null;
@@ -3336,6 +3468,84 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 ? DiagnosticsRepository.overlayText(snapshot) : "";
     }
 
+    /** Latest-only presenter: one closed scene is sampled and applied on each display tick. */
+    private LatestFrameBroker<PendingScenePresentation> createScenePresenter() {
+        return new LatestFrameBroker<>(
+                command -> main.post(() -> Choreographer.getInstance()
+                        .postFrameCallback(frameTimeNanos -> command.run())),
+                PendingScenePresentation::present,
+                PendingScenePresentation::dispose);
+    }
+
+    private static final class PendingScenePresentation {
+        private final String sceneId;
+        private final Runnable presenter;
+        private final Runnable disposer;
+        private boolean consumed;
+
+        private PendingScenePresentation(
+                String sceneId, Runnable presenter, Runnable disposer) {
+            this.sceneId = sceneId;
+            this.presenter = presenter;
+            this.disposer = disposer;
+        }
+
+        private synchronized void present() {
+            if (consumed) return;
+            consumed = true;
+            presenter.run();
+        }
+
+        private synchronized void dispose() {
+            if (consumed) return;
+            consumed = true;
+            disposer.run();
+            CensorLabLog.i(TAG, "SCENE_QUEUE_DROP id=" + sceneId + " reason=superseded");
+        }
+    }
+
+    /** Bridges the pure scene state machine to the two inference workers without UI authority. */
+    private static final class SceneContext {
+        private final SceneTransactionCoordinator.SceneKey key;
+        private final long joinDeadlineUptimeMillis;
+        private final long visibleDeadlineUptimeMillis;
+        private final CountDownLatch commitReady = new CountDownLatch(1);
+        private final AtomicReference<SceneTransactionCoordinator.Commit<Detection>>
+                deliveredCommit = new AtomicReference<>();
+        private final AtomicBoolean cancelled = new AtomicBoolean();
+
+        private SceneContext(
+                SceneTransactionCoordinator.SceneKey key,
+                long joinDeadlineUptimeMillis,
+                long visibleDeadlineUptimeMillis) {
+            this.key = key;
+            this.joinDeadlineUptimeMillis = joinDeadlineUptimeMillis;
+            this.visibleDeadlineUptimeMillis = visibleDeadlineUptimeMillis;
+        }
+
+        private void deliver(SceneTransactionCoordinator.Commit<Detection> commit) {
+            if (commit != null && deliveredCommit.compareAndSet(null, commit)) {
+                commitReady.countDown();
+            }
+        }
+
+        private SceneTransactionCoordinator.Commit<Detection> awaitCommit() {
+            long waitMs = Math.max(0L,
+                    joinDeadlineUptimeMillis - SystemClock.uptimeMillis());
+            try {
+                if (waitMs > 0L) commitReady.await(waitMs, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            return deliveredCommit.get();
+        }
+
+        private void cancel(String reason) {
+            cancelled.set(true);
+            commitReady.countDown();
+        }
+    }
+
     private static final class QualityInferenceFrame {
         private Bitmap sourceFrame;
         private HardwareBuffer sourceBuffer;
@@ -3348,6 +3558,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private final int inferenceResolution;
         private final long capturedAtUptimeMillis;
         private final long fastSubmissionSequence;
+        private final SceneContext scene;
 
         private QualityInferenceFrame(
                 Bitmap sourceFrame,
@@ -3360,7 +3571,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 int sourceHeight,
                 int inferenceResolution,
                 long capturedAtUptimeMillis,
-                long fastSubmissionSequence) {
+                long fastSubmissionSequence,
+                SceneContext scene) {
             this.sourceFrame = sourceFrame;
             this.sourceBuffer = sourceBuffer;
             this.epoch = epoch;
@@ -3372,6 +3584,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             this.inferenceResolution = inferenceResolution;
             this.capturedAtUptimeMillis = capturedAtUptimeMillis;
             this.fastSubmissionSequence = fastSubmissionSequence;
+            this.scene = scene;
         }
 
         private void recycle() {
@@ -3401,7 +3614,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private final long screenshotUptimeMillis;
         private final boolean capturePhaseUncertain;
         private final long captureEventDeliveryDelayMs;
-        private long fastSubmissionSequence = Long.MIN_VALUE;
+        private final long fastSubmissionSequence;
+        private final SceneContext scene;
         private FastPriorityInferenceGate.FastDemand fastDemand;
 
         private InferenceFrame(
@@ -3422,7 +3636,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 long requestedGeneration,
                 long screenshotUptimeMillis,
                 boolean capturePhaseUncertain,
-                long captureEventDeliveryDelayMs) {
+                long captureEventDeliveryDelayMs,
+                long fastSubmissionSequence,
+                SceneContext scene) {
             this.frame = frame;
             this.epoch = epoch;
             this.scrollX = scrollX;
@@ -3441,6 +3657,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             this.screenshotUptimeMillis = screenshotUptimeMillis;
             this.capturePhaseUncertain = capturePhaseUncertain;
             this.captureEventDeliveryDelayMs = Math.max(0L, captureEventDeliveryDelayMs);
+            this.fastSubmissionSequence = fastSubmissionSequence;
+            this.scene = scene;
         }
 
         private Bitmap detachFrame() {

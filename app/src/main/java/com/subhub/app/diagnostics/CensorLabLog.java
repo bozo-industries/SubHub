@@ -7,7 +7,7 @@ public final class CensorLabLog {
     private static final String[] ALLOWED_PREFIXES = {
             "CAPTURE_PHASE", "FAST_DROP", "FRAME_MOTION", "INFERENCE_GATE",
             "OVERLAY_PUBLISH", "QUALITY_", "SCROLL_", "SETTLED_",
-            "SOURCE_FRAME_", "STARTUP", "TEXT_"
+            "SCENE_", "SOURCE_FRAME_", "STARTUP", "TEXT_"
     };
 
     private CensorLabLog() {}

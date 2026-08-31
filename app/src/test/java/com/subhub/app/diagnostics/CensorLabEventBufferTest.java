@@ -21,6 +21,7 @@ public final class CensorLabEventBufferTest {
     @Test public void labLogAllowlistRejectsContentAndPackageMessages() {
         assertTrue(CensorLabLog.allowed("CensorMotion", "DRAW seq=4"));
         assertTrue(CensorLabLog.allowed("ScreenshotA11y", "SCROLL_EVENT id=2 dy=80"));
+        assertTrue(CensorLabLog.allowed("ScreenshotA11y", "SCENE_COMMIT id=4:8:2:10"));
         assertTrue(CensorLabLog.allowed("ScreenshotA11y", "TEXT_SCAN accepted candidates=4"));
         assertFalse(CensorLabLog.allowed("ScreenshotA11y",
                 "Recognition activated for foreground package com.example.private"));

@@ -292,6 +292,20 @@ public final class CaptureEpochTest {
                 tracker.getTrackingSmoothing(), 0f);
     }
 
+    @Test public void atomicSceneQualityIsReservedForDistinctHighResolutionPresets() {
+        DetectorConfig low = DetectionPreset.LOW.applyTo(DetectorConfig.builder()).build();
+        DetectorConfig medium = DetectionPreset.MEDIUM.applyTo(DetectorConfig.builder()).build();
+        DetectorConfig high = DetectionPreset.HIGH.applyTo(DetectorConfig.builder()).build();
+        DetectorConfig ultra = DetectionPreset.ULTRA.applyTo(DetectorConfig.builder()).build();
+
+        assertFalse(ScreenshotAccessibilityService.usesAtomicScenePipeline(low));
+        assertFalse(ScreenshotAccessibilityService.usesAtomicScenePipeline(medium));
+        assertTrue(ScreenshotAccessibilityService.usesAtomicScenePipeline(high));
+        assertTrue(ScreenshotAccessibilityService.usesAtomicScenePipeline(ultra));
+        assertEquals(320, ScreenshotAccessibilityService.fastInferenceFrameResolution(
+                high, true, false));
+    }
+
     @Test public void qualityRefinementUsesTheFirstPlatformSafeSettledCapture() {
         assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
                 10_129L, 10_000L, 0L, true, true));

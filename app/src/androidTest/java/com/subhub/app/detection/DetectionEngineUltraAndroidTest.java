@@ -167,6 +167,101 @@ public final class DetectionEngineUltraAndroidTest {
         }
     }
 
+    @Test public void benchmarksAtomicSceneObservationTopologies() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        DetectorConfig qualityConfig = DetectionPreset.ULTRA
+                .applyTo(DetectorConfig.builder()).build();
+        DetectorConfig fastConfig = qualityConfig.toBuilder()
+                .inferenceResolution(320).detectionIntervalMs(0L).build();
+        Bitmap fullQuality = preparedFrame(230, 512, Color.rgb(74, 20, 95));
+        Bitmap fullFast = preparedFrame(144, 320, Color.rgb(74, 20, 95));
+        Bitmap topTile = preparedFrame(418, 512, Color.rgb(82, 24, 102));
+        Bitmap bottomTile = preparedFrame(418, 512, Color.rgb(68, 17, 88));
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        try {
+            try (DetectionEngine fast = new DetectionEngine(context, fastConfig, true);
+                 DetectionEngine qualityA = new DetectionEngine(context, qualityConfig, false);
+                 DetectionEngine qualityB = new DetectionEngine(context, qualityConfig, false);
+                 DetectionEngine qualityXnn = new DetectionEngine(
+                         context, qualityConfig, false)) {
+                fast.initializeForProvider("NNAPI");
+                qualityA.initializeForProvider("NNAPI");
+                qualityB.initializeForProvider("NNAPI");
+                qualityXnn.initializeForProvider("XNNPACK");
+                fast.detect(fullFast, 1344, 2992);
+                qualityA.detect(fullQuality, 1344, 2992);
+                qualityB.detect(topTile, 1344, 1646);
+                qualityXnn.detect(bottomTile, 1344, 1646);
+
+                long[] qualityOnly = new long[7];
+                long[] sequential = new long[7];
+                long[] parallel = new long[7];
+                long[] tiledNnapi = new long[7];
+                long[] tiledMixed = new long[7];
+                for (int index = 0; index < qualityOnly.length; index++) {
+                    if ((index & 1) == 0) {
+                        qualityOnly[index] = measure(() ->
+                                qualityA.detect(fullQuality, 1344, 2992));
+                        sequential[index] = measure(() -> {
+                            fast.detect(fullFast, 1344, 2992);
+                            qualityA.detect(fullQuality, 1344, 2992);
+                        });
+                        parallel[index] = measureParallel(workers,
+                                () -> fast.detect(fullFast, 1344, 2992),
+                                () -> qualityA.detect(fullQuality, 1344, 2992));
+                        tiledNnapi[index] = measureParallel(workers,
+                                () -> qualityA.detect(topTile, 1344, 1646),
+                                () -> qualityB.detect(bottomTile, 1344, 1646));
+                        tiledMixed[index] = measureParallel(workers,
+                                () -> qualityA.detect(topTile, 1344, 1646),
+                                () -> qualityXnn.detect(bottomTile, 1344, 1646));
+                    } else {
+                        tiledMixed[index] = measureParallel(workers,
+                                () -> qualityA.detect(topTile, 1344, 1646),
+                                () -> qualityXnn.detect(bottomTile, 1344, 1646));
+                        tiledNnapi[index] = measureParallel(workers,
+                                () -> qualityA.detect(topTile, 1344, 1646),
+                                () -> qualityB.detect(bottomTile, 1344, 1646));
+                        parallel[index] = measureParallel(workers,
+                                () -> fast.detect(fullFast, 1344, 2992),
+                                () -> qualityA.detect(fullQuality, 1344, 2992));
+                        sequential[index] = measure(() -> {
+                            fast.detect(fullFast, 1344, 2992);
+                            qualityA.detect(fullQuality, 1344, 2992);
+                        });
+                        qualityOnly[index] = measure(() ->
+                                qualityA.detect(fullQuality, 1344, 2992));
+                    }
+                }
+                TimingSummary qualityOnlySummary = summarize(qualityOnly);
+                TimingSummary sequentialSummary = summarize(sequential);
+                TimingSummary parallelSummary = summarize(parallel);
+                TimingSummary tiledNnapiSummary = summarize(tiledNnapi);
+                TimingSummary tiledMixedSummary = summarize(tiledMixed);
+                Log.i(TAG, "atomicSceneTopology qualityOnly=" + qualityOnlySummary
+                        + " sequentialFastQuality=" + sequentialSummary
+                        + " parallelFastQuality=" + parallelSummary
+                        + " tiledNnapi=" + tiledNnapiSummary
+                        + " tiledNnapiXnnpack=" + tiledMixedSummary
+                        + " fastProvider=" + fast.getActiveProvider()
+                        + " qualityAProvider=" + qualityA.getActiveProvider()
+                        + " qualityBProvider=" + qualityB.getActiveProvider()
+                        + " qualityXnnProvider=" + qualityXnn.getActiveProvider());
+                assertTrue(qualityOnlySummary.medianNanos > 0L);
+                assertTrue(sequentialSummary.medianNanos > 0L);
+                assertTrue(parallelSummary.medianNanos > 0L);
+                assertTrue(tiledNnapiSummary.medianNanos > 0L);
+                assertTrue(tiledMixedSummary.medianNanos > 0L);
+            }
+        } finally {
+            workers.shutdownNow();
+            fullQuality.recycle();
+            fullFast.recycle();
+            topTile.recycle();
+            bottomTile.recycle();
+        }
+    }
+
     private static long medianNanos(DetectionEngine engine, Bitmap frame) throws Exception {
         long[] timings = new long[5];
         for (int index = 0; index < timings.length; index++) {
@@ -176,6 +271,41 @@ public final class DetectionEngineUltraAndroidTest {
         }
         Arrays.sort(timings);
         return timings[2];
+    }
+
+    private static Bitmap preparedFrame(int width, int height, int color) {
+        Bitmap frame = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        new Canvas(frame).drawColor(color);
+        return frame;
+    }
+
+    private static long measure(ThrowingRunnable work) throws Exception {
+        long started = SystemClock.elapsedRealtimeNanos();
+        work.run();
+        return SystemClock.elapsedRealtimeNanos() - started;
+    }
+
+    private static long measureParallel(
+            ExecutorService workers, ThrowingRunnable first, ThrowingRunnable second)
+            throws Exception {
+        long started = SystemClock.elapsedRealtimeNanos();
+        Future<?> firstRun = workers.submit(() -> {
+            first.run();
+            return null;
+        });
+        Future<?> secondRun = workers.submit(() -> {
+            second.run();
+            return null;
+        });
+        firstRun.get();
+        secondRun.get();
+        return SystemClock.elapsedRealtimeNanos() - started;
+    }
+
+    private static TimingSummary summarize(long[] timings) {
+        long[] sorted = timings.clone();
+        Arrays.sort(sorted);
+        return new TimingSummary(sorted[sorted.length / 2], sorted[sorted.length - 1]);
     }
 
     private static long measureFastDuringQuality(
@@ -248,6 +378,26 @@ public final class DetectionEngineUltraAndroidTest {
             this.provider = provider;
             this.medianNanos = medianNanos;
             this.detections = detections;
+        }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingRunnable {
+        void run() throws Exception;
+    }
+
+    private static final class TimingSummary {
+        final long medianNanos;
+        final long maximumNanos;
+
+        TimingSummary(long medianNanos, long maximumNanos) {
+            this.medianNanos = medianNanos;
+            this.maximumNanos = maximumNanos;
+        }
+
+        @Override public String toString() {
+            return medianNanos / 1_000_000f + "ms(max="
+                    + maximumNanos / 1_000_000f + "ms)";
         }
     }
 }

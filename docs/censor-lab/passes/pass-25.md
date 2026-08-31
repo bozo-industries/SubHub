@@ -1,11 +1,13 @@
 # Pass 25 — one content-space camera
 
-- Status: `candidate`
+- Status: `partial-success`
 - Date: 2026-08-30
 - Baseline: Pass24 partial-success
 - Device gate: Pixel Emiru Google Images, Accessibility mode
 - Artifact: `SubHub-pass25-pixel-arm64-signed.apk`
 - Artifact SHA-256: `3DF45B547A192A317384729ED47A844009A04A7F88F78CE45C59BB9831A5C0DA`
+- Instrumented artifact: `SubHub-pass25-lab-recorder-pixel-arm64-signed.apk`
+- Instrumented artifact SHA-256: `243476C3341B1D499292D34D1AE0E5AE60342FA269CDD799B810571518DED019`
 
 ## Locked evidence
 
@@ -92,6 +94,25 @@ added as a second displacement or tuned with X-specific smoothing constants.
 
 ## Disposition
 
-Pass25 remains a candidate until the Pixel Emiru and Chrome-vs-X gates classify first-evidence
-latency separately from camera response. Do not tune smoothing or identity thresholds from the
-overloaded x86 emulator trace.
+Pass25's one-camera/timestamp work is retained, but the pass is not release-ready. The physical
+Pixel Emiru run captured one synchronized 60 fps video and trace bundle (SHA-256
+`2A6B72572E2C87DEFE3FE043D8C60499B919A6877825394C5E02551D25C41DF2`). The trace reported:
+
+- zero dropped frames and zero amplified scroll events;
+- fast capture age p50/p95 `116/151.3 ms` and runtime p50/p95 `44/60 ms`;
+- Accessibility event age p50/p95 `3/10.3 ms`;
+- camera input-to-draw p50/p95 `43/46 ms`, with one `191 ms` outlier;
+- viewport residual p50/p95/max `65/168/356 px`;
+- settle p50/p95 `246.5/276.05 ms`;
+- 14 active duplicate-like publishes and 10 duplicate suppressions.
+
+The user rejected the visible quality lifecycle: the screen first showed fast-only coverage, then a
+partial quality scene, then a complete quality scene, followed by further slow refreshes. Trace
+evidence confirms the sequence at the final settle: tracks `6 → 9 → 11`, while quality continued
+refreshing every one to 2.5 seconds. The camera work made motion better, but it cannot compensate
+for multiple detector sources gaining render authority at different times.
+
+Pass26 must preserve the camera and no-amplification gains while replacing this staged lifecycle
+with one immutable, deadline-bound scene commit per generation. Do not address the failure by
+adding another smoothing constant, stretching the refresh interval, or hiding late boxes behind a
+long animation.

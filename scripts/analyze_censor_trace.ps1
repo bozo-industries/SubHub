@@ -73,6 +73,11 @@ foreach ($requestedPath in $Path) {
     $startupEvents = [Collections.Generic.List[object]]::new()
     $qualitySupplements = [Collections.Generic.List[object]]::new()
     $qualityRetires = [Collections.Generic.List[object]]::new()
+    $sceneBegins = [Collections.Generic.List[object]]::new()
+    $sceneCommits = [Collections.Generic.List[object]]::new()
+    $sceneTimeouts = [Collections.Generic.List[object]]::new()
+    $sceneLateDrops = [Collections.Generic.List[object]]::new()
+    $sceneInvalidations = [Collections.Generic.List[object]]::new()
     $capturePhases = [Collections.Generic.List[object]]::new()
     $scrolls = [Collections.Generic.List[object]]::new()
     $textScans = [Collections.Generic.List[object]]::new()
@@ -167,13 +172,14 @@ foreach ($requestedPath in $Path) {
             $anchorRejects.Add([pscustomobject]@{ time = $time; reason = $Matches[1] })
             continue
         }
-        if ($line -match 'CensorMotion(?:\(\d+\))?: DRAW .*inputToDrawMs=(\d+).*?(?:viewportLead=(-?\d+),(-?\d+))?$') {
+        if ($line -match 'CensorMotion(?:\(\d+\))?: DRAW .*inputToDrawMs=(\d+).*?(?:viewportLead=(-?\d+),(-?\d+))?(?: renderTickMs=(\d+))?$') {
             $leadX = if ($Matches[2]) { [int] $Matches[2] } else { 0 }
             $leadY = if ($Matches[3]) { [int] $Matches[3] } else { 0 }
             $motionDraws.Add([pscustomobject]@{
                 time = $time
                 inputToDraw = [int] $Matches[1]
                 leadAbs = [math]::Abs($leadX) + [math]::Abs($leadY)
+                renderTick = if ($Matches[4]) { [int] $Matches[4] } else { $null }
             })
             continue
         }
@@ -236,6 +242,93 @@ foreach ($requestedPath in $Path) {
                 reprojectAbs = [math]::Abs([int] $Matches[19]) +
                     [math]::Abs([int] $Matches[20])
                 dropped = [int] $Matches[21]
+            })
+            continue
+        }
+        if ($line -match 'QUALITY_READY id=(\S+) scrollId=(\d+) captureAgeMs=(\d+) bitmapPrepareMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) acceptedVisual=(\d+) transactionStatus=(\S+).*? dropped=(\d+)') {
+            $streamingQuality.Add([pscustomobject]@{
+                time = $time
+                sceneId = $Matches[1]
+                scrollId = [int] $Matches[2]
+                captureAge = [int] $Matches[3]
+                bitmapPrepare = [int] $Matches[4]
+                inference = [int] $Matches[5]
+                preprocess = [int] $Matches[6]
+                runtime = [int] $Matches[7]
+                postprocess = [int] $Matches[8]
+                afterMotion = [int] $Matches[9]
+                rawVisual = [int] $Matches[10]
+                stableVisual = [int] $Matches[11]
+                pendingVisual = 0
+                completeScene = $false
+                cachePreserved = $false
+                identityLinked = 0
+                identityUnlinked = 0
+                retiredQualityTracks = 0
+                sourceGeneration = 0
+                cacheGeneration = 0
+                reprojectAbs = 0
+                dropped = [int] $Matches[13]
+                transactionStatus = $Matches[12]
+            })
+            continue
+        }
+        if ($line -match 'SCENE_BEGIN id=(\S+) mode=(\S+) qualityExpected=(true|false) joinDeadlineUptimeMs=(\d+) visibleDeadlineUptimeMs=(\d+)') {
+            $sceneBegins.Add([pscustomobject]@{
+                time = $time
+                id = $Matches[1]
+                mode = $Matches[2]
+                qualityExpected = $Matches[3] -eq 'true'
+                joinDeadline = [long] $Matches[4]
+                visibleDeadline = [long] $Matches[5]
+            })
+            continue
+        }
+        if ($line -match 'SCENE_COMMIT id=(\S+) kind=(\S+) captureAgeMs=(\d+) fast=(\d+) quality=(\d+) renderTracks=(\d+) visibleDeadlineMiss=(true|false)') {
+            $sceneCommits.Add([pscustomobject]@{
+                time = $time
+                id = $Matches[1]
+                kind = $Matches[2]
+                captureAge = [int] $Matches[3]
+                fast = [int] $Matches[4]
+                quality = [int] $Matches[5]
+                renderTracks = [int] $Matches[6]
+                visibleDeadlineMiss = $Matches[7] -eq 'true'
+            })
+            continue
+        }
+        if ($line -match 'SCENE_TIMEOUT id=(\S+) status=(\S+) captureAgeMs=(\d+)') {
+            $sceneTimeouts.Add([pscustomobject]@{
+                time = $time
+                id = $Matches[1]
+                status = $Matches[2]
+                captureAge = [int] $Matches[3]
+            })
+            continue
+        }
+        if ($line -match 'SCENE_LATE_DROP id=(\S+) lane=(\S+)(?: status=(\S+)| reason=(\S+))') {
+            $sceneLateDrops.Add([pscustomobject]@{
+                time = $time
+                id = $Matches[1]
+                lane = $Matches[2]
+                reason = if ($Matches[3]) { $Matches[3] } else { $Matches[4] }
+            })
+            continue
+        }
+        if ($line -match 'SCENE_QUEUE_DROP id=(\S+) reason=(\S+)') {
+            $sceneLateDrops.Add([pscustomobject]@{
+                time = $time
+                id = $Matches[1]
+                lane = 'presenter'
+                reason = $Matches[2]
+            })
+            continue
+        }
+        if ($line -match 'SCENE_INVALIDATE id=(\S+) reason=(\S+)') {
+            $sceneInvalidations.Add([pscustomobject]@{
+                time = $time
+                id = $Matches[1]
+                reason = $Matches[2]
             })
             continue
         }
@@ -523,6 +616,17 @@ foreach ($requestedPath in $Path) {
                 }
             }
         })
+    $duplicateSceneCommits = @($sceneCommits | Group-Object id |
+            Where-Object Count -gt 1)
+    $begunSceneIds = @($sceneBegins.id | Sort-Object -Unique)
+    $committedSceneIds = @($sceneCommits.id | Sort-Object -Unique)
+    $terminalWithoutCommitSceneIds = @(
+        @($sceneInvalidations.id) + @($sceneLateDrops.id) | Sort-Object -Unique)
+    $uncommittedSceneIds = @($begunSceneIds | Where-Object {
+            $committedSceneIds -notcontains $_ -and
+            $terminalWithoutCommitSceneIds -notcontains $_ })
+    $onTimeSceneCommits = @($sceneCommits | Where-Object {
+            -not $_.visibleDeadlineMiss })
 
     $summary = [ordered]@{
         file = $resolved
@@ -589,6 +693,30 @@ foreach ($requestedPath in $Path) {
             inferenceMs = Get-Distribution @($settledFast.inference)
             runtimeMs = Get-Distribution @($settledFast.runtime)
         }
+        scenes = [ordered]@{
+            begun = $sceneBegins.Count
+            commits = $sceneCommits.Count
+            commitKinds = Get-GroupCounts @($sceneCommits) 'kind'
+            commitCaptureAgeMs = Get-Distribution @($sceneCommits.captureAge)
+            fusedCommits = @($sceneCommits |
+                Where-Object kind -eq 'SETTLED_FUSED').Count
+            deadlineFastCommits = @($sceneCommits |
+                Where-Object kind -eq 'DEADLINE_FAST').Count
+            timeouts = $sceneTimeouts.Count
+            timeoutCaptureAgeMs = Get-Distribution @($sceneTimeouts.captureAge)
+            lateDrops = $sceneLateDrops.Count
+            lateDropReasons = Get-GroupCounts @($sceneLateDrops) 'reason'
+            invalidations = $sceneInvalidations.Count
+            invalidationReasons = Get-GroupCounts @($sceneInvalidations) 'reason'
+            duplicateCommitSceneIds = $duplicateSceneCommits.Count
+            uncommittedSceneIds = $uncommittedSceneIds.Count
+            onTimeVisibleCommits = $onTimeSceneCommits.Count
+            visibleDeadlineMisses = @($sceneCommits |
+                Where-Object visibleDeadlineMiss).Count
+            onTimeVisibleCommitRate = if ($sceneCommits.Count) {
+                [math]::Round($onTimeSceneCommits.Count / $sceneCommits.Count, 4)
+            } else { $null }
+        }
         quality = [ordered]@{
             caches = $quality.Count
             captureAgeMs = Get-Distribution @($quality.captureAge)
@@ -624,6 +752,7 @@ foreach ($requestedPath in $Path) {
                 Measure-Object -Property pendingVisual -Sum).Sum
             streamingCompleteScenes = @($streamingQuality |
                 Where-Object completeScene).Count
+            atomicReadyStatuses = Get-GroupCounts @($streamingQuality) 'transactionStatus'
             streamingPreservedCaches = @($streamingQuality |
                 Where-Object cachePreserved).Count
             streamingIdentityLinked = ($streamingQuality |
@@ -710,6 +839,7 @@ foreach ($requestedPath in $Path) {
             predictionPeakMs = Get-Distribution @($motionInputs.predictionPeak)
             draws = $motionDraws.Count
             inputToDrawMs = Get-Distribution @($motionDraws.inputToDraw)
+            renderTickMs = Get-Distribution @($motionDraws.renderTick)
             viewportLeadAbsPx = Get-Distribution @($motionDraws.leadAbs)
             settles = $motionSettles.Count
             inputToSettledMs = Get-Distribution @($motionSettles.inputToSettled)

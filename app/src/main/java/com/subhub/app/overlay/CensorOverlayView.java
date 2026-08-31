@@ -104,6 +104,8 @@ final class CensorOverlayView extends View {
     private long borderAnimationTimeOverride = -1L;
     private long renderTimeOverride = -1L;
     private long presentationFrameTimeMillis = -1L;
+    private long lastPresentationFrameTimeMillis = -1L;
+    private long renderTickMillis;
     private long latestMutationUptime;
     private long tracksPublishedAtMillis;
     private long activeRenderTimeMillis;
@@ -114,7 +116,7 @@ final class CensorOverlayView extends View {
     private float activePredictionY;
     private final Choreographer.FrameCallback frameCallback = frameTimeNanos -> {
         frameCallbackPosted = false;
-        presentationFrameTimeMillis = frameTimeNanos / 1_000_000L;
+        notePresentationFrame(frameTimeNanos / 1_000_000L);
         invalidate();
         scheduleNextFrame(presentationFrameTimeMillis);
     };
@@ -1345,11 +1347,19 @@ final class CensorOverlayView extends View {
         Choreographer.getInstance().postVsyncCallback(vsyncData -> {
             if (!frameCallbackPosted || generation != frameCallbackGeneration) return;
             frameCallbackPosted = false;
-            presentationFrameTimeMillis = vsyncData.getPreferredFrameTimeline()
-                    .getExpectedPresentationTimeNanos() / 1_000_000L;
+            notePresentationFrame(vsyncData.getPreferredFrameTimeline()
+                    .getExpectedPresentationTimeNanos() / 1_000_000L);
             invalidate();
             scheduleNextFrame(presentationFrameTimeMillis);
         });
+    }
+
+    private void notePresentationFrame(long frameTimeMillis) {
+        long delta = lastPresentationFrameTimeMillis <= 0L
+                ? 0L : frameTimeMillis - lastPresentationFrameTimeMillis;
+        renderTickMillis = delta > 0L && delta <= 50L ? delta : 0L;
+        lastPresentationFrameTimeMillis = frameTimeMillis;
+        presentationFrameTimeMillis = frameTimeMillis;
     }
 
     private void noteMotionInput(String source, float dx, float dy, boolean forceTrace) {
@@ -1378,7 +1388,8 @@ final class CensorOverlayView extends View {
                     + " text=" + Math.round(textContentOffsetX + renderViewportLeadX) + ','
                     + Math.round(textContentOffsetY + renderViewportLeadY)
                     + " viewportLead=" + Math.round(renderViewportLeadX) + ','
-                    + Math.round(renderViewportLeadY));
+                    + Math.round(renderViewportLeadY)
+                    + " renderTickMs=" + renderTickMillis);
         }
         if (motionAnimationWasActive && !animationActive) {
             CensorLabLog.i(MOTION_TAG, "SETTLED seq=" + motionSequence + " inputToSettledMs="
