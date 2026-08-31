@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.os.SystemClock;
@@ -12,11 +13,15 @@ import android.util.Log;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.subhub.app.settings.SettingsRepository;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
+import java.io.File;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
@@ -167,6 +172,43 @@ public final class DetectionEngineUltraAndroidTest {
         }
     }
 
+    @Test public void benchmarksFastLaneResolutionOnCurrentDisplay() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        File privateFrame = new File(context.getFilesDir(), "fast-lane-benchmark.png");
+        Bitmap screenshot = privateFrame.isFile()
+                ? BitmapFactory.decodeFile(privateFrame.getAbsolutePath())
+                : InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
+        assertNotNull("Pixel benchmark requires a visible display", screenshot);
+        DetectorConfig base = new SettingsRepository(context).loadDetectorConfig()
+                .toBuilder().detectionIntervalMs(0L).build();
+        int[] resolutions = {320, 288, 256, 224, 192};
+        List<Detection> baseline = null;
+        try {
+            for (int resolution : resolutions) {
+                DetectorConfig config = base.toBuilder()
+                        .inferenceResolution(resolution).build();
+                try (DetectionEngine engine = new DetectionEngine(context, config, true)) {
+                    engine.initializeForProvider("CPU");
+                    List<Detection> detections = engine.detect(
+                            screenshot, screenshot.getWidth(), screenshot.getHeight());
+                    long median = medianNanos(
+                            engine, screenshot, screenshot.getWidth(), screenshot.getHeight());
+                    if (baseline == null) baseline = detections;
+                    float recall = matchedRecall(baseline, detections);
+                    Log.i(TAG, "fastResolution=" + resolution
+                            + " provider=" + engine.getActiveProvider()
+                            + " medianMs=" + median / 1_000_000f
+                            + " runtimeMs=" + engine.getLastRuntimeMs()
+                            + " detections=" + detections.size()
+                            + " baselineRecall=" + recall);
+                    assertTrue(median > 0L);
+                }
+            }
+        } finally {
+            screenshot.recycle();
+        }
+    }
+
     @Test public void benchmarksAtomicSceneObservationTopologies() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         DetectorConfig qualityConfig = DetectionPreset.ULTRA
@@ -263,14 +305,38 @@ public final class DetectionEngineUltraAndroidTest {
     }
 
     private static long medianNanos(DetectionEngine engine, Bitmap frame) throws Exception {
+        return medianNanos(engine, frame, 1080, 2400);
+    }
+
+    private static long medianNanos(
+            DetectionEngine engine,
+            Bitmap frame,
+            int sourceWidth,
+            int sourceHeight) throws Exception {
         long[] timings = new long[5];
         for (int index = 0; index < timings.length; index++) {
             long started = SystemClock.elapsedRealtimeNanos();
-            assertNotNull(engine.detect(frame, 1080, 2400));
+            assertNotNull(engine.detect(frame, sourceWidth, sourceHeight));
             timings[index] = SystemClock.elapsedRealtimeNanos() - started;
         }
         Arrays.sort(timings);
         return timings[2];
+    }
+
+    private static float matchedRecall(
+            List<Detection> baseline, List<Detection> candidate) {
+        if (baseline == null || baseline.isEmpty()) return 1f;
+        int matched = 0;
+        for (Detection expected : baseline) {
+            for (Detection actual : candidate) {
+                if (expected.getCategory().equals(actual.getCategory())
+                        && expected.getBox().intersectionOverUnion(actual.getBox()) >= 0.35f) {
+                    matched++;
+                    break;
+                }
+            }
+        }
+        return matched / (float) baseline.size();
     }
 
     private static Bitmap preparedFrame(int width, int height, int color) {

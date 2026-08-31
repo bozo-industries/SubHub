@@ -50,6 +50,93 @@ public final class ContentSpaceRegionCacheTest {
         assertEquals(1, cache.size());
     }
 
+    @Test public void backfillStaysHiddenUntilItsSourceViewportHasDeparted() {
+        ContentSpaceRegionCache cache = new ContentSpaceRegionCache();
+        ContentSpaceRegionCache.Observation backfill =
+                new ContentSpaceRegionCache.Observation(
+                        -1, "FACE_FEMALE", "face_female", 0.9f,
+                        new BBox(100, 300, 200, 240), true, false,
+                        0, 0, true, null, true);
+        cache.observeCommittedScene(1L, "surface", 100L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(backfill));
+
+        assertTrue(cache.queryNearAsScreenDetections(1L, "surface", 150L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000).isEmpty());
+        cache.observeCommittedScene(1L, "surface", 175L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                true, Collections.emptyList());
+        assertEquals(1, cache.size());
+
+        // The offscreen near-query arms the memory; returning renders it immediately.
+        cache.queryNearAsScreenDetections(1L, "surface", 200L,
+                0L, 7_000L, 1_000, 2_000, 1_000, 2_000);
+        assertEquals(1, cache.queryNearAsScreenDetections(1L, "surface", 250L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000).size());
+    }
+
+    @Test public void reusedBackfillSlotCannotInheritAnOldLiveTrackIdentity() {
+        ContentSpaceRegionCache cache = new ContentSpaceRegionCache();
+        cache.observeCommittedScene(1L, "surface", 100L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(observation(42, 20, 30, 80, 90, 2, false)));
+        cache.clear();
+        cache.observeCommittedScene(1L, "surface", 200L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(new ContentSpaceRegionCache.Observation(
+                        -1, "FACE_FEMALE", "face_female", 0.9f,
+                        new BBox(20, 30, 80, 90), true, false,
+                        0, 0, true, null, true)));
+        cache.observeCommittedScene(1L, "surface", 300L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(observation(42, 600, 700, 80, 90, 2, false)));
+
+        List<Detection> visible = cache.queryNearAsScreenDetections(
+                1L, "surface", 350L, 0L, 0L,
+                1_000, 2_000, 1_000, 2_000);
+        assertTrue(visible.stream().anyMatch(value -> value.getBox().getX() == 600));
+    }
+
+    @Test public void reusedSlotCannotInheritAnOldContradiction() {
+        ContentSpaceRegionCache cache = seeded();
+        cache.observeCommittedScene(1L, "surface", 150L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                true, Collections.emptyList());
+        assertEquals(1, cache.size());
+        cache.clear();
+        cache.observeCommittedScene(1L, "surface", 200L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(observation(2, 600, 700, 80, 90, 2, false)));
+
+        cache.observeCommittedScene(1L, "surface", 250L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                true, Collections.emptyList());
+
+        assertEquals(1, cache.size());
+    }
+
+    @Test public void reusedSlotCannotInheritOldConfidence() {
+        ContentSpaceRegionCache cache = new ContentSpaceRegionCache();
+        cache.observeCommittedScene(1L, "surface", 100L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(new ContentSpaceRegionCache.Observation(
+                        1, "FACE_FEMALE", "face_female", .99f,
+                        new BBox(20, 30, 80, 90), true, false,
+                        2, 0, false)));
+        cache.clear();
+        cache.observeCommittedScene(1L, "surface", 200L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(new ContentSpaceRegionCache.Observation(
+                        2, "FACE_FEMALE", "face_female", .10f,
+                        new BBox(600, 700, 80, 90), true, false,
+                        2, 0, false)));
+
+        List<Detection> result = cache.queryNearAsScreenDetections(
+                1L, "surface", 250L, 0L, 0L,
+                1_000, 2_000, 1_000, 2_000);
+        assertEquals(.10f, result.get(0).getConfidence(), .001f);
+    }
+
     @Test public void offscreenOmissionDoesNotAgeButTwoInViewUnifiedContradictionsDo() {
         ContentSpaceRegionCache cache = seeded();
         cache.observeCommittedScene(1L, "surface", 200L,

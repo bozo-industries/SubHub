@@ -66,6 +66,8 @@ public final class DetectionEngine implements AutoCloseable {
     private String activeModel = "";
     private Bitmap letterbox;
     private Canvas letterboxCanvas;
+    private int bufferWidth;
+    private int bufferHeight;
     private int[] pixels;
     private float[] inputValues;
     private FloatBuffer directInput;
@@ -230,6 +232,57 @@ public final class DetectionEngine implements AutoCloseable {
             int sourceWidth,
             int sourceHeight,
             BooleanSupplier cancellationProbe) throws OrtException {
+        int size = config.getInferenceResolution();
+        return detectInternal(
+                frame, sourceWidth, sourceHeight, size, size, cancellationProbe, false);
+    }
+
+    /**
+     * Runs an opt-in rectangular input through the CPU execution provider.
+     *
+     * <p>The bundled model declares dynamic height and width. Accessibility's portrait fast
+     * bitmap is commonly about 144x320 for a 320px long edge, while the legacy square path pads
+     * it to 320x320. This method keeps the source aspect ratio and avoids that padding, but is
+     * deliberately CPU-only: NNAPI and XNNPACK provider support for changing dynamic shapes is
+     * device/runtime-specific and must not be enabled by accident in the live lane.</p>
+     */
+    public synchronized List<Detection> detectRectangular(
+            Bitmap frame,
+            int sourceWidth,
+            int sourceHeight,
+            int inputWidth,
+            int inputHeight) throws OrtException {
+        return detectRectangular(
+                frame, sourceWidth, sourceHeight, inputWidth, inputHeight, null);
+    }
+
+    /** Quality-cancellation overload for the rectangular benchmark path. */
+    public synchronized List<Detection> detectRectangular(
+            Bitmap frame,
+            int sourceWidth,
+            int sourceHeight,
+            int inputWidth,
+            int inputHeight,
+            BooleanSupplier cancellationProbe) throws OrtException {
+        if (!"CPU".equals(activeProvider)) {
+            throw new IllegalStateException(
+                    "Rectangular inference requires the CPU provider; active=" + activeProvider);
+        }
+        if (inputWidth <= 0 || inputHeight <= 0) {
+            throw new IllegalArgumentException("Rectangular input dimensions must be positive");
+        }
+        return detectInternal(
+                frame, sourceWidth, sourceHeight, inputWidth, inputHeight, cancellationProbe, true);
+    }
+
+    private List<Detection> detectInternal(
+            Bitmap frame,
+            int sourceWidth,
+            int sourceHeight,
+            int inputWidth,
+            int inputHeight,
+            BooleanSupplier cancellationProbe,
+            boolean rectangularInput) throws OrtException {
         if (session == null || frame == null || frame.getWidth() <= 0 || frame.getHeight() <= 0) {
             return Collections.emptyList();
         }
@@ -249,17 +302,19 @@ public final class DetectionEngine implements AutoCloseable {
             performanceHints.begin(latencyPriority
                     ? config.getDetectionIntervalMs()
                     : Math.max(200L, config.getDetectionIntervalMs()));
-            int size = config.getInferenceResolution();
-            float scale = (float) size / Math.max(sourceWidth, sourceHeight);
+            ensureBuffers(inputWidth, inputHeight);
+            float scale = Math.min(
+                    (float) inputWidth / sourceWidth,
+                    (float) inputHeight / sourceHeight);
             int expectedWidth = Math.max(1, Math.round(sourceWidth * scale));
             int expectedHeight = Math.max(1, Math.round(sourceHeight * scale));
             if (frame.getWidth() == expectedWidth && frame.getHeight() == expectedHeight
-                    && expectedWidth <= size && expectedHeight <= size) {
+                    && expectedWidth <= inputWidth && expectedHeight <= inputHeight) {
                 // Accessibility already paid for a hardware-accelerated downscale before readback.
                 // Write that compact bitmap directly into the letterboxed pixel stride instead of
                 // software-scaling/copying it through a second Canvas on every inference pass.
                 Arrays.fill(pixels, Color.BLACK);
-                frame.getPixels(pixels, 0, size, 0, 0, expectedWidth, expectedHeight);
+                frame.getPixels(pixels, 0, inputWidth, 0, 0, expectedWidth, expectedHeight);
             } else {
                 letterbox.eraseColor(Color.BLACK);
                 letterboxCanvas.drawBitmap(
@@ -267,10 +322,10 @@ public final class DetectionEngine implements AutoCloseable {
                         null,
                         new RectF(0f, 0f, sourceWidth * scale, sourceHeight * scale),
                         null);
-                letterbox.getPixels(pixels, 0, size, 0, 0, size, size);
+                letterbox.getPixels(pixels, 0, inputWidth, 0, 0, inputWidth, inputHeight);
             }
 
-            int plane = size * size;
+            int plane = inputWidth * inputHeight;
             populateInputValues(plane);
             directInput.clear();
             directInput.put(inputValues, 0, plane * 3);
@@ -279,7 +334,7 @@ public final class DetectionEngine implements AutoCloseable {
                 return recordCancelledRun(started);
             }
 
-            ensureInputTensor(size);
+            ensureInputTensor(inputWidth, inputHeight);
             long runtimeStarted = SystemClock.elapsedRealtimeNanos();
             long nativeRunId = NATIVE_RUN_SEQUENCE.incrementAndGet();
             String lane = latencyPriority ? "fast" : "quality";
@@ -334,14 +389,24 @@ public final class DetectionEngine implements AutoCloseable {
                     return Collections.emptyList();
                 }
                 FloatBuffer outputBuffer = output.getFloatBuffer();
-                List<Detection> detections = postProcessor.decode(
-                        outputBuffer,
-                        (int) shape[1],
-                        (int) shape[2],
-                        sourceWidth,
-                        sourceHeight,
-                        size,
-                        config);
+                List<Detection> detections = rectangularInput
+                        ? postProcessor.decode(
+                                outputBuffer,
+                                (int) shape[1],
+                                (int) shape[2],
+                                sourceWidth,
+                                sourceHeight,
+                                inputWidth,
+                                inputHeight,
+                                config)
+                        : postProcessor.decode(
+                                outputBuffer,
+                                (int) shape[1],
+                                (int) shape[2],
+                                sourceWidth,
+                                sourceHeight,
+                                inputWidth,
+                                config);
                 long finished = SystemClock.elapsedRealtimeNanos();
                 // Close the cancellation window before making decoded output observable. A fast
                 // frame and this commit race on the same monitor: whichever wins determines
@@ -407,6 +472,7 @@ public final class DetectionEngine implements AutoCloseable {
 
     public String getActiveProvider() { return activeProvider; }
     public String getActiveModel() { return activeModel; }
+    public int getInferenceResolution() { return config.getInferenceResolution(); }
     public long getLastInferenceMs() { return lastInferenceMs; }
     public long getLastPreprocessMs() { return lastPreprocessMs; }
     public long getLastRuntimeMs() { return lastRuntimeMs; }
@@ -530,14 +596,24 @@ public final class DetectionEngine implements AutoCloseable {
     }
 
     private void allocateBuffers(int size) {
+        allocateBuffers(size, size);
+    }
+
+    private void allocateBuffers(int width, int height) {
         closeInputTensor();
-        pixels = new int[size * size];
-        inputValues = new float[size * size * 3];
-        directInput = ByteBuffer.allocateDirect(size * size * 3 * Float.BYTES)
+        bufferWidth = width;
+        bufferHeight = height;
+        pixels = new int[width * height];
+        inputValues = new float[width * height * 3];
+        directInput = ByteBuffer.allocateDirect(width * height * 3 * Float.BYTES)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
         if (letterbox != null) letterbox.recycle();
-        letterbox = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        letterbox = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         letterboxCanvas = new Canvas(letterbox);
+    }
+
+    private void ensureBuffers(int width, int height) {
+        if (bufferWidth != width || bufferHeight != height) allocateBuffers(width, height);
     }
 
     private void populateInputValues(int plane) {
@@ -581,10 +657,12 @@ public final class DetectionEngine implements AutoCloseable {
     }
 
     /** Keeps the native-backed tensor alive across frames instead of reallocating JNI storage. */
-    private void ensureInputTensor(int size) throws OrtException {
-        if (inputTensor != null && inferenceInputs != null) return;
+    private void ensureInputTensor(int width, int height) throws OrtException {
+        if (inputTensor != null && inferenceInputs != null
+                && bufferWidth == width && bufferHeight == height) return;
+        closeInputTensor();
         inputTensor = OnnxTensor.createTensor(
-                environment, directInput, new long[]{1, 3, size, size});
+                environment, directInput, new long[]{1, 3, height, width});
         inferenceInputs = new LinkedHashMap<>(1);
         inferenceInputs.put(inputName, inputTensor);
     }

@@ -65,6 +65,27 @@ final class FastPriorityInferenceGate {
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - requestedAt));
     }
 
+    private Lease tryAcquireFast(FastDemand demand, long maximumWaitMs)
+            throws InterruptedException {
+        long requestedAt = System.nanoTime();
+        boolean acquired;
+        try {
+            acquired = execution.tryLock(
+                    Math.max(0L, maximumWaitMs), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException error) {
+            demand.finishWithoutLease();
+            throw error;
+        }
+        if (!acquired) {
+            demand.finishWithoutLease();
+            return null;
+        }
+        demand.finishWithLease();
+        activate(Lane.FAST);
+        return new Lease(this, Lane.FAST,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - requestedAt));
+    }
+
     private void activate(Lane lane) {
         activeSinceNanos = System.nanoTime();
         activeLane = lane;
@@ -96,6 +117,13 @@ final class FastPriorityInferenceGate {
                 throw new IllegalStateException("Fast demand is no longer pending");
             }
             return owner.acquireFast(this);
+        }
+
+        Lease tryAcquire(long maximumWaitMs) throws InterruptedException {
+            if (!state.compareAndSet(PENDING, ACQUIRING)) {
+                throw new IllegalStateException("Fast demand is no longer pending");
+            }
+            return owner.tryAcquireFast(this, maximumWaitMs);
         }
 
         private void finishWithLease() {

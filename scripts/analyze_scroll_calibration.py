@@ -598,7 +598,10 @@ def build_pairs(visual: Sequence[dict], events: Sequence[dict], latency: float,
         return []
     visual_times, visual_x, visual_y = cumulative_series(
         accepted, "dx", "dy", "traceTime")
-    event_times, event_x, event_y = cumulative_series(events, "dx", "dy", "fit_time")
+    # A presentation controller cannot react until Accessibility has delivered the callback.
+    # Keep source/fit time for event-truth diagnostics, but never let it make a live model
+    # consume information before receipt.
+    event_times, event_x, event_y = cumulative_series(events, "dx", "dy", "time")
     pairs: list[dict] = []
     for index, time_value in enumerate(visual_times):
         start = time_value - window_seconds
@@ -706,8 +709,8 @@ def build_kernel_pairs(visual: Sequence[dict], events: Sequence[dict], latency: 
          and item.get("confidence", 0.0) >= 0.34],
         key=lambda item: item["traceTime"],
     )
-    ordered_events = sorted(events, key=lambda item: item.get("fit_time", item["time"]))
-    event_times = [float(item.get("fit_time", item["time"])) + latency
+    ordered_events = sorted(events, key=lambda item: item["time"])
+    event_times = [float(item["time"]) + latency
                    for item in ordered_events]
     if not accepted or not ordered_events:
         return []
@@ -718,7 +721,7 @@ def build_kernel_pairs(visual: Sequence[dict], events: Sequence[dict], latency: 
         interval = max(0.004, min(0.100, float(sample.get("intervalMs", 16.667)) / 1000.0))
         start = end - interval
         lower = bisect.bisect_left(event_times, start - safe_tau * 8.0)
-        # A presentation model can only consume an event after its source/receipt timestamp.
+        # A presentation model can only consume an event after its receipt timestamp.
         # Never let a symmetric kernel leak a future callback into an earlier video frame.
         upper = bisect.bisect_right(event_times, end)
         ex = 0.0
@@ -793,17 +796,17 @@ def visual_near_events(visual: Sequence[dict], events: Sequence[dict]) -> list[d
     """Assign teacher samples only to the event burst/surface that could have produced them."""
     if not events:
         return []
-    ordered_events = sorted(events, key=lambda item: item.get("fit_time", item["time"]))
-    event_times = [float(item.get("fit_time", item["time"])) for item in ordered_events]
+    ordered_events = sorted(events, key=lambda item: item["time"])
+    event_times = [float(item["time"]) for item in ordered_events]
     selected: list[dict] = []
     for sample in visual:
         time_value = float(sample.get("traceTime", -1e9))
         index = bisect.bisect_right(event_times, time_value) - 1
         before = ordered_events[index] if index >= 0 else None
         after = ordered_events[index + 1] if index + 1 < len(ordered_events) else None
-        before_gap = time_value - float(before.get("fit_time", before["time"])) \
+        before_gap = time_value - float(before["time"]) \
             if before else float("inf")
-        after_gap = float(after.get("fit_time", after["time"])) - time_value \
+        after_gap = float(after["time"]) - time_value \
             if after else float("inf")
         # Include onset just before a delivered event and the visual tail of a fling, but reject
         # unrelated app transitions and long idle/video spans.

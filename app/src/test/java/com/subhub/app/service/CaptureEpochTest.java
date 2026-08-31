@@ -93,27 +93,79 @@ public final class CaptureEpochTest {
                 ultra, true, true));
     }
 
-    @Test public void stableCaptureYieldsOnlyOneBoundedWindowToQuality() {
-        assertTrue(ScreenshotAccessibilityService.shouldYieldCaptureToQuality(
-                true, false, true, 180L));
-        assertFalse(ScreenshotAccessibilityService.shouldYieldCaptureToQuality(
-                true, true, true, 180L));
-        assertFalse(ScreenshotAccessibilityService.shouldYieldCaptureToQuality(
-                true, false, true, 301L));
-        assertFalse(ScreenshotAccessibilityService.shouldYieldCaptureToQuality(
-                false, false, true, 0L));
-        assertFalse(ScreenshotAccessibilityService.shouldYieldCaptureToQuality(
-                true, false, false, 180L));
+    @Test public void dueFastCaptureAlwaysPreemptsOptionalQuality() {
+        assertTrue(ScreenshotAccessibilityService.shouldPreemptQualityForCapture(true));
+        assertFalse(ScreenshotAccessibilityService.shouldPreemptQualityForCapture(false));
     }
 
-    @Test public void qualityBudgetFitsOnlyBeforeTheSecondStableCaptureDeadline() {
-        assertEquals(220L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(0L));
-        assertEquals(192L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(160L));
-        assertEquals(320L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(500L));
-        assertEquals(468L, ScreenshotAccessibilityService.qualityAvailableSlackMs(
+    @Test public void qualityBudgetMustFitBeforeTheNextFastCapture() {
+        assertEquals(160L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(0L));
+        assertEquals(176L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(160L));
+        assertEquals(300L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(500L));
+        assertEquals(134L, ScreenshotAccessibilityService.qualityAvailableSlackMs(
                 1_000L, 1_200L));
         assertEquals(0L, ScreenshotAccessibilityService.qualityAvailableSlackMs(
                 1_000L, 1_700L));
+    }
+
+    @Test public void visibleSceneNeverWaitsForOptionalQuality() {
+        assertEquals(SceneTransactionCoordinator.Mode.ACTIVE_FAST,
+                ScreenshotAccessibilityService.scenePresentationMode(false));
+        assertEquals(SceneTransactionCoordinator.Mode.SETTLED_FAST_ONLY,
+                ScreenshotAccessibilityService.scenePresentationMode(true));
+    }
+
+    @Test public void sameCaptureQualityWaitsBehindFastWork() {
+        assertFalse(ScreenshotAccessibilityService.shouldScheduleQualityNow(true, true));
+        assertFalse(ScreenshotAccessibilityService.shouldScheduleQualityNow(true, false));
+        assertFalse(ScreenshotAccessibilityService.shouldScheduleQualityNow(false, true));
+        assertTrue(ScreenshotAccessibilityService.shouldScheduleQualityNow(false, false));
+    }
+
+    @Test public void stuckQualityOpensABoundedCircuitBreaker() {
+        assertFalse(ScreenshotAccessibilityService.qualityCircuitAllows(1_000L, 31_000L));
+        assertTrue(ScreenshotAccessibilityService.qualityCircuitAllows(31_000L, 31_000L));
+    }
+
+    @Test public void backgroundQualityRequiresSplitCpuAndNnapiHardware() {
+        assertTrue(ScreenshotAccessibilityService.usesSplitHardwareQuality("CPU", "NNAPI"));
+        assertFalse(ScreenshotAccessibilityService.usesSplitHardwareQuality("CPU", "CPU"));
+        assertFalse(ScreenshotAccessibilityService.usesSplitHardwareQuality("CPU", "XNNPACK"));
+        assertFalse(ScreenshotAccessibilityService.usesSplitHardwareQuality("NNAPI", "NNAPI"));
+    }
+
+    @Test public void portraitFastInputKeepsLongEdgeAndRoundsShortEdgeToModelStride() {
+        int[] portrait = ScreenshotAccessibilityService.rectangularFastInputShape(
+                1_344, 2_992, 320);
+        int[] landscape = ScreenshotAccessibilityService.rectangularFastInputShape(
+                2_992, 1_344, 320);
+
+        assertEquals(160, portrait[0]);
+        assertEquals(320, portrait[1]);
+        assertEquals(320, landscape[0]);
+        assertEquals(160, landscape[1]);
+    }
+
+    @Test public void nearSquareFastInputKeepsTheStableSquarePath() {
+        assertEquals(null, ScreenshotAccessibilityService.rectangularFastInputShape(
+                1_200, 1_000, 320));
+    }
+
+    @Test public void lowResolutionFastInputNeverUpscalesToTheUltraShape() {
+        int[] low = ScreenshotAccessibilityService.rectangularFastInputShape(
+                1_344, 2_992, 224);
+        assertEquals(128, low[0]);
+        assertEquals(224, low[1]);
+        assertTrue((long) low[0] * low[1] < 224L * 224L);
+    }
+
+    @Test public void backfillTransformTokenChangesOnlyWithGeometry() {
+        long portrait = ScreenshotAccessibilityService.backfillTransformToken(
+                1_344, 2_992, 1_344, 2_992);
+        assertEquals(portrait, ScreenshotAccessibilityService.backfillTransformToken(
+                1_344, 2_992, 1_344, 2_992));
+        assertFalse(portrait == ScreenshotAccessibilityService.backfillTransformToken(
+                2_992, 1_344, 2_992, 1_344));
     }
 
     @Test public void fastFrameBlockedBehindQualityMustStillBeNewest() {

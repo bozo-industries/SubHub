@@ -82,6 +82,30 @@ class CalibrationLearnerTest(unittest.TestCase):
         self.assertEqual(1, len(pairs))
         self.assertEqual(0.0, pairs[0]["ex"])
 
+    def test_presentation_kernel_cannot_use_source_time_before_receipt(self):
+        pairs = MODULE.build_kernel_pairs(
+            [{
+                "traceTime": 1.0,
+                "intervalMs": 16.0,
+                "dx": 1.0,
+                "dy": 0.0,
+                "accepted": True,
+                "confidence": 1.0,
+                "gesture": 0,
+            }],
+            [{
+                "time": 1.010,
+                "fit_time": 0.900,
+                "dx": 1000.0,
+                "dy": 0.0,
+            }],
+            0.0,
+            0.015,
+        )
+
+        self.assertEqual(1, len(pairs))
+        self.assertEqual(0.0, pairs[0]["ex"])
+
     def test_percentile_is_interpolated(self):
         self.assertEqual(2.5, MODULE.percentile([1.0, 2.0, 3.0, 4.0], 50))
 

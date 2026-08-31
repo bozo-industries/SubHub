@@ -70,4 +70,29 @@ public final class FastPriorityInferenceGateTest {
             worker.shutdownNow();
         }
     }
+
+    @Test public void fastStopsWaitingWhenQualityIgnoresItsDeadline() throws Exception {
+        FastPriorityInferenceGate gate = new FastPriorityInferenceGate();
+        FastPriorityInferenceGate.QualityAdmission quality =
+                gate.tryAcquireQuality(500L, 200L);
+        assertTrue(quality.admitted());
+        FastPriorityInferenceGate.FastDemand demand = gate.registerFastDemand();
+        ExecutorService worker = Executors.newSingleThreadExecutor();
+        try {
+            long started = System.nanoTime();
+            Future<FastPriorityInferenceGate.Lease> attempt =
+                    worker.submit(() -> demand.tryAcquire(12L));
+            FastPriorityInferenceGate.Lease fast = attempt.get(200L, TimeUnit.MILLISECONDS);
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+
+            assertEquals(null, fast);
+            assertTrue("deadline should be bounded", elapsedMs < 100L);
+            assertFalse(gate.hasFastDemand());
+            assertEquals(FastPriorityInferenceGate.Lane.QUALITY, gate.activeLane());
+            quality.lease().close();
+            assertEquals(FastPriorityInferenceGate.Lane.IDLE, gate.activeLane());
+        } finally {
+            worker.shutdownNow();
+        }
+    }
 }

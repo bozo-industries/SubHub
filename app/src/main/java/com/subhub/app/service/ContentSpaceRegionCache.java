@@ -57,6 +57,7 @@ final class ContentSpaceRegionCache {
     private final int[] worldHeights = new int[MAX_ENTRIES];
     private final boolean[] nsfw = new boolean[MAX_ENTRIES];
     private final boolean[] exposed = new boolean[MAX_ENTRIES];
+    private final boolean[] dormantUntilDeparture = new boolean[MAX_ENTRIES];
     private final long[] lastSeenUptimeMillis = new long[MAX_ENTRIES];
     private final int[] inViewContradictions = new int[MAX_ENTRIES];
     private final int[] entryMetadataBytes = new int[MAX_ENTRIES];
@@ -192,7 +193,8 @@ final class ContentSpaceRegionCache {
             long viewRight = safeAdd(cameraX, viewportWidth);
             long viewBottom = safeAdd(cameraY, viewportHeight);
             for (int slot = 0; slot < MAX_ENTRIES; slot++) {
-                if (!used[slot] || observedSceneStamp[slot] == stamp
+                if (!used[slot] || dormantUntilDeparture[slot]
+                        || observedSceneStamp[slot] == stamp
                         || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
                         worldHeights[slot], viewLeft, viewTop, viewRight, viewBottom)) continue;
                 inViewContradictions[slot]++;
@@ -229,6 +231,7 @@ final class ContentSpaceRegionCache {
         activateContext(documentEpoch, safeSurface);
         evictExpired(Math.max(0L, nowUptimeMillis));
         if (entryCount == 0) return Collections.emptyList();
+        armDormantAfterViewportDeparture(cameraX, cameraY);
 
         long horizontalMargin = Math.max(viewportWidth / 2L, 1L);
         long verticalMargin = Math.max(viewportHeight * 2L, 1L);
@@ -249,7 +252,8 @@ final class ContentSpaceRegionCache {
                     int slot = nodeEntrySlots[node];
                     if (candidateStamp[slot] == stamp) continue;
                     candidateStamp[slot] = stamp;
-                    if (!used[slot] || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
+                    if (!used[slot] || suppressUntilViewportDeparture(slot, cameraX, cameraY)
+                            || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
                             worldHeights[slot], nearLeft, nearTop, nearRight, nearBottom)) continue;
                     queryCandidateSlots[candidateCount++] = slot;
                 }
@@ -259,7 +263,8 @@ final class ContentSpaceRegionCache {
             for (int slot = 0; slot < MAX_ENTRIES; slot++) {
                 if (candidateStamp[slot] == stamp) continue;
                 candidateStamp[slot] = stamp;
-                if (!used[slot] || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
+                if (!used[slot] || suppressUntilViewportDeparture(slot, cameraX, cameraY)
+                        || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
                         worldHeights[slot], nearLeft, nearTop, nearRight, nearBottom)) continue;
                 queryCandidateSlots[candidateCount++] = slot;
             }
@@ -268,6 +273,7 @@ final class ContentSpaceRegionCache {
         /* Entries too tall for the bucket index are a bounded broad-phase fallback. */
         for (int slot = 0; slot < MAX_ENTRIES; slot++) {
             if (!used[slot] || candidateStamp[slot] == stamp || !isBroadPhase(slot)
+                    || suppressUntilViewportDeparture(slot, cameraX, cameraY)
                     || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
                     worldHeights[slot], nearLeft, nearTop, nearRight, nearBottom)) continue;
             candidateStamp[slot] = stamp;
@@ -528,8 +534,12 @@ final class ContentSpaceRegionCache {
             int worldX, int worldY, int worldWidth, int worldHeight,
             long nowUptimeMillis, int bytes) {
         used[slot] = true;
+        dormantUntilDeparture[slot] = observation.deferUntilDeparture;
+        inViewContradictions[slot] = 0;
         entryCount++;
         liveTrackIds[slot] = observation.liveTrackId;
+        confidences[slot] = Float.isNaN(observation.confidence)
+                ? 0f : observation.confidence;
         classNames[slot] = className;
         categories[slot] = category;
         sourceAnchors[slot] = sourceAnchor;
@@ -555,7 +565,11 @@ final class ContentSpaceRegionCache {
         categories[slot] = category;
         sourceAnchors[slot] = sourceAnchor;
         removeFromIndex(slot);
-        liveTrackIds[slot] = observation.liveTrackId;
+        if (observation.liveTrackId >= 0 || liveTrackIds[slot] < 0) {
+            liveTrackIds[slot] = observation.liveTrackId;
+        }
+        dormantUntilDeparture[slot] = dormantUntilDeparture[slot]
+                && observation.deferUntilDeparture;
         updateEntryValues(slot, observation, worldX, worldY, worldWidth, worldHeight,
                 nowUptimeMillis);
         inViewContradictions[slot] = 0;
@@ -624,6 +638,10 @@ final class ContentSpaceRegionCache {
         categories[slot] = null;
         sourceAnchors[slot] = null;
         renderAnchors[slot] = null;
+        liveTrackIds[slot] = -1;
+        confidences[slot] = 0f;
+        dormantUntilDeparture[slot] = false;
+        inViewContradictions[slot] = 0;
         used[slot] = false;
         entryCount--;
     }
@@ -635,6 +653,10 @@ final class ContentSpaceRegionCache {
             categories[slot] = null;
             sourceAnchors[slot] = null;
             renderAnchors[slot] = null;
+            liveTrackIds[slot] = -1;
+            confidences[slot] = 0f;
+            dormantUntilDeparture[slot] = false;
+            inViewContradictions[slot] = 0;
             used[slot] = false;
             entryMetadataBytes[slot] = 0;
         }
@@ -815,6 +837,31 @@ final class ContentSpaceRegionCache {
                 || first.startsWith("face_") && second.startsWith("face_");
     }
 
+    /** Backfill evidence stays invisible in its source viewport, then arms after departure. */
+    private void armDormantAfterViewportDeparture(long cameraX, long cameraY) {
+        long right = safeAdd(cameraX, viewportWidth);
+        long bottom = safeAdd(cameraY, viewportHeight);
+        for (int slot = 0; slot < MAX_ENTRIES; slot++) {
+            if (!used[slot] || !dormantUntilDeparture[slot]) continue;
+            if (!intersects(worldXs[slot], worldYs[slot], worldWidths[slot], worldHeights[slot],
+                    cameraX, cameraY, right, bottom)) {
+                dormantUntilDeparture[slot] = false;
+            }
+        }
+    }
+
+    /** Backfill evidence stays invisible in its source viewport, then arms after departure. */
+    private boolean suppressUntilViewportDeparture(int slot, long cameraX, long cameraY) {
+        if (!dormantUntilDeparture[slot]) return false;
+        boolean stillInSourceViewport = intersects(
+                worldXs[slot], worldYs[slot], worldWidths[slot], worldHeights[slot],
+                cameraX, cameraY,
+                safeAdd(cameraX, viewportWidth), safeAdd(cameraY, viewportHeight));
+        if (stillInSourceViewport) return true;
+        dormantUntilDeparture[slot] = false;
+        return false;
+    }
+
     private static boolean intersects(int x, int y, int width, int height,
             long left, long top, long right, long bottom) {
         long entryRight = safeAdd(x, width);
@@ -920,6 +967,7 @@ final class ContentSpaceRegionCache {
         final int framesMissing;
         final boolean qualityConfirmed;
         final String anchorKey;
+        final boolean deferUntilDeparture;
 
         Observation(
                 int liveTrackId,
@@ -933,7 +981,7 @@ final class ContentSpaceRegionCache {
                 int framesMissing,
                 boolean qualityConfirmed) {
             this(liveTrackId, className, category, confidence, screenBox, nsfw, exposed,
-                    framesTracked, framesMissing, qualityConfirmed, null);
+                    framesTracked, framesMissing, qualityConfirmed, null, false);
         }
 
         Observation(
@@ -948,6 +996,23 @@ final class ContentSpaceRegionCache {
                 int framesMissing,
                 boolean qualityConfirmed,
                 String anchorKey) {
+            this(liveTrackId, className, category, confidence, screenBox, nsfw, exposed,
+                    framesTracked, framesMissing, qualityConfirmed, anchorKey, false);
+        }
+
+        Observation(
+                int liveTrackId,
+                String className,
+                String category,
+                float confidence,
+                BBox screenBox,
+                boolean nsfw,
+                boolean exposed,
+                int framesTracked,
+                int framesMissing,
+                boolean qualityConfirmed,
+                String anchorKey,
+                boolean deferUntilDeparture) {
             this.liveTrackId = liveTrackId;
             this.className = className;
             this.category = category;
@@ -959,6 +1024,7 @@ final class ContentSpaceRegionCache {
             this.framesMissing = framesMissing;
             this.qualityConfirmed = qualityConfirmed;
             this.anchorKey = anchorKey;
+            this.deferUntilDeparture = deferUntilDeparture;
         }
 
         boolean cacheable() {

@@ -248,7 +248,7 @@ foreach ($requestedPath in $Path) {
             })
             continue
         }
-        if ($line -match 'QUALITY_READY id=(\S+) scrollId=(\d+) captureAgeMs=(\d+) bitmapPrepareMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) acceptedVisual=(\d+) transactionStatus=(\S+).*? dropped=(\d+)') {
+        if ($line -match 'QUALITY_READY id=(\S+) scrollId=(\d+) captureAgeMs=(\d+) bitmapPrepareMs=(\d+) inferenceMs=(\d+) preprocessMs=(\d+) runtimeMs=(\d+) postprocessMs=(\d+) afterMotionMs=(-?\d+) rawVisual=(\d+) acceptedVisual=(\d+) (?:(?:transactionStatus=(\S+))|(?:renderAuthority=(\S+) backfillStatus=(\S+) backfillMatched=(\d+) backfillInserted=(\d+) backfillPromoted=(\d+) backfillRefined=(\d+))).*? dropped=(\d+)') {
             $streamingQuality.Add([pscustomobject]@{
                 time = $time
                 sceneId = $Matches[1]
@@ -271,19 +271,36 @@ foreach ($requestedPath in $Path) {
                 sourceGeneration = 0
                 cacheGeneration = 0
                 reprojectAbs = 0
-                dropped = [int] $Matches[13]
-                transactionStatus = $Matches[12]
+                dropped = [int] $Matches[19]
+                transactionStatus = if ($Matches[12]) {
+                    $Matches[12]
+                } else {
+                    "SHADOW_$($Matches[14])"
+                }
+                renderAuthority = if ($Matches[13]) { $Matches[13] } else { "legacy" }
+                backfillStatus = if ($Matches[14]) { $Matches[14] } else { "LEGACY" }
+                backfillMatched = if ($Matches[15]) { [int] $Matches[15] } else { 0 }
+                backfillInserted = if ($Matches[16]) { [int] $Matches[16] } else { 0 }
+                backfillPromoted = if ($Matches[17]) { [int] $Matches[17] } else { 0 }
+                backfillRefined = if ($Matches[18]) { [int] $Matches[18] } else { 0 }
             })
             continue
         }
-        if ($line -match 'SCENE_BEGIN id=(\S+) mode=(\S+) qualityExpected=(true|false) joinDeadlineUptimeMs=(\d+) visibleDeadlineUptimeMs=(\d+)') {
+        if ($line -match 'SCENE_BEGIN id=(\S+) mode=(\S+) quality(Expected|Observed)=(true|false)(?: qualityJoinExpected=(true|false))? joinDeadlineUptimeMs=(\d+) visibleDeadlineUptimeMs=(\d+)') {
+            $qualityObserved = $Matches[4] -eq 'true'
+            $qualityJoinExpected = if ($Matches[5]) {
+                $Matches[5] -eq 'true'
+            } else {
+                $qualityObserved
+            }
             $sceneBegins.Add([pscustomobject]@{
                 time = $time
                 id = $Matches[1]
                 mode = $Matches[2]
-                qualityExpected = $Matches[3] -eq 'true'
-                joinDeadline = [long] $Matches[4]
-                visibleDeadline = [long] $Matches[5]
+                qualityObserved = $qualityObserved
+                qualityExpected = $qualityJoinExpected
+                joinDeadline = [long] $Matches[6]
+                visibleDeadline = [long] $Matches[7]
             })
             continue
         }
