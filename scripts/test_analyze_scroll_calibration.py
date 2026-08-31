@@ -92,7 +92,7 @@ class CalibrationLearnerTest(unittest.TestCase):
             "amplified=false sourceUptimeMs=1000 receivedUptimeMs=1023 "
             "surfaceToken=abc surfaceConfidence=3 surfaceCacheable=true "
             "observedSurfaceConfidence=1 surfaceDecision=REUSE_ACTIVE "
-            "touchId=9 touchActive=true documentEpoch=4"
+            "motionToken=def touchId=9 touchActive=true documentEpoch=4"
         )
 
         parsed = MODULE.parse_scroll_message(message, 5.0)
@@ -102,6 +102,7 @@ class CalibrationLearnerTest(unittest.TestCase):
         self.assertEqual(3, parsed["surface_confidence"])
         self.assertEqual(1, parsed["observed_surface_confidence"])
         self.assertEqual("REUSE_ACTIVE", parsed["surface_decision"])
+        self.assertEqual("def", parsed["motion_token"])
         self.assertEqual(7, parsed["scroll_id"])
         self.assertEqual(9, parsed["gesture"])
         self.assertEqual(9, parsed["touch_id"])

@@ -105,6 +105,7 @@ def parse_scroll_message(message: str, relative_seconds: float) -> dict | None:
             fields.get("observedSurfaceConfidence", fields.get("surfaceConfidence", "0"))),
         "surface_cacheable": fields.get("surfaceCacheable") == "true",
         "surface_decision": fields.get("surfaceDecision", "UNKNOWN"),
+        "motion_token": fields.get("motionToken", "unknown"),
         "document": int(fields.get("documentEpoch", "0")),
         "touch_id": touch_id,
         "touch_active": fields.get("touchActive") == "true",

@@ -132,3 +132,33 @@ Accessibility corrections or another non-intercepting observation path.
 Before another run, both MediaProjection services also gained one synchronized, owner-checked
 lease. Censor Lab and Screen Capture can no longer race two projection sessions or consume a grant
 behind each other; every failure and teardown path releases only its own lease.
+
+## Second Pixel teacher run — session `e09c05ed81`
+
+The installed `b353867` candidate recorded 68.87 seconds, 1,546 trace records, 228 scroll events,
+73 numeric scene records, 176 draw records, and zero dropped/malformed records. Full-rate decoded
+PTS produced 3,560 motion intervals with p50/p95 cadence 16.71/20.68 ms. Correct marker-onset
+pairing yielded slope 0.999961 and only 2.64 ms drift across the recording.
+
+The bounded sticky surface fix worked: Chromium reused its proven owner for 90 low-confidence
+companion callbacks, produced zero `surface-low-confidence` invalidations, and held the run to three
+document epochs. The baseline-only run had 94 such invalidations and 67 document values.
+
+The teacher then exposed the dominant live regression. Cache identity and motion identity had been
+unified. Chromium's stable scroll owner reports absolute positions, while its companion node reports
+explicit deltas from a different coordinate system. Every explicit callback overwrote the global
+absolute baseline; the next stable callback therefore manufactured an absolute jump as large as
+3,000–5,800 px, often in the wrong direction. The trace showed examples where a gesture's current
+camera sum was −9,079 px while visual flow was +1,315 px.
+
+Pass28 now keeps sticky identity only for content-space cache continuity and keys motion resolution
+to the actually observed producer token. Replaying the 14 clean Chromium scroll groups with that
+single separation reduced mean per-gesture endpoint error from 5,423.1 px to 18.1 px (99.7%). The
+explicit stream then agreed with video direction and distance on every tested reversal; individual
+examples improved from 16,878 px to 73 px and from 10,394 px to 8 px. This is an input-correctness
+fix, not a smoothing coefficient change.
+
+`TYPE_TOUCH_INTERACTION_START/END` did not fire without touch exploration even for physical input.
+Touch exploration and generic touchscreen `onMotionEvent` remain forbidden because they alter or
+intercept normal input. Offline validation will therefore group complete gestures from high-
+confidence pixel-motion bursts and fence those groups by stable surface/document intervals.

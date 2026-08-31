@@ -2163,7 +2163,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             byte surfaceConfidence,
             boolean surfaceCacheable,
             byte observedSurfaceConfidence,
-            ScrollSurfaceHysteresis.Decision surfaceDecision) {
+            ScrollSurfaceHysteresis.Decision surfaceDecision,
+            long motionProducerToken) {
         long gap = lastScrollTraceEventUptime <= 0L
                 ? Long.MAX_VALUE : nowUptime - lastScrollTraceEventUptime;
         if (gap > 250L) {
@@ -2188,6 +2189,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 + " observedSurfaceConfidence=" + observedSurfaceConfidence
                 + " surfaceDecision=" + (surfaceDecision == null
                         ? "UNKNOWN" : surfaceDecision.name())
+                + " motionToken=" + Long.toUnsignedString(motionProducerToken, 16)
                 + " touchId=" + touchTraceId
                 + " touchActive=" + touchInteractionActive
                 + " sinceTouchStartMs=" + (touchInteractionActive
@@ -3389,8 +3391,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     disableWorldCacheForUnstableSurface(
                             surfaceIdentity, decisionActiveSurface);
                 }
-                String motionSurface = cacheSurface.isEmpty()
-                        ? AccessibilityScrollMotionResolver.surfaceKey(event) : cacheSurface;
+                // Cache identity intentionally stays sticky across Chromium's companion nodes,
+                // but their scroll coordinate systems are not interchangeable. Keep motion keyed
+                // to the actually observed producer so an explicit-delta callback cannot overwrite
+                // another node's absolute-position baseline and manufacture multi-viewport jumps.
+                long observedMotionToken = surfaceIdentity.telemetryToken();
+                String motionSurface = observedMotionToken == 0L
+                        ? AccessibilityScrollMotionResolver.surfaceKey(event)
+                        : "event:" + Long.toUnsignedString(observedMotionToken, 16);
                 int viewportWidth = latestCaptureWidth;
                 int viewportHeight = latestCaptureHeight;
                 if (viewportWidth <= 1 || viewportHeight <= 1) {
@@ -3420,7 +3428,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                 ? "direction-suppressed" : "accessibility",
                         rawMotion.evidence.name(), motion.adjustedPixels(), motion.amplified(),
                         surfaceTelemetryToken, surfaceConfidence, surfaceCacheable,
-                        surfaceIdentity.confidence, surfaceDecision);
+                        surfaceIdentity.confidence, surfaceDecision, observedMotionToken);
                 if (motion.moved()) {
                     applyEventMotion(motion.dx, motion.dy, motion.authoritative,
                             sourceTime, scrollNow);

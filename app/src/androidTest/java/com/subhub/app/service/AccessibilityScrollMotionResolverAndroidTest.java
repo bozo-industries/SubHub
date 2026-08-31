@@ -56,6 +56,36 @@ public final class AccessibilityScrollMotionResolverAndroidTest {
         replacement.recycle();
     }
 
+    @Test public void alternatingProducerCannotOverwriteAnotherAbsoluteBaseline() {
+        AccessibilityScrollMotionResolver resolver = new AccessibilityScrollMotionResolver();
+        AccessibilityEvent absoluteStart = scrollEvent();
+        absoluteStart.setScrollY(100);
+        assertFalse(resolver.resolve(absoluteStart, 1080, 2400, "absolute-node").moved());
+
+        AccessibilityEvent explicitCompanion = scrollEvent();
+        explicitCompanion.setScrollY(4_000);
+        explicitCompanion.setScrollDeltaY(80);
+        AccessibilityScrollMotionResolver.Motion explicit = resolver.resolve(
+                explicitCompanion, 1080, 2400, "explicit-node");
+        assertEquals(-80, explicit.dy);
+
+        AccessibilityEvent absoluteReturn = scrollEvent();
+        absoluteReturn.setScrollY(160);
+        assertFalse(resolver.resolve(
+                absoluteReturn, 1080, 2400, "absolute-node").moved());
+
+        AccessibilityEvent absoluteFollowUp = scrollEvent();
+        absoluteFollowUp.setScrollY(200);
+        AccessibilityScrollMotionResolver.Motion absolute = resolver.resolve(
+                absoluteFollowUp, 1080, 2400, "absolute-node");
+        assertEquals(-40, absolute.dy);
+
+        absoluteStart.recycle();
+        explicitCompanion.recycle();
+        absoluteReturn.recycle();
+        absoluteFollowUp.recycle();
+    }
+
     @Test public void visibleItemIndexProvidesLastResortFeedMotion() {
         AccessibilityScrollMotionResolver resolver = new AccessibilityScrollMotionResolver();
         AccessibilityEvent first = scrollEvent();

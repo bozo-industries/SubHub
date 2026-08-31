@@ -14,7 +14,7 @@
 | [25](passes/pass-25.md) | partial-success | One content-space camera for every render source | 24 | Keep the camera/timeline work, but the Pixel exposed fast → partial quality → complete quality → periodic refresh waves. Never let a cache become delayed render authority again. |
 | [26](passes/pass-26.md) | partial-success | One atomic scene transaction and vsync commit per exact capture | 25 | Kept: exactly-once inference mailbox plus latest-only display-tick queue. Still visibly constrained by new evidence arriving at screenshot cadence. |
 | [27](passes/pass-27.md) | device-gate-pending | Bounded content-space memory and first-vsync re-entry | 26 | Primitive bounded cache and render-only re-entry are implemented; Pixel must prove return-scroll hit rate and navigation safety before acceptance. |
-| [28](passes/pass-28.md) | candidate | Full-screen MediaProjection teacher calibration | 27 | First Pixel artifact is baseline-only: it exposed marker-edge, gesture-group, future-leak, and surface-churn defects. The next run uses causal fitting, sticky surface identity, and real touch boundaries. |
+| [28](passes/pass-28.md) | candidate | Full-screen MediaProjection teacher calibration | 27 | Second Pixel trace proved cache/motion identity cross-contamination created multi-viewport jumps; producer separation cuts replay endpoint error 99.7%. Pixel visual verdict remains required. |
 
 ## Current anchors
 
