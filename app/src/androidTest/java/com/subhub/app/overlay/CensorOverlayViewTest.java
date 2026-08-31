@@ -31,6 +31,7 @@ import java.io.FileOutputStream;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -345,6 +346,105 @@ public final class CensorOverlayViewTest {
 
         outside.recycle();
         returned.recycle();
+        view.release();
+    }
+
+    @Test public void cachedWorldRegionSurvivesLivePublisherReplacementAndReenters()
+            throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.setAppearance(new CensorAppearance(
+                CensorAppearance.Type.BOX, 1, 0f, false, false,
+                CensorAppearance.BorderEffect.CLASSIC, false, Color.MAGENTA,
+                List.of(), false, 100, "rectangle", "SubHub", "Blocked"));
+        view.measure(exactly(100), exactly(100));
+        view.layout(0, 0, 100, 100);
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        List<TrackedObject> live = tracker.update(List.of(new Detection(
+                "FACE_FEMALE", "face_female", 1f,
+                new BBox(20, 20, 30, 20), true, true)));
+        view.setWorldTracks(live, 100, 100, null,
+                0L, 0L, 0L, 0L, 100, 100, null);
+
+        long now = SystemClock.uptimeMillis();
+        view.offsetContent(0, -60, true, now);
+        Detection cached = new Detection(
+                "FACE_FEMALE", "face_female", 1f,
+                new BBox(20, -40, 30, 20), true, true,
+                Detection.ObservationSource.EXACT_GEOMETRY,
+                Detection.GeometryQuality.EXACT, "world-cache:7");
+        view.setWorldTracksAndCache(Collections.emptyList(), List.of(cached),
+                100, 100, null, 0L, 60L, 0L, 60L,
+                100, 100, null);
+
+        Field tracksField = CensorOverlayView.class.getDeclaredField("tracks");
+        tracksField.setAccessible(true);
+        assertEquals(1, ((List<?>) tracksField.get(view)).size());
+
+        view.offsetContent(0, 50, true, now + 1L);
+        view.setRenderTimeForTest(now + 400L);
+        Bitmap returned = draw(view, 100, 100);
+        assertEquals(Color.BLACK, returned.getPixel(30, 20));
+
+        returned.recycle();
+        view.release();
+    }
+
+    @Test public void liveWorldRegionSuppressesOverlappingCachedCopy() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.measure(exactly(100), exactly(100));
+        view.layout(0, 0, 100, 100);
+        ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().build());
+        List<TrackedObject> live = tracker.update(List.of(new Detection(
+                "FACE_FEMALE", "face_female", 1f,
+                new BBox(20, 20, 30, 20), true, true)));
+        Detection cached = new Detection(
+                "FACE_FEMALE", "face_female", 1f,
+                new BBox(20, 20, 30, 20), true, true,
+                Detection.ObservationSource.EXACT_GEOMETRY,
+                Detection.GeometryQuality.EXACT, "world-cache:7");
+
+        view.setWorldTracksAndCache(live, List.of(cached),
+                100, 100, null, 0L, 0L, 0L, 0L,
+                100, 100, null);
+
+        Field tracksField = CensorOverlayView.class.getDeclaredField("tracks");
+        tracksField.setAccessible(true);
+        assertEquals(1, ((List<?>) tracksField.get(view)).size());
+        view.release();
+    }
+
+    @Test public void cachedWorldRegionPreservesGeometryWhenCaptureAndViewportDiffer()
+            throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        CensorOverlayView view = new CensorOverlayView(context);
+        view.setAppearance(new CensorAppearance(
+                CensorAppearance.Type.BOX, 1, 0f, false, false,
+                CensorAppearance.BorderEffect.CLASSIC, false, Color.MAGENTA,
+                List.of(), false, 100, "rectangle", "SubHub", "Blocked"));
+        view.measure(exactly(100), exactly(100));
+        view.layout(0, 0, 100, 100);
+        view.setWorldTracks(Collections.emptyList(), 200, 200, null,
+                0L, 0L, 0L, 0L, 100, 100, null);
+
+        long now = SystemClock.uptimeMillis();
+        view.offsetContent(0, -50, true, now);
+        // Cache query converts display-world y=70 at camera y=50 into source-screen y=40.
+        Detection cached = new Detection(
+                "FACE_FEMALE", "face_female", 1f,
+                new BBox(40, 40, 60, 40), true, true,
+                Detection.ObservationSource.EXACT_GEOMETRY,
+                Detection.GeometryQuality.EXACT, "world-cache:scaled");
+        view.setWorldCacheRegions(List.of(cached), 200, 200,
+                0L, 50L, 100, 100);
+        view.setRenderTimeForTest(now + 400L);
+
+        Bitmap rendered = draw(view, 100, 100);
+        assertEquals(Color.BLACK, rendered.getPixel(30, 25));
+        assertTrue(Color.alpha(rendered.getPixel(30, 5)) == 0);
+
+        rendered.recycle();
         view.release();
     }
 

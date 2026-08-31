@@ -11,6 +11,7 @@ final class RenderTrackSnapshot {
     private final BBox box;
     private final float velocityXPerMs;
     private final float velocityYPerMs;
+    private final boolean cached;
 
     static RenderTrackSnapshot from(TrackedObject track) {
         return new RenderTrackSnapshot(
@@ -18,7 +19,7 @@ final class RenderTrackSnapshot {
                 track.getCategory(),
                 track.getBox(),
                 track.getVelocityX(),
-                track.getVelocityY());
+                track.getVelocityY(), false);
     }
 
     static RenderTrackSnapshot fromWorld(
@@ -35,13 +36,13 @@ final class RenderTrackSnapshot {
                 ContentSpaceCoordinates.toWorld(track.getBox(), cameraX, cameraY,
                         sourceWidth, sourceHeight, viewportWidth, viewportHeight),
                 track.getVelocityX(),
-                track.getVelocityY());
+                track.getVelocityY(), false);
     }
 
     static RenderTrackSnapshot fromTextDetection(Detection detection) {
         BBox box = detection.getBox();
         return new RenderTrackSnapshot(
-                stableTextId(detection, box), detection.getCategory(), box, 0f, 0f);
+                stableTextId(detection, box), detection.getCategory(), box, 0f, 0f, false);
     }
 
     static RenderTrackSnapshot fromWorldTextDetection(
@@ -59,8 +60,29 @@ final class RenderTrackSnapshot {
                 stableTextId(detection, world),
                 detection.getCategory(),
                 world,
-                0f,
-                0f);
+                0f, 0f, false);
+    }
+
+    static RenderTrackSnapshot fromWorldCacheDetection(
+            Detection detection,
+            long cameraX,
+            long cameraY,
+            int sourceWidth,
+            int sourceHeight,
+            int viewportWidth,
+            int viewportHeight) {
+        BBox world = ContentSpaceCoordinates.toWorld(
+                detection.getBox(), cameraX, cameraY,
+                sourceWidth, sourceHeight, viewportWidth, viewportHeight);
+        return new RenderTrackSnapshot(
+                stableCacheId(detection, world), detection.getCategory(), world,
+                0f, 0f, true);
+    }
+
+    /** Keep render-memory identities disjoint from positive tracker and text identities. */
+    private static int stableCacheId(Detection detection, BBox identityBox) {
+        int positive = stableTextId(detection, identityBox);
+        return positive == Integer.MIN_VALUE ? Integer.MIN_VALUE + 1 : -positive;
     }
 
     private static int stableTextId(Detection detection, BBox identityBox) {
@@ -77,12 +99,14 @@ final class RenderTrackSnapshot {
             String category,
             BBox box,
             float velocityXPerMs,
-            float velocityYPerMs) {
+            float velocityYPerMs,
+            boolean cached) {
         this.id = id;
         this.category = category;
         this.box = box;
         this.velocityXPerMs = velocityXPerMs;
         this.velocityYPerMs = velocityYPerMs;
+        this.cached = cached;
     }
 
     int id() { return id; }
@@ -90,6 +114,7 @@ final class RenderTrackSnapshot {
     BBox box() { return box; }
     float velocityXPerMs() { return velocityXPerMs; }
     float velocityYPerMs() { return velocityYPerMs; }
+    boolean isCached() { return cached; }
 
     BBox predict(float ageMs, float maxExtrapolationMs) {
         // Accessibility/OCR rectangles already follow content through the viewport transform.

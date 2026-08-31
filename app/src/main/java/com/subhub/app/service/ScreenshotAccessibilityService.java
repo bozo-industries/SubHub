@@ -180,8 +180,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final CaptureEpoch captureEpoch = new CaptureEpoch();
     private final AccessibilityScrollMotionResolver scrollMotionResolver =
             new AccessibilityScrollMotionResolver();
+    private final AccessibilitySurfaceIdentityResolver scrollSurfaceIdentityResolver =
+            new AccessibilitySurfaceIdentityResolver();
     private final ScrollDeltaStabilizer scrollDeltaStabilizer = new ScrollDeltaStabilizer();
     private final CaptureScrollTimeline captureScrollTimeline = new CaptureScrollTimeline();
+    private final ContentSpaceRegionCache contentSpaceRegionCache =
+            new ContentSpaceRegionCache();
+    private final Object worldCacheLock = new Object();
+    private final AtomicLong visualDocumentEpoch = new AtomicLong(1L);
+    private final AtomicInteger activeApplicationWindowId = new AtomicInteger(-1);
+    private volatile String activeScrollSurfaceKey = "";
+    private long lastWorldCacheQueryX = Long.MIN_VALUE;
+    private long lastWorldCacheQueryY = Long.MIN_VALUE;
+    private long lastWorldCacheQueryDocument = Long.MIN_VALUE;
+    private String lastWorldCacheQuerySurface = "";
     private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
             (preferences, key) -> reloadSettings();
@@ -465,6 +477,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         ForegroundWindowResolver.Candidate liveWindow = resolveLiveApplicationWindow();
         int activeWindowId = liveWindow == null ? -1 : liveWindow.windowId;
         String livePackage = liveWindow == null ? "" : liveWindow.packageName;
+        if (activeWindowId >= 0 && livePackage.equals(foregroundPackage)) {
+            acceptApplicationWindow(activeWindowId);
+        }
         AppModeManager mode = new AppModeManager(this);
         if (AppModePolicy.shouldAcceptLiveForegroundPackage(
                 livePackage, mode.inputMethodPackage())
@@ -576,6 +591,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             boolean motionSettled = lastMotionUptime <= 0L
                     || nowUptime - lastMotionUptime >= MOTION_SETTLE_MS;
             long inferenceMotionGeneration = sampledGeneration;
+            long inferenceDocumentEpoch = visualDocumentEpoch.get();
+            String inferenceSurfaceKey = activeScrollSurfaceKey;
             if (!isCurrentCapture(requestedEpoch)) return;
             int inferenceResolution = currentConfig == null
                     ? FAST_INFERENCE_RESOLUTION : currentConfig.getInferenceResolution();
@@ -622,6 +639,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     capturePhase.screenshotUptimeMillis,
                     capturePhase.phaseUncertain,
                     capturePhase.maximumDeliveryDelayMs,
+                    inferenceDocumentEpoch, inferenceSurfaceKey,
                     submissionSequence, scene));
             frame = null;
             maybeRequestOcr(wrapped, requestedEpoch, sourceScrollX, sourceScrollY,
@@ -1105,6 +1123,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             DetectionEngine engine,
             boolean fastPass,
             boolean finalPass) throws Exception {
+        if (!isCurrentVisualDocument(candidate.visualDocumentEpoch,
+                candidate.scrollSurfaceKey)) {
+            invalidateScene(candidate.scene, "visual-document-changed-before-inference");
+            return;
+        }
         if (!fastPass && pendingInference.get() != null) {
             publishRetainedSourceFrame(candidate, "fast-arrived-before-quality");
             return;
@@ -1131,6 +1154,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!fastPass && engine.wasLastRunCancelled()) {
             logQualityCancellation("fast-preempted", engine);
             publishRetainedSourceFrame(candidate, "quality-preempted");
+            return;
+        }
+        if (!isCurrentVisualDocument(candidate.visualDocumentEpoch,
+                candidate.scrollSurfaceKey)) {
+            invalidateScene(candidate.scene, "visual-document-changed-during-inference");
             return;
         }
         CaptureScrollTimeline.Phase refreshedCapturePhase = fastPass
@@ -1431,6 +1459,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         VisualTrackArbitrator.Result renderArbitration = visualRenderTracks(tracks);
         List<TrackedObject> renderTracks = renderArbitration.tracks();
+        Rect cacheViewport = screenBounds();
+        List<Detection> cachedRenderRegions = updateWorldCache(
+                renderTracks, alignment.scrollX, alignment.scrollY,
+                width, height, cacheViewport.width(), cacheViewport.height(),
+                sceneCommit != null && sceneCommit.includesQuality(),
+                sceneCommit == null ? "legacy-fast" : sceneCommit.kind().name(),
+                candidate.visualDocumentEpoch, candidate.scrollSurfaceKey);
         int qualityOnlyTrackCount = 0;
         for (TrackedObject track : tracks) {
             if (track != null && track.isQualityOnly()) qualityOnlyTrackCount++;
@@ -1484,10 +1519,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 InferenceScrollReprojector.screenMotion(
                         requestedScrollX, requestedScrollY,
                         alignment.scrollX, alignment.scrollY);
-        Rect publicationViewport = screenBounds();
+        Rect publicationViewport = cacheViewport;
         main.post(() -> {
             Runnable publication = () -> {
                 if (isCurrentCapture(requestedEpoch) && overlay != null
+                    && isCurrentVisualDocument(candidate.visualDocumentEpoch,
+                            candidate.scrollSurfaceKey)
                     && (candidate.continuousMotionInference
                     || inferenceMotionGeneration == motionGeneration.get())
                     && (publishedSceneCommit == null
@@ -1499,7 +1536,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                 current.scrollX, current.scrollY);
                 long publishedAt = SystemClock.uptimeMillis();
                 overlay.setDiagnostics(diagnosticText);
-                overlay.updateWorld(renderTracks, width, height, overlayFrame,
+                overlay.updateWorldWithCache(
+                        renderTracks, cachedRenderRegions, width, height, overlayFrame,
                         alignment.scrollX, alignment.scrollY,
                         requestedScrollX, requestedScrollY,
                         publicationViewport.width(), publicationViewport.height());
@@ -1799,6 +1837,161 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return ACCESSIBILITY_SCREENSHOT_INTERVAL_MS;
     }
 
+    private boolean acceptScrollSurface(String surfaceKey) {
+        String safe = surfaceKey == null ? "" : surfaceKey.trim();
+        if (safe.isEmpty()) return false;
+        int removed;
+        long document;
+        synchronized (worldCacheLock) {
+            if (safe.equals(activeScrollSurfaceKey)) return false;
+            removed = contentSpaceRegionCache.clear();
+            activeScrollSurfaceKey = safe;
+            document = visualDocumentEpoch.incrementAndGet();
+            resetWorldCacheQueryLocked();
+        }
+        // A freshly identified surface must earn its own committed observations. Seeding it with
+        // tracks from the previous surface is precisely how nested lists inherit stale boxes.
+        invalidateCurrentScene("world-surface-change");
+        CensorLabLog.i(TAG, "WORLD_CACHE_INVALIDATE reason=surface-change removed="
+                + removed + " documentEpoch=" + document);
+        return true;
+    }
+
+    private void disableWorldCacheForUnstableSurface(
+            AccessibilitySurfaceIdentityResolver.Identity identity) {
+        int removed;
+        long document;
+        synchronized (worldCacheLock) {
+            if (activeScrollSurfaceKey == null || activeScrollSurfaceKey.isEmpty()) return;
+            removed = contentSpaceRegionCache.clear();
+            activeScrollSurfaceKey = "";
+            document = visualDocumentEpoch.incrementAndGet();
+            resetWorldCacheQueryLocked();
+        }
+        invalidateCurrentScene("world-surface-low-confidence");
+        CensorLabLog.i(TAG, "WORLD_CACHE_INVALIDATE reason=surface-low-confidence removed="
+                + removed + " documentEpoch=" + document
+                + " confidence=" + (identity == null ? -1 : identity.confidence));
+    }
+
+    private static String cacheSurfaceKey(
+            AccessibilitySurfaceIdentityResolver.Identity identity) {
+        if (identity == null || !identity.isCacheable()) return "";
+        return "h:" + Long.toUnsignedString(identity.tokenHi, 16)
+                + ':' + Long.toUnsignedString(identity.tokenLo, 16);
+    }
+
+    private void invalidateWorldCache(String reason) {
+        int removed;
+        long document;
+        synchronized (worldCacheLock) {
+            removed = contentSpaceRegionCache.clear();
+            activeScrollSurfaceKey = "";
+            document = visualDocumentEpoch.incrementAndGet();
+            resetWorldCacheQueryLocked();
+        }
+        invalidateCurrentScene("world-cache-" + reason);
+        CensorLabLog.i(TAG, "WORLD_CACHE_INVALIDATE reason=" + reason
+                + " removed=" + removed + " documentEpoch=" + document);
+    }
+
+    private boolean isCurrentVisualDocument(long documentEpoch, String surfaceKey) {
+        String currentSurface = activeScrollSurfaceKey;
+        return documentEpoch == visualDocumentEpoch.get()
+                && (surfaceKey == null ? "" : surfaceKey).equals(
+                currentSurface == null ? "" : currentSurface);
+    }
+
+    private List<Detection> updateWorldCache(
+            List<TrackedObject> liveTracks,
+            long cameraX,
+            long cameraY,
+            int sourceWidth,
+            int sourceHeight,
+            int viewportWidth,
+            int viewportHeight,
+            boolean unifiedScene,
+            String source,
+            long expectedDocument,
+            String expectedSurface) {
+        String surface = expectedSurface == null ? "" : expectedSurface;
+        if (surface.isEmpty()) return Collections.emptyList();
+        List<ContentSpaceRegionCache.Observation> observations = new ArrayList<>();
+        if (liveTracks != null) {
+            for (TrackedObject track : liveTracks) {
+                if (track == null || !track.isActive() || !track.isVisible()) continue;
+                observations.add(new ContentSpaceRegionCache.Observation(
+                        track.getId(), track.getClassName(), track.getCategory(),
+                        track.getConfidence(), track.getBox(), true, false,
+                        track.getFramesTracked(), track.getFramesMissing(),
+                        false));
+            }
+        }
+        long now = SystemClock.uptimeMillis();
+        ContentSpaceRegionCache.Update update;
+        List<Detection> cached;
+        int entries;
+        synchronized (worldCacheLock) {
+            if (!isCurrentVisualDocument(expectedDocument, surface)) {
+                return Collections.emptyList();
+            }
+            update = contentSpaceRegionCache.observeCommittedScene(
+                    expectedDocument, surface, now, cameraX, cameraY,
+                    sourceWidth, sourceHeight, viewportWidth, viewportHeight,
+                    unifiedScene, observations);
+            cached = contentSpaceRegionCache.queryNearAsScreenDetections(
+                    expectedDocument, surface, now, cameraX, cameraY,
+                    sourceWidth, sourceHeight, viewportWidth, viewportHeight);
+            entries = contentSpaceRegionCache.size();
+            rememberWorldCacheQueryLocked(
+                    expectedDocument, surface, cameraX, cameraY);
+        }
+        CensorLabLog.i(TAG, "WORLD_CACHE_QUERY source=" + source
+                + " entries=" + entries
+                + " inserted=" + update.inserted
+                + " updated=" + update.updated
+                + " evicted=" + update.evicted
+                + " viewportReset=" + update.viewportReset
+                + " candidates=" + cached.size()
+                + " camera=" + cameraX + ',' + cameraY
+                + " documentEpoch=" + expectedDocument);
+        return cached;
+    }
+
+    private void resetWorldCacheQueryLocked() {
+        lastWorldCacheQueryX = Long.MIN_VALUE;
+        lastWorldCacheQueryY = Long.MIN_VALUE;
+        lastWorldCacheQueryDocument = Long.MIN_VALUE;
+        lastWorldCacheQuerySurface = "";
+    }
+
+    private void rememberWorldCacheQueryLocked(
+            long document, String surface, long cameraX, long cameraY) {
+        lastWorldCacheQueryDocument = document;
+        lastWorldCacheQuerySurface = surface == null ? "" : surface;
+        lastWorldCacheQueryX = cameraX;
+        lastWorldCacheQueryY = cameraY;
+    }
+
+    private boolean shouldRefreshWorldCacheQueryLocked(
+            long document,
+            String surface,
+            long cameraX,
+            long cameraY,
+            int viewportWidth,
+            int viewportHeight) {
+        if (contentSpaceRegionCache.size() == 0) return false;
+        if (document != lastWorldCacheQueryDocument
+                || !(surface == null ? "" : surface).equals(lastWorldCacheQuerySurface)) {
+            return true;
+        }
+        long xThreshold = Math.max(96L, Math.max(1, viewportWidth) / 3L);
+        long yThreshold = Math.max(96L, Math.max(1, viewportHeight) / 3L);
+        return lastWorldCacheQueryX == Long.MIN_VALUE
+                || Math.abs(cameraX - lastWorldCacheQueryX) >= xThreshold
+                || Math.abs(cameraY - lastWorldCacheQueryY) >= yThreshold;
+    }
+
     private boolean applyFrameMotion(
             int dx,
             int dy,
@@ -1913,9 +2106,57 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         main.removeCallbacks(settledTextRefresh);
         main.postDelayed(settledTextRefresh, SETTLED_SCROLL_REFRESH_MS);
         queueSettledCapture();
+        long expectedMotionGeneration = motionGeneration.get();
+        String cacheSurface = activeScrollSurfaceKey;
+        long cacheDocument = visualDocumentEpoch.get();
+        int cacheSourceWidth = latestCaptureWidth;
+        int cacheSourceHeight = latestCaptureHeight;
+        ScrollPosition cacheCamera = currentScrollPosition();
+        Rect cacheViewport = screenBounds();
+        List<Detection> reentryRegions = Collections.emptyList();
+        boolean refreshedCacheWindow = false;
+        if (cacheSurface != null && !cacheSurface.isEmpty()
+                && cacheSourceWidth > 0 && cacheSourceHeight > 0) {
+            synchronized (worldCacheLock) {
+                if (isCurrentVisualDocument(cacheDocument, cacheSurface)
+                        && shouldRefreshWorldCacheQueryLocked(
+                        cacheDocument, cacheSurface,
+                        cacheCamera.scrollX, cacheCamera.scrollY,
+                        cacheViewport.width(), cacheViewport.height())) {
+                    reentryRegions = contentSpaceRegionCache.queryNearAsScreenDetections(
+                            cacheDocument, cacheSurface, SystemClock.uptimeMillis(),
+                            cacheCamera.scrollX, cacheCamera.scrollY,
+                            cacheSourceWidth, cacheSourceHeight,
+                            cacheViewport.width(), cacheViewport.height());
+                    rememberWorldCacheQueryLocked(cacheDocument, cacheSurface,
+                            cacheCamera.scrollX, cacheCamera.scrollY);
+                    refreshedCacheWindow = true;
+                }
+            }
+        }
+        List<Detection> cachedForFrame = reentryRegions;
+        boolean publishCacheWindow = refreshedCacheWindow;
         Runnable moveOverlay = () -> {
             if (recognitionActive && overlay != null) {
-                overlay.offsetContent(dx, dy, allowPrediction, effectiveAt);
+                if (publishCacheWindow
+                        && motionGeneration.get() == expectedMotionGeneration
+                        && isCurrentVisualDocument(cacheDocument, cacheSurface)) {
+                    // Both mutations occur in this UI callback. The View exposes their union only
+                    // when Android draws the next frame; cache work cannot evict a real scene from
+                    // the detector's latest-only presentation broker.
+                    overlay.offsetContentWithWorldCache(
+                            dx, dy, allowPrediction, effectiveAt, cachedForFrame,
+                            cacheSourceWidth, cacheSourceHeight,
+                            cacheCamera.scrollX, cacheCamera.scrollY,
+                            cacheViewport.width(), cacheViewport.height());
+                    CensorLabLog.i(TAG, "WORLD_CACHE_REENTRY candidates="
+                            + cachedForFrame.size()
+                            + " generation=" + expectedMotionGeneration
+                            + " camera=" + cacheCamera.scrollX + ',' + cacheCamera.scrollY
+                            + " documentEpoch=" + cacheDocument);
+                } else {
+                    overlay.offsetContent(dx, dy, allowPrediction, effectiveAt);
+                }
             }
         };
         if (alreadyOnMainThread || Looper.myLooper() == main.getLooper()) moveOverlay.run();
@@ -2859,6 +3100,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         });
         DetectorConfig config = settings.loadDetectorConfig();
         detectorConfig = config;
+        invalidateWorldCache("settings-reload");
         main.post(() -> {
             if (overlay != null) {
                 // Accessibility deltas already move every box at event cadence. Detector
@@ -2932,6 +3174,21 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
             if (recognitionActive && packageName.equals(foregroundPackage)) {
+                AccessibilitySurfaceIdentityResolver.Identity surfaceIdentity =
+                        scrollSurfaceIdentityResolver.resolve(event);
+                String cacheSurface = cacheSurfaceKey(surfaceIdentity);
+                String motionSurface = cacheSurface.isEmpty()
+                        ? AccessibilityScrollMotionResolver.surfaceKey(event) : cacheSurface;
+                if (surfaceIdentity.isCacheable()) {
+                    if (acceptScrollSurface(cacheSurface)) {
+                        CensorLabLog.i(TAG, "WORLD_CACHE_SURFACE token="
+                                + Long.toUnsignedString(surfaceIdentity.telemetryToken(), 16)
+                                + " confidence=" + surfaceIdentity.confidence
+                                + " cacheable=true");
+                    }
+                } else {
+                    disableWorldCacheForUnstableSurface(surfaceIdentity);
+                }
                 int viewportWidth = latestCaptureWidth;
                 int viewportHeight = latestCaptureHeight;
                 if (viewportWidth <= 1 || viewportHeight <= 1) {
@@ -2940,7 +3197,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     viewportHeight = Math.max(1, metrics.heightPixels);
                 }
                 AccessibilityScrollMotionResolver.Motion rawMotion = scrollMotionResolver.resolve(
-                        event, viewportWidth, viewportHeight);
+                        event, viewportWidth, viewportHeight, motionSurface);
                 long scrollNow = SystemClock.uptimeMillis();
                 long sourceTime = event.getEventTime();
                 if (sourceTime <= 0L || sourceTime > scrollNow) sourceTime = scrollNow;
@@ -2982,8 +3239,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
                 && recognitionActive && packageName.equals(foregroundPackage)) {
-            if (!isTextRelevantContentChange(event.getContentChangeTypes())) return;
             int contentTypes = event.getContentChangeTypes();
+            if ((contentTypes & AccessibilityEvent.CONTENT_CHANGE_TYPE_CONTENT_INVALID) != 0) {
+                invalidateWorldCache("content-invalid");
+            }
+            if (!isTextRelevantContentChange(contentTypes)) return;
             long contentChangedAt = SystemClock.uptimeMillis();
             lastTextContentChangeUptime = contentChangedAt;
             textContentGeneration.incrementAndGet();
@@ -3025,6 +3285,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         String confirmedPackage = liveWindow == null || liveWindow.packageName.isEmpty()
                 ? packageName : liveWindow.packageName;
         if (confirmedPackage.equals(foregroundPackage)) {
+            if (liveWindow != null) acceptApplicationWindow(liveWindow.windowId);
             if (!packageName.equals(confirmedPackage)) {
                 Log.i(TAG, "FOREGROUND_HOLD eventPackage=" + packageName
                         + " protectedPackage=" + confirmedPackage);
@@ -3032,6 +3293,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             return;
         }
         acceptForegroundPackage(confirmedPackage, System.currentTimeMillis());
+        if (liveWindow != null) activeApplicationWindowId.set(liveWindow.windowId);
+    }
+
+    private void acceptApplicationWindow(int windowId) {
+        if (windowId < 0) return;
+        int previous = activeApplicationWindowId.getAndSet(windowId);
+        if (previous >= 0 && previous != windowId) {
+            invalidateWorldCache("application-window-change");
+        }
     }
 
     static boolean isTextRelevantContentChange(int changeTypes) {
@@ -3099,6 +3369,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 || packageName.equals(foregroundPackage)) return;
         accountForegroundUsage(now);
         captureEpoch.invalidate();
+        activeApplicationWindowId.set(-1);
         foregroundPackage = packageName;
         foregroundSinceMillis = now;
         resetTextSnapshots();
@@ -3400,6 +3671,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void resetScrollCompensation() {
         invalidateCurrentScene("scroll-state-reset");
+        invalidateWorldCache("scroll-state-reset");
         cancelPendingTextConfirmation();
         ScheduledFuture<?> prioritySchedule = priorityCaptureSchedule;
         priorityCaptureSchedule = null;
@@ -3614,6 +3886,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private final long screenshotUptimeMillis;
         private final boolean capturePhaseUncertain;
         private final long captureEventDeliveryDelayMs;
+        private final long visualDocumentEpoch;
+        private final String scrollSurfaceKey;
         private final long fastSubmissionSequence;
         private final SceneContext scene;
         private FastPriorityInferenceGate.FastDemand fastDemand;
@@ -3637,6 +3911,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 long screenshotUptimeMillis,
                 boolean capturePhaseUncertain,
                 long captureEventDeliveryDelayMs,
+                long visualDocumentEpoch,
+                String scrollSurfaceKey,
                 long fastSubmissionSequence,
                 SceneContext scene) {
             this.frame = frame;
@@ -3657,6 +3933,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             this.screenshotUptimeMillis = screenshotUptimeMillis;
             this.capturePhaseUncertain = capturePhaseUncertain;
             this.captureEventDeliveryDelayMs = Math.max(0L, captureEventDeliveryDelayMs);
+            this.visualDocumentEpoch = visualDocumentEpoch;
+            this.scrollSurfaceKey = scrollSurfaceKey == null ? "" : scrollSurfaceKey;
             this.fastSubmissionSequence = fastSubmissionSequence;
             this.scene = scene;
         }

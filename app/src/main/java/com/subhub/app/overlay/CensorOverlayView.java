@@ -31,6 +31,7 @@ import com.subhub.app.diagnostics.CensorLabLog;
 import com.subhub.app.settings.CensorAppearance;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
@@ -66,6 +67,8 @@ final class CensorOverlayView extends View {
     private final Map<Integer, SolidRenderLayer> solidRenderLayers = new HashMap<>();
     private final List<LabelPlacement> labelPlacements = new ArrayList<>();
 
+    private List<RenderTrackSnapshot> liveTracks = new ArrayList<>();
+    private List<RenderTrackSnapshot> cachedTracks = new ArrayList<>();
     private List<RenderTrackSnapshot> tracks = new ArrayList<>();
     private List<RenderTrackSnapshot> textTracks = new ArrayList<>();
     private CensorAppearance appearance = CensorAppearance.defaults();
@@ -230,6 +233,8 @@ final class CensorOverlayView extends View {
                     tracksPublishedAtMillis, true);
         }
         visualSteering.retain(visualIds);
+        liveTracks = snapshots;
+        cachedTracks = Collections.emptyList();
         tracks = snapshots;
         contentOffsetX = motionX;
         contentOffsetY = motionY;
@@ -270,12 +275,45 @@ final class CensorOverlayView extends View {
             int viewportWidth,
             int viewportHeight,
             Runnable latestFrameRelease) {
+        setWorldTracksAndCache(value, Collections.emptyList(), sourceWidth, sourceHeight,
+                latestFrame, trackCameraX, trackCameraY, sourceCameraX, sourceCameraY,
+                viewportWidth, viewportHeight, latestFrameRelease);
+    }
+
+    /** Publishes one immutable union; cached regions never become tracker or stats authority. */
+    void setWorldTracksAndCache(
+            List<TrackedObject> value,
+            List<Detection> cachedRegions,
+            int sourceWidth,
+            int sourceHeight,
+            Bitmap latestFrame,
+            long trackCameraX,
+            long trackCameraY,
+            long sourceCameraX,
+            long sourceCameraY,
+            int viewportWidth,
+            int viewportHeight,
+            Runnable latestFrameRelease) {
         if (!worldSpaceTracks) visualSteering.clear();
         List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
         for (TrackedObject track : value) {
             snapshots.add(RenderTrackSnapshot.fromWorld(
                     track, trackCameraX, trackCameraY,
                     sourceWidth, sourceHeight, viewportWidth, viewportHeight));
+        }
+        List<RenderTrackSnapshot> cachedSnapshots = new ArrayList<>(
+                cachedRegions == null ? 0 : cachedRegions.size());
+        if (cachedRegions != null) {
+            for (Detection cached : cachedRegions) {
+                if (cached == null) continue;
+                RenderTrackSnapshot candidate = RenderTrackSnapshot.fromWorldCacheDetection(
+                        cached, trackCameraX, trackCameraY,
+                        sourceWidth, sourceHeight, viewportWidth, viewportHeight);
+                if (!overlapsRegion(candidate, snapshots, false)
+                        && !overlapsRegion(candidate, cachedSnapshots, true)) {
+                    cachedSnapshots.add(candidate);
+                }
+            }
         }
         tracksPublishedAtMillis = SystemClock.uptimeMillis();
         latestMutationUptime = tracksPublishedAtMillis;
@@ -288,7 +326,9 @@ final class CensorOverlayView extends View {
                     tracksPublishedAtMillis, true);
         }
         visualSteering.retain(visualIds);
-        tracks = snapshots;
+        liveTracks = snapshots;
+        cachedTracks = cachedSnapshots;
+        tracks = mergedVisualTracks(liveTracks, cachedTracks);
         worldSpaceTracks = true;
         // World geometry minus this absolute source camera maps back into the retained bitmap.
         sourceFrameOffsetX = sourceCameraX;
@@ -308,6 +348,83 @@ final class CensorOverlayView extends View {
         setVisibility(tracks.isEmpty() && textTracks.isEmpty() ? INVISIBLE : VISIBLE);
         postInvalidateOnAnimation();
         scheduleNextFrame(tracksPublishedAtMillis);
+    }
+
+    /** Replaces only render memory; live tracks, source frame, tracker, and stats remain untouched. */
+    void setWorldCacheRegions(
+            List<Detection> cachedRegions,
+            int sourceWidth,
+            int sourceHeight,
+            long cacheCameraX,
+            long cacheCameraY,
+            int viewportWidth,
+            int viewportHeight) {
+        if (!worldSpaceTracks) return;
+        List<RenderTrackSnapshot> cachedSnapshots = new ArrayList<>(
+                cachedRegions == null ? 0 : cachedRegions.size());
+        if (cachedRegions != null) {
+            for (Detection cached : cachedRegions) {
+                if (cached == null) continue;
+                RenderTrackSnapshot candidate = RenderTrackSnapshot.fromWorldCacheDetection(
+                        cached, cacheCameraX, cacheCameraY,
+                        sourceWidth, sourceHeight, viewportWidth, viewportHeight);
+                if (!overlapsRegion(candidate, liveTracks, false)
+                        && !overlapsRegion(candidate, cachedSnapshots, true)) {
+                    cachedSnapshots.add(candidate);
+                }
+            }
+        }
+        cachedTracks = cachedSnapshots;
+        tracks = mergedVisualTracks(liveTracks, cachedTracks);
+        retainRenderAssignments();
+        setVisibility(tracks.isEmpty() && textTracks.isEmpty() ? INVISIBLE : VISIBLE);
+        postInvalidateOnAnimation();
+        scheduleNextFrame(SystemClock.uptimeMillis());
+    }
+
+    private static List<RenderTrackSnapshot> mergedVisualTracks(
+            List<RenderTrackSnapshot> live, List<RenderTrackSnapshot> cached) {
+        if (cached == null || cached.isEmpty()) return live;
+        List<RenderTrackSnapshot> merged = new ArrayList<>(live.size() + cached.size());
+        merged.addAll(live);
+        merged.addAll(cached);
+        return merged;
+    }
+
+    private void retainRenderAssignments() {
+        Set<Integer> activeIds = new HashSet<>();
+        for (RenderTrackSnapshot track : tracks) activeIds.add(track.id());
+        for (RenderTrackSnapshot track : textTracks) activeIds.add(track.id());
+        solidRenderLayers.keySet().retainAll(activeIds);
+        customImages.retainAssignments(activeIds);
+    }
+
+    private static boolean overlapsRegion(
+            RenderTrackSnapshot cached,
+            List<RenderTrackSnapshot> candidates,
+            boolean includeCached) {
+        BBox candidate = cached.box();
+        for (RenderTrackSnapshot live : candidates) {
+            if (!includeCached && live.isCached()
+                    || !sameVisualFamily(cached.category(), live.category())) continue;
+            BBox existing = live.box();
+            float iou = candidate.intersectionOverUnion(existing);
+            int left = Math.max(candidate.getX(), existing.getX());
+            int top = Math.max(candidate.getY(), existing.getY());
+            int right = Math.min(candidate.getRight(), existing.getRight());
+            int bottom = Math.min(candidate.getBottom(), existing.getBottom());
+            long intersection = right <= left || bottom <= top
+                    ? 0L : (long) (right - left) * (bottom - top);
+            long smaller = Math.min(candidate.getArea(), existing.getArea());
+            float containment = smaller <= 0L ? 0f : intersection / (float) smaller;
+            if (iou >= 0.28f || containment >= 0.62f) return true;
+        }
+        return false;
+    }
+
+    private static boolean sameVisualFamily(String first, String second) {
+        return first != null && second != null && (first.equals(second)
+                || first.startsWith("face_") && second.startsWith("face_"));
     }
 
     void setWorldTracksPreservingFrame(
@@ -462,6 +579,8 @@ final class CensorOverlayView extends View {
     void clearContent() {
         long nowMillis = SystemClock.uptimeMillis();
         latestMutationUptime = nowMillis;
+        liveTracks.clear();
+        cachedTracks.clear();
         tracks.clear();
         textTracks.clear();
         visualSteering.clear();
@@ -579,7 +698,7 @@ final class CensorOverlayView extends View {
             activePredictionY = (predicted.getY() - track.box().getY()) * scaleY;
             setTrackRect(predicted, scaleX, scaleY, textRegion,
                     renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
-            drawEffect(canvas, drawRect, track.id(), appearance.getType(),
+            drawEffect(canvas, drawRect, track.id(), effectTypeFor(track),
                     appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
         }
@@ -587,6 +706,11 @@ final class CensorOverlayView extends View {
         activePredictionY = 0f;
         drawTextTracks(canvas);
         drawOverlayLabels(canvas);
+    }
+
+    private CensorAppearance.Type effectTypeFor(RenderTrackSnapshot track) {
+        return track.isCached() && appearance.requiresSourceFrame()
+                ? CensorAppearance.Type.BOX : appearance.getType();
     }
 
     private void drawTextTracks(Canvas canvas) {

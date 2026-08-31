@@ -106,6 +106,27 @@ public final class ContentSpaceRegionCacheTest {
                 <= ContentSpaceRegionCache.MAX_QUERY_RESULTS);
     }
 
+    @Test public void visibleEntryWinsQueryCapOverOffscreenPrefetch() {
+        ContentSpaceRegionCache cache = new ContentSpaceRegionCache();
+        List<ContentSpaceRegionCache.Observation> observations = new ArrayList<>();
+        for (int index = 0; index < ContentSpaceRegionCache.MAX_QUERY_RESULTS; index++) {
+            observations.add(observation(index + 1,
+                    100, 1_200 + index * 100, 40, 40, 2, false));
+        }
+        observations.add(observation(999, 100, 5_100, 80, 90, 2, false));
+        cache.observeCommittedScene(1L, "surface", 100L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, observations);
+
+        List<Detection> result = cache.queryNearAsScreenDetections(
+                1L, "surface", 200L, 0L, 5_000L,
+                1_000, 2_000, 1_000, 2_000);
+
+        assertEquals(ContentSpaceRegionCache.MAX_QUERY_RESULTS, result.size());
+        assertTrue(result.stream().anyMatch(value -> value.getBox().getY() == 100
+                && value.getBox().getWidth() == 80));
+    }
+
     @Test public void metadataAndEntryBoundsRemainHardWithLargeLabels() {
         ContentSpaceRegionCache cache = new ContentSpaceRegionCache();
         String label = "x".repeat(128);

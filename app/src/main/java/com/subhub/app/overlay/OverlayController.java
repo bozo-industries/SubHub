@@ -116,6 +116,56 @@ public final class OverlayController implements AutoCloseable {
                 viewportWidth, viewportHeight, null);
     }
 
+    /** Publishes live tracks plus render-only cached regions as one immutable display scene. */
+    public void updateWorldWithCache(
+            List<TrackedObject> tracks,
+            List<Detection> cachedRegions,
+            int captureWidth,
+            int captureHeight,
+            Bitmap frame,
+            long trackCameraX,
+            long trackCameraY,
+            long sourceCameraX,
+            long sourceCameraY,
+            int viewportWidth,
+            int viewportHeight) {
+        view.setWorldTracksAndCache(tracks, cachedRegions,
+                captureWidth, captureHeight, frame,
+                trackCameraX, trackCameraY, sourceCameraX, sourceCameraY,
+                viewportWidth, viewportHeight, null);
+    }
+
+    /** Re-queries scroll memory while preserving live geometry and the current source frame. */
+    public void updateWorldCache(
+            List<Detection> cachedRegions,
+            int captureWidth,
+            int captureHeight,
+            long cacheCameraX,
+            long cacheCameraY,
+            int viewportWidth,
+            int viewportHeight) {
+        view.setWorldCacheRegions(cachedRegions, captureWidth, captureHeight,
+                cacheCameraX, cacheCameraY, viewportWidth, viewportHeight);
+    }
+
+    /** Applies one motion observation and its cache re-entry before the next display draw. */
+    public void offsetContentWithWorldCache(
+            int deltaX,
+            int deltaY,
+            boolean authoritative,
+            long effectiveUptimeMillis,
+            List<Detection> cachedRegions,
+            int captureWidth,
+            int captureHeight,
+            long cacheCameraX,
+            long cacheCameraY,
+            int viewportWidth,
+            int viewportHeight) {
+        view.offsetContent(deltaX, deltaY, authoritative, effectiveUptimeMillis);
+        view.setWorldCacheRegions(cachedRegions, captureWidth, captureHeight,
+                cacheCameraX, cacheCameraY, viewportWidth, viewportHeight);
+    }
+
     /** Publishes a pooled source frame whose release returns it to capture instead of recycling. */
     public void updatePooledFrame(
             List<TrackedObject> tracks,

@@ -78,6 +78,9 @@ foreach ($requestedPath in $Path) {
     $sceneTimeouts = [Collections.Generic.List[object]]::new()
     $sceneLateDrops = [Collections.Generic.List[object]]::new()
     $sceneInvalidations = [Collections.Generic.List[object]]::new()
+    $worldCacheQueries = [Collections.Generic.List[object]]::new()
+    $worldCacheInvalidations = [Collections.Generic.List[object]]::new()
+    $worldCacheReentries = [Collections.Generic.List[object]]::new()
     $capturePhases = [Collections.Generic.List[object]]::new()
     $scrolls = [Collections.Generic.List[object]]::new()
     $textScans = [Collections.Generic.List[object]]::new()
@@ -329,6 +332,39 @@ foreach ($requestedPath in $Path) {
                 time = $time
                 id = $Matches[1]
                 reason = $Matches[2]
+            })
+            continue
+        }
+        if ($line -match 'WORLD_CACHE_QUERY source=(\S+) entries=(\d+) inserted=(\d+) updated=(\d+) evicted=(\d+) viewportReset=(true|false) candidates=(\d+)') {
+            $worldCacheQueries.Add([pscustomobject]@{
+                time = $time
+                source = $Matches[1]
+                entries = [int] $Matches[2]
+                inserted = [int] $Matches[3]
+                updated = [int] $Matches[4]
+                evicted = [int] $Matches[5]
+                viewportReset = $Matches[6] -eq 'true'
+                candidates = [int] $Matches[7]
+            })
+            continue
+        }
+        if ($line -match 'WORLD_CACHE_INVALIDATE reason=(\S+) removed=(\d+) documentEpoch=(\d+)') {
+            $worldCacheInvalidations.Add([pscustomobject]@{
+                time = $time
+                reason = $Matches[1]
+                removed = [int] $Matches[2]
+                documentEpoch = [long] $Matches[3]
+            })
+            continue
+        }
+        if ($line -match 'WORLD_CACHE_REENTRY candidates=(\d+) generation=(\d+) camera=(-?\d+),(-?\d+) documentEpoch=(\d+)') {
+            $worldCacheReentries.Add([pscustomobject]@{
+                time = $time
+                candidates = [int] $Matches[1]
+                generation = [long] $Matches[2]
+                cameraX = [long] $Matches[3]
+                cameraY = [long] $Matches[4]
+                documentEpoch = [long] $Matches[5]
             })
             continue
         }
@@ -716,6 +752,22 @@ foreach ($requestedPath in $Path) {
             onTimeVisibleCommitRate = if ($sceneCommits.Count) {
                 [math]::Round($onTimeSceneCommits.Count / $sceneCommits.Count, 4)
             } else { $null }
+        }
+        worldCache = [ordered]@{
+            queries = $worldCacheQueries.Count
+            sources = Get-GroupCounts @($worldCacheQueries) 'source'
+            entries = Get-Distribution @($worldCacheQueries.entries)
+            inserted = ($worldCacheQueries | Measure-Object -Property inserted -Sum).Sum
+            updated = ($worldCacheQueries | Measure-Object -Property updated -Sum).Sum
+            evicted = ($worldCacheQueries | Measure-Object -Property evicted -Sum).Sum
+            candidates = Get-Distribution @($worldCacheQueries.candidates)
+            viewportResets = @($worldCacheQueries | Where-Object viewportReset).Count
+            invalidations = $worldCacheInvalidations.Count
+            invalidationReasons = Get-GroupCounts @($worldCacheInvalidations) 'reason'
+            invalidatedEntries = ($worldCacheInvalidations |
+                Measure-Object -Property removed -Sum).Sum
+            reentryPublishes = $worldCacheReentries.Count
+            reentryCandidates = Get-Distribution @($worldCacheReentries.candidates)
         }
         quality = [ordered]@{
             caches = $quality.Count

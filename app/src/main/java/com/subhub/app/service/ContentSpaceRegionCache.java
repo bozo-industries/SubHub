@@ -18,11 +18,11 @@ import java.util.List;
  * does not allocate query geometry, map iterators, or per-query anchor strings.</p>
  */
 final class ContentSpaceRegionCache {
-    static final int MAX_ENTRIES = 384;
+    static final int MAX_ENTRIES = 2_048;
     static final int MAX_QUERY_RESULTS = 24;
-    static final int MAX_METADATA_BYTES = 256 * 1024;
-    static final long VISUAL_TTL_MS = 90_000L;
-    static final long ANCHORED_TEXT_TTL_MS = 180_000L;
+    static final int MAX_METADATA_BYTES = 2 * 1024 * 1024;
+    static final long VISUAL_TTL_MS = 30L * 60L * 1_000L;
+    static final long ANCHORED_TEXT_TTL_MS = 60L * 60L * 1_000L;
 
     private static final int REQUIRED_IN_VIEW_CONTRADICTIONS = 2;
     private static final float MATCH_IOU = 0.28f;
@@ -74,6 +74,7 @@ final class ContentSpaceRegionCache {
 
     /* Candidate marks deduplicate an entry that spans several vertical buckets. */
     private final int[] candidateStamp = new int[MAX_ENTRIES];
+    private final int[] queryCandidateSlots = new int[MAX_ENTRIES];
     private int candidateGeneration = 1;
 
     /* Primitive vertical index: bucket heads point to doubly-linked node records. */
@@ -236,8 +237,8 @@ final class ContentSpaceRegionCache {
         long nearRight = safeAdd(cameraX, (long) viewportWidth + horizontalMargin);
         long nearBottom = safeAdd(cameraY, (long) viewportHeight + verticalMargin);
 
-        ArrayList<Detection> result = null;
         int stamp = nextCandidateGeneration();
+        int candidateCount = 0;
         long minBucketLong = floorDiv(nearTop, VERTICAL_BUCKET_SIZE);
         long maxBucketLong = floorDiv(Math.max(nearTop, nearBottom - 1L), VERTICAL_BUCKET_SIZE);
         if (maxBucketLong - minBucketLong + 1L <= BUCKET_TABLE_CAPACITY) {
@@ -250,10 +251,7 @@ final class ContentSpaceRegionCache {
                     candidateStamp[slot] = stamp;
                     if (!used[slot] || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
                             worldHeights[slot], nearLeft, nearTop, nearRight, nearBottom)) continue;
-                    if (result == null) result = new ArrayList<>(MAX_QUERY_RESULTS);
-                    result.add(toScreenDetection(slot, cameraX, cameraY));
-                    touch(slot);
-                    if (result.size() >= MAX_QUERY_RESULTS) return immutableResult(result);
+                    queryCandidateSlots[candidateCount++] = slot;
                 }
             }
         } else {
@@ -263,23 +261,39 @@ final class ContentSpaceRegionCache {
                 candidateStamp[slot] = stamp;
                 if (!used[slot] || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
                         worldHeights[slot], nearLeft, nearTop, nearRight, nearBottom)) continue;
+                queryCandidateSlots[candidateCount++] = slot;
+            }
+        }
+
+        /* Entries too tall for the bucket index are a bounded broad-phase fallback. */
+        for (int slot = 0; slot < MAX_ENTRIES; slot++) {
+            if (!used[slot] || candidateStamp[slot] == stamp || !isBroadPhase(slot)
+                    || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
+                    worldHeights[slot], nearLeft, nearTop, nearRight, nearBottom)) continue;
+            candidateStamp[slot] = stamp;
+            queryCandidateSlots[candidateCount++] = slot;
+        }
+
+        // The result cap must never let offscreen prefetch displace an entry which is already
+        // visible. The first pass emits current-viewport coverage; the second fills spare slots
+        // with near history so the renderer can move it in without another inference pass.
+        long viewLeft = cameraX;
+        long viewTop = cameraY;
+        long viewRight = safeAdd(cameraX, viewportWidth);
+        long viewBottom = safeAdd(cameraY, viewportHeight);
+        ArrayList<Detection> result = null;
+        for (int visibilityPass = 0; visibilityPass < 2; visibilityPass++) {
+            boolean wantVisible = visibilityPass == 0;
+            for (int index = 0; index < candidateCount; index++) {
+                int slot = queryCandidateSlots[index];
+                boolean visible = intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
+                        worldHeights[slot], viewLeft, viewTop, viewRight, viewBottom);
+                if (visible != wantVisible) continue;
                 if (result == null) result = new ArrayList<>(MAX_QUERY_RESULTS);
                 result.add(toScreenDetection(slot, cameraX, cameraY));
                 touch(slot);
                 if (result.size() >= MAX_QUERY_RESULTS) return immutableResult(result);
             }
-        }
-
-        /* Entries too tall for the bucket index are a bounded broad-phase fallback. */
-        for (int slot = 0; slot < MAX_ENTRIES && (result == null
-                || result.size() < MAX_QUERY_RESULTS); slot++) {
-            if (!used[slot] || candidateStamp[slot] == stamp || !isBroadPhase(slot)
-                    || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
-                    worldHeights[slot], nearLeft, nearTop, nearRight, nearBottom)) continue;
-            candidateStamp[slot] = stamp;
-            if (result == null) result = new ArrayList<>(MAX_QUERY_RESULTS);
-            result.add(toScreenDetection(slot, cameraX, cameraY));
-            touch(slot);
         }
         return result == null ? Collections.emptyList() : immutableResult(result);
     }
