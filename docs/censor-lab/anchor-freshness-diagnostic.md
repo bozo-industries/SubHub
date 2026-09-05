@@ -13,6 +13,7 @@ and wait for `ANCHOR_SHADOW_READY` before externally injecting gestures. Enable 
 `-e enableAnchorFreshnessProbe true`; the target argument is `anchorFreshnessTargetPackage`
 (default `com.android.chrome`). Use `com.subhub.app.test/com.subhub.app.SubHubTestRunner` and
 build the target and test APKs together before installation.
+`anchorFreshnessAnchorCount` accepts 3 through 5 (default 5).
 
 The test preserves other accessibility services and restores its temporary automation flags
 and thread priority. Setup has separate bounded root readiness and traversal deadlines; the
@@ -22,7 +23,8 @@ retains empty-bounds virtual ancestors, and selects up to five distinct leaf bou
 After the first event arms sampling, reads run independently with a 16ms fixed delay, one
 in flight and no backlog. At least three anchors must agree on translation. A later event
 confirms a candidate pair: receipt-order confirmations are weak evidence; only pairs whose
-read ended **before that event's source timestamp** count as source-time-confirmed. Numeric
+read ended **before the immediately next event's source timestamp** count as source-time-confirmed.
+Skipped callback sequences cannot prove this and remain unconfirmed. Numeric
 logs distinguish both cases. No fresh-root lookup occurs during measurement.
 
 The session is capped at 20s and stops after an observed refresh batch exceeds 8ms. Android's
@@ -30,6 +32,15 @@ synchronous node refresh has no caller-provided timeout: the guard prevents subs
 not a long first Binder call. Enabled inconclusive outcomes fail explicitly; a default-disabled
 skip or a zero transport exit code is not successful evidence. Even a positive diagnostic is
 not a production or visual-alignment gate.
+
+An explicit `anchorFreshnessSurveyOnly=true` mode separates signal discovery from feasibility.
+It performs eight static warm reads, records the first/warmed costs and every 8ms exceedance,
+and allows collection until an observed 50ms hard cutoff. Survey completion uses reason 12,
+not strict success; absent freshness or an early stop still fails. `productionEligible=0` is
+unconditional in both modes. Changing the diagnostic collection cutoff is not changing the
+production budget. The harness must acknowledge its collector marker before launching the
+test, then require the matching session's READY before gestures; starting a logcat process
+does not itself prove subscription readiness.
 
 ## GPU-emulator observations, 2026-09-05
 
@@ -64,3 +75,38 @@ freshness and quantify per-node/warmed costs with a bounded diagnostic. Consider
 spatially independent anchors or lower asynchronous sampling cadence only if the measurements
 support it. Do not relax the success criteria merely to obtain a green result, reconnect the
 old main-thread poller, or infer that faster sampling is safe from this setup-only run.
+
+## Follow-up surveys: signal exists, cost is not yet safe
+
+The application APK remained unchanged. These are exploratory emulator runs with different
+anchor sets/scroll positions, not a matched performance A/B or a Pixel calibration.
+
+| Run suffix | Actual anchors | Warm median/p95 | Moving reads | Moving median/p95/max |
+| --- | ---: | --- | ---: | --- |
+| 113215 | 5 | 7/9ms | 26 | 13/31/91ms |
+| 113509 | 3 | 5/7ms | 18 | 8/14/58ms |
+
+Both hit the 50ms survey guard and correctly failed. The table separates moving reads from
+warm-up; the original summary's overall read percentiles combined both. The first run used
+five anchors despite a requested three because count configuration was not implemented yet;
+the later source implements and validates that argument. Test APK hashes were respectively
+`05BC45EF8DE8DD8AEB96287F3197968094708B81C710A9881CF2042563585D3C` and
+`CAD426743C35EF65B0740F6292890981B5A7FF9E0BDE31B1E25756D1E818ED19`.
+
+The three-anchor trace originally reported three source-time confirmations. Independent
+review rejected one because it skipped an intermediate event. Two remain valid under the
+stricter adjacent-event rule: common -15px movement read in 5ms completed 37ms before event 2's
+source time; common -12px movement read in 9ms completed 63ms before event 5's source time.
+The immediate-next-event requirement is now implemented and regression-tested. These are
+evidence of updated node positions ahead of event production, not proof of rigid page motion
+or correct rendered overlays; resize/clipping/animation controls and video validation remain.
+
+An intervening 113352 run collected static warm reads only: its harness missed the start marker
+before logcat subscribed, so it injected no gestures. It contributes no moving evidence.
+The harness now confirms the marker is visible before launching instrumentation.
+
+Next implementation investigation: a latest-only **off-main** three-anchor sampler that never
+makes rendering wait; reject stale/slow samples and structural changes, measure rigid geometry,
+and keep measured presentation separate from authoritative tracker/cache coordinates. First
+prove its timestamp/rebase/fallback behavior with automated tests and a recorded emulator run.
+Do not accept the current occasional 58-91ms reads on a Choreographer/UI callback.

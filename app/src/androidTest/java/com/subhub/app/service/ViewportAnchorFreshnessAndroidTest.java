@@ -1,6 +1,8 @@
 package com.subhub.app.service;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import android.accessibilityservice.AccessibilityServiceInfo;
@@ -45,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class ViewportAnchorFreshnessAndroidTest {
     private static final String TAG = "AnchorFreshness";
     private static final String ENABLE_ARGUMENT = "enableAnchorFreshnessProbe";
+    private static final String SURVEY_ARGUMENT = "anchorFreshnessSurveyOnly";
     private static final String TARGET_PACKAGE_ARGUMENT = "anchorFreshnessTargetPackage";
     private static final String DEFAULT_TARGET_PACKAGE = "com.android.chrome";
 
@@ -57,6 +60,8 @@ public final class ViewportAnchorFreshnessAndroidTest {
     private static final int MOVEMENT_THRESHOLD_PX = 2;
     private static final int DELTA_INLIER_TOLERANCE_PX = 4;
     private static final long MAX_READ_COST_MS = 8L;
+    private static final long SURVEY_MAX_READ_COST_MS = 50L;
+    private static final int SURVEY_WARMUP_READS = 8;
     private static final long SAMPLE_DELAY_MS = 16L;
     private static final long ROOT_READY_TIMEOUT_MS = 2_000L;
     private static final long ROOT_RETRY_DELAY_MS = 50L;
@@ -77,6 +82,7 @@ public final class ViewportAnchorFreshnessAndroidTest {
     private static final int REASON_INTERRUPTED = 9;
     private static final int REASON_SESSION_CAP = 10;
     private static final int REASON_SETUP_TRAVERSAL_CAP = 11;
+    private static final int REASON_SURVEY_COMPLETED = 12;
 
     @Test
     public void retainedLeafAnchorsRefreshBetweenScrollEvents() throws Exception {
@@ -86,6 +92,13 @@ public final class ViewportAnchorFreshnessAndroidTest {
                 "Viewport anchor freshness probe is opt-in; pass -e "
                         + ENABLE_ARGUMENT + " true",
                 enabled);
+        boolean surveyOnly = "true".equalsIgnoreCase(
+                arguments.getString(SURVEY_ARGUMENT, ""));
+        int requestedAnchorCount = Integer.parseInt(arguments.getString(
+                "anchorFreshnessAnchorCount", Integer.toString(MAX_ANCHORS)));
+        if (requestedAnchorCount < MIN_ANCHORS || requestedAnchorCount > MAX_ANCHORS) {
+            fail("anchorFreshnessAnchorCount must be between 3 and 5");
+        }
 
         String targetPackage = arguments.getString(
                 TARGET_PACKAGE_ARGUMENT, DEFAULT_TARGET_PACKAGE).trim();
@@ -160,7 +173,8 @@ public final class ViewportAnchorFreshnessAndroidTest {
                     + " updateAttempted=" + (serviceInfoUpdateAttempted ? 1 : 0));
             automation.setOnAccessibilityEventListener(listener);
             result = runProbe(
-                    automation, targetPackage, session, expectedWindow, stopReason,
+                    automation, targetPackage, session, surveyOnly, requestedAnchorCount,
+                    expectedWindow, stopReason,
                     eventSequence, latestEvent, eventSignal);
         } finally {
             try {
@@ -177,10 +191,21 @@ public final class ViewportAnchorFreshnessAndroidTest {
             }
         }
 
+        boolean surveyCompleted = surveyOnly && result.reason == REASON_SURVEY_COMPLETED;
+        boolean strictFeasibilityObserved = !surveyOnly
+                && result.reason == REASON_SUCCESS;
+        boolean diagnosticAccepted = surveyCompleted || strictFeasibilityObserved;
+        boolean freshnessObserved = result.sourceTimeBetweenEventMovingPairs > 0;
         Log.i(TAG, "ANCHOR_SHADOW_SUMMARY session=" + session
                 + " window=" + result.windowId
-                + " result=" + (result.reason == REASON_SUCCESS ? 1 : 0)
+                + " result=" + (diagnosticAccepted ? 1 : 0)
                 + " reason=" + result.reason
+                + " surveyOnly=" + (surveyOnly ? 1 : 0)
+                + " surveyCompleted=" + (surveyCompleted ? 1 : 0)
+                + " strictFeasibilityObserved="
+                        + (strictFeasibilityObserved ? 1 : 0)
+                + " productionEligible=0"
+                + " freshnessObserved=" + (freshnessObserved ? 1 : 0)
                 + " anchors=" + result.anchorCount
                 + " events=" + result.eventCount
                 + " samples=" + result.sampleCount
@@ -191,13 +216,15 @@ public final class ViewportAnchorFreshnessAndroidTest {
                 + " sourceTimeUnconfirmedMovingPairs="
                         + result.sourceTimeUnconfirmedMovingPairs
                 + " pendingTimestampDrops=" + result.pendingTimestampDrops
+                + " warmupBudgetExceeded=" + result.warmupBudgetExceeded
+                + " measurementBudgetExceeded=" + result.measurementBudgetExceeded
                 + " eventCoupledPairs=" + result.eventCoupledPairs
                 + " maxDeltaInliers=" + result.maxDeltaInliers
                 + " readCostP50Ms=" + result.readCostP50Ms
                 + " readCostP95Ms=" + result.readCostP95Ms
                 + " maxReadCostMs=" + result.maxReadCostMs);
 
-        if (result.reason != REASON_SUCCESS) {
+        if (!diagnosticAccepted) {
             fail("diagnostic inconclusive reason=" + result.reason);
         }
     }
@@ -206,6 +233,8 @@ public final class ViewportAnchorFreshnessAndroidTest {
             UiAutomation automation,
             String targetPackage,
             long session,
+            boolean surveyOnly,
+            int requestedAnchorCount,
             AtomicInteger expectedWindow,
             AtomicInteger stopReason,
             AtomicLong eventSequence,
@@ -243,7 +272,7 @@ public final class ViewportAnchorFreshnessAndroidTest {
             long traversalDeadline = Math.min(
                     deadline, SystemClock.uptimeMillis() + SETUP_TRAVERSAL_CAP_MS);
             AnchorCollection collection = collectAnchors(
-                    root, targetPackage, windowId, traversalDeadline);
+                    root, targetPackage, windowId, traversalDeadline, requestedAnchorCount);
             anchors = collection.anchors;
             Log.i(TAG, "ANCHOR_SHADOW_SETUP session=" + session
                     + " window=" + windowId
@@ -274,32 +303,85 @@ public final class ViewportAnchorFreshnessAndroidTest {
                         maxDeltaInliers, readCosts);
             }
 
-            AnchorRead baseline = refreshAnchors(
-                    anchors, targetPackage, windowId,
-                    eventSequence.get(), eventSequence);
-            readCosts.add(baseline.costMs);
-            if (baseline.reason != REASON_SUCCESS) {
-                return ProbeResult.of(baseline.reason, windowId, anchors.size(),
-                        eventSequence.get(), sampleCount, evidence,
-                        eventCoupledPairs, maxDeltaInliers, readCosts);
-            }
-            Movement baselineMovement = movementBetween(initialBounds(anchors), baseline.bounds);
-            if (baselineMovement.movedAnchors > 0
-                    || baseline.eventSequenceBefore != baseline.eventSequenceAfter) {
-                return ProbeResult.of(REASON_BASELINE_UNSTABLE, windowId,
-                        anchors.size(), eventSequence.get(), sampleCount,
-                        evidence, eventCoupledPairs,
-                        maxDeltaInliers, readCosts);
+            long hardReadCutoffMs = surveyOnly
+                    ? SURVEY_MAX_READ_COST_MS : MAX_READ_COST_MS;
+            int warmupReadCount = surveyOnly ? SURVEY_WARMUP_READS : 1;
+            List<Long> warmedReadCosts = new ArrayList<>();
+            List<Rect> priorWarmupBounds = initialBounds(anchors);
+            long warmupSequence = -1L;
+            AnchorRead baseline = null;
+            Movement baselineMovement = Movement.NONE;
+            long firstWarmupCostMs = 0L;
+            for (int warmupIndex = 0; warmupIndex < warmupReadCount; warmupIndex++) {
+                if (SystemClock.uptimeMillis() >= deadline) {
+                    return ProbeResult.of(REASON_SESSION_CAP, windowId, anchors.size(),
+                            eventSequence.get(), sampleCount, evidence,
+                            eventCoupledPairs, maxDeltaInliers, readCosts);
+                }
+                long sequenceBefore = eventSequence.get();
+                if (warmupIndex == 0) warmupSequence = sequenceBefore;
+                baseline = refreshAnchors(
+                        anchors, targetPackage, windowId, sequenceBefore,
+                        eventSequence, hardReadCutoffMs);
+                readCosts.add(baseline.costMs);
+                if (warmupIndex == 0) {
+                    firstWarmupCostMs = baseline.costMs;
+                } else {
+                    warmedReadCosts.add(baseline.costMs);
+                }
+                if (baseline.costMs > MAX_READ_COST_MS) {
+                    evidence.warmupBudgetExceeded++;
+                }
+                baselineMovement = baseline.reason == REASON_SUCCESS
+                        ? movementBetween(priorWarmupBounds, baseline.bounds)
+                        : Movement.NONE;
+                Log.i(TAG, "ANCHOR_SHADOW_WARMUP session=" + session
+                        + " window=" + windowId
+                        + " surveyOnly=" + (surveyOnly ? 1 : 0)
+                        + " index=" + warmupIndex
+                        + " total=" + warmupReadCount
+                        + " readStart=" + baseline.startedUptimeMs
+                        + " readEnd=" + baseline.endedUptimeMs
+                        + " costMs=" + baseline.costMs
+                        + " hardCutoffMs=" + hardReadCutoffMs
+                        + " budgetExceeded8Ms="
+                                + (baseline.costMs > MAX_READ_COST_MS ? 1 : 0)
+                        + " readResult=" + baseline.reason
+                        + " medianDeltaX=" + baselineMovement.medianDx
+                        + " medianDeltaY=" + baselineMovement.medianDy
+                        + " movedAnchors=" + baselineMovement.movedAnchors
+                        + " eventSeqBefore=" + baseline.eventSequenceBefore
+                        + " eventSeqAfter=" + baseline.eventSequenceAfter);
+                if (baseline.reason != REASON_SUCCESS) {
+                    return ProbeResult.of(baseline.reason, windowId, anchors.size(),
+                            eventSequence.get(), sampleCount, evidence,
+                            eventCoupledPairs, maxDeltaInliers, readCosts);
+                }
+                if (baselineMovement.movedAnchors > 0
+                        || baseline.eventSequenceBefore != baseline.eventSequenceAfter
+                        || baseline.eventSequenceBefore != warmupSequence) {
+                    return ProbeResult.of(REASON_BASELINE_UNSTABLE, windowId,
+                            anchors.size(), eventSequence.get(), sampleCount,
+                            evidence, eventCoupledPairs,
+                            maxDeltaInliers, readCosts);
+                }
+                priorWarmupBounds = baseline.bounds;
             }
 
             Log.i(TAG, "ANCHOR_SHADOW_READY session=" + session
                     + " window=" + windowId
+                    + " surveyOnly=" + (surveyOnly ? 1 : 0)
                     + " readStart=" + baseline.startedUptimeMs
                     + " readEnd=" + baseline.endedUptimeMs
                     + " costMs=" + baseline.costMs
                     + " medianDeltaX=" + baselineMovement.medianDx
                     + " medianDeltaY=" + baselineMovement.medianDy
                     + " anchors=" + anchors.size()
+                    + " warmupReads=" + warmupReadCount
+                    + " firstWarmupCostMs=" + firstWarmupCostMs
+                    + " warmedReadCostP50Ms=" + percentile(warmedReadCosts, .50f)
+                    + " warmedReadCostP95Ms=" + percentile(warmedReadCosts, .95f)
+                    + " warmupBudgetExceeded=" + evidence.warmupBudgetExceeded
                     + " eventSeqBefore=" + baseline.eventSequenceBefore
                     + " eventSeqAfter=" + baseline.eventSequenceAfter);
 
@@ -360,8 +442,11 @@ public final class ViewportAnchorFreshnessAndroidTest {
                 if (observed == null) observed = NumericScrollEvent.NONE;
                 AnchorRead sample = refreshAnchors(
                         anchors, targetPackage, windowId,
-                        sequenceBefore, eventSequence);
+                        sequenceBefore, eventSequence, hardReadCutoffMs);
                 readCosts.add(sample.costMs);
+                if (sample.costMs > MAX_READ_COST_MS) {
+                    evidence.measurementBudgetExceeded++;
+                }
                 Movement movement = sample.reason != REASON_SUCCESS
                         || previousEventBounds == null
                         ? Movement.NONE : movementBetween(previousEventBounds, sample.bounds);
@@ -379,12 +464,14 @@ public final class ViewportAnchorFreshnessAndroidTest {
                 if (currentAssociationStable && pendingBetweenEventSequence >= 0L
                         && sample.eventSequenceBefore > pendingBetweenEventSequence) {
                     // Receipt order only proves that the callback arrived after the candidate.
-                    // A source-time confirmation additionally proves that the later event was
-                    // generated after that candidate read completed, excluding delayed delivery.
+                    // Require the immediately next event. A latest-only observer may skip an
+                    // intermediate callback; a later timestamp cannot prove when that one began.
                     receiptTimeConfirmedPairs = pendingBetweenEventPairs;
                     if (observed.sourceUptimeMs >= 0L) {
                         for (int index = 0; index < pendingCandidateReadEndCount; index++) {
-                            if (observed.sourceUptimeMs > pendingCandidateReadEnds[index]) {
+                            if (confirmsBeforeNextSourceEvent(pendingBetweenEventSequence,
+                                    pendingCandidateReadEnds[index], sample.eventSequenceBefore,
+                                    observed.sourceUptimeMs)) {
                                 sourceTimeConfirmedPairs++;
                             }
                         }
@@ -429,7 +516,7 @@ public final class ViewportAnchorFreshnessAndroidTest {
                 if (eventCoupled) eventCoupledPairs++;
                 int pairType = betweenEventCandidate ? 1 : eventCoupled ? 2 : 0;
                 logSample(session, windowId, sample, movement, observed,
-                        currentAssociationStable, pairType,
+                        surveyOnly, hardReadCutoffMs, currentAssociationStable, pairType,
                         receiptTimeConfirmedPairs, sourceTimeConfirmedPairs,
                         sourceTimeUnconfirmedPairs, confirmationTimestampDrops);
 
@@ -447,8 +534,10 @@ public final class ViewportAnchorFreshnessAndroidTest {
                 SystemClock.sleep(Math.min(
                         SAMPLE_DELAY_MS, Math.max(1L, deadline - SystemClock.uptimeMillis())));
             }
-            return ProbeResult.of(evidence.sourceTimeBetweenEventMovingPairs > 0
-                            ? REASON_SUCCESS : REASON_INSUFFICIENT_SAMPLES,
+            int completedReason = evidence.sourceTimeBetweenEventMovingPairs > 0
+                    ? (surveyOnly ? REASON_SURVEY_COMPLETED : REASON_SUCCESS)
+                    : REASON_INSUFFICIENT_SAMPLES;
+            return ProbeResult.of(completedReason,
                     windowId, anchors.size(), eventSequence.get(), sampleCount,
                     evidence, eventCoupledPairs,
                     maxDeltaInliers, readCosts);
@@ -457,12 +546,28 @@ public final class ViewportAnchorFreshnessAndroidTest {
         }
     }
 
+    static boolean confirmsBeforeNextSourceEvent(
+            long candidateSequence, long readEnd, long eventSequence, long sourceTime) {
+        return candidateSequence >= 0L && readEnd >= 0L
+                && eventSequence == candidateSequence + 1L && sourceTime > readEnd;
+    }
+
+    @Test public void sourceProofRejectsSkippedEventsAndDelayedDelivery() {
+        assertTrue(confirmsBeforeNextSourceEvent(4, 100, 5, 101));
+        assertFalse(confirmsBeforeNextSourceEvent(4, 100, 6, 120));
+        assertFalse(confirmsBeforeNextSourceEvent(4, 100, 5, 100));
+        assertFalse(confirmsBeforeNextSourceEvent(4, 100, 5, 90));
+        assertFalse(confirmsBeforeNextSourceEvent(-1, 100, 0, 101));
+    }
+
     private static void logSample(
             long session,
             int windowId,
             AnchorRead sample,
             Movement movement,
             NumericScrollEvent observed,
+            boolean surveyOnly,
+            long hardReadCutoffMs,
             boolean associationStable,
             int pairType,
             int receiptTimeConfirmedPairs,
@@ -474,6 +579,10 @@ public final class ViewportAnchorFreshnessAndroidTest {
                 + " readStart=" + sample.startedUptimeMs
                 + " readEnd=" + sample.endedUptimeMs
                 + " costMs=" + sample.costMs
+                + " surveyOnly=" + (surveyOnly ? 1 : 0)
+                + " hardCutoffMs=" + hardReadCutoffMs
+                + " budgetExceeded8Ms="
+                        + (sample.costMs > MAX_READ_COST_MS ? 1 : 0)
                 + " readResult=" + sample.reason
                 + " medianDeltaX=" + movement.medianDx
                 + " medianDeltaY=" + movement.medianDy
@@ -545,7 +654,8 @@ public final class ViewportAnchorFreshnessAndroidTest {
             AccessibilityNodeInfo root,
             String targetPackage,
             int windowId,
-            long deadlineUptimeMs) {
+            long deadlineUptimeMs,
+            int requestedAnchorCount) {
         long startedUptime = SystemClock.uptimeMillis();
         Rect windowBounds = new Rect();
         root.getBoundsInScreen(windowBounds);
@@ -557,7 +667,7 @@ public final class ViewportAnchorFreshnessAndroidTest {
         List<Anchor> anchors = new ArrayList<>(MAX_ANCHORS);
         try {
             while (!pending.isEmpty() && visited < MAX_TREE_NODES
-                    && anchors.size() < MAX_ANCHORS) {
+                    && anchors.size() < requestedAnchorCount) {
                 if (SystemClock.uptimeMillis() >= deadlineUptimeMs) {
                     deadlineReached = true;
                     break;
@@ -675,7 +785,8 @@ public final class ViewportAnchorFreshnessAndroidTest {
             String targetPackage,
             int expectedWindow,
             long sequenceBefore,
-            AtomicLong eventSequence) {
+            AtomicLong eventSequence,
+            long hardReadCutoffMs) {
         long startedNanos = SystemClock.elapsedRealtimeNanos();
         long startedUptime = SystemClock.uptimeMillis();
         List<Rect> bounds = new ArrayList<>(anchors.size());
@@ -706,7 +817,7 @@ public final class ViewportAnchorFreshnessAndroidTest {
         long endedNanos = SystemClock.elapsedRealtimeNanos();
         long endedUptime = SystemClock.uptimeMillis();
         long costMs = elapsedMillisRoundedUp(startedNanos, endedNanos);
-        if (costMs > MAX_READ_COST_MS) {
+        if (costMs > hardReadCutoffMs) {
             return new AnchorRead(REASON_SLOW_READ, bounds, startedUptime, endedUptime,
                     costMs, sequenceBefore, eventSequence.get());
         }
@@ -764,6 +875,15 @@ public final class ViewportAnchorFreshnessAndroidTest {
     private static long elapsedMillisRoundedUp(long startedNanos, long endedNanos) {
         long elapsed = Math.max(0L, endedNanos - startedNanos);
         return (elapsed + 999_999L) / 1_000_000L;
+    }
+
+    private static long percentile(List<Long> values, float fraction) {
+        if (values.isEmpty()) return 0L;
+        List<Long> sorted = new ArrayList<>(values);
+        Collections.sort(sorted);
+        int index = Math.max(0, Math.min(sorted.size() - 1,
+                Math.round((sorted.size() - 1) * fraction)));
+        return sorted.get(index);
     }
 
     private static boolean packageMatches(CharSequence observed, String expected) {
@@ -977,6 +1097,8 @@ public final class ViewportAnchorFreshnessAndroidTest {
         int sourceTimeBetweenEventMovingPairs;
         int sourceTimeUnconfirmedMovingPairs;
         int pendingTimestampDrops;
+        int warmupBudgetExceeded;
+        int measurementBudgetExceeded;
     }
 
     private static final class ProbeResult {
@@ -989,6 +1111,8 @@ public final class ViewportAnchorFreshnessAndroidTest {
         final int sourceTimeBetweenEventMovingPairs;
         final int sourceTimeUnconfirmedMovingPairs;
         final int pendingTimestampDrops;
+        final int warmupBudgetExceeded;
+        final int measurementBudgetExceeded;
         final int eventCoupledPairs;
         final int maxDeltaInliers;
         final long readCostP50Ms;
@@ -1005,6 +1129,8 @@ public final class ViewportAnchorFreshnessAndroidTest {
                 int sourceTimeBetweenEventMovingPairs,
                 int sourceTimeUnconfirmedMovingPairs,
                 int pendingTimestampDrops,
+                int warmupBudgetExceeded,
+                int measurementBudgetExceeded,
                 int eventCoupledPairs,
                 int maxDeltaInliers,
                 long readCostP50Ms,
@@ -1020,6 +1146,8 @@ public final class ViewportAnchorFreshnessAndroidTest {
             this.sourceTimeBetweenEventMovingPairs = sourceTimeBetweenEventMovingPairs;
             this.sourceTimeUnconfirmedMovingPairs = sourceTimeUnconfirmedMovingPairs;
             this.pendingTimestampDrops = pendingTimestampDrops;
+            this.warmupBudgetExceeded = warmupBudgetExceeded;
+            this.measurementBudgetExceeded = measurementBudgetExceeded;
             this.eventCoupledPairs = eventCoupledPairs;
             this.maxDeltaInliers = maxDeltaInliers;
             this.readCostP50Ms = readCostP50Ms;
@@ -1037,26 +1165,20 @@ public final class ViewportAnchorFreshnessAndroidTest {
                 int eventCoupledPairs,
                 int maxDeltaInliers,
                 List<Long> readCosts) {
-            List<Long> sorted = new ArrayList<>(readCosts);
-            Collections.sort(sorted);
-            long p50 = percentile(sorted, .50f);
-            long p95 = percentile(sorted, .95f);
-            long maximum = sorted.isEmpty() ? 0L : sorted.get(sorted.size() - 1);
+            long p50 = percentile(readCosts, .50f);
+            long p95 = percentile(readCosts, .95f);
+            long maximum = readCosts.isEmpty()
+                    ? 0L : Collections.max(readCosts);
             return new ProbeResult(reason, windowId, anchorCount, eventCount,
                     sampleCount,
                     evidence.receiptTimeBetweenEventMovingPairs,
                     evidence.sourceTimeBetweenEventMovingPairs,
                     evidence.sourceTimeUnconfirmedMovingPairs,
                     evidence.pendingTimestampDrops,
+                    evidence.warmupBudgetExceeded,
+                    evidence.measurementBudgetExceeded,
                     eventCoupledPairs,
                     maxDeltaInliers, p50, p95, maximum);
-        }
-
-        private static long percentile(List<Long> sorted, float fraction) {
-            if (sorted.isEmpty()) return 0L;
-            int index = Math.max(0, Math.min(sorted.size() - 1,
-                    Math.round((sorted.size() - 1) * fraction)));
-            return sorted.get(index);
         }
     }
 }
