@@ -44,3 +44,16 @@ Recorder-free emulator instrumentation compared production against a frozen prio
 | 512 | 147.712 / 190.365 ms | 32.901 / 38.042 ms |
 
 Two earlier runs showed the same direction (roughly 139–145 ms versus 31–32 ms). These are synthetic preparation measurements, not live screenshot, detection-throughput or Pixel evidence. Five Android tests passed, including exact alpha/sRGB/Display-P3 parity and unscaled hardware ownership; 456 JVM tests, lint and paired APK build passed. Emulator artifact SHA256: `626653F70CCCEC42F42B1EB12C08DF2897473A491E5CAE22240864CD6831E7C2` (dirty-worktree build, not clean commit identity). Physical phone unchanged. Live capture age, publication latency, drops and scroll stability still need measurement before acceptance.
+
+## Region-readback follow-up
+
+Applied the same single-readback path to the coordinate-based region preparer. The existing working-tree quality-tile adapter delegates to it; the narrow checkpoint commits the generic preparer without bundling the older uncommitted tile-planning/service work. Source bounds are validated without integer addition overflow, crop dimensions remain the detection coordinate space, and wide-gamut conversion remains unchanged.
+
+Recorder-free emulator test, three warmups and nine alternating-order samples per orientation, exact output equality on every pair:
+
+| Source / crop | Prior median / max | Single-readback median / max |
+| --- | ---: | ---: |
+| 1344 x 2992 / 1344 x 2453 | 146.030 / 231.087 ms | 29.451 / 35.021 ms |
+| 2992 x 1344 / 2453 x 1344 | 142.882 / 154.379 ms | 31.046 / 34.090 ms |
+
+Three region Android tests passed (benchmark/parity, alpha/P3 and invalid/overflowing bounds), plus 456 JVM tests, lint and paired APK build. New emulator artifact SHA256: `7298899DF6E2BEAEBA0501B666A6C4DA3FAEF9501489CC55A52A9E193577AC45`. No navigation, live capture, phone install or end-to-end improvement claim. This demonstrates removable preparation cost, not solved scroll alignment.

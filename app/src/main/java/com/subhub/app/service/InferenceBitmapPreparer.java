@@ -2,6 +2,7 @@ package com.subhub.app.service;
 
 import android.graphics.Bitmap;
 import android.graphics.ColorSpace;
+import android.graphics.Matrix;
 
 /** Converts a hardware screenshot into the smallest software bitmap needed by ONNX. */
 final class InferenceBitmapPreparer {
@@ -57,6 +58,63 @@ final class InferenceBitmapPreparer {
             }
             if (scaled != null && scaled != source && scaled != readable
                     && !scaled.isRecycled()) scaled.recycle();
+            if (readbackSource != null && !readbackSource.isRecycled()) readbackSource.recycle();
+        }
+    }
+
+    static Prepared prepareRegion(Bitmap source, int left, int top, int width, int height,
+                                  int inferenceResolution) {
+        if (source == null || source.isRecycled() || left < 0 || top < 0
+                || width <= 0 || height <= 0 || left > source.getWidth()
+                || top > source.getHeight() || width > source.getWidth() - left
+                || height > source.getHeight() - top) return null;
+        if (left == 0 && top == 0 && width == source.getWidth()
+                && height == source.getHeight()) return prepare(source, inferenceResolution, false);
+        Bitmap transformed = null;
+        Bitmap readable = null;
+        Bitmap readbackSource = null;
+        try {
+            int[] dimensions = targetDimensions(
+                    width, height, inferenceResolution);
+            boolean directReadback = source.getConfig() == Bitmap.Config.HARDWARE
+                    && ColorSpace.get(ColorSpace.Named.SRGB).equals(source.getColorSpace());
+            long readbackNanos = 0L;
+            if (directReadback) {
+                long started = System.nanoTime();
+                readbackSource = source.copy(Bitmap.Config.ARGB_8888, false);
+                readbackNanos = System.nanoTime() - started;
+                if (readbackSource == null) return null;
+            }
+            // Crop/scale the software readback without the hardware API's upload/readback loop.
+            // Wide-gamut sources keep the existing conversion order for pixel compatibility.
+            Matrix transform = new Matrix();
+            transform.setScale(
+                    dimensions[0] / (float) width,
+                    dimensions[1] / (float) height);
+            long scaleStartNanos = System.nanoTime();
+            transformed = Bitmap.createBitmap(
+                    readbackSource != null ? readbackSource : source, left, top, width, height,
+                    transform, true);
+            long scaleEndNanos = System.nanoTime();
+            boolean hardwareReadback = directReadback
+                    || transformed.getConfig() == Bitmap.Config.HARDWARE;
+            readable = transformed.getConfig() == Bitmap.Config.HARDWARE
+                    ? transformed.copy(Bitmap.Config.ARGB_8888, false) : transformed;
+            readbackNanos += System.nanoTime() - scaleEndNanos;
+            if (readable == null) return null;
+            Bitmap owned = readable;
+            if (owned == readbackSource) readbackSource = null;
+            if (owned == transformed) transformed = null;
+            readable = null;
+            return new Prepared(owned, width, height, false,
+                    scaleEndNanos - scaleStartNanos, readbackNanos, hardwareReadback);
+        } finally {
+            if (readable != null && readable != transformed && !readable.isRecycled()) {
+                readable.recycle();
+            }
+            if (transformed != null && transformed != source && !transformed.isRecycled()) {
+                transformed.recycle();
+            }
             if (readbackSource != null && !readbackSource.isRecycled()) readbackSource.recycle();
         }
     }
