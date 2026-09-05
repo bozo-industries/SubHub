@@ -18,9 +18,9 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingStart="@dimen/page_margin"
-            android:paddingTop="10dp"
+            android:paddingTop="@dimen/primary_header_top"
             android:paddingEnd="@dimen/page_margin"
-            android:paddingBottom="116dp">
+            android:paddingBottom="@dimen/bottom_nav_clearance">
 
             <include layout="@layout/view_primary_header" />
 
@@ -63,14 +63,16 @@
                 <TextView
                     android:id="@+id/button_hardcore_system"
                     style="@style/Widget.SubHub.OutlineAction"
-                    android:layout_height="42dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:layout_marginTop="9dp"
                     android:text="@string/hardcore_open_admin"
                     />
                 <TextView
                     android:id="@+id/button_hardcore_restricted"
                     style="@style/Widget.SubHub.OutlineAction"
-                    android:layout_height="42dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:layout_marginTop="7dp"
                     android:text="@string/hardcore_open_restricted"
                     android:visibility="gone" />
@@ -159,7 +161,8 @@
                 <CheckBox
                     android:id="@+id/armed"
                     android:layout_width="match_parent"
-                    android:layout_height="42dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:layout_marginTop="4dp"
                     android:buttonTint="@color/accent"
                     android:text="@string/app_mode_armed"
@@ -173,14 +176,16 @@
                     <RadioButton
                         android:id="@+id/mode_always"
                         android:layout_width="match_parent"
-                        android:layout_height="44dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
                         android:buttonTint="@color/accent"
                         android:text="@string/app_mode_always"
                         android:textColor="@color/text_primary" />
                     <RadioButton
                         android:id="@+id/mode_selected"
                         android:layout_width="match_parent"
-                        android:layout_height="44dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
                         android:buttonTint="@color/accent"
                         android:text="@string/app_mode_selected"
                         android:textColor="@color/text_primary" />
@@ -211,7 +216,8 @@
                     android:id="@+id/button_toggle_apps"
                     style="@style/Widget.SubHub.CompactOutlineButton"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:layout_marginTop="6dp"
                     android:text="@string/app_selection_expand" />
                 <LinearLayout
@@ -299,14 +305,16 @@
                     <RadioButton
                         android:id="@+id/paypal_environment_sandbox"
                         android:layout_width="0dp"
-                        android:layout_height="42dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
                         android:layout_weight="1"
                         android:text="@string/paypal_environment_sandbox"
                         android:textColor="@color/text_primary" />
                     <RadioButton
                         android:id="@+id/paypal_environment_live"
                         android:layout_width="0dp"
-                        android:layout_height="42dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
                         android:layout_weight="1"
                         android:text="@string/paypal_environment_live"
                         android:textColor="@color/text_primary" />
@@ -318,32 +326,32 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="7dp"
-                    android:textColor="@color/accent"
+                    android:textColor="@color/accent_text"
                     android:textSize="11sp"
                     android:textStyle="bold" />
-                <TextView style="@style/Widget.SubHub.FieldLabel"
+                <TextView android:labelFor="@id/paypal_client_id" style="@style/Widget.SubHub.FieldLabel"
                     android:text="@string/paypal_client_id_label" />
-                <EditText
+                <EditText style="@style/Widget.SubHub.Input"
                     android:id="@+id/paypal_client_id"
                     android:layout_width="match_parent"
-                    android:layout_height="46dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:layout_marginTop="3dp"
-                    android:backgroundTint="@color/accent"
                     android:hint="@string/paypal_client_id_hint"
                     android:inputType="textNoSuggestions"
                     android:singleLine="true"
                     android:textColor="@color/text_primary"
                     android:textColorHint="@color/text_muted" />
-                <TextView style="@style/Widget.SubHub.FieldLabel"
+                <TextView android:labelFor="@id/paypal_client_secret" style="@style/Widget.SubHub.FieldLabel"
                     android:text="@string/paypal_client_secret_label" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:text="@string/paypal_client_secret_help" />
-                <EditText
+                <EditText style="@style/Widget.SubHub.Input"
                     android:id="@+id/paypal_client_secret"
                     android:layout_width="match_parent"
-                    android:layout_height="46dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:layout_marginTop="3dp"
-                    android:backgroundTint="@color/accent"
                     android:hint="@string/paypal_client_secret_hint"
                     android:inputType="textPassword"
                     android:singleLine="true"
@@ -378,7 +386,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:textColor="@color/accent"
+                    android:textColor="@color/accent_text"
                     android:textSize="11sp"
                     android:textStyle="bold" />
                 <Button
@@ -392,7 +400,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:minHeight="42dp"
+                    android:minHeight="@dimen/control_min_height"
                     android:text="@string/paypal_auto_pay_enable"
                     android:textColor="@color/text_primary" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
@@ -406,14 +414,14 @@
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:layout_marginTop="8dp"
                     android:text="@string/paypal_link_help" />
-                <TextView style="@style/Widget.SubHub.FieldLabel"
+                <TextView android:labelFor="@id/paypal_link" style="@style/Widget.SubHub.FieldLabel"
                     android:text="@string/paypal_link_label" />
-                <EditText
+                <EditText style="@style/Widget.SubHub.Input"
                     android:id="@+id/paypal_link"
                     android:layout_width="match_parent"
-                    android:layout_height="46dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:layout_marginTop="3dp"
-                    android:backgroundTint="@color/accent"
                     android:hint="@string/paypal_link_hint"
                     android:inputType="textUri"
                     android:singleLine="true"

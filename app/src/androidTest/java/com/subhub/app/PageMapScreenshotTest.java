@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.ParcelFileDescriptor;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
@@ -13,6 +15,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.UiDevice;
 
 import com.subhub.app.appmode.AppModeActivity;
+import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.atmosphere.AtmosphereActivity;
 import com.subhub.app.capture.CustomImagesActivity;
 import com.subhub.app.capture.ExportActivity;
@@ -43,6 +46,20 @@ import java.io.FileInputStream;
 /** Captures the real running screens used by the design inventory. */
 @RunWith(AndroidJUnit4.class)
 public final class PageMapScreenshotTest {
+    @Test public void capturePrimaryFoundationPages() throws Exception {
+        prepareFixture(false);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        new AppModeManager(context).setArmed(false);
+        captureMain("foundation-01-dom-home", false);
+        capture("foundation-02-censor", SettingsActivity.class);
+        capture("foundation-03-limits", AppModeActivity.class);
+        capture("foundation-04-wallet", PenanceActivity.class);
+        capture("foundation-05-atmosphere", AtmosphereActivity.class);
+        capture("foundation-06-settings", GlobalSettingsActivity.class);
+        captureMain("foundation-07-sub-home", true);
+        captureInSpace("foundation-08-sub-settings", GlobalSettingsActivity.class, true);
+    }
+
     @Test public void captureCorePages() throws Exception {
         prepareFixture(true);
         captureMain("00-sub-home", true);
@@ -173,8 +190,23 @@ public final class PageMapScreenshotTest {
             UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
             device.waitForIdle(750L);
             Thread.sleep(350L);
+            scenario.onActivity(activity -> scrollToTop(activity.findViewById(android.R.id.content)));
+            device.waitForIdle(500L);
             if (!device.takeScreenshot(new File(directory, name + ".png"))) {
                 throw new IllegalStateException("Could not capture " + name);
+            }
+        }
+    }
+
+    private static void scrollToTop(View view) {
+        if (view instanceof ScrollView) {
+            ((ScrollView) view).scrollTo(0, 0);
+            return;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int index = 0; index < group.getChildCount(); index++) {
+                scrollToTop(group.getChildAt(index));
             }
         }
     }

@@ -19,6 +19,8 @@
     <color name="accent">#9860BE</color>
     <color name="accent_mid">#AE68CF</color>
     <color name="accent_hot">#C17AE1</color>
+    <!-- Text needs more contrast than decorative strokes on plum surfaces. -->
+    <color name="accent_text">#C17AE1</color>
     <color name="accent_dark">#54296D</color>
     <color name="accent_dim">#669860BE</color>
     <color name="accent_hot_dim">#667B478F</color>

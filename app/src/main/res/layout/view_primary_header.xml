@@ -3,7 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/primary_header"
     android:layout_width="match_parent"
-    android:layout_height="@dimen/primary_header_height"
+    android:layout_height="wrap_content"
+    android:minHeight="@dimen/primary_header_height"
     android:background="@drawable/bg_header_card"
     android:gravity="center_vertical"
     android:orientation="horizontal"
@@ -20,6 +21,8 @@
         android:layout_width="@dimen/primary_header_icon_size"
         android:layout_height="@dimen/primary_header_icon_size"
         android:background="@drawable/bg_header_icon"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
         android:padding="10dp"
         app:tint="@color/text_primary" />
 
@@ -32,11 +35,10 @@
 
         <TextView
             android:id="@+id/primary_header_title"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:includeFontPadding="false"
-            android:letterSpacing="0.1"
-            android:maxLines="1"
+            android:letterSpacing="0.06"
             android:textColor="@color/text_primary"
             android:textSize="20sp"
             android:textStyle="bold" />
@@ -47,7 +49,6 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:includeFontPadding="false"
-            android:maxLines="2"
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
     </LinearLayout>
@@ -55,5 +56,6 @@
     <TextView
         android:id="@+id/button_edit_lock"
         style="@style/Widget.SubHub.ControllerEdit"
+        android:layout_marginStart="8dp"
         android:text="@string/controller_edit_locked" />
 </LinearLayout>

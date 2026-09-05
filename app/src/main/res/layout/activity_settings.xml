@@ -17,9 +17,9 @@
         android:focusableInTouchMode="true"
         android:orientation="vertical"
         android:paddingStart="@dimen/page_margin"
-        android:paddingTop="10dp"
+        android:paddingTop="@dimen/primary_header_top"
         android:paddingEnd="@dimen/page_margin"
-        android:paddingBottom="116dp">
+        android:paddingBottom="@dimen/bottom_nav_clearance">
 
         <include layout="@layout/view_primary_header" />
 
@@ -36,7 +36,7 @@
                 android:layout_height="wrap_content"
                 android:letterSpacing="0.1"
                 android:text="@string/capture_method_title"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -57,7 +57,8 @@
                 <RadioButton
                     android:id="@+id/radio_capture_app_mode"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:buttonTint="@color/accent"
                     android:gravity="center_vertical"
                     android:text="@string/capture_method_app_mode"
@@ -66,7 +67,8 @@
                 <RadioButton
                     android:id="@+id/radio_capture_recording"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:buttonTint="@color/accent"
                     android:gravity="center_vertical"
                     android:text="@string/capture_method_recording"
@@ -102,7 +104,7 @@
                 android:layout_height="wrap_content"
                 android:letterSpacing="0.1"
                 android:text="@string/appearance_title"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -391,7 +393,7 @@
                 android:id="@+id/intensity_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textStyle="bold" />
 
             <SeekBar
@@ -414,7 +416,7 @@
                 android:id="@+id/padding_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textStyle="bold" />
 
             <SeekBar
@@ -437,8 +439,8 @@
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/switch_border"
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:minHeight="0dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:text="@string/show_border"
                     android:textColor="@color/text_primary"
                     android:textStyle="bold" />
@@ -476,7 +478,8 @@
                     <RadioButton
                         android:id="@+id/radio_border_classic"
                         android:layout_width="0dp"
-                        android:layout_height="62dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="62dp"
                         android:layout_margin="2dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_option_radio"
@@ -493,7 +496,8 @@
                     <RadioButton
                         android:id="@+id/radio_border_glow"
                         android:layout_width="0dp"
-                        android:layout_height="62dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="62dp"
                         android:layout_margin="2dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_option_radio"
@@ -510,7 +514,8 @@
                     <RadioButton
                         android:id="@+id/radio_border_gradient"
                         android:layout_width="0dp"
-                        android:layout_height="62dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="62dp"
                         android:layout_margin="2dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_option_radio"
@@ -527,7 +532,8 @@
                     <RadioButton
                         android:id="@+id/radio_border_rainbow"
                         android:layout_width="0dp"
-                        android:layout_height="62dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="62dp"
                         android:layout_margin="2dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_option_radio"
@@ -557,9 +563,9 @@
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/switch_animate_border"
                     android:layout_width="match_parent"
-                    android:layout_height="44dp"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
-                    android:minHeight="0dp"
+                    android:minHeight="48dp"
                     android:text="@string/animate_border"
                     android:textColor="@color/text_primary" />
             </LinearLayout>
@@ -567,14 +573,16 @@
             <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/switch_text"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
                 android:text="@string/show_text"
                 android:textColor="@color/text_primary" />
 
             <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/switch_reverse"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="wrap_content"
+                android:minHeight="52dp"
                 android:text="@string/reverse_mode"
                 android:textColor="@color/text_primary" />
 
@@ -589,7 +597,7 @@
                 android:id="@+id/reverse_strength_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textStyle="bold" />
 
             <SeekBar
@@ -621,7 +629,7 @@
                 android:layout_height="wrap_content"
                 android:letterSpacing="0.1"
                 android:text="@string/detection_title"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -638,7 +646,7 @@
                 android:id="@+id/confidence_value"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textStyle="bold"
                 android:visibility="gone" />
 
@@ -666,7 +674,8 @@
                 <RadioButton
                     android:id="@+id/radio_preset_low"
                     android:layout_width="match_parent"
-                    android:layout_height="58dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="58dp"
                     android:layout_marginTop="3dp"
                     android:background="@drawable/bg_quality_radio"
                     android:button="@null"
@@ -682,7 +691,8 @@
                 <RadioButton
                     android:id="@+id/radio_preset_medium"
                     android:layout_width="match_parent"
-                    android:layout_height="58dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="58dp"
                     android:layout_marginTop="4dp"
                     android:background="@drawable/bg_quality_radio"
                     android:button="@null"
@@ -698,7 +708,8 @@
                 <RadioButton
                     android:id="@+id/radio_preset_high"
                     android:layout_width="match_parent"
-                    android:layout_height="58dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="58dp"
                     android:layout_marginTop="4dp"
                     android:background="@drawable/bg_quality_radio"
                     android:button="@null"
@@ -714,7 +725,8 @@
                 <RadioButton
                     android:id="@+id/radio_preset_ultra"
                     android:layout_width="match_parent"
-                    android:layout_height="58dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="58dp"
                     android:layout_marginTop="4dp"
                     android:background="@drawable/bg_quality_radio"
                     android:button="@null"
@@ -808,7 +820,7 @@
                 android:layout_height="wrap_content"
                 android:letterSpacing="0.1"
                 android:text="@string/text_smut_title"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -857,7 +869,8 @@
                 <RadioButton
                     android:id="@+id/radio_smut_strict"
                     android:layout_width="0dp"
-                    android:layout_height="42dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:layout_weight="1"
                     android:buttonTint="@color/accent"
                     android:gravity="center_vertical"
@@ -867,7 +880,8 @@
                 <RadioButton
                     android:id="@+id/radio_smut_balanced"
                     android:layout_width="0dp"
-                    android:layout_height="42dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:layout_weight="1.25"
                     android:buttonTint="@color/accent"
                     android:gravity="center_vertical"
@@ -877,7 +891,8 @@
                 <RadioButton
                     android:id="@+id/radio_smut_broad"
                     android:layout_width="0dp"
-                    android:layout_height="42dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
                     android:layout_weight="1"
                     android:buttonTint="@color/accent"
                     android:gravity="center_vertical"
@@ -935,7 +950,7 @@
                 android:layout_height="wrap_content"
                 android:letterSpacing="0.1"
                 android:text="@string/phrases_title"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -964,7 +979,7 @@
                     android:text="@string/phrase_gooner" />
             </GridLayout>
 
-            <TextView style="@style/Widget.SubHub.FieldLabel"
+            <TextView android:labelFor="@id/custom_phrases" style="@style/Widget.SubHub.FieldLabel"
                 android:text="@string/custom_phrases_label" />
             <TextView style="@style/Widget.SubHub.FieldHelp"
                 android:text="@string/custom_phrases_help" />
@@ -1001,7 +1016,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/configuration_title"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -1016,7 +1031,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:textColor="@color/accent"
+                android:textColor="@color/accent_text"
                 android:textSize="11sp"
                 android:visibility="gone" />
         </LinearLayout>

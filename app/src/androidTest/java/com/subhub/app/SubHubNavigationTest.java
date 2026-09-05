@@ -10,13 +10,21 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
-import android.graphics.drawable.ColorDrawable;
+import android.content.Context;
+import android.content.res.Configuration;
+import android.graphics.Rect;
 import android.graphics.Color;
 import android.os.SystemClock;
+import android.view.ContextThemeWrapper;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
@@ -27,6 +35,7 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 import androidx.test.runner.lifecycle.Stage;
 
 import com.subhub.app.appmode.AppModeActivity;
+import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.atmosphere.AtmosphereActivity;
 import com.subhub.app.diagnostics.DiagnosticsActivity;
 import com.subhub.app.penance.PenanceActivity;
@@ -37,6 +46,7 @@ import com.subhub.app.settings.SettingsActivity;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.util.SubHubNavigation;
+import com.subhub.app.util.PrimaryHeader;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -178,6 +188,7 @@ public final class SubHubNavigationTest {
         // Keep MainActivity's first-open permission coordinator idle while this test exercises
         // navigation. The feature tabs are restored immediately after that startup pass.
         modules.save(false, false, false, false);
+        new AppModeManager(context).setArmed(false);
         context.getSharedPreferences(com.subhub.app.settings.SettingsRepository.PREFERENCES_NAME, 0)
                 .edit().putBoolean(HardcoreModeManager.KEY_REQUESTED, false).commit();
         ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class);
@@ -208,6 +219,74 @@ public final class SubHubNavigationTest {
         scenario.onActivity(Activity::finishAndRemoveTask);
     }
 
+    @Test public void pillFitsFontScalingAndKeepsTheLastActionAboveNavigation() {
+        Context context = ApplicationProvider.getApplicationContext();
+        new FeatureModuleManager(context).save(true, true, true);
+        try (ActivityScenario<AtmosphereActivity> scenario =
+                     ActivityScenario.launch(AtmosphereActivity.class)) {
+            scenario.onActivity(activity -> {
+                int[] widths = {320, 360, 411, 600, 840};
+                float[] fontScales = {1f, 1.3f, 2f};
+                for (int width : widths) {
+                    for (float fontScale : fontScales) {
+                        Configuration configuration = new Configuration(activity.getResources()
+                                .getConfiguration());
+                        configuration.screenWidthDp = width;
+                        configuration.smallestScreenWidthDp = width;
+                        configuration.fontScale = fontScale;
+                        Context themed = new ContextThemeWrapper(activity.createConfigurationContext(
+                                configuration), R.style.Theme_SubHub);
+                        ViewGroup page = (ViewGroup) LayoutInflater.from(themed)
+                                .inflate(R.layout.activity_atmosphere, null, false);
+                        PrimaryHeader.bind(page, R.drawable.ic_atmosphere,
+                                R.string.atmosphere_title, R.string.atmosphere_subtitle_dom);
+                        int pageWidth = Math.round(width * themed.getResources()
+                                .getDisplayMetrics().density);
+                        int pageHeight = Math.round(720 * themed.getResources()
+                                .getDisplayMetrics().density);
+                        measurePage(page, pageWidth, pageHeight);
+                        SubHubNavigation.bind(activity, page, SubHubNavigation.Screen.ATMOSPHERE);
+                        // The layout listener applies the measured pill clearance on the next pass.
+                        measurePage(page, pageWidth, pageHeight);
+                        measurePage(page, pageWidth, pageHeight);
+                        ViewGroup navigation = page.findViewById(R.id.bottom_navigation);
+                        int target = themed.getResources()
+                                .getDimensionPixelSize(R.dimen.control_min_height);
+                        for (int index = 0; index < navigation.getChildCount(); index++) {
+                            ViewGroup tab = (ViewGroup) navigation.getChildAt(index);
+                            assertTrue("Navigation target too narrow", tab.getWidth() >= target);
+                            assertTrue("Navigation target too short", tab.getHeight() >= target);
+                            TextView label = (TextView) tab.getChildAt(1);
+                            assertTrue(label.getLayout() != null);
+                            assertEquals("Navigation words should remain whole", 1,
+                                    label.getLineCount());
+                            for (int line = 0; line < label.getLineCount(); line++) {
+                                assertEquals(0, label.getLayout().getEllipsisCount(line));
+                                assertTrue("Navigation label exceeds its width",
+                                        label.getLayout().getLineWidth(line) <= label.getWidth() + 1);
+                            }
+                            assertTrue("Navigation label exceeds its target",
+                                    label.getBottom() <= tab.getHeight() - tab.getPaddingBottom());
+                        }
+                        ScrollView scroll = (ScrollView) page.getChildAt(0);
+                        scroll.scrollTo(0, scroll.getChildAt(0).getHeight());
+                        View lastAction = page.findViewById(R.id.button_popup_storm);
+                        Rect bounds = new Rect(0, 0, lastAction.getWidth(), lastAction.getHeight());
+                        page.offsetDescendantRectToMyCoords(lastAction, bounds);
+                        assertTrue("Last action must scroll above navigation",
+                                bounds.bottom <= navigation.getTop());
+                    }
+                }
+            });
+        }
+    }
+
+    private static void measurePage(View page, int width, int height) {
+        page.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        page.layout(0, 0, width, height);
+    }
+
     private static void assertDestination(Class<? extends Activity> expected, int selectedId,
             int unselectedId) {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
@@ -216,8 +295,12 @@ public final class SubHubNavigationTest {
         View selected = activity.findViewById(selectedId);
         View unselected = activity.findViewById(unselectedId);
         assertNotNull(selected.getBackground());
-        assertTrue(!(selected.getBackground() instanceof ColorDrawable));
-        assertTrue(unselected.getBackground() instanceof ColorDrawable);
+        assertTrue(selected.isSelected());
+        assertFalse(unselected.isSelected());
+        AccessibilityNodeInfo selectedInfo = selected.createAccessibilityNodeInfo();
+        assertTrue(selectedInfo.isSelected());
+        assertEquals(Button.class.getName(), selectedInfo.getClassName());
+        selectedInfo.recycle();
         int[] tabs = {R.id.nav_home, R.id.nav_censor, R.id.nav_limits,
                 R.id.nav_money, R.id.nav_atmosphere, R.id.nav_settings};
         int[] icons = {R.id.nav_home_icon, R.id.nav_censor_icon, R.id.nav_limits_icon,
