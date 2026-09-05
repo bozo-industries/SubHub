@@ -482,6 +482,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (!processing.compareAndSet(false, true)) return;
         lastScreenshotRequestUptime = requestUptime;
+        traceCaptureStage(requestUptime, "accepted");
         long requestedEpoch = captureEpoch.token();
         long requestedScrollX = cumulativeScrollX.get();
         long requestedScrollY = cumulativeScrollY.get();
@@ -505,12 +506,18 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         TakeScreenshotCallback callback = new TakeScreenshotCallback() {
             @Override
             public void onSuccess(ScreenshotResult result) {
-                process(result, requestedEpoch, requestedScrollX, requestedScrollY,
-                        requestedGeneration, requestUptime);
+                traceCaptureStage(requestUptime, "callback-success");
+                try {
+                    process(result, requestedEpoch, requestedScrollX, requestedScrollY,
+                            requestedGeneration, requestUptime);
+                } finally {
+                    traceCaptureStage(requestUptime, "callback-exit");
+                }
             }
 
             @Override
             public void onFailure(int errorCode) {
+                traceCaptureStage(requestUptime, "callback-failure-" + errorCode);
                 if (errorCode != ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) {
                     DiagnosticsRepository.failCode(
                             DIAGNOSTICS_MODE, "Screenshot error", errorCode);
@@ -522,12 +529,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         // Android 14+ can capture the foreground app window directly. Unlike a display capture,
         // this excludes SubHub's own accessibility overlay, so a censor stays continuously visible
         // without becoming part of the next detector input.
+        traceCaptureStage(requestUptime, "dispatch");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
                 && activeWindowId >= 0) {
             takeScreenshotOfWindow(activeWindowId, worker, callback);
             return;
         }
         takeScreenshot(Display.DEFAULT_DISPLAY, worker, callback);
+    }
+
+    private static void traceCaptureStage(long requestUptime, String stage) {
+        if (!BuildConfig.DEBUG) return;
+        long now = SystemClock.uptimeMillis();
+        CensorLabLog.i(TAG, "CAPTURE_SPAN id=" + requestUptime + " stage=" + stage
+                + " uptimeMs=" + now + " requestAgeMs=" + (now - requestUptime));
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -628,10 +643,21 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     lastSuccessfulQualityDurationMs, pendingInference.get() != null, false);
             int fastFrameResolution = fastInferenceFrameResolution(
                     currentConfig, fastDetector != null, overlayNeedsSourceFrame);
+            traceCaptureStage(requestedAtUptimeMillis, "prepare-start");
             InferenceBitmapPreparer.Prepared prepared = InferenceBitmapPreparer.prepare(
                     wrapped, fastFrameResolution,
                     overlayNeedsSourceFrame);
             if (prepared == null) return;
+            if (BuildConfig.DEBUG) {
+                CensorLabLog.i(TAG, "CAPTURE_PREPARE id=" + requestedAtUptimeMillis
+                        + " scaleUs=" + prepared.scaleNanos / 1_000L
+                        + " readbackUs=" + prepared.readbackNanos / 1_000L
+                        + " hardwareReadback=" + prepared.hardwareReadback
+                        + " source=" + prepared.sourceWidth + 'x' + prepared.sourceHeight
+                        + " output=" + prepared.bitmap.getWidth() + 'x'
+                        + prepared.bitmap.getHeight());
+            }
+            traceCaptureStage(requestedAtUptimeMillis, "prepare-end");
             frame = prepared.bitmap;
             // Priority means "publish the first settled fast frame", not "immediately saturate
             // the CPU with quality and text refinement at the same time".
@@ -648,6 +674,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                             requestedAtUptimeMillis,
                             motionSettled, qualityRefine)
                     : null;
+            traceCaptureStage(requestedAtUptimeMillis, "scene-begun");
             long submittedFastSequence = enqueueInference(new InferenceFrame(
                     frame, requestedEpoch, sourceScrollX,
                     sourceScrollY, inferenceMotionGeneration,
