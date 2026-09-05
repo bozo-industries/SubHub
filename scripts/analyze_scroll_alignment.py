@@ -250,7 +250,12 @@ def page_motion(
     return float(np.median(inliers[:, 1])), len(inliers)
 
 
-def analyze(path: Path, sample_every: int, top_fraction: float) -> dict:
+def analyze(
+    path: Path, sample_every: int, top_fraction: float,
+    max_sampled_frames: int | None = None,
+) -> dict:
+    if max_sampled_frames is not None and max_sampled_frames < 1:
+        raise ValueError("max_sampled_frames must be positive")
     capture = cv2.VideoCapture(str(path))
     if not capture.isOpened():
         raise RuntimeError(f"Could not open video: {path}")
@@ -266,6 +271,8 @@ def analyze(path: Path, sample_every: int, top_fraction: float) -> dict:
     previous_mask = None
     previous_boxes = None
     frame_index = -1
+    sampled_frames = 0
+    sample_limit_reached = False
     motion_frames = 0
     visually_aligned_2px = 0
     visually_aligned_5px = 0
@@ -291,12 +298,16 @@ def analyze(path: Path, sample_every: int, top_fraction: float) -> dict:
     local_trigger_threshold = 12.0
 
     while True:
+        if max_sampled_frames is not None and sampled_frames >= max_sampled_frames:
+            sample_limit_reached = True
+            break
         ok, frame = capture.read()
         if not ok:
             break
         frame_index += 1
         if frame_index % sample_every:
             continue
+        sampled_frames += 1
         crop = frame[crop_top:, :]
         crop = cv2.resize(crop, (sample_width, sample_height), interpolation=cv2.INTER_AREA)
         mask = magenta_mask(crop)
@@ -417,6 +428,16 @@ def analyze(path: Path, sample_every: int, top_fraction: float) -> dict:
         "height": height,
         "fps": round(fps, 3),
         "sampleEveryFrames": sample_every,
+        "sampledFrames": sampled_frames,
+        "sampleLimitReached": sample_limit_reached,
+        "measurementContract": {
+            "measures": "matched-frame-relative-motion-agreement",
+            "absoluteTargetAlignmentMeasured": False,
+            "constantSpatialOffsetObservable": False,
+            "unmatchedOrMergedBoxesPenalized": False,
+            "sampleTimeBasis": "nominal-fps-not-decoded-pts",
+            "releaseGateEligible": False,
+        },
         "motionFramesWithBoxMatch": motion_frames,
         "matchedBoxes": matched_boxes,
         "alignmentRateWithin2px": round(visually_aligned_2px / max(1, motion_frames), 4),
@@ -478,8 +499,11 @@ def main() -> None:
     parser.add_argument("--sample-every", type=int, default=1)
     parser.add_argument("--content-top", type=float, default=0.16)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--max-sampled-frames", type=int,
+                        help="Bound diagnostic cost; the report labels truncated sampling.")
     args = parser.parse_args()
-    result = analyze(args.video, max(1, args.sample_every), args.content_top)
+    result = analyze(args.video, max(1, args.sample_every), args.content_top,
+                     args.max_sampled_frames)
     rendered = json.dumps(result, indent=2)
     if args.output:
         args.output.write_text(rendered + "\n", encoding="utf-8")
