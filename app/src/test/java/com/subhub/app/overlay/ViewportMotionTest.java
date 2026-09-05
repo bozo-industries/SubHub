@@ -8,6 +8,42 @@ import org.junit.Test;
 
 public final class ViewportMotionTest {
     @Test
+    public void steadySlowScrollCorrectsPhaseWithoutIncreasingJumpBudget() {
+        for (int interval : new int[]{60, 100, 120}) {
+            for (int frameStep : new int[]{8, 16}) {
+                for (int direction : new int[]{-1, 1}) {
+                    ViewportMotion motion = new ViewportMotion();
+                    motion.reset(0f, 0f, 1_000L);
+                    double errorSum = 0;
+                    int samples = 0;
+                    for (int elapsed = 1; elapsed <= 1_200; elapsed++) {
+                        long now = 1_000L + elapsed;
+                        if (elapsed % interval == 0) {
+                            float before = motion.position(now).y;
+                            motion.addDelta(0, direction * .5f * interval,
+                                    now, 1_344, 2_992, true);
+                            if (elapsed > interval) {
+                                assertTrue("same-direction jump budget",
+                                        Math.abs(motion.position(now).y - before) <= 56.001f);
+                            }
+                        }
+                        if (elapsed > interval * 2 && elapsed % frameStep == 0) {
+                            errorSum += Math.abs(motion.position(now).y
+                                    - direction * .5f * elapsed);
+                            samples++;
+                        }
+                    }
+                    assertTrue("mean phase error at " + interval + "ms / " + frameStep + "ms",
+                            errorSum / samples < 22.0);
+                    assertEquals(direction * .5f * (1_200 / interval) * interval,
+                            motion.position(2_700L).y, .001f);
+                    assertFalse(motion.isAnimating(2_700L));
+                }
+            }
+        }
+    }
+
+    @Test
     public void firstAuthoritativeSampleCoversMeasuredPositionImmediately() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
@@ -99,6 +135,47 @@ public final class ViewportMotionTest {
         assertTrue(motion.isAnimating(200L));
         assertEquals(-600f, motion.position(500L).y, 0.001f);
         assertFalse(motion.isAnimating(500L));
+    }
+
+    @Test
+    public void sharplyDeceleratingTailBrakesInOneDisplayFrame() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -240f, 16L, 1_344, 2_992, true);
+        motion.addDelta(0f, -30f, 130L, 1_344, 2_992, true);
+
+        assertEquals(0f, motion.predictionAmplitude().y, 0.001f);
+        assertEquals(-270f, motion.position(146L).y, 0.001f);
+        assertFalse(motion.isAnimating(147L));
+    }
+
+    @Test
+    public void reversalHasNoForwardOvershootAndSettlesWithinTwoFrames() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -240f, 16L, 1_344, 2_992, true);
+        motion.addDelta(0f, 30f, 130L, 1_344, 2_992, true);
+
+        assertEquals(0f, motion.predictionAmplitude().y, 0.001f);
+        float previous = motion.position(130L).y;
+        for (long frame = 138L; frame <= 162L; frame += 8L) {
+            float current = motion.position(frame).y;
+            assertTrue(current >= previous - 0.001f);
+            assertTrue(current <= -210f + 0.001f);
+            previous = current;
+        }
+        assertEquals(-210f, motion.position(162L).y, 0.001f);
+        assertFalse(motion.isAnimating(163L));
+    }
+
+    @Test
+    public void zeroDistanceBrakeDoesNotAdvertiseLongAnimation() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0f, 0f, 0L);
+        motion.addDelta(0f, -120f, 16L, 1_344, 2_992, true);
+        motion.addDelta(0f, 0f, 130L, 1_344, 2_992, true);
+
+        assertFalse(motion.isAnimating(147L));
     }
 
     @Test

@@ -31,7 +31,7 @@ final class ViewportMotion {
     private static final float MAX_PREDICTION_VIEWPORT_FRACTION = 0.12f;
     private static final float MAX_CORRECTION_JUMP_PX = 56f;
     private static final float MAX_REVERSAL_JUMP_PX = 96f;
-    private static final float SAME_DIRECTION_CORRECTION_FRACTION = 0.18f;
+    private static final float SAME_DIRECTION_CORRECTION_FRACTION = 1.0f;
     private static final float REVERSAL_CORRECTION_FRACTION = 0.50f;
     private static final float MIN_PHASE_ERROR_PX = 96f;
     private static final float MAX_PHASE_ERROR_VIEWPORT_FRACTION = 0.08f;
@@ -299,12 +299,23 @@ final class ViewportMotion {
             long observedGap = firstSample ? DEFAULT_SAMPLE_GAP_MS
                     : Math.max(1L, Math.min(MAX_SAMPLE_GAP_MS, gap));
             float predictedDelta = predictedNextDelta(
-                    delta, firstSample, reversal, observedGap, viewportSize);
+                    delta, lastDelta, firstSample, reversal, observedGap, viewportSize);
             segmentTarget = exact + predictedDelta;
-            trajectoryDuration = Math.max(MIN_TRAJECTORY_MS,
-                    Math.min(MAX_TRAJECTORY_MS, Math.round(observedGap * 1.28f)));
-            returnDuration = Math.max(MIN_RETURN_MS,
-                    Math.min(MAX_RETURN_MS, Math.round(observedGap * 0.90f)));
+            if (Math.abs(predictedDelta) < 0.5f) {
+                // A reversal or a sharply decelerating tail is evidence that the old velocity is
+                // finished, not a reason to keep projecting it for another 120-300 ms. Brake to
+                // the measured coordinate in one display frame (two on reversal) with no return
+                // leg; steady streams keep the existing long trajectory below.
+                segmentTarget = exact;
+                trajectoryDuration = Math.abs(segmentTarget - segmentStart) < 0.5f
+                        ? 0L : reversal ? 32L : 16L;
+                returnDuration = 0L;
+            } else {
+                trajectoryDuration = Math.max(MIN_TRAJECTORY_MS,
+                        Math.min(MAX_TRAJECTORY_MS, Math.round(observedGap * 1.28f)));
+                returnDuration = Math.max(MIN_RETURN_MS,
+                        Math.min(MAX_RETURN_MS, Math.round(observedGap * 0.90f)));
+            }
 
             float nominalVelocity = predictedDelta / Math.max(1L, trajectoryDuration);
             if (firstSample) {
@@ -381,16 +392,25 @@ final class ViewportMotion {
             return segmentTarget - exact;
         }
 
-        private static float predictedNextDelta(
-                float delta,
-                boolean firstSample,
-                boolean reversal,
-                long observedGap,
-                int viewportSize) {
-            float magnitude = Math.abs(delta);
+    private static float predictedNextDelta(
+            float delta,
+            float previousDelta,
+            boolean firstSample,
+            boolean reversal,
+            long observedGap,
+            int viewportSize) {
+        if (reversal) return 0f;
+        float magnitude = Math.abs(delta);
+        if (magnitude < MIN_PREDICTABLE_DELTA_PX) return 0f;
+        if (!firstSample && previousDelta != 0f) {
+            // Linear two-sample deceleration estimate. When the current displacement has fallen
+            // below half the previous one, its forward continuation reaches zero immediately.
+            magnitude = Math.max(0f, Math.min(magnitude,
+                    2f * magnitude - Math.abs(previousDelta)));
             if (magnitude < MIN_PREDICTABLE_DELTA_PX) return 0f;
-            long horizon = firstSample ? FIRST_SAMPLE_HORIZON_MS
-                    : reversal ? REVERSAL_HORIZON_MS : CONTINUING_HORIZON_MS;
+        }
+        long horizon = firstSample ? FIRST_SAMPLE_HORIZON_MS
+                : reversal ? REVERSAL_HORIZON_MS : CONTINUING_HORIZON_MS;
             float predictedMagnitude = magnitude * horizon / Math.max(1f, observedGap);
             predictedMagnitude = Math.min(predictedMagnitude,
                     magnitude * MAX_PREDICTION_SAMPLE_FRACTION);
