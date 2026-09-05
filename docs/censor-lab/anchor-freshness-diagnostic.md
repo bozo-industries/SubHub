@@ -110,3 +110,34 @@ makes rendering wait; reject stale/slow samples and structural changes, measure 
 and keep measured presentation separate from authoritative tracker/cache coordinates. First
 prove its timestamp/rebase/fallback behavior with automated tests and a recorded emulator run.
 Do not accept the current occasional 58-91ms reads on a Choreographer/UI callback.
+
+## Background prototype checkpoint (not connected to rendering)
+
+`ViewportAnchorGeometry` and `AsyncViewportAnchorSampler` now implement the bounded core without
+Android/service/overlay dependencies. Absolute **screen offsets** use current-minus-baseline
+translation (positive right/down), not content-scroll camera signs. For example, a node moving
+from top 100 to 75 with reference screen offset -1000 produces -1025. Repeated observations do
+not accumulate another delta; an accepted read after a dropped one recovers the full displacement.
+
+The sampler owns one serialized worker and three-to-five anchors. It establishes a baseline
+only after a second unchanged idle read, requires spatial spread, rejects clipped/resized or
+disagreeing geometry, and does not reset its reference on ordinary authoritative scroll deltas.
+It discards reads above 16ms, stops further anchor reads once that observed budget is exceeded,
+backs off, and clears the baseline after three consecutive slow reads. Active sampling uses a
+bounded supplied frame interval plus read time; this is not a claim of 60Hz sensor throughput.
+Source/window/size/epoch changes invalidate the baseline. Closing never joins the read thread;
+owned nodes are released on the worker after any current read returns. Cleanup enqueue failures
+are explicit and retryable rather than silently losing ownership.
+
+Verification: 448 JVM tests and debug lint passed, including 27 geometry/sampler cases. Tests
+cover sign conventions, non-accumulation, reversal, rigid-inlier rejection, timing/fence errors,
+dropped-read catch-up, queue bounds, discovery interrupted by motion, clustered anchors,
+cleanup rejection, and real-worker cancellation while a source read remains blocked.
+
+No running service creates this sampler yet, and it has no detector/cache/render authority.
+The next integration must supply bounded Android discovery and thread-safe structural state,
+use a latest-only UI mailbox, recheck sample age/fences on delivery, map absolute offsets into
+the display coordinate origin without double-applying events, and expire stale presentation
+back to the existing fallback. Meter discovery and hot-path allocations in the actual app.
+Only then enable the experiment for a recorded emulator comparison; no phone deployment or
+new visible alignment improvement is claimed by this core checkpoint.
