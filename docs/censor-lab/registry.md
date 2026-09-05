@@ -15,6 +15,8 @@
 | [26](passes/pass-26.md) | partial-success | One atomic scene transaction and vsync commit per exact capture | 25 | Kept: exactly-once inference mailbox plus latest-only display-tick queue. Still visibly constrained by new evidence arriving at screenshot cadence. |
 | [27](passes/pass-27.md) | device-gate-pending | Bounded content-space memory and first-vsync re-entry | 26 | Primitive bounded cache and render-only re-entry are implemented; Pixel must prove return-scroll hit rate and navigation safety before acceptance. |
 | [28](passes/pass-28.md) | candidate | Full-screen MediaProjection teacher calibration | 27 | Second Pixel trace proved cache/motion identity cross-contamination created multi-viewport jumps; producer separation cuts replay endpoint error 99.7%. Pixel visual verdict remains required. |
+| [32](passes/pass-32.md) | candidate | Preserve reprojectable fast scenes across ordinary motion | frozen Pass31 diagnostic reference | Pixel scene-closed drops13→0;97 begun/96 published. User: better; scroll alignment now main challenge. |
+| [33](passes/pass-33.md) | candidate | Bounded full same-direction phase correction | frozen Pass32 diagnostic reference | Slow tracking catches within9px; fast starts/reversals still drift. User: slightly better; objective video review replaces routine questionnaires. |
 
 ## Current anchors
 
