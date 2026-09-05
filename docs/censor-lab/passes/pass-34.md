@@ -57,3 +57,9 @@ Recorder-free emulator test, three warmups and nine alternating-order samples pe
 | 2992 x 1344 / 2453 x 1344 | 142.882 / 154.379 ms | 31.046 / 34.090 ms |
 
 Three region Android tests passed (benchmark/parity, alpha/P3 and invalid/overflowing bounds), plus 456 JVM tests, lint and paired APK build. New emulator artifact SHA256: `7298899DF6E2BEAEBA0501B666A6C4DA3FAEF9501489CC55A52A9E193577AC45`. No navigation, live capture, phone install or end-to-end improvement claim. This demonstrates removable preparation cost, not solved scroll alignment.
+
+## Signed device candidate
+
+Built `pass34-single-readback-candidate/SubHub-pass34-single-readback-arm64-v8a-signed.apk` after 456 release-variant unit tests and release lint passed. APK SHA256: `06CFF8351553C4DE26001A6ACBC1AC9C797B8B2CAA27B7218CB061A233788848`. Verified Android v2 signature and established certificate SHA256 `3AD7C66A3B50DDC0D71B8907F7F91926E39287F2C4F1DEF67831A30D439260DD`.
+
+The local candidate directory includes the working diff, 19 untracked app-source files and a hash manifest to distinguish this tested dirty-worktree build from HEAD `86b5d65`. No keys or credentials are included. This remains a local test candidate, not a published/versioned release. Experimental anchor presentation is debug-only and therefore disabled. Pixel was disconnected at build time; APK is not installed or real-device validated. Emulator navigation still requires user assistance after execution-guard rejection.
