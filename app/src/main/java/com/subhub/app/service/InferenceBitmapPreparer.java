@@ -1,6 +1,7 @@
 package com.subhub.app.service;
 
 import android.graphics.Bitmap;
+import android.graphics.ColorSpace;
 
 /** Converts a hardware screenshot into the smallest software bitmap needed by ONNX. */
 final class InferenceBitmapPreparer {
@@ -15,32 +16,48 @@ final class InferenceBitmapPreparer {
                 sourceWidth, sourceHeight, inferenceResolution);
         Bitmap scaled = null;
         Bitmap readable = null;
+        Bitmap readbackSource = null;
         try {
-            // Accessibility screenshots are hardware bitmaps. Scale before CPU readback so a
-            // portrait Pixel frame becomes about 230x512 instead of a 1080x2400 ARGB copy.
+            // Bitmap's hardware createScaledBitmap path can read the entire source to software,
+            // scale it, then upload the result back to hardware. Avoid that extra round trip for
+            // ordinary sRGB screenshots. Other color spaces retain the original conversion order.
+            boolean directReadback = source.getConfig() == Bitmap.Config.HARDWARE
+                    && ColorSpace.get(ColorSpace.Named.SRGB).equals(source.getColorSpace());
+            long readbackNanos = 0L;
+            if (directReadback) {
+                long started = System.nanoTime();
+                readbackSource = source.copy(Bitmap.Config.ARGB_8888, false);
+                readbackNanos = System.nanoTime() - started;
+                if (readbackSource == null) return null;
+            }
             long scaleStartedNanos = System.nanoTime();
             scaled = Bitmap.createScaledBitmap(
-                    source, dimensions[0], dimensions[1], true);
+                    readbackSource != null ? readbackSource : source,
+                    dimensions[0], dimensions[1], true);
             long scaleFinishedNanos = System.nanoTime();
-            boolean hardwareReadback = scaled.getConfig() == Bitmap.Config.HARDWARE;
+            boolean hardwareReadback = directReadback
+                    || scaled.getConfig() == Bitmap.Config.HARDWARE;
             readable = scaled.getConfig() == Bitmap.Config.HARDWARE
                     ? scaled.copy(Bitmap.Config.ARGB_8888, false) : scaled;
             long readbackFinishedNanos = System.nanoTime();
+            readbackNanos += readbackFinishedNanos - scaleFinishedNanos;
             if (readable == null) return null;
             Bitmap owned = readable;
+            if (owned == readbackSource) readbackSource = null;
             if (owned == scaled) scaled = null;
             readable = null;
-            // Source-based effects map their crop through the retained bitmap's dimensions, so
-            // blur/pixelate/glitch do not need a full-display 10+ MB software copy either.
+            // Retain only model-sized pixels for effects; the full-size temporary readback is
+            // released below rather than kept alive with the inference frame.
             return new Prepared(owned, sourceWidth, sourceHeight, retainSourceFrame,
                     scaleFinishedNanos - scaleStartedNanos,
-                    readbackFinishedNanos - scaleFinishedNanos, hardwareReadback);
+                    readbackNanos, hardwareReadback);
         } finally {
             if (readable != null && readable != scaled && !readable.isRecycled()) {
                 readable.recycle();
             }
             if (scaled != null && scaled != source && scaled != readable
                     && !scaled.isRecycled()) scaled.recycle();
+            if (readbackSource != null && !readbackSource.isRecycled()) readbackSource.recycle();
         }
     }
 
