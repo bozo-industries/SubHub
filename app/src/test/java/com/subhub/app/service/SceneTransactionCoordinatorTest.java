@@ -319,6 +319,50 @@ public final class SceneTransactionCoordinatorTest {
         assertFalse(coordinator.isPresentationCurrent(fused.commit()));
     }
 
+    @Test public void continuousFastSurvivesReversalsBeforeAndAfterCommit() {
+        SceneTransactionCoordinator<String> coordinator = new SceneTransactionCoordinator<>();
+        SceneTransactionCoordinator.SceneKey key = key(90);
+        coordinator.begin(key, SceneTransactionCoordinator.Mode.SETTLED_FAST_ONLY, false, 1_300L);
+        for (int reversal = 0; reversal < 8; reversal++) {
+            assertEquals(null, coordinator.invalidateForMotion(true));
+        }
+        SceneTransactionCoordinator.Transition<String> ready =
+                coordinator.fastReady(key, List.of("reprojectable-fast"), 1_200L);
+        assertTrue(ready.committed());
+        assertEquals(null, coordinator.invalidateForMotion(true));
+        assertTrue(coordinator.isPresentationCurrent(ready.commit()));
+        // A real navigation fence still rejects an already queued publication.
+        assertEquals(key, coordinator.invalidate("document-changed"));
+        assertFalse(coordinator.isPresentationCurrent(ready.commit()));
+    }
+
+    @Test public void motionRetentionNeverResurrectsASupersededFastScene() {
+        SceneTransactionCoordinator<String> coordinator = new SceneTransactionCoordinator<>();
+        SceneTransactionCoordinator.SceneKey old = key(91);
+        coordinator.begin(old, SceneTransactionCoordinator.Mode.ACTIVE_FAST, false, 1_300L);
+        SceneTransactionCoordinator.Commit<String> commit =
+                coordinator.fastReady(old, List.of("old"), 1_200L).commit();
+        coordinator.begin(key(92), SceneTransactionCoordinator.Mode.ACTIVE_FAST, false, 1_300L);
+        coordinator.invalidateForMotion(true);
+        assertFalse(coordinator.isPresentationCurrent(commit));
+        assertEquals(SceneTransactionCoordinator.Status.DROPPED_STALE,
+                coordinator.fastReady(old, List.of("old"), 1_250L).status());
+    }
+
+    @Test public void motionStillClosesNonReprojectableAndAtomicScenes() {
+        SceneTransactionCoordinator<String> coordinator = new SceneTransactionCoordinator<>();
+        SceneTransactionCoordinator.SceneKey key = key(93);
+        coordinator.begin(key, SceneTransactionCoordinator.Mode.ACTIVE_FAST, false, 1_300L);
+        assertEquals(key, coordinator.invalidateForMotion(false));
+        assertEquals(SceneTransactionCoordinator.Status.DROPPED_CLOSED,
+                coordinator.fastReady(key, List.of("stale"), 1_200L).status());
+        SceneTransactionCoordinator.SceneKey atomic = key(94);
+        coordinator.begin(atomic, SceneTransactionCoordinator.Mode.SETTLED_ATOMIC, true, 1_300L);
+        assertEquals(atomic, coordinator.invalidateForMotion(true));
+        assertEquals(SceneTransactionCoordinator.Status.DROPPED_CLOSED,
+                coordinator.qualityReady(atomic, List.of("stale-quality"), 1_200L).status());
+    }
+
     private static SceneTransactionCoordinator.SceneKey key(long sequence) {
         return new SceneTransactionCoordinator.SceneKey(4L, sequence, 7L, 1_000L);
     }

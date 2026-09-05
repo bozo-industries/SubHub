@@ -279,6 +279,15 @@ final class SceneTransactionCoordinator<T> {
         return true;
     }
 
+    /** Preserves reprojectable fast-only scenes; motion still invalidates every other mode. */
+    synchronized SceneKey invalidateForMotion(boolean reprojectableFast) {
+        // Only fast-only observations can survive ordinary viewport translation. Structural
+        // invalidation and supersession still close these transactions unconditionally.
+        if (reprojectableFast && current != null
+                && current.mode != Mode.SETTLED_ATOMIC) return null;
+        return invalidateCurrent();
+    }
+
     /** Invalidates whichever scene is current, if any. */
     synchronized SceneKey invalidateCurrent() {
         if (current == null || current.lifecycle == Lifecycle.INVALIDATED) return null;
