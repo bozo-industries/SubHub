@@ -186,11 +186,19 @@ foreach ($requestedPath in $Path) {
         if ($line -match 'CensorMotion(?:\(\d+\))?: DRAW .*inputToDrawMs=(\d+).*?(?:viewportLead=(-?\d+),(-?\d+))?(?: renderTickMs=(\d+))?$') {
             $leadX = if ($Matches[2]) { [int] $Matches[2] } else { 0 }
             $leadY = if ($Matches[3]) { [int] $Matches[3] } else { 0 }
+            $drawLatency = [int] $Matches[1]
+            $tick = if ($Matches[4]) { [int] $Matches[4] } else { $null }
+            $explicitDrawClock = $line -match ' drawClock=uptime(?: |$)'
+            $presentationLatency = if ($line -match ' inputToPresentationMs=(\d+)(?: |$)') {
+                [int] $Matches[1]
+            } else { $null }
             $motionDraws.Add([pscustomobject]@{
                 time = $time
-                inputToDraw = [int] $Matches[1]
+                inputToDraw = $drawLatency
+                explicitDrawClock = $explicitDrawClock
+                inputToPresentation = $presentationLatency
                 leadAbs = [math]::Abs($leadX) + [math]::Abs($leadY)
-                renderTick = if ($Matches[4]) { [int] $Matches[4] } else { $null }
+                renderTick = $tick
             })
             continue
         }
@@ -923,6 +931,9 @@ foreach ($requestedPath in $Path) {
             predictionPeakMs = Get-Distribution @($motionInputs.predictionPeak)
             draws = $motionDraws.Count
             inputToDrawMs = Get-Distribution @($motionDraws.inputToDraw)
+            explicitUptimeDraws = @($motionDraws | Where-Object explicitDrawClock).Count
+            legacyUnknownClockDraws = @($motionDraws | Where-Object { !$_.explicitDrawClock }).Count
+            inputToPresentationMs = Get-Distribution @($motionDraws.inputToPresentation | Where-Object { $null -ne $_ })
             renderTickMs = Get-Distribution @($motionDraws.renderTick)
             viewportLeadAbsPx = Get-Distribution @($motionDraws.leadAbs)
             settles = $motionSettles.Count

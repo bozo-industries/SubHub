@@ -1503,11 +1503,14 @@ final class CensorOverlayView extends View {
     }
 
     private void traceRenderedMotion(boolean animationActive) {
-        long now = renderTimeMillis();
+        long now = SystemClock.uptimeMillis();
+        long presentationTime = renderTimeMillis();
         if (motionDrawPending) {
             motionDrawPending = false;
             CensorLabLog.i(MOTION_TAG, "DRAW seq=" + motionSequence + " inputToDrawMs="
-                    + Math.max(0L, now - motionInputUptime) + " visual="
+                    + Math.max(0L, now - motionInputUptime)
+                    + " drawClock=uptime inputToPresentationMs="
+                    + Math.max(0L, presentationTime - motionInputUptime) + " visual="
                     + Math.round(renderContentOffsetX) + ',' + Math.round(renderContentOffsetY)
                     + " text=" + Math.round(textContentOffsetX + renderViewportLeadX) + ','
                     + Math.round(textContentOffsetY + renderViewportLeadY)
