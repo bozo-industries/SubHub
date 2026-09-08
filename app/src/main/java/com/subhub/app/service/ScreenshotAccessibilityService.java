@@ -218,6 +218,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private boolean gpuPreparationReady; // capture-worker owned
     private final AtomicBoolean gpuWarmupScheduled = new AtomicBoolean();
     private GpuBitmapPreparer gpuBitmapPreparer; // capture-worker owned
+    private final GpuPreparationHealth gpuPreparationHealth = new GpuPreparationHealth();
     private ScheduledExecutorService inferenceWorker;
     private ScheduledExecutorService qualityInferenceWorker;
     private ScheduledExecutorService textWorker;
@@ -660,7 +661,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 CensorLabLog.i(TAG, "GPU_PREPARE elapsedMs=" + gpuElapsed
                         + " success=" + (prepared != null));
                 // A failed/stalled experiment must not repeatedly tax every subsequent capture.
-                if (prepared == null || gpuElapsed > 48L) {
+                if (!gpuPreparationHealth.record(prepared != null, gpuElapsed)) {
                     gpuPreparationExperiment = false;
                     gpuPreparationReady = false;
                     gpuBitmapPreparer.close();
