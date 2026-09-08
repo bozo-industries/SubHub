@@ -22,3 +22,13 @@ Chrome also moves page content before its first nonzero scroll event, potentiall
 Implemented independent16ms residual reconciliation. Exact two-event replay retains the56px bounded immediate correction but changes the16ms position from187.58px behind to3.02px forecast lead; forecast amplitude95.38px and150ms horizon are unchanged. The dirty integrated app passed473 JVM tests, lint and paired APK builds. The selectively staged motion source, excluding older absolute-anchor experiments, independently passed20 JVM tests including dedicated reconciliation regressions. Earlier working-tree experiments remain unstaged.
 
 Emulator APK SHA256 `AB374DAD138C24CE93514A46614CE771BFDED5A557B85E8CF9750EFC3A81D31C`. This is an integrated dirty-worktree candidate, not a clean-HEAD artifact. Recorder-free controls, before/after video evaluation and physical-device validation remain separate requirements.
+
+## Emulator outcome
+
+Installed the candidate successfully (process8622) after pushing the narrow motion checkpoint. Final full unit rerun includes476 tests, zero failures. Candidate folder `app/build/reports/device/pass36-candidate` contains the APK, working patch and17 untracked source snapshots. The debug anchor experiment remains off.
+
+Ten-gesture host recordings `pass36-before.mp4` / `pass36-after.mp4` and corresponding trace folders completed; all recorder/collector processes exited. Short trace windows11.635/11.355s: fast publications33/31, capture-age median143/151ms and p95288/313ms, native median41/40ms and p95113/97ms, reported fast drops0/0. Quality completions9/4. Restart/cache state and sparse samples prevent interpreting these as a calibrated throughput or quality A/B.
+
+The intended camera residual improves: internal absolute viewport-lead p95116.4→25.15px, maximum195→60px; logged input-to-draw p9578.2→65.15ms (expected-presentation timestamp semantics, not measured compositor latency). This corroborates the unit replay but does not prove mask-to-target alignment. The fixed-image probe still shows conspicuous slow-scroll lag in the video; a fixed seven-second sample also includes different portions of the fling across recordings, so its aggregate percentiles are not an acceptance comparison.
+
+Next incomplete action: test whether retained Accessibility anchors expose the missing browser/content motion before nonzero scroll events, using the existing opt-in freshness diagnostic now that autonomous replay and usable host recording work. Do not extend speculative prediction to invent that displacement. No Pixel install or overall-pass acceptance claimed.
