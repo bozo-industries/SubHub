@@ -21,6 +21,11 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
         ViewportAnchorGeometry.Bounds read();
         @Override void close();
     }
+    enum ReadFailure { CLOSED, REFRESH_FAILED, INVISIBLE, SCOPE_CHANGED, EMPTY_BOUNDS }
+    static final class AnchorReadException extends IllegalStateException {
+        final ReadFailure reason;
+        AnchorReadException(ReadFailure reason) { super(reason.name()); this.reason = reason; }
+    }
     interface Source {
         State state();
         /** Worker-only discovery; returned anchors transfer ownership to this sampler. */
@@ -58,9 +63,12 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
 
     static final class Stats {
         final long reads, accepted, slowDrops, invalidDrops, resets, maxReadMs;
-        Stats(long reads, long accepted, long slowDrops, long invalidDrops, long resets, long maxReadMs) {
+        final String rejectionCounts;
+        Stats(long reads, long accepted, long slowDrops, long invalidDrops, long resets, long maxReadMs,
+                String rejectionCounts) {
             this.reads = reads; this.accepted = accepted; this.slowDrops = slowDrops;
             this.invalidDrops = invalidDrops; this.resets = resets; this.maxReadMs = maxReadMs;
+            this.rejectionCounts = rejectionCounts;
         }
     }
 
@@ -81,7 +89,10 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
     private int consecutiveDrops;
     private long burstUntil, reads, accepted, slowDrops, invalidDrops, resets, maxReadMs;
     private double lastX, lastY;
-    private volatile Stats stats = new Stats(0, 0, 0, 0, 0, 0);
+    private final long[] geometryDrops = new long[ViewportAnchorGeometry.Status.values().length];
+    private final long[] nodeDrops = new long[ReadFailure.values().length];
+    private long scopeDrops, exceptionDrops;
+    private volatile Stats stats = new Stats(0, 0, 0, 0, 0, 0, "NONE");
 
     AsyncViewportAnchorSampler(Clock clock, Worker worker, Source source, Sink sink) {
         this.clock = clock; this.worker = worker; this.source = source; this.sink = sink;
@@ -118,6 +129,7 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
                 if (closed.get()) return;
                 if (!reference.sameStructure(after)) {
                     invalidDrops++;
+                    scopeDrops++;
                     clearBaseline();
                 } else if (cost > MAX_READ_MS) {
                     slowDrops++;
@@ -132,6 +144,7 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
                             after.epoch, readStart, readEnd, clock.now(), MAX_AGE_MS);
                     if (!result.accepted()) {
                         invalidDrops++;
+                        geometryDrops[result.status.ordinal()]++;
                         clearBaseline();
                         delay = RETRY_MS;
                     } else if (!confirmed) {
@@ -168,13 +181,39 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
             }
         } catch (RuntimeException failure) {
             invalidDrops++;
+            if (failure instanceof AnchorReadException) {
+                nodeDrops[((AnchorReadException) failure).reason.ordinal()]++;
+            } else {
+                exceptionDrops++;
+            }
             clearBaseline();
             delay = RETRY_MS;
         } finally {
-            stats = new Stats(reads, accepted, slowDrops, invalidDrops, resets, maxReadMs);
+            stats = new Stats(reads, accepted, slowDrops, invalidDrops, resets, maxReadMs,
+                    rejectionCounts());
             if (closed.get()) finishCloseOnWorker();
             else worker.schedule(this::tick, delay);
         }
+    }
+
+    /** Fixed enum/count vocabulary only; never provider text, node IDs or exception messages. */
+    private String rejectionCounts() {
+        StringBuilder value = new StringBuilder();
+        for (ViewportAnchorGeometry.Status status : ViewportAnchorGeometry.Status.values()) {
+            appendCount(value, status.name(), geometryDrops[status.ordinal()]);
+        }
+        for (ReadFailure reason : ReadFailure.values()) {
+            appendCount(value, reason.name(), nodeDrops[reason.ordinal()]);
+        }
+        appendCount(value, "STRUCTURE_CHANGED", scopeDrops);
+        appendCount(value, "UNCLASSIFIED_EXCEPTION", exceptionDrops);
+        return value.length() == 0 ? "NONE" : value.toString();
+    }
+
+    private static void appendCount(StringBuilder output, String key, long count) {
+        if (count == 0) return;
+        if (output.length() > 0) output.append(',');
+        output.append(key).append(':').append(count);
     }
 
     private void discover(State before) {

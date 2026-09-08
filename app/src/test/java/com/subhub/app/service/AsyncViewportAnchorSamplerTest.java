@@ -12,6 +12,30 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public final class AsyncViewportAnchorSamplerTest {
+    @Test public void rejectionDiagnosticsSeparateClippingFromTranslationDisagreement() {
+        Fixture clipped = new Fixture(); clipped.arm(); clipped.source.clip = true; clipped.step();
+        assertEquals("RESIZED_OR_CLIPPED:1", clipped.sampler.stats().rejectionCounts);
+        Fixture inconsistent = new Fixture(); inconsistent.arm();
+        inconsistent.source.skew = true; inconsistent.step();
+        assertEquals("INCONSISTENT_TRANSLATION:1", inconsistent.sampler.stats().rejectionCounts);
+        assertTrue(clipped.results.isEmpty());
+        assertTrue(inconsistent.results.isEmpty());
+    }
+
+    @Test public void rejectionDiagnosticsNeverIncludeProviderExceptionMessages() {
+        Fixture f = new Fixture(); f.arm();
+        f.source.onRead = () -> { throw new IllegalStateException("private provider text"); };
+        f.step();
+        assertEquals("UNCLASSIFIED_EXCEPTION:1", f.sampler.stats().rejectionCounts);
+        assertEquals(1, f.sampler.stats().invalidDrops);
+        for (AsyncViewportAnchorSampler.ReadFailure reason : AsyncViewportAnchorSampler.ReadFailure.values()) {
+            Fixture typed = new Fixture(); typed.arm();
+            typed.source.onRead = () -> { throw new AsyncViewportAnchorSampler.AnchorReadException(reason); };
+            typed.step();
+            assertEquals(reason.name() + ":1", typed.sampler.stats().rejectionCounts);
+            assertEquals(3, typed.source.closes);
+        }
+    }
     @Test public void repeatedAbsoluteReadsDoNotDoubleApplyEvents() {
         Fixture f = new Fixture(); f.arm();
         f.source.dy = -25; f.step();
@@ -282,7 +306,7 @@ public final class AsyncViewportAnchorSamplerTest {
         final Fixture fixture;
         long epoch = 1, cameraY, lastMotion;
         int dy, readCost = 1, frameInterval = 16, closes, acquisitions, reads, stateReads;
-        boolean clip, failAcquire, clustered;
+        boolean clip, failAcquire, clustered, skew;
         Runnable onRead;
         FakeSource(Fixture fixture) { this.fixture = fixture; }
         public AsyncViewportAnchorSampler.State state() {
@@ -305,8 +329,9 @@ public final class AsyncViewportAnchorSamplerTest {
                     Runnable action = onRead; onRead = null;
                     if (action != null) action.run();
                     int x = index * (clustered ? 5 : 200);
-                    return new ViewportAnchorGeometry.Bounds(x, 400 + dy,
-                            x + 100, 500 + dy - (clip && index == 0 ? 20 : 0));
+                    int shift = dy + (skew ? index * 20 : 0);
+                    return new ViewportAnchorGeometry.Bounds(x, 400 + shift,
+                            x + 100, 500 + shift - (clip && index == 0 ? 20 : 0));
                 }
                 public void close() { assertFalse(released); released = true; closes++; }
             };
