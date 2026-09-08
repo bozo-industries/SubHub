@@ -27,6 +27,7 @@ public final class Detection {
     private final ObservationSource source;
     private final GeometryQuality geometryQuality;
     private final String anchorKey;
+    private final RenderSourceReference renderSourceReference;
     private int trackId = -1;
 
     public Detection(
@@ -50,6 +51,14 @@ public final class Detection {
             ObservationSource source,
             GeometryQuality geometryQuality,
             String anchorKey) {
+        this(className, category, confidence, box, nsfw, exposed, source,
+                geometryQuality, anchorKey, RenderSourceReference.UNKNOWN);
+    }
+
+    private Detection(String className, String category, float confidence, BBox box,
+            boolean nsfw, boolean exposed, ObservationSource source,
+            GeometryQuality geometryQuality, String anchorKey,
+            RenderSourceReference renderSourceReference) {
         this.className = Objects.requireNonNull(className);
         this.category = Objects.requireNonNull(category);
         this.confidence = confidence;
@@ -59,6 +68,7 @@ public final class Detection {
         this.source = Objects.requireNonNull(source);
         this.geometryQuality = Objects.requireNonNull(geometryQuality);
         this.anchorKey = anchorKey;
+        this.renderSourceReference = Objects.requireNonNull(renderSourceReference);
     }
 
     public String getClassName() { return className; }
@@ -70,6 +80,7 @@ public final class Detection {
     public ObservationSource getSource() { return source; }
     public GeometryQuality getGeometryQuality() { return geometryQuality; }
     public String getAnchorKey() { return anchorKey; }
+    public RenderSourceReference getRenderSourceReference() { return renderSourceReference; }
     public int getTrackId() { return trackId; }
     public void setTrackId(int trackId) { this.trackId = trackId; }
 
@@ -78,7 +89,14 @@ public final class Detection {
             GeometryQuality valueGeometryQuality,
             String valueAnchorKey) {
         Detection copy = new Detection(className, category, confidence, box, nsfw, exposed,
-                valueSource, valueGeometryQuality, valueAnchorKey);
+                valueSource, valueGeometryQuality, valueAnchorKey, renderSourceReference);
+        copy.trackId = trackId;
+        return copy;
+    }
+
+    public Detection withRenderSourceReference(RenderSourceReference reference) {
+        Detection copy = new Detection(className, category, confidence, box, nsfw, exposed,
+                source, geometryQuality, anchorKey, reference);
         copy.trackId = trackId;
         return copy;
     }

@@ -21,6 +21,8 @@ public final class TrackedObject {
     private String anchorKey;
     private Detection.ObservationSource observationSource;
     private boolean qualityOnly;
+    /** Provenance of rawBox, carried opaquely without affecting tracker decisions. */
+    private RenderSourceReference renderSourceReference;
 
     TrackedObject(int id, Detection detection, long nowNanos) {
         this(id, detection, nowNanos, true);
@@ -32,6 +34,7 @@ public final class TrackedObject {
         className = detection.getClassName();
         box = detection.getBox();
         rawBox = detection.getBox();
+        renderSourceReference = detection.getRenderSourceReference();
         predictionOriginBox = box;
         confidence = detection.getConfidence();
         lastSeenNanos = nowNanos;
@@ -48,6 +51,7 @@ public final class TrackedObject {
         className = source.className;
         box = source.box;
         rawBox = source.rawBox;
+        renderSourceReference = source.renderSourceReference;
         confidence = source.confidence;
         lastSeenNanos = source.lastSeenNanos;
         framesTracked = source.framesTracked;
@@ -68,6 +72,7 @@ public final class TrackedObject {
     public String getClassName() { return className; }
     public BBox getBox() { return box; }
     public BBox getRawBox() { return rawBox; }
+    public RenderSourceReference getRenderSourceReference() { return renderSourceReference; }
     public float getConfidence() { return confidence; }
     public long getLastSeenNanos() { return lastSeenNanos; }
     public int getFramesTracked() { return framesTracked; }
@@ -93,6 +98,7 @@ public final class TrackedObject {
         if (geometrySource == null) return rendered;
         rendered.box = geometrySource.box;
         rendered.rawBox = geometrySource.rawBox;
+        rendered.renderSourceReference = geometrySource.renderSourceReference;
         rendered.predictionOriginBox = geometrySource.predictionOriginBox;
         rendered.confidence = Math.max(confidence, geometrySource.confidence);
         rendered.lastSeenNanos = geometrySource.lastSeenNanos;
@@ -111,6 +117,7 @@ public final class TrackedObject {
 
     void update(Detection detection, BBox renderedBox, float dx, float dy, long nowNanos) {
         rawBox = detection.getBox();
+        renderSourceReference = detection.getRenderSourceReference();
         box = renderedBox;
         predictionOriginBox = renderedBox;
         confidence = detection.getConfidence();
