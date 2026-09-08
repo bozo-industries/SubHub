@@ -10,9 +10,11 @@ public final class GpuBitmapPreparerAndroidTest {
     @SdkSuppress(minSdkVersion = 29)
     @Test public void alternatingShapesAndAlphaNeverReturnPreviousPixelsOrOwnTheSource() {
         try (GpuBitmapPreparer preparer = new GpuBitmapPreparer()) {
-        for (int i = 0; i < 12; i++) {
-            int width = i % 2 == 0 ? 300 : 800;
-            int height = i % 2 == 0 ? 800 : 300;
+        // Several fresh sources per identical output size exercise retained renderer resources,
+        // not just resize/recreation. Source colors change every request and are recycled below.
+        for (int i = 0; i < 24; i++) {
+            int width = (i / 6) % 2 == 0 ? 300 : 800;
+            int height = (i / 6) % 2 == 0 ? 800 : 300;
             int color = i % 2 == 0 ? Color.RED : 0x800000ff;
             Bitmap software = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             software.eraseColor(color);
