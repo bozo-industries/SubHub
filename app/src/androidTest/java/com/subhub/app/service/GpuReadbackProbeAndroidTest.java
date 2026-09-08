@@ -97,6 +97,11 @@ public final class GpuReadbackProbeAndroidTest {
                 Bitmap smallHardware = null, gpu = null;
                 try {
                     start = System.nanoTime();
+                    if (engine != null) {
+                        InferenceBitmapPreparer.Prepared candidate = GpuBitmapPreparer.prepare(hardware, 320, false);
+                        assertNotNull("Production candidate returned fallback", candidate);
+                        gpu = candidate.bitmap;
+                    } else {
                     // Mark every trial dirty. An unchanged retained display list can skip drawing,
                     // so sync success alone does not guarantee a newly queued ImageReader frame.
                     Canvas canvas = node.beginRecording();
@@ -114,6 +119,7 @@ public final class GpuReadbackProbeAndroidTest {
                             gpu = smallHardware.copy(Bitmap.Config.ARGB_8888, false);
                             assertNotNull(gpu);
                         }
+                    }
                     }
                     long gpuTime = System.nanoTime() - start;
                     int[] a = new int[width * height], b = new int[a.length];
