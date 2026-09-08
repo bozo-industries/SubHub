@@ -214,7 +214,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
             (preferences, key) -> reloadSettings();
     private ScheduledExecutorService worker;
-    private boolean gpuPreparationExperiment;
+    private volatile boolean gpuPreparationExperiment;
+    private boolean gpuPreparationReady; // capture-worker owned
+    private final AtomicBoolean gpuWarmupScheduled = new AtomicBoolean();
     private GpuBitmapPreparer gpuBitmapPreparer; // capture-worker owned
     private ScheduledExecutorService inferenceWorker;
     private ScheduledExecutorService qualityInferenceWorker;
@@ -650,7 +652,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     currentConfig, fastDetector != null, overlayNeedsSourceFrame);
             traceCaptureStage(requestedAtUptimeMillis, "prepare-start");
             InferenceBitmapPreparer.Prepared prepared = null;
-            if (gpuPreparationExperiment && Build.VERSION.SDK_INT >= 29) {
+            if (gpuPreparationExperiment && gpuPreparationReady && Build.VERSION.SDK_INT >= 29) {
                 long gpuStarted = SystemClock.uptimeMillis();
                 if (gpuBitmapPreparer == null) gpuBitmapPreparer = new GpuBitmapPreparer();
                 prepared = gpuBitmapPreparer.prepare(wrapped, fastFrameResolution, overlayNeedsSourceFrame);
@@ -660,6 +662,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 // A failed/stalled experiment must not repeatedly tax every subsequent capture.
                 if (prepared == null || gpuElapsed > 48L) {
                     gpuPreparationExperiment = false;
+                    gpuPreparationReady = false;
                     gpuBitmapPreparer.close();
                     gpuBitmapPreparer = null;
                 }
@@ -1877,6 +1880,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + " qualityActive=" + qualityInferenceDraining.get()
                         + " qualityPreemptions=" + qualityInferencePreemptions.get()
                         + " qualityCancelledRuns=" + qualityInferenceCancelledRuns.get());
+                scheduleGpuPreparationWarmup();
                 } else if (overlayFrame != null) {
                     overlayFrame.recycle();
                 }
@@ -1898,6 +1902,48 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 presenter.submit(presentation);
             }
         });
+    }
+
+    private void scheduleGpuPreparationWarmup() {
+        if (!gpuPreparationExperiment || Build.VERSION.SDK_INT < 29
+                || !gpuWarmupScheduled.compareAndSet(false, true)) return;
+        ScheduledExecutorService captureWorker = worker;
+        if (captureWorker == null || captureWorker.isShutdown()) return;
+        try {
+            captureWorker.execute(() -> {
+                if (!running || !gpuPreparationExperiment) return;
+                long start = SystemClock.uptimeMillis();
+                Bitmap software = null, hardware = null;
+                InferenceBitmapPreparer.Prepared warm = null;
+                try {
+                    int resolution = fastInferenceFrameResolution(detectorConfig,
+                            fastDetector != null, overlayNeedsSourceFrame);
+                    int[] size = InferenceBitmapPreparer.targetDimensions(
+                            latestCaptureWidth, latestCaptureHeight, resolution);
+                    software = Bitmap.createBitmap(size[0], size[1], Bitmap.Config.ARGB_8888);
+                    software.eraseColor(android.graphics.Color.BLACK);
+                    hardware = software.copy(Bitmap.Config.HARDWARE, false);
+                    if (gpuBitmapPreparer == null) gpuBitmapPreparer = new GpuBitmapPreparer();
+                    warm = gpuBitmapPreparer.prepare(hardware, resolution, false);
+                    gpuPreparationReady = warm != null;
+                } catch (RuntimeException failed) {
+                    gpuPreparationReady = false;
+                } finally {
+                    if (warm != null) warm.bitmap.recycle();
+                    if (hardware != null) hardware.recycle();
+                    if (software != null) software.recycle();
+                    if (!gpuPreparationReady) {
+                        gpuPreparationExperiment = false;
+                        if (gpuBitmapPreparer != null) gpuBitmapPreparer.close();
+                        gpuBitmapPreparer = null;
+                    }
+                    CensorLabLog.i(TAG, "GPU_WARMUP afterFirstPublish=true elapsedMs="
+                            + (SystemClock.uptimeMillis() - start) + " ready=" + gpuPreparationReady);
+                }
+            });
+        } catch (RejectedExecutionException stopped) {
+            gpuPreparationExperiment = false;
+        }
     }
 
     /** Numeric-only teacher record used to mask/score censors against the recorded pixels. */
