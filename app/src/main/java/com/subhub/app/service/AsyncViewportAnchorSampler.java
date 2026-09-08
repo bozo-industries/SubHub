@@ -64,11 +64,17 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
     static final class Stats {
         final long reads, accepted, slowDrops, invalidDrops, resets, maxReadMs;
         final String rejectionCounts;
+        final long singleNodeBudgetDrops, aggregateBudgetDrops, discoveryBudgetDrops, maxNodeMs;
         Stats(long reads, long accepted, long slowDrops, long invalidDrops, long resets, long maxReadMs,
-                String rejectionCounts) {
+                String rejectionCounts, long singleNodeBudgetDrops, long aggregateBudgetDrops,
+                long discoveryBudgetDrops, long maxNodeMs) {
             this.reads = reads; this.accepted = accepted; this.slowDrops = slowDrops;
             this.invalidDrops = invalidDrops; this.resets = resets; this.maxReadMs = maxReadMs;
             this.rejectionCounts = rejectionCounts;
+            this.singleNodeBudgetDrops = singleNodeBudgetDrops;
+            this.aggregateBudgetDrops = aggregateBudgetDrops;
+            this.discoveryBudgetDrops = discoveryBudgetDrops;
+            this.maxNodeMs = maxNodeMs;
         }
     }
 
@@ -92,7 +98,9 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
     private final long[] geometryDrops = new long[ViewportAnchorGeometry.Status.values().length];
     private final long[] nodeDrops = new long[ReadFailure.values().length];
     private long scopeDrops, exceptionDrops;
-    private volatile Stats stats = new Stats(0, 0, 0, 0, 0, 0, "NONE");
+    private long singleNodeBudgetDrops, aggregateBudgetDrops, discoveryBudgetDrops, maxNodeMs;
+    private long batchMaxNodeMs;
+    private volatile Stats stats = new Stats(0, 0, 0, 0, 0, 0, "NONE", 0, 0, 0, 0);
 
     AsyncViewportAnchorSampler(Clock clock, Worker worker, Source source, Sink sink) {
         this.clock = clock; this.worker = worker; this.source = source; this.sink = sink;
@@ -133,6 +141,8 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
                     clearBaseline();
                 } else if (cost > MAX_READ_MS) {
                     slowDrops++;
+                    if (batchMaxNodeMs > MAX_READ_MS) singleNodeBudgetDrops++;
+                    else aggregateBudgetDrops++;
                     // A missed deadline says nothing about baseline validity. Keep the same
                     // absolute reference so a fresh read can recover even while scrolling;
                     // rediscovery requires idle and would lose the remainder of the gesture.
@@ -190,7 +200,8 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
             delay = RETRY_MS;
         } finally {
             stats = new Stats(reads, accepted, slowDrops, invalidDrops, resets, maxReadMs,
-                    rejectionCounts());
+                    rejectionCounts(), singleNodeBudgetDrops, aggregateBudgetDrops,
+                    discoveryBudgetDrops, maxNodeMs);
             if (closed.get()) finishCloseOnWorker();
             else worker.schedule(this::tick, delay);
         }
@@ -222,8 +233,14 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
         if (closed.get() || anchors.size() < 3 || anchors.size() > 5) {
             clearBaseline(); return;
         }
-        List<ViewportAnchorGeometry.Bounds> baseline = readBounds(Long.MAX_VALUE);
+        long readStart = clock.now();
+        List<ViewportAnchorGeometry.Bounds> baseline = readBounds(readStart + MAX_READ_MS);
         if (closed.get()) return;
+        if (clock.now() - readStart > MAX_READ_MS || baseline.size() != anchors.size()) {
+            discoveryBudgetDrops++;
+            clearBaseline();
+            return;
+        }
         State after = source.state();
         if (!before.sameCamera(after) || clock.now() - after.lastMotionMs < SETTLED_MS
                 || !spatiallySpread(baseline, after)) {
@@ -250,9 +267,17 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
 
     private List<ViewportAnchorGeometry.Bounds> readBounds(long deadline) {
         List<ViewportAnchorGeometry.Bounds> bounds = new ArrayList<>(anchors.size());
+        batchMaxNodeMs = 0;
         for (Anchor anchor : anchors) {
             if (closed.get() || clock.now() > deadline) break;
-            bounds.add(anchor.read());
+            long start = clock.now();
+            try {
+                bounds.add(anchor.read());
+            } finally {
+                long cost = Math.max(0, clock.now() - start);
+                batchMaxNodeMs = Math.max(batchMaxNodeMs, cost);
+                maxNodeMs = Math.max(maxNodeMs, cost);
+            }
         }
         return bounds;
     }

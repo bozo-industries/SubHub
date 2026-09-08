@@ -12,6 +12,30 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public final class AsyncViewportAnchorSamplerTest {
+    @Test public void discoveryStopsAfterOneOverBudgetNodeAndReleasesAllHandles() {
+        Fixture f = new Fixture(); f.source.readCost = 40;
+        f.sampler.start(); f.step();
+        assertEquals(1, f.source.reads);
+        assertEquals(3, f.source.closes);
+        assertEquals(1, f.sampler.stats().discoveryBudgetDrops);
+        assertEquals(40, f.sampler.stats().maxNodeMs);
+        assertEquals(0, f.sampler.stats().invalidDrops);
+        f.source.readCost = 1; f.step(); f.step(); f.step();
+        assertEquals(1, f.results.size());
+    }
+
+    @Test public void distinguishesSingleBlockingCallFromAccumulatedGroupCost() {
+        Fixture f = new Fixture(); f.arm();
+        f.source.readCost = 7; f.step();
+        assertEquals(1, f.sampler.stats().aggregateBudgetDrops);
+        assertEquals(0, f.sampler.stats().singleNodeBudgetDrops);
+        f.source.readCost = 40; f.step();
+        assertEquals(1, f.sampler.stats().singleNodeBudgetDrops);
+        assertEquals(2, f.sampler.stats().slowDrops);
+        assertEquals(40, f.sampler.stats().maxNodeMs);
+        assertEquals(0, f.source.closes);
+    }
+
     @Test public void rejectionDiagnosticsSeparateClippingFromTranslationDisagreement() {
         Fixture clipped = new Fixture(); clipped.arm(); clipped.source.clip = true; clipped.step();
         assertEquals("RESIZED_OR_CLIPPED:1", clipped.sampler.stats().rejectionCounts);
