@@ -37,6 +37,11 @@ For direct ADB instrumentation, first confirm the declared runner with
 `AndroidJUnitRunner`; the custom runner prepares the controller PIN without
 overriding each test's Dom/Sub state.
 
+For Windows 10 emulator setup when the bundled screenshot helper fails, follow
+[Android capture fallback](docs/censor-lab/android-capture-fallback.md). Check supported
+keyboard-only control before declaring all UI automation unavailable; never fabricate screenshot
+IDs or bypass denied permission/input operations.
+
 ## Release procedure
 
 1. Complete the version bump and release notes in reviewable commits.
