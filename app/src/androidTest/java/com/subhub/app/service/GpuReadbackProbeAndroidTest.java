@@ -83,7 +83,8 @@ public final class GpuReadbackProbeAndroidTest {
         RenderNode node = new RenderNode("readback-probe");
         node.setPosition(0, 0, width, height);
         HardwareRenderer renderer = new HardwareRenderer();
-        try (ImageReader reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2,
+        try (GpuBitmapPreparer candidatePreparer = new GpuBitmapPreparer();
+                ImageReader reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2,
                 HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE | HardwareBuffer.USAGE_GPU_COLOR_OUTPUT)) {
             renderer.setSurface(reader.getSurface());
             renderer.setContentRoot(node);
@@ -98,7 +99,7 @@ public final class GpuReadbackProbeAndroidTest {
                 try {
                     start = System.nanoTime();
                     if (engine != null) {
-                        InferenceBitmapPreparer.Prepared candidate = GpuBitmapPreparer.prepare(hardware, 320, false);
+                        InferenceBitmapPreparer.Prepared candidate = candidatePreparer.prepare(hardware, 320, false);
                         assertNotNull("Production candidate returned fallback", candidate);
                         gpu = candidate.bitmap;
                     } else {

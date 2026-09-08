@@ -214,6 +214,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
             (preferences, key) -> reloadSettings();
     private ScheduledExecutorService worker;
+    private boolean gpuPreparationExperiment;
+    private GpuBitmapPreparer gpuBitmapPreparer; // capture-worker owned
     private ScheduledExecutorService inferenceWorker;
     private ScheduledExecutorService qualityInferenceWorker;
     private ScheduledExecutorService textWorker;
@@ -345,6 +347,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         configureAccessibilityCadence(settings.loadDetectorConfig());
 
         worker = newScheduledWorker("SubHub-capture", Process.THREAD_PRIORITY_DISPLAY);
+        gpuPreparationExperiment = BuildConfig.DEBUG && Build.VERSION.SDK_INT >= 29
+                && getSharedPreferences("gpu_preparation_experiment", MODE_PRIVATE)
+                .getBoolean("enabled", false);
         inferenceWorker = newScheduledWorker(
                 "SubHub-fast-inference", Process.THREAD_PRIORITY_DISPLAY);
         qualityInferenceWorker = newScheduledWorker(
@@ -644,9 +649,23 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             int fastFrameResolution = fastInferenceFrameResolution(
                     currentConfig, fastDetector != null, overlayNeedsSourceFrame);
             traceCaptureStage(requestedAtUptimeMillis, "prepare-start");
-            InferenceBitmapPreparer.Prepared prepared = InferenceBitmapPreparer.prepare(
-                    wrapped, fastFrameResolution,
-                    overlayNeedsSourceFrame);
+            InferenceBitmapPreparer.Prepared prepared = null;
+            if (gpuPreparationExperiment && Build.VERSION.SDK_INT >= 29) {
+                long gpuStarted = SystemClock.uptimeMillis();
+                if (gpuBitmapPreparer == null) gpuBitmapPreparer = new GpuBitmapPreparer();
+                prepared = gpuBitmapPreparer.prepare(wrapped, fastFrameResolution, overlayNeedsSourceFrame);
+                long gpuElapsed = SystemClock.uptimeMillis() - gpuStarted;
+                CensorLabLog.i(TAG, "GPU_PREPARE elapsedMs=" + gpuElapsed
+                        + " success=" + (prepared != null));
+                // A failed/stalled experiment must not repeatedly tax every subsequent capture.
+                if (prepared == null || gpuElapsed > 48L) {
+                    gpuPreparationExperiment = false;
+                    gpuBitmapPreparer.close();
+                    gpuBitmapPreparer = null;
+                }
+            }
+            if (prepared == null) prepared = InferenceBitmapPreparer.prepare(
+                    wrapped, fastFrameResolution, overlayNeedsSourceFrame);
             if (prepared == null) return;
             if (BuildConfig.DEBUG) {
                 CensorLabLog.i(TAG, "CAPTURE_PREPARE id=" + requestedAtUptimeMillis
@@ -4547,7 +4566,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (settings != null) {
             settings.preferences().unregisterOnSharedPreferenceChangeListener(listener);
         }
-        if (worker != null) worker.shutdownNow();
+        if (worker != null) {
+            worker.execute(() -> {
+                if (Build.VERSION.SDK_INT >= 29 && gpuBitmapPreparer != null) {
+                    gpuBitmapPreparer.close();
+                    gpuBitmapPreparer = null;
+                }
+            });
+            worker.shutdown();
+        }
         discardPendingInference();
         if (inferenceWorker != null) inferenceWorker.shutdownNow();
         discardPendingQualityInference();
