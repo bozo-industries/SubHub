@@ -5,12 +5,26 @@ import static org.junit.Assert.assertSame;
 
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.Detection;
+import com.subhub.app.detection.RenderSourceReference;
 
 import org.junit.Test;
 
 import java.util.List;
 
 public final class InferenceScrollReprojectorTest {
+    @Test public void projectionPreservesGeometryIdentityAndRenderReference() {
+        RenderSourceReference reference = RenderSourceReference.known(
+                new RenderSourceReference.Origin(1, 2, 3, 1080, 2400, 4), 100, 0, 40);
+        Detection source = detection(new BBox(200, 800, 300, 400))
+                .withRenderSourceReference(reference);
+        source.setTrackId(42);
+        Detection result = InferenceScrollReprojector.toCurrentViewport(
+                List.of(source), 1080, 2400, 1080, 2400, 0, 0, 0, 50).get(0);
+        assertEquals(42, result.getTrackId());
+        assertSame(reference, result.getRenderSourceReference());
+        assertEquals(new BBox(200, 750, 300, 400), result.getBox());
+    }
+
     @Test public void scrollDownMovesOldScreenshotDetectionUpToLivePosition() {
         Detection detection = detection(new BBox(200, 800, 300, 400));
 

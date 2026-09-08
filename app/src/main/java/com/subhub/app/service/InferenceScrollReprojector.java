@@ -33,7 +33,7 @@ final class InferenceScrollReprojector {
             int right = clamp(box.getRight() + dx, 0, frameWidth);
             int bottom = clamp(box.getBottom() + dy, 0, frameHeight);
             if (right <= left || bottom <= top) continue;
-            shifted.add(new Detection(
+            Detection projected = new Detection(
                     detection.getClassName(),
                     detection.getCategory(),
                     detection.getConfidence(),
@@ -42,7 +42,9 @@ final class InferenceScrollReprojector {
                     detection.isExposed(),
                     detection.getSource(),
                     detection.getGeometryQuality(),
-                    detection.getAnchorKey()));
+                    detection.getAnchorKey()).withRenderSourceReference(detection.getRenderSourceReference());
+            projected.setTrackId(detection.getTrackId());
+            shifted.add(projected);
         }
         return shifted;
     }
