@@ -3627,6 +3627,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             node.getBoundsInScreen(bounds);
             CharSequence kind = node.getClassName();
             CensorLabLog.i(TAG, "SCROLL_SOURCE_BOUNDS sourceUptimeMs=" + event.getEventTime()
+                    + " absolute=" + event.getScrollX() + ',' + event.getScrollY()
                     + " observedUptimeMs=" + started + " rect=" + bounds.left + ',' + bounds.top
                     + ',' + bounds.right + ',' + bounds.bottom
                     + " webView=" + "android.webkit.WebView".contentEquals(kind == null ? "" : kind)
