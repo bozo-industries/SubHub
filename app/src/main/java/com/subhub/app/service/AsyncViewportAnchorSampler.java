@@ -121,8 +121,12 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
                     clearBaseline();
                 } else if (cost > MAX_READ_MS) {
                     slowDrops++;
-                    if (++consecutiveDrops >= 3) clearBaseline();
-                    delay = RETRY_MS;
+                    // A missed deadline says nothing about baseline validity. Keep the same
+                    // absolute reference so a fresh read can recover even while scrolling;
+                    // rediscovery requires idle and would lose the remainder of the gesture.
+                    consecutiveDrops = Math.min(8, consecutiveDrops + 1);
+                    delay = Math.min(RETRY_MS, Math.max(MAX_READ_MS, after.frameIntervalMs)
+                            * (1L << (consecutiveDrops - 1)));
                 } else {
                     ViewportAnchorGeometry.Result result = geometry.estimate(bounds,
                             after.epoch, readStart, readEnd, clock.now(), MAX_AGE_MS);

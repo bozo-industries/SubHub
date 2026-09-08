@@ -25,18 +25,61 @@ public final class AsyncViewportAnchorSamplerTest {
 
     @Test public void droppedSlowReadHasNoPublicationAndNextAbsoluteReadCatchesUp() {
         Fixture f = new Fixture(); f.arm();
+        f.step();
+        long baseline = f.results.get(0).baselineIdentity;
+        f.results.clear();
         f.source.readCost = 7; f.source.dy = -20; f.step();
         assertTrue(f.results.isEmpty());
         assertEquals(1, f.sampler.stats().slowDrops);
+        assertEquals(16, f.worker.lastDelay);
+        f.source.lastMotion = f.time; // Idle-only discovery would refuse this recovery.
         f.source.readCost = 1; f.source.dy = -120; f.source.cameraY = -120; f.step();
         assertEquals(-120, f.results.get(0).measuredY, 0);
+        assertEquals(baseline, f.results.get(0).baselineIdentity);
+        assertEquals(1, f.source.acquisitions);
+        assertEquals(0, f.source.closes);
+        assertTrue(f.time - f.source.lastMotion < 200);
         assertEquals(21, f.sampler.stats().maxReadMs);
     }
 
-    @Test public void threeSlowReadsReleaseBaselineWithoutBusyRetry() {
+    @Test public void repeatedSlowReadsRetainBaselineWithCappedBackoff() {
+        for (int frameInterval : new int[]{8, 16, 33}) {
+            Fixture f = new Fixture(); f.source.frameInterval = frameInterval;
+            f.arm(); f.source.readCost = 7;
+            long expectedDelay = Math.max(16, frameInterval);
+            for (int failure = 0; failure < 12; failure++) {
+                long priorTime = f.time;
+                long priorDelay = f.worker.lastDelay;
+                f.source.lastMotion = priorTime;
+                f.step();
+                assertEquals(expectedDelay, f.worker.lastDelay);
+                assertTrue(f.time >= priorTime + priorDelay);
+                assertEquals(1, f.worker.jobs.size());
+                assertTrue(f.worker.maximumQueued <= 1);
+                assertEquals(0, f.source.closes);
+                assertEquals(0, f.sampler.stats().resets);
+                assertEquals(1, f.source.acquisitions);
+                assertTrue(f.results.isEmpty());
+                expectedDelay = Math.min(250, expectedDelay * 2);
+            }
+            assertEquals(12, f.sampler.stats().slowDrops);
+            f.source.readCost = 1; f.source.dy = -180;
+            // Keep source motion active at read time even after the capped delay.
+            f.source.onRead = () -> f.source.lastMotion = f.time;
+            f.step();
+            assertEquals(-180, f.results.get(0).measuredY, 0);
+            f.source.readCost = 7; f.step();
+            assertEquals(Math.max(16, frameInterval), f.worker.lastDelay);
+        }
+    }
+
+    @Test public void invalidGeometryStillDiscardsBaselineAfterSlowReads() {
         Fixture f = new Fixture(); f.arm(); f.source.readCost = 7;
         f.step(); f.step(); f.step();
+        f.source.readCost = 1; f.source.clip = true; f.step();
         assertEquals(3, f.source.closes);
+        assertEquals(1, f.sampler.stats().resets);
+        assertEquals(1, f.sampler.stats().invalidDrops);
         assertTrue(f.results.isEmpty());
         assertEquals(250, f.worker.lastDelay);
     }
@@ -125,6 +168,7 @@ public final class AsyncViewportAnchorSamplerTest {
         f.source.readCost = 7; f.step();
         assertEquals(0, f.source.closes);
         assertEquals(3, f.sampler.stats().slowDrops);
+        assertEquals(16, f.worker.lastDelay);
     }
 
     @Test public void closeDuringReadDoesNotQueryTornDownSourceAfterward() {
@@ -237,14 +281,14 @@ public final class AsyncViewportAnchorSamplerTest {
     private static final class FakeSource implements AsyncViewportAnchorSampler.Source {
         final Fixture fixture;
         long epoch = 1, cameraY, lastMotion;
-        int dy, readCost = 1, closes, acquisitions, reads, stateReads;
+        int dy, readCost = 1, frameInterval = 16, closes, acquisitions, reads, stateReads;
         boolean clip, failAcquire, clustered;
         Runnable onRead;
         FakeSource(Fixture fixture) { this.fixture = fixture; }
         public AsyncViewportAnchorSampler.State state() {
             stateReads++;
             return new AsyncViewportAnchorSampler.State(true, epoch, 42, 1000, 2000,
-                    0, cameraY, lastMotion, 16);
+                    0, cameraY, lastMotion, frameInterval);
         }
         public List<AsyncViewportAnchorSampler.Anchor> acquire(AsyncViewportAnchorSampler.State state) {
             acquisitions++;
