@@ -42,6 +42,12 @@ For Windows 10 emulator setup when the bundled screenshot helper fails, follow
 keyboard-only control before declaring all UI automation unavailable; never fabricate screenshot
 IDs or bypass denied permission/input operations.
 
+## Diagnostic trace evidence
+
+Before using performance traces as evidence, compare raw publication counts with parsed counts.
+Every trace-schema change must include a parser fixture for the changed record. Unknown fields or
+unsupported formats must be exposed as incomplete parsing, never silently reported as zero work.
+
 ## Release procedure
 
 1. Complete the version bump and release notes in reviewable commits.

@@ -86,6 +86,8 @@ foreach ($requestedPath in $Path) {
     $textScans = [Collections.Generic.List[object]]::new()
     $textPublishes = [Collections.Generic.List[object]]::new()
     $textConfirms = [Collections.Generic.List[object]]::new()
+    $rawOverlayRecords = 0
+    $knownRenderSourceRecords = 0
     $fastPublishTimes = [Collections.Generic.List[datetime]]::new()
     $motionDraws = [Collections.Generic.List[object]]::new()
     $motionInputs = [Collections.Generic.List[object]]::new()
@@ -97,6 +99,12 @@ foreach ($requestedPath in $Path) {
 
     foreach ($line in $lines) {
         $time = Get-TraceTime $line
+        if ($line.Contains('OVERLAY_PUBLISH ')) {
+            $rawOverlayRecords++
+            if ($line -match ' renderSourceKnown=true ') { $knownRenderSourceRecords++ }
+            # Provenance is additive telemetry; keep the legacy positional frame schema intact.
+            $line = $line -replace ' renderSourceKnown=(?:true|false) renderSourceTime=-?\d+ renderSourceBias=-?\d+,-?\d+$', ''
+        }
         if ($null -ne $time) {
             if ($null -eq $firstTime) { $firstTime = $time }
             $lastTime = $time
@@ -683,6 +691,13 @@ foreach ($requestedPath in $Path) {
 
     $summary = [ordered]@{
         file = $resolved
+        parsing = [ordered]@{
+            overlayRecords = $rawOverlayRecords
+            parsedOverlayRecords = $publishes.Count
+            unparsedOverlayRecords = $rawOverlayRecords - $publishes.Count
+            knownRenderSourceRecords = $knownRenderSourceRecords
+            complete = $rawOverlayRecords -eq $publishes.Count
+        }
         bytes = (Get-Item -LiteralPath $resolved).Length
         durationSeconds = $durationSeconds
         fast = [ordered]@{
