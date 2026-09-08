@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class QualityBackfillCoordinatorTest {
-    @Test public void mailboxKeepsOldestAndClosesRejectedFrameExactlyOnce() {
+    @Test public void mailboxKeepsLatestAndClosesReplacedFrameExactlyOnce() {
         AtomicInteger released = new AtomicInteger();
         QualityBackfillCoordinator<String> coordinator = new QualityBackfillCoordinator<>();
         QualityBackfillCoordinator.BackfillFrame<String> older = frame(
@@ -21,14 +21,14 @@ public final class QualityBackfillCoordinatorTest {
                 "newer", 2L, 200L, 2L, released);
 
         assertTrue(coordinator.offer(older, 100L).accepted());
-        assertEquals(QualityBackfillCoordinator.OfferStatus.REJECTED_NEWER,
+        assertEquals(QualityBackfillCoordinator.OfferStatus.ACCEPTED_REPLACED_OLDER,
                 coordinator.offer(newer, 200L).status());
         assertEquals(1, released.get());
 
         QualityBackfillCoordinator.PollResult<String> poll = coordinator.poll(
                 context(), 250L);
         assertTrue(poll.ready());
-        assertSame("older", poll.frame().resource());
+        assertSame("newer", poll.frame().resource());
         poll.frame().close();
         poll.frame().close();
         assertEquals(2, released.get());
@@ -36,7 +36,7 @@ public final class QualityBackfillCoordinatorTest {
                 coordinator.poll(context(), 250L).status());
     }
 
-    @Test public void outOfOrderOlderFrameReplacesPendingNewerFrame() {
+    @Test public void outOfOrderOlderFrameCannotReplacePendingNewerFrame() {
         AtomicInteger released = new AtomicInteger();
         QualityBackfillCoordinator<String> coordinator = new QualityBackfillCoordinator<>();
         QualityBackfillCoordinator.BackfillFrame<String> newer = frame(
@@ -45,12 +45,12 @@ public final class QualityBackfillCoordinatorTest {
                 "older", 1L, 100L, 1L, released);
 
         coordinator.offer(newer, 200L);
-        assertEquals(QualityBackfillCoordinator.OfferStatus.ACCEPTED_REPLACED_NEWER,
+        assertEquals(QualityBackfillCoordinator.OfferStatus.REJECTED_OLDER,
                 coordinator.offer(older, 200L).status());
         assertEquals(1, released.get());
         QualityBackfillCoordinator.PollResult<String> poll = coordinator.poll(
                 context(), 250L);
-        assertSame("older", poll.frame().resource());
+        assertSame("newer", poll.frame().resource());
         poll.frame().close();
         assertEquals(2, released.get());
     }

@@ -23,3 +23,18 @@ Next: allow fenced current-frame quality without granting long-lived cache ident
 ## Tooling
 
 `scripts/analyze_capture_spans.py` reports numeric request-stage distributions and counts partial/malformed/duplicate/failure records. Missing stages are never zero latency; every report is explicitly ineligible as an acceptance gate. Eight stdlib tests cover field order, failures, missing spans, invalid timestamps, duplicate records and marker scoping. Run alongside the existing censor trace analyzer, not instead of it.
+
+## Current-only quality candidate
+
+Added explicit `CURRENT_ONLY` versus `CACHE_BACKFILL` admission. Current-only requires known request-time application window, document/capture epoch, transform, phase, motion generation and camera coordinates; its source stays in the existing one-slot mailbox. It cannot enter the coordinator confirmation table. Service prototype routes its result only to the next suitable fast publication, with repeated phase/window checks and a 2.5-second age limit, not a fixed one/two-tick cap. Cache-mode motion-tolerant behavior remains separate. Request-time window/document propagation prevents relabeling an older capture as a newer window.
+
+The full dirty-worktree service integration passed469 JVM tests, lint and paired APK build. Independent review found no functional blocker. The narrow policy checkpoint also passed28 isolated JVM tests against the staged source snapshot, excluding older uncommitted cross-category/IoU changes. Service/runner integration remains in the existing dirty candidate pending its own coherent review; policy commits alone are not a complete app build of this behavior.
+
+Emulator-only candidate SHA256 `8553404DC984B4A34CF8042F5FC9DAA932F1131D7176C360C53E1CDC3A4CBEC9`. `pass35-current-only/trace.log`, PASS35_CURRENT_BEGIN/END,335.644 seconds including idle, keyboard scrolls and user browsing (not deterministic A/B):
+
+- 982 fast publications; capture105/162.95ms median/p95, native25/45ms, model pre2/4ms and post1/2ms; publication337/383ms; reported fast queue drops0. There were38 active fast publications only.
+- 920 quality completions, including213 `CURRENT_ONLY`; their backfill matched/inserted/promoted/refined counters remain0. Initial provisional/cache-mode quality is included in the other707 completions.
+- 878 later-fast quality presentations overall, ready-to-present225/260.15ms median/p95. Source1118 was consumed by fast1120, proving it is not locked to exactly one subsequent tick.
+- Quality native87/143.05ms median/p95; preparation59/83ms. Native interval analysis finds18 fast/quality overlap pairs. After correcting the parser for optional `oldFrame`,923 preparation spans and817 preparation/fast-native overlap pairs are visible; the prior zero was a parser miss, not evidence of hardware isolation.
+
+This directly reproduces and clears the total quality-admission loss seen earlier. It does not prove perfect alignment, eliminate visible clutter, establish calibrated Pixel performance or validate physical-device quality. The signed Pass34 APK does not include this newer service prototype.

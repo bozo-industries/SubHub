@@ -9,7 +9,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Bounded, cache-only admission and confirmation state for quality observations of old frames.
+ * Bounded source admission and cache-only confirmation state for quality observations.
  *
  * <p>This class intentionally stops at an immutable world-region result. It does not run a
  * detector and it has no reference to a tracker, an overlay, a statistics repository, or the
@@ -18,9 +18,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@link #observe(BackfillStamp, BackfillContext, long, List)} before updating a render-only
  * content cache.</p>
  *
- * <p>The mailbox is oldest-first: while a frame is being processed, a newer frame is discarded
- * instead of creating a stale backlog. An out-of-order older frame may replace a newer pending
- * frame. Every rejected or evicted frame is closed by this class exactly once.</p>
+ * <p>The mailbox is latest-only: while a frame is being processed, the newest pending source
+ * replaces an older pending source instead of creating a stale backlog. Every rejected or evicted
+ * frame is closed by this class exactly once.</p>
  */
 final class QualityBackfillCoordinator<T> implements AutoCloseable {
     static final int DEFAULT_MAX_CANDIDATES = 64;
@@ -59,7 +59,7 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
     }
 
     /**
-     * Offers one source frame to the oldest-first mailbox. The caller transfers ownership of the
+     * Offers one source frame to the latest-only mailbox. The caller transfers ownership of the
      * frame to this method; it must not close an accepted frame itself. Rejected frames are closed
      * synchronously before this method returns.
      */
@@ -79,15 +79,15 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
             return OfferResult.accepted(OfferStatus.ACCEPTED);
         }
 
-        if (isOlder(frame.stamp, pendingFrame.stamp)) {
+        if (isOlder(pendingFrame.stamp, frame.stamp)) {
             pendingFrame.close();
             pendingFrame = frame;
-            return OfferResult.accepted(OfferStatus.ACCEPTED_REPLACED_NEWER);
+            return OfferResult.accepted(OfferStatus.ACCEPTED_REPLACED_OLDER);
         }
 
-        // Keep the oldest source so quality never builds a delayed frame backlog.
+        // Keep the newest source so quality never builds a delayed frame backlog.
         frame.close();
-        return OfferResult.rejected(OfferStatus.REJECTED_NEWER);
+        return OfferResult.rejected(OfferStatus.REJECTED_OLDER);
     }
 
     /**
@@ -128,6 +128,9 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
             long nowUptimeMillis,
             List<BackfillRegion> regions) {
         if (closed) return ObservationResult.rejected(ObservationStatus.REJECTED_CLOSED);
+        if (stamp != null && stamp.sourceMode == SourceMode.CURRENT_ONLY) {
+            return ObservationResult.rejected(ObservationStatus.REJECTED_CURRENT_ONLY);
+        }
         if (stamp == null || current == null || !current.accepts(stamp)) {
             return ObservationResult.rejected(ObservationStatus.REJECTED_FENCE);
         }
@@ -330,7 +333,8 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
     }
 
     private static boolean sameFence(BackfillStamp first, BackfillStamp second) {
-        return first.captureEpoch == second.captureEpoch
+        return first.sourceMode == second.sourceMode
+                && first.captureEpoch == second.captureEpoch
                 && first.documentEpoch == second.documentEpoch
                 && first.transformGeneration == second.transformGeneration
                 && first.phaseToken == second.phaseToken
@@ -350,11 +354,17 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
         return first.intersectionOverUnion(second);
     }
 
-    private static String safeSurfaceKey(String value) {
+    private static String safeSurfaceKey(String value, SourceMode sourceMode) {
         if (value == null) throw new NullPointerException("surfaceKey");
         String trimmed = value.trim();
-        if (trimmed.isEmpty() || trimmed.length() > MAX_SURFACE_KEY_CHARS) {
-            throw new IllegalArgumentException("surfaceKey is empty or too long");
+        if (trimmed.length() > MAX_SURFACE_KEY_CHARS) {
+            throw new IllegalArgumentException("surfaceKey is too long");
+        }
+        if (sourceMode == SourceMode.CACHE_BACKFILL && trimmed.isEmpty()) {
+            throw new IllegalArgumentException("cache surfaceKey is empty");
+        }
+        if (sourceMode == SourceMode.CURRENT_ONLY && !trimmed.isEmpty()) {
+            throw new IllegalArgumentException("current-only surfaceKey must be empty");
         }
         return trimmed;
     }
@@ -384,10 +394,10 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
 
     enum OfferStatus {
         ACCEPTED,
-        ACCEPTED_REPLACED_NEWER,
+        ACCEPTED_REPLACED_OLDER,
         REJECTED_NULL,
         REJECTED_STALE,
-        REJECTED_NEWER,
+        REJECTED_OLDER,
         REJECTED_CLOSED
     }
 
@@ -409,7 +419,7 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
         OfferStatus status() { return status; }
         boolean accepted() {
             return status == OfferStatus.ACCEPTED
-                    || status == OfferStatus.ACCEPTED_REPLACED_NEWER;
+                    || status == OfferStatus.ACCEPTED_REPLACED_OLDER;
         }
     }
 
@@ -455,6 +465,7 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
         ACCEPTED,
         PROMOTED,
         REFINED,
+        REJECTED_CURRENT_ONLY,
         REJECTED_STALE,
         REJECTED_FENCE,
         REJECTED_CLOSED
@@ -507,14 +518,18 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
 
     /** Immutable fence identity for one captured source frame. */
     static final class BackfillStamp {
+        final SourceMode sourceMode;
         final long captureEpoch;
         final long documentEpoch;
         final String surfaceKey;
+        final int applicationWindowId;
         final long transformGeneration;
         final long phaseToken;
         final boolean phaseCertain;
         final long captureUptimeMillis;
         final long motionGeneration;
+        final long cameraX;
+        final long cameraY;
         final long captureSequence;
 
         BackfillStamp(
@@ -527,6 +542,43 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
                 long captureUptimeMillis,
                 long motionGeneration,
                 long captureSequence) {
+            this(SourceMode.CACHE_BACKFILL, captureEpoch, documentEpoch, surfaceKey, -1,
+                    transformGeneration, phaseToken, phaseCertain, captureUptimeMillis,
+                    motionGeneration, 0L, 0L, captureSequence);
+        }
+
+        static BackfillStamp currentOnly(
+                long captureEpoch,
+                long documentEpoch,
+                int applicationWindowId,
+                long transformGeneration,
+                long phaseToken,
+                boolean phaseCertain,
+                long captureUptimeMillis,
+                long motionGeneration,
+                long cameraX,
+                long cameraY,
+                long captureSequence) {
+            return new BackfillStamp(
+                    SourceMode.CURRENT_ONLY, captureEpoch, documentEpoch, "",
+                    applicationWindowId, transformGeneration, phaseToken, phaseCertain,
+                    captureUptimeMillis, motionGeneration, cameraX, cameraY, captureSequence);
+        }
+
+        private BackfillStamp(
+                SourceMode sourceMode,
+                long captureEpoch,
+                long documentEpoch,
+                String surfaceKey,
+                int applicationWindowId,
+                long transformGeneration,
+                long phaseToken,
+                boolean phaseCertain,
+                long captureUptimeMillis,
+                long motionGeneration,
+                long cameraX,
+                long cameraY,
+                long captureSequence) {
             if (captureEpoch <= 0L) throw new IllegalArgumentException("captureEpoch must be positive");
             if (documentEpoch <= 0L) throw new IllegalArgumentException("documentEpoch must be positive");
             if (captureUptimeMillis <= 0L) {
@@ -535,36 +587,54 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
             if (captureSequence <= 0L) {
                 throw new IllegalArgumentException("captureSequence must be positive");
             }
+            if (sourceMode == SourceMode.CURRENT_ONLY && applicationWindowId < 0) {
+                throw new IllegalArgumentException(
+                        "applicationWindowId must be known for current-only quality");
+            }
+            this.sourceMode = Objects.requireNonNull(sourceMode, "sourceMode");
             this.captureEpoch = captureEpoch;
             this.documentEpoch = documentEpoch;
-            this.surfaceKey = safeSurfaceKey(surfaceKey);
+            this.surfaceKey = safeSurfaceKey(surfaceKey, sourceMode);
+            this.applicationWindowId = applicationWindowId;
             this.transformGeneration = transformGeneration;
             this.phaseToken = phaseToken;
             this.phaseCertain = phaseCertain;
             this.captureUptimeMillis = captureUptimeMillis;
             this.motionGeneration = motionGeneration;
+            this.cameraX = cameraX;
+            this.cameraY = cameraY;
             this.captureSequence = captureSequence;
         }
 
+        SourceMode sourceMode() { return sourceMode; }
         long captureEpoch() { return captureEpoch; }
         long documentEpoch() { return documentEpoch; }
         String surfaceKey() { return surfaceKey; }
+        int applicationWindowId() { return applicationWindowId; }
         long transformGeneration() { return transformGeneration; }
         long phaseToken() { return phaseToken; }
         boolean phaseCertain() { return phaseCertain; }
         long captureUptimeMillis() { return captureUptimeMillis; }
         long motionGeneration() { return motionGeneration; }
+        long cameraX() { return cameraX; }
+        long cameraY() { return cameraY; }
         long captureSequence() { return captureSequence; }
     }
 
-    /** Current scene identity used for claim/result-time fences. It intentionally has no motion ID. */
+    /** Current scene identity used for claim/result-time fences. */
     static final class BackfillContext {
+        final SourceMode sourceMode;
         final long captureEpoch;
         final long documentEpoch;
         final String surfaceKey;
+        final int applicationWindowId;
         final long transformGeneration;
         final long phaseToken;
         final boolean phaseCertain;
+        final long motionGeneration;
+        final long cameraX;
+        final long cameraY;
+        final long captureSequence;
 
         BackfillContext(
                 long captureEpoch,
@@ -573,25 +643,87 @@ final class QualityBackfillCoordinator<T> implements AutoCloseable {
                 long transformGeneration,
                 long phaseToken,
                 boolean phaseCertain) {
+            this(SourceMode.CACHE_BACKFILL, captureEpoch, documentEpoch, surfaceKey, -1,
+                    transformGeneration, phaseToken, phaseCertain, 0L, 0L, 0L, 0L);
+        }
+
+        static BackfillContext currentOnly(
+                long captureEpoch,
+                long documentEpoch,
+                int applicationWindowId,
+                long transformGeneration,
+                long phaseToken,
+                boolean phaseCertain,
+                long motionGeneration,
+                long cameraX,
+                long cameraY,
+                long captureSequence) {
+            return new BackfillContext(
+                    SourceMode.CURRENT_ONLY, captureEpoch, documentEpoch, "",
+                    applicationWindowId, transformGeneration, phaseToken, phaseCertain,
+                    motionGeneration, cameraX, cameraY, captureSequence);
+        }
+
+        private BackfillContext(
+                SourceMode sourceMode,
+                long captureEpoch,
+                long documentEpoch,
+                String surfaceKey,
+                int applicationWindowId,
+                long transformGeneration,
+                long phaseToken,
+                boolean phaseCertain,
+                long motionGeneration,
+                long cameraX,
+                long cameraY,
+                long captureSequence) {
             if (captureEpoch <= 0L) throw new IllegalArgumentException("captureEpoch must be positive");
             if (documentEpoch <= 0L) throw new IllegalArgumentException("documentEpoch must be positive");
+            if (sourceMode == SourceMode.CURRENT_ONLY) {
+                if (applicationWindowId < 0) {
+                    throw new IllegalArgumentException(
+                            "applicationWindowId must be known for current-only quality");
+                }
+                if (captureSequence <= 0L) {
+                    throw new IllegalArgumentException(
+                            "captureSequence must be positive for current-only quality");
+                }
+            }
+            this.sourceMode = Objects.requireNonNull(sourceMode, "sourceMode");
             this.captureEpoch = captureEpoch;
             this.documentEpoch = documentEpoch;
-            this.surfaceKey = safeSurfaceKey(surfaceKey);
+            this.surfaceKey = safeSurfaceKey(surfaceKey, sourceMode);
+            this.applicationWindowId = applicationWindowId;
             this.transformGeneration = transformGeneration;
             this.phaseToken = phaseToken;
             this.phaseCertain = phaseCertain;
+            this.motionGeneration = motionGeneration;
+            this.cameraX = cameraX;
+            this.cameraY = cameraY;
+            this.captureSequence = captureSequence;
         }
 
         boolean accepts(BackfillStamp stamp) {
-            return stamp != null && phaseCertain && stamp.phaseCertain
-                    && captureEpoch == stamp.captureEpoch
+            if (stamp == null || sourceMode != stamp.sourceMode
+                    || !phaseCertain || !stamp.phaseCertain) return false;
+            boolean common = captureEpoch == stamp.captureEpoch
                     && documentEpoch == stamp.documentEpoch
                     && transformGeneration == stamp.transformGeneration
-                    && phaseToken == stamp.phaseToken
-                    && surfaceKey.equals(stamp.surfaceKey);
+                    && phaseToken == stamp.phaseToken;
+            if (!common) return false;
+            if (sourceMode == SourceMode.CACHE_BACKFILL) {
+                return surfaceKey.equals(stamp.surfaceKey);
+            }
+            return surfaceKey.isEmpty() && stamp.surfaceKey.isEmpty()
+                    && applicationWindowId == stamp.applicationWindowId
+                    && motionGeneration == stamp.motionGeneration
+                    && cameraX == stamp.cameraX
+                    && cameraY == stamp.cameraY
+                    && captureSequence >= stamp.captureSequence;
         }
     }
+
+    enum SourceMode { CACHE_BACKFILL, CURRENT_ONLY }
 
     /** One source resource whose ownership moves through offer -> poll -> caller close. */
     static final class BackfillFrame<T> implements AutoCloseable {
