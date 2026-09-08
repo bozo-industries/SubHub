@@ -29,6 +29,7 @@ final class ViewportMotion {
     private static final long CONTINUING_HORIZON_MS = 36L;
     private static final float MAX_PREDICTION_SAMPLE_FRACTION = 0.36f;
     private static final float MAX_PREDICTION_VIEWPORT_FRACTION = 0.12f;
+    private static final long MEASUREMENT_RECONCILIATION_MS = 16L;
     private static final float MAX_CORRECTION_JUMP_PX = 56f;
     private static final float MAX_REVERSAL_JUMP_PX = 96f;
     private static final float SAME_DIRECTION_CORRECTION_FRACTION = 1.0f;
@@ -107,6 +108,7 @@ final class ViewportMotion {
         private float segmentStart;
         private float segmentTarget;
         private float startVelocity;
+        private float measurementResidual;
         private long anchorTime;
         private long trajectoryDuration;
         private long returnDuration;
@@ -121,6 +123,7 @@ final class ViewportMotion {
 
         void addPresentationDelta(float delta, long nowMillis, int viewportSize) {
             if (Math.abs(delta) < 0.5f) return;
+            measurementResidual = 0f;
             long gap = lastPresentationSampleTime <= 0L
                     ? Long.MAX_VALUE : nowMillis - lastPresentationSampleTime;
             boolean continuing = gap > 0L && gap <= PRESENTATION_MAX_GAP_MS;
@@ -164,6 +167,7 @@ final class ViewportMotion {
         void settlePresentation(long nowMillis) {
             if (lastPresentationSampleTime <= 0L) return;
             float displayed = position(nowMillis);
+            measurementResidual = 0f;
             segmentStart = displayed;
             segmentTarget = pollMeasured;
             startVelocity = 0f;
@@ -178,6 +182,7 @@ final class ViewportMotion {
         }
 
         void reset(float value, long nowMillis) {
+            measurementResidual = 0f;
             exact = value;
             segmentStart = value;
             segmentTarget = value;
@@ -197,6 +202,7 @@ final class ViewportMotion {
 
         void rebase(float value, long nowMillis) {
             float velocityBefore = velocity(nowMillis);
+            measurementResidual = 0f;
             boolean pollingLive = lastPresentationSampleTime > 0L
                     && nowMillis - lastPresentationSampleTime <= PRESENTATION_MAX_GAP_MS;
             exact = value;
@@ -230,6 +236,7 @@ final class ViewportMotion {
                     ? Math.max(lastEventTime, nowMillis) : nowMillis;
             float velocityBefore = velocity(sampleMillis);
             float displayedBefore = position(sampleMillis);
+            measurementResidual = 0f;
             exact += delta;
             long gap = lastEventTime <= 0L
                     ? Long.MAX_VALUE : sampleMillis - lastEventTime;
@@ -311,6 +318,12 @@ final class ViewportMotion {
                         ? 0L : reversal ? 32L : 16L;
                 returnDuration = 0L;
             } else {
+                // The bounded immediate correction above remains the initial displayed value.
+                // Finish its remaining measured displacement in one frame, independently of
+                // the slower forecast. Otherwise already-known motion waits 72-180 ms merely
+                // because this sample also has a nonzero prediction.
+                measurementResidual = segmentStart - exact;
+                segmentStart = exact;
                 trajectoryDuration = Math.max(MIN_TRAJECTORY_MS,
                         Math.min(MAX_TRAJECTORY_MS, Math.round(observedGap * 1.28f)));
                 returnDuration = Math.max(MIN_RETURN_MS,
@@ -337,7 +350,7 @@ final class ViewportMotion {
             // This event, rather than the tentative single poll sample, owned presentation.
             // Re-anchor the poll estimator so later samples cannot continue from the pre-event
             // coordinate space and pull the overlay backward.
-            pollMeasured = segmentStart;
+            pollMeasured = segmentStart + measurementResidual;
             pollVelocity = 0f;
             consecutivePollSamples = 0;
             lastPresentationSampleTime = 0L;
@@ -353,7 +366,10 @@ final class ViewportMotion {
                         ? startVelocity * trajectoryDuration : 0f;
                 float value = hermite(segmentStart, segmentTarget,
                         startVelocity * trajectoryDuration, endTangent, progress);
-                return clampBetween(value, segmentStart, segmentTarget);
+                float residual = measurementResidual
+                        * (1f - smootherStep(age / (float) MEASUREMENT_RECONCILIATION_MS));
+                return clampBetween(clampBetween(value, segmentStart, segmentTarget) + residual,
+                        segmentStart + measurementResidual, segmentTarget);
             }
             if (!authoritativeTrajectory || returnDuration <= 0L) return segmentTarget;
             long returnAge = age - trajectoryDuration;
@@ -372,7 +388,10 @@ final class ViewportMotion {
                         ? startVelocity * trajectoryDuration : 0f;
                 float tangent = hermiteDerivative(segmentStart, segmentTarget,
                         startVelocity * trajectoryDuration, endTangent, progress);
-                return tangent / trajectoryDuration;
+                float correctionVelocity = -measurementResidual
+                        * smootherStepDerivative(age / (float) MEASUREMENT_RECONCILIATION_MS)
+                        / MEASUREMENT_RECONCILIATION_MS;
+                return tangent / trajectoryDuration + correctionVelocity;
             }
             if (!authoritativeTrajectory || returnDuration <= 0L
                     || age >= trajectoryDuration + returnDuration) return 0f;
