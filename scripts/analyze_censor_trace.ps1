@@ -444,7 +444,7 @@ foreach ($requestedPath in $Path) {
             }
             continue
         }
-        if ($line -match 'QUALITY_PREPARE_BEGIN sourceFastSequence=(\d+) generation=(\d+) uptimeNanos=(\d+)') {
+        if ($line -match 'QUALITY_PREPARE_BEGIN sourceFastSequence=(\d+) generation=(\d+)(?: oldFrame=(?:true|false))? uptimeNanos=(\d+)') {
             $qualityPrepareBegins[$Matches[1]] = [pscustomobject]@{
                 sourceFastSequence = [long] $Matches[1]
                 generation = [long] $Matches[2]
@@ -452,7 +452,7 @@ foreach ($requestedPath in $Path) {
             }
             continue
         }
-        if ($line -match 'QUALITY_PREPARE_END sourceFastSequence=(\d+) generation=(\d+) durationMs=(\d+) uptimeNanos=(\d+)') {
+        if ($line -match 'QUALITY_PREPARE_END sourceFastSequence=(\d+) generation=(\d+)(?: oldFrame=(?:true|false))? durationMs=(\d+) uptimeNanos=(\d+)') {
             $begin = $qualityPrepareBegins[$Matches[1]]
             if ($null -ne $begin) {
                 $qualityPrepares.Add([pscustomobject]@{
