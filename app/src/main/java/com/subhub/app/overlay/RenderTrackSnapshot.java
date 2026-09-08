@@ -3,6 +3,7 @@ package com.subhub.app.overlay;
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.TrackedObject;
+import com.subhub.app.detection.RenderSourceReference;
 
 /** Immutable renderer input. Detection workers can keep mutating tracks without tearing a frame. */
 final class RenderTrackSnapshot {
@@ -12,6 +13,7 @@ final class RenderTrackSnapshot {
     private final float velocityXPerMs;
     private final float velocityYPerMs;
     private final boolean cached;
+    private final RenderSourceReference reference;
 
     static RenderTrackSnapshot from(TrackedObject track) {
         return new RenderTrackSnapshot(
@@ -19,7 +21,7 @@ final class RenderTrackSnapshot {
                 track.getCategory(),
                 track.getBox(),
                 track.getVelocityX(),
-                track.getVelocityY(), false);
+                track.getVelocityY(), false, track.getRenderSourceReference());
     }
 
     static RenderTrackSnapshot fromWorld(
@@ -33,16 +35,18 @@ final class RenderTrackSnapshot {
         return new RenderTrackSnapshot(
                 track.getId(),
                 track.getCategory(),
-                ContentSpaceCoordinates.toWorld(track.getBox(), cameraX, cameraY,
+                ContentSpaceCoordinates.toWorld(track.getRenderSourceReference().isKnown()
+                                ? track.getRawBox() : track.getBox(), cameraX, cameraY,
                         sourceWidth, sourceHeight, viewportWidth, viewportHeight),
                 track.getVelocityX(),
-                track.getVelocityY(), false);
+                track.getVelocityY(), false, track.getRenderSourceReference());
     }
 
     static RenderTrackSnapshot fromTextDetection(Detection detection) {
         BBox box = detection.getBox();
         return new RenderTrackSnapshot(
-                stableTextId(detection, box), detection.getCategory(), box, 0f, 0f, false);
+                stableTextId(detection, box), detection.getCategory(), box, 0f, 0f, false,
+                detection.getRenderSourceReference());
     }
 
     static RenderTrackSnapshot fromWorldTextDetection(
@@ -60,7 +64,7 @@ final class RenderTrackSnapshot {
                 stableTextId(detection, world),
                 detection.getCategory(),
                 world,
-                0f, 0f, false);
+                0f, 0f, false, detection.getRenderSourceReference());
     }
 
     static RenderTrackSnapshot fromWorldCacheDetection(
@@ -76,7 +80,7 @@ final class RenderTrackSnapshot {
                 sourceWidth, sourceHeight, viewportWidth, viewportHeight);
         return new RenderTrackSnapshot(
                 stableCacheId(detection, world), detection.getCategory(), world,
-                0f, 0f, true);
+                0f, 0f, true, detection.getRenderSourceReference());
     }
 
     /** Keep render-memory identities disjoint from positive tracker and text identities. */
@@ -101,12 +105,18 @@ final class RenderTrackSnapshot {
             float velocityXPerMs,
             float velocityYPerMs,
             boolean cached) {
+        this(id, category, box, velocityXPerMs, velocityYPerMs, cached, RenderSourceReference.UNKNOWN);
+    }
+
+    RenderTrackSnapshot(int id, String category, BBox box, float velocityXPerMs,
+            float velocityYPerMs, boolean cached, RenderSourceReference reference) {
         this.id = id;
         this.category = category;
         this.box = box;
         this.velocityXPerMs = velocityXPerMs;
         this.velocityYPerMs = velocityYPerMs;
         this.cached = cached;
+        this.reference = java.util.Objects.requireNonNull(reference);
     }
 
     int id() { return id; }
@@ -115,6 +125,7 @@ final class RenderTrackSnapshot {
     float velocityXPerMs() { return velocityXPerMs; }
     float velocityYPerMs() { return velocityYPerMs; }
     boolean isCached() { return cached; }
+    RenderSourceReference reference() { return reference; }
 
     BBox predict(float ageMs, float maxExtrapolationMs) {
         // Accessibility/OCR rectangles already follow content through the viewport transform.

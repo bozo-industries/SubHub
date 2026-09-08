@@ -77,6 +77,8 @@ final class ContinuousTrackSteering {
         states.clear();
     }
 
+    void forget(int id) { states.remove(id); }
+
     boolean isAnimating(long nowMillis) {
         for (State state : states.values()) {
             state.advance(nowMillis);
