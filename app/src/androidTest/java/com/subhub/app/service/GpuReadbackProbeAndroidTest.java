@@ -1,6 +1,7 @@
 package com.subhub.app.service;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorSpace;
@@ -15,9 +16,16 @@ import android.media.ImageReader;
 import android.os.Build;
 import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.core.app.ApplicationProvider;
+import com.subhub.app.detection.*;
+import com.subhub.app.settings.SettingsRepository;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.util.Arrays;
+import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.io.File;
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
 
@@ -25,7 +33,7 @@ import static org.junit.Assume.assumeTrue;
 @RunWith(AndroidJUnit4.class)
 public final class GpuReadbackProbeAndroidTest {
     @androidx.test.filters.SdkSuppress(minSdkVersion = 29)
-    @Test public void compareSmallGpuReadbackWithSoftwareReference() {
+    @Test public void compareSmallGpuReadbackWithSoftwareReference() throws Exception {
         assumeTrue(Build.VERSION.SDK_INT >= 29);
         Bitmap source = Bitmap.createBitmap(1344, 2992, Bitmap.Config.ARGB_8888);
         int[] row = new int[1344];
@@ -36,13 +44,46 @@ public final class GpuReadbackProbeAndroidTest {
             }
             source.setPixels(row, 0, row.length, 0, y, row.length, 1);
         }
+        compare(source, null);
+    }
+
+    @androidx.test.filters.SdkSuppress(minSdkVersion = 29)
+    @Test public void realCorpusPreservesProductionDetectorOutputs() throws Exception {
+        android.content.Context context = ApplicationProvider.getApplicationContext();
+        File[] files = new File(context.getFilesDir(), "gpu-readback-corpus-v2").listFiles(
+                (dir, name) -> name.endsWith(".png"));
+        assumeTrue("Explicit private corpus required", files != null && files.length >= 3);
+        Arrays.sort(files);
+        Set<String> categories = new LinkedHashSet<>();
+        for (int i = 0; i < NudeNetClassCatalog.CLASS_COUNT; i++)
+            categories.addAll(NudeNetClassCatalog.byIndex(i).getCategories());
+        DetectorConfig config = new SettingsRepository(context).loadDetectorConfig().toBuilder()
+                .enabledCategories(categories).inferenceResolution(320).detectionIntervalMs(0).build();
+        try (DetectionEngine engine = new DetectionEngine(context, config, true)) {
+            engine.initializeForProvider("CPU");
+            int baselineDetections = 0;
+            for (File file : files) {
+                Bitmap frame = BitmapFactory.decodeFile(file.getAbsolutePath());
+                assertNotNull(frame);
+                baselineDetections += compare(frame, engine);
+            }
+            assertTrue("Corpus needs positive detection evidence as well as negative controls",
+                    baselineDetections >= 3);
+        }
+    }
+
+    @androidx.annotation.RequiresApi(29)
+    private static int compare(Bitmap source, DetectionEngine engine) throws Exception {
+        int baselineDetections = 0;
+        int[] dimensions = InferenceBitmapPreparer.targetDimensions(source.getWidth(), source.getHeight(), 320);
+        int width = dimensions[0], height = dimensions[1];
         Bitmap hardware = source.copy(Bitmap.Config.HARDWARE, false);
         assertNotNull(hardware);
         long[] gpuTimes = new long[9], cpuTimes = new long[9];
         RenderNode node = new RenderNode("readback-probe");
-        node.setPosition(0, 0, 144, 320);
+        node.setPosition(0, 0, width, height);
         HardwareRenderer renderer = new HardwareRenderer();
-        try (ImageReader reader = ImageReader.newInstance(144, 320, PixelFormat.RGBA_8888, 2,
+        try (ImageReader reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2,
                 HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE | HardwareBuffer.USAGE_GPU_COLOR_OUTPUT)) {
             renderer.setSurface(reader.getSurface());
             renderer.setContentRoot(node);
@@ -59,7 +100,7 @@ public final class GpuReadbackProbeAndroidTest {
                     // Mark every trial dirty. An unchanged retained display list can skip drawing,
                     // so sync success alone does not guarantee a newly queued ImageReader frame.
                     Canvas canvas = node.beginRecording();
-                    canvas.drawBitmap(hardware, null, new Rect(0, 0, 144, 320),
+                    canvas.drawBitmap(hardware, null, new Rect(0, 0, width, height),
                             new Paint(Paint.FILTER_BITMAP_FLAG));
                     node.endRecording();
                     int result = renderer.createRenderRequest().setWaitForPresent(true).syncAndDraw();
@@ -75,9 +116,9 @@ public final class GpuReadbackProbeAndroidTest {
                         }
                     }
                     long gpuTime = System.nanoTime() - start;
-                    int[] a = new int[144 * 320], b = new int[a.length];
-                    cpu.bitmap.getPixels(a, 0, 144, 0, 0, 144, 320);
-                    gpu.getPixels(b, 0, 144, 0, 0, 144, 320);
+                    int[] a = new int[width * height], b = new int[a.length];
+                    cpu.bitmap.getPixels(a, 0, width, 0, 0, width, height);
+                    gpu.getPixels(b, 0, width, 0, 0, width, height);
                     long error = 0;
                     for (int p = 0; p < a.length; p++) {
                         error += Math.abs(Color.red(a[p]) - Color.red(b[p]));
@@ -86,6 +127,21 @@ public final class GpuReadbackProbeAndroidTest {
                     }
                     worstMae = Math.max(worstMae, error / (double)(a.length * 3));
                     if (i >= 0) { gpuTimes[i] = gpuTime; cpuTimes[i] = cpuTime; }
+                    if (engine != null && i == 8) {
+                        int[] shape = ScreenshotAccessibilityService.rectangularFastInputShape(
+                                source.getWidth(), source.getHeight(), 320);
+                        assertNotNull(shape);
+                        List<Detection> expected = engine.detectRectangular(cpu.bitmap,
+                                source.getWidth(), source.getHeight(), shape[0], shape[1]);
+                        List<Detection> actual = engine.detectRectangular(gpu,
+                                source.getWidth(), source.getHeight(), shape[0], shape[1]);
+                        baselineDetections = expected.size();
+                        int matches = matched(expected, actual);
+                        Log.i("GpuReadbackProbe", "GPU_DETECT expected=" + expected.size()
+                                + " actual=" + actual.size() + " matched=" + matches);
+                        assertEquals("GPU lost or displaced baseline detections", expected.size(), matches);
+                        assertEquals("GPU added unmatched detections", actual.size(), matches);
+                    }
                 } finally {
                     cpu.bitmap.recycle();
                     if (gpu != null) gpu.recycle();
@@ -100,5 +156,23 @@ public final class GpuReadbackProbeAndroidTest {
         } finally {
             renderer.destroy(); node.discardDisplayList(); hardware.recycle(); source.recycle();
         }
+        return baselineDetections;
+    }
+
+    private static int matched(List<Detection> expected, List<Detection> actual) {
+        boolean[] used = new boolean[actual.size()];
+        int matched = 0;
+        for (Detection left : expected) {
+            int best = -1; float bestIou = .75f;
+            for (int i = 0; i < actual.size(); i++) {
+                Detection right = actual.get(i);
+                float iou = left.getBox().intersectionOverUnion(right.getBox());
+                if (!used[i] && left.getCategory().equals(right.getCategory()) && iou >= bestIou) {
+                    best = i; bestIou = iou;
+                }
+            }
+            if (best >= 0) { used[best] = true; matched++; }
+        }
+        return matched;
     }
 }
