@@ -3615,6 +3615,30 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
     }
 
+    /** Debug observer only: cached source bounds, no refresh/parent traversal or camera mutation. */
+    private void traceScrollSourceBounds(AccessibilityEvent event) {
+        if (!BuildConfig.DEBUG) return;
+        long started = SystemClock.uptimeMillis();
+        android.view.accessibility.AccessibilityNodeInfo node = null;
+        try {
+            node = event.getSource();
+            if (node == null) return;
+            Rect bounds = new Rect();
+            node.getBoundsInScreen(bounds);
+            CharSequence kind = node.getClassName();
+            CensorLabLog.i(TAG, "SCROLL_SOURCE_BOUNDS sourceUptimeMs=" + event.getEventTime()
+                    + " observedUptimeMs=" + started + " rect=" + bounds.left + ',' + bounds.top
+                    + ',' + bounds.right + ',' + bounds.bottom
+                    + " webView=" + "android.webkit.WebView".contentEquals(kind == null ? "" : kind)
+                    + " scrollable=" + node.isScrollable() + " window=" + node.getWindowId()
+                    + " elapsedMs=" + (SystemClock.uptimeMillis() - started));
+        } catch (RuntimeException ignored) {
+            // Telemetry is not a reason to interfere with normal event processing.
+        } finally {
+            if (node != null) node.recycle();
+        }
+    }
+
     private void handleAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
         int eventType = event.getEventType();
@@ -3645,6 +3669,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 long scrollNow = SystemClock.uptimeMillis();
                 AccessibilitySurfaceIdentityResolver.Identity surfaceIdentity =
                         scrollSurfaceIdentityResolver.resolve(event);
+                traceScrollSourceBounds(event);
                 String cacheSurface = cacheSurfaceKey(surfaceIdentity);
                 long surfaceTelemetryToken = surfaceIdentity.telemetryToken();
                 byte surfaceConfidence = surfaceIdentity.confidence;
