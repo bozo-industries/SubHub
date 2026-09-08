@@ -2,9 +2,8 @@
 """Measure page/censor motion agreement directly from an Android screen recording.
 
 Requires NumPy and OpenCV (``opencv-python-headless`` is sufficient). The analyzer deliberately
-ignores the browser chrome, masks the neon censor
-border before estimating page flow, and compares that flow with matched censor-border components.
-It is a visual oracle for transit alignment; Accessibility timestamps are not involved.
+ignores the browser chrome and excludes detected black-filled, purple/magenta-bordered censors
+before estimating page flow. This measures relative motion only, not absolute target alignment.
 """
 
 from __future__ import annotations
@@ -27,14 +26,46 @@ def percentile(values: list[float], q: float) -> float | None:
 
 
 def magenta_mask(frame: np.ndarray) -> np.ndarray:
-    blue, green, red = cv2.split(frame)
+    blue, green, red = [channel.astype(np.int16) for channel in cv2.split(frame)]
     mask = (
-        (red > 150)
+        (red > 65)
         & (blue > 65)
-        & (green < 145)
-        & ((red.astype(np.int16) - green.astype(np.int16)) > 55)
+        & ((blue - green) > 15)
+        & ((red - green) > 10)
     ).astype(np.uint8) * 255
     return cv2.dilate(mask, np.ones((5, 5), np.uint8), iterations=1)
+
+
+def detect_censors(frame: np.ndarray, top: int) -> tuple[np.ndarray, list[Box]]:
+    """Require a nearly black filled shape with supporting purple/magenta boundary pixels.
+
+    Color alone also selects photographs and page artwork. Starting from black interiors avoids
+    that ambiguity and tolerates thin borders whose horizontal color is lost to video encoding.
+    The conservative black threshold separates overlapping interiors across compressed borders.
+    Unsupported styles are deliberately left unmeasured, rather than treated as valid censors.
+    """
+    dark = (np.max(frame, axis=2) < 8).astype(np.uint8) * 255
+    dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    color = magenta_mask(frame)
+    contours, _ = cv2.findContours(dark, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    excluded = np.zeros(dark.shape, dtype=np.uint8)
+    boxes: list[Box] = []
+    for contour in contours:
+        x, y, width, height = cv2.boundingRect(contour)
+        if width < 28 or height < 28 or width * height < 1_400:
+            continue
+        if cv2.contourArea(contour) / (width * height) < 0.78:
+            continue
+        edge = np.zeros(dark.shape, dtype=np.uint8)
+        cv2.drawContours(edge, [contour], -1, 255, 1)
+        support = np.count_nonzero((edge > 0) & (color > 0)) / max(1, np.count_nonzero(edge))
+        if support < 0.15:
+            continue
+        boxes.append((x + width / 2.0, y + top + height / 2.0, width, height))
+        # Include labels, interior, antialiasing, and the thin outside border in flow exclusion.
+        cv2.rectangle(excluded, (max(0, x - 4), max(0, y - 4)),
+                      (x + width + 4, y + height + 4), 255, -1)
+    return excluded, boxes
 
 
 def censor_boxes(mask: np.ndarray, top: int) -> list[Box]:
@@ -161,6 +192,8 @@ def local_background_motion(
             current_y = points_y + delta_y
             valid = ((current_x >= 0) & (current_x < image_width)
                      & (current_y >= 0) & (current_y < image_height))
+            inside = np.flatnonzero(valid)
+            valid[inside] &= current_mask[current_y[inside], current_x[inside]] == 0
             if not np.any(valid):
                 continue
             valid_indices = np.flatnonzero(valid)
@@ -236,6 +269,15 @@ def page_motion(
     if moved is None or status is None:
         return None, 0
     valid = status.reshape(-1) == 1
+    destinations = moved.reshape(-1, 2)
+    finite = np.all(np.isfinite(destinations), axis=1)
+    destination_pixels = np.rint(np.where(np.isfinite(destinations), destinations, -1)).astype(np.int32)
+    height, width = current_mask.shape
+    inside = (finite & (destination_pixels[:, 0] >= 0) & (destination_pixels[:, 0] < width)
+              & (destination_pixels[:, 1] >= 0) & (destination_pixels[:, 1] < height))
+    valid &= inside
+    indices = np.flatnonzero(valid)
+    valid[indices] &= current_mask[destination_pixels[indices, 1], destination_pixels[indices, 0]] == 0
     deltas = moved.reshape(-1, 2)[valid] - points.reshape(-1, 2)[valid]
     if len(deltas) < 10:
         return None, len(deltas)
@@ -281,6 +323,7 @@ def analyze(
     page_deltas: list[float] = []
     box_deltas: list[float] = []
     matched_boxes = 0
+    frames_with_censors = 0
     samples: list[dict] = []
     corrected_signed_residuals: list[float] = []
     corrected_absolute_residuals: list[float] = []
@@ -310,9 +353,9 @@ def analyze(
         sampled_frames += 1
         crop = frame[crop_top:, :]
         crop = cv2.resize(crop, (sample_width, sample_height), interpolation=cv2.INTER_AREA)
-        mask = magenta_mask(crop)
+        mask, boxes = detect_censors(crop, round(crop_top * scale))
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-        boxes = censor_boxes(mask, round(crop_top * scale))
+        frames_with_censors += bool(boxes)
         if previous_gray is not None:
             page_dy, feature_count = page_motion(previous_gray, gray, previous_mask, mask)
             if page_dy is not None and abs(page_dy) >= 0.55:
@@ -328,8 +371,8 @@ def analyze(
                     box_deltas.append(box_dy)
                     signed_residuals.append(residual)
                     absolute_residuals.append(abs(residual))
-                    visually_aligned_2px += abs(residual) <= 2.0
-                    visually_aligned_5px += abs(residual) <= 5.0
+                    visually_aligned_2px += abs(residual / scale) <= 2.0
+                    visually_aligned_5px += abs(residual / scale) <= 5.0
                     trigger_local = (
                         abs(residual / scale) > local_trigger_threshold
                         or len(pairs) != min(len(previous_boxes), len(boxes))
@@ -430,6 +473,10 @@ def analyze(
         "sampleEveryFrames": sample_every,
         "sampledFrames": sampled_frames,
         "sampleLimitReached": sample_limit_reached,
+        "evidenceStatus": ("measured-relative-motion" if motion_frames else
+                           "no-supported-censors" if not frames_with_censors else
+                           "insufficient-background-motion"),
+        "framesWithSupportedCensors": frames_with_censors,
         "measurementContract": {
             "measures": "matched-frame-relative-motion-agreement",
             "absoluteTargetAlignmentMeasured": False,
@@ -440,8 +487,8 @@ def analyze(
         },
         "motionFramesWithBoxMatch": motion_frames,
         "matchedBoxes": matched_boxes,
-        "alignmentRateWithin2px": round(visually_aligned_2px / max(1, motion_frames), 4),
-        "alignmentRateWithin5px": round(visually_aligned_5px / max(1, motion_frames), 4),
+        "alignmentRateWithin2px": round(visually_aligned_2px / motion_frames, 4) if motion_frames else None,
+        "alignmentRateWithin5px": round(visually_aligned_5px / motion_frames, 4) if motion_frames else None,
         "signedResidualPx": {
             "p50": percentile([value / scale for value in signed_residuals], 50),
             "p90": percentile([value / scale for value in signed_residuals], 90),
@@ -468,11 +515,11 @@ def analyze(
             "alignmentRateWithin2px": round(
                 sum(value <= 2.0 for value in corrected_absolute_residuals)
                 / max(1, len(corrected_absolute_residuals)), 4
-            ),
+            ) if corrected_absolute_residuals else None,
             "alignmentRateWithin5px": round(
                 sum(value <= 5.0 for value in corrected_absolute_residuals)
                 / max(1, len(corrected_absolute_residuals)), 4
-            ),
+            ) if corrected_absolute_residuals else None,
             "localEvidenceFrames": local_evidence_frames,
             "localTriggerFrames": local_trigger_frames,
             "localEvidenceMatchedBoxes": local_evidence_matched_boxes,
