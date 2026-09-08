@@ -1450,6 +1450,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             SceneContext scene = candidate.scene;
             if (scene != null) {
                 long fastReadyAt = SystemClock.uptimeMillis();
+                traceCaptureStage(candidate.capturedAtUptimeMillis, "fast-ready");
                 SceneTransactionCoordinator.Transition<Detection> fastTransition =
                         sceneCoordinator.submitFast(scene.key, visualDetections);
                 if (fastTransition.committed()) scene.deliver(fastTransition.commit());
@@ -1711,6 +1712,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 sceneCommit == null ? "legacy-fast" : sceneCommit.kind().name(),
                 candidate.visualDocumentEpoch, candidate.scrollSurfaceKey);
         int qualityOnlyTrackCount = 0;
+        traceCaptureStage(candidate.capturedAtUptimeMillis, "geometry-ready");
         for (TrackedObject track : tracks) {
             if (track != null && track.isQualityOnly()) qualityOnlyTrackCount++;
         }
@@ -1764,8 +1766,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         requestedScrollX, requestedScrollY,
                         alignment.scrollX, alignment.scrollY);
         Rect publicationViewport = cacheViewport;
+        traceCaptureStage(candidate.capturedAtUptimeMillis, "publication-post");
         main.post(() -> {
+            traceCaptureStage(candidate.capturedAtUptimeMillis, "publication-main");
             Runnable publication = () -> {
+                traceCaptureStage(candidate.capturedAtUptimeMillis, "publication-tick");
                 if (isCurrentCapture(requestedEpoch) && overlay != null
                     && isCurrentVisualDocument(candidate.visualDocumentEpoch,
                             candidate.scrollSurfaceKey)
