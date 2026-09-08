@@ -2,17 +2,7 @@ package com.subhub.app.service;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.ColorSpace;
-import android.graphics.HardwareRenderer;
-import android.graphics.Paint;
-import android.graphics.PixelFormat;
-import android.graphics.Rect;
-import android.graphics.RenderNode;
-import android.hardware.HardwareBuffer;
-import android.media.Image;
-import android.media.ImageReader;
 import android.os.Build;
 import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -80,48 +70,19 @@ public final class GpuReadbackProbeAndroidTest {
         Bitmap hardware = source.copy(Bitmap.Config.HARDWARE, false);
         assertNotNull(hardware);
         long[] gpuTimes = new long[9], cpuTimes = new long[9];
-        RenderNode node = new RenderNode("readback-probe");
-        node.setPosition(0, 0, width, height);
-        HardwareRenderer renderer = new HardwareRenderer();
-        try (GpuBitmapPreparer candidatePreparer = new GpuBitmapPreparer();
-                ImageReader reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2,
-                HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE | HardwareBuffer.USAGE_GPU_COLOR_OUTPUT)) {
-            renderer.setSurface(reader.getSurface());
-            renderer.setContentRoot(node);
-            renderer.setOpaque(true);
+        try (GpuBitmapPreparer candidatePreparer = new GpuBitmapPreparer()) {
             double worstMae = 0;
             for (int i = -2; i < 9; i++) {
                 long start = System.nanoTime();
                 InferenceBitmapPreparer.Prepared cpu = InferenceBitmapPreparer.prepare(hardware, 320, false);
                 long cpuTime = System.nanoTime() - start;
                 assertNotNull(cpu);
-                Bitmap smallHardware = null, gpu = null;
+                Bitmap gpu = null;
                 try {
                     start = System.nanoTime();
-                    if (engine != null) {
                         InferenceBitmapPreparer.Prepared candidate = candidatePreparer.prepare(hardware, 320, false);
                         assertNotNull("Production candidate returned fallback", candidate);
                         gpu = candidate.bitmap;
-                    } else {
-                    // Mark every trial dirty. An unchanged retained display list can skip drawing,
-                    // so sync success alone does not guarantee a newly queued ImageReader frame.
-                    Canvas canvas = node.beginRecording();
-                    canvas.drawBitmap(hardware, null, new Rect(0, 0, width, height),
-                            new Paint(Paint.FILTER_BITMAP_FLAG));
-                    node.endRecording();
-                    int result = renderer.createRenderRequest().setWaitForPresent(true).syncAndDraw();
-                    assertEquals("GPU render failed", 0, result & ~HardwareRenderer.SYNC_REDRAW_REQUESTED);
-                    try (Image image = reader.acquireNextImage()) {
-                        assertNotNull("No rendered frame", image);
-                        try (HardwareBuffer buffer = image.getHardwareBuffer()) {
-                            assertNotNull(buffer);
-                            smallHardware = Bitmap.wrapHardwareBuffer(buffer, ColorSpace.get(ColorSpace.Named.SRGB));
-                            assertNotNull(smallHardware);
-                            gpu = smallHardware.copy(Bitmap.Config.ARGB_8888, false);
-                            assertNotNull(gpu);
-                        }
-                    }
-                    }
                     long gpuTime = System.nanoTime() - start;
                     int[] a = new int[width * height], b = new int[a.length];
                     cpu.bitmap.getPixels(a, 0, width, 0, 0, width, height);
@@ -152,7 +113,6 @@ public final class GpuReadbackProbeAndroidTest {
                 } finally {
                     cpu.bitmap.recycle();
                     if (gpu != null) gpu.recycle();
-                    if (smallHardware != null) smallHardware.recycle();
                 }
             }
             Arrays.sort(gpuTimes); Arrays.sort(cpuTimes);
@@ -161,7 +121,7 @@ public final class GpuReadbackProbeAndroidTest {
                     + " worstChannelMae=" + worstMae);
             assertTrue("GPU image fidelity mismatch", worstMae < 3.0);
         } finally {
-            renderer.destroy(); node.discardDisplayList(); hardware.recycle(); source.recycle();
+            hardware.recycle(); source.recycle();
         }
         return baselineDetections;
     }
