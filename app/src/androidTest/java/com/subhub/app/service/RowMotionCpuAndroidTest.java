@@ -31,6 +31,34 @@ public final class RowMotionCpuAndroidTest {
                 +" wallMedianUs="+wall[30]/1000+" wallP95Us="+wall[56]/1000
                 +" wallMaxUs="+wall[59]/1000);
     }
+    @Test public void separateDescriptorAndEstimatorCpuCost() throws Exception {
+        // Reflect only in this diagnostic; production visibility remains unchanged.
+        // Descriptor timing includes invocation overhead, so it is an upper bound.
+        java.lang.reflect.Method describe=RowMotionObserver.class.getDeclaredMethod(
+                "describe",int[].class,int.class,int.class,int.class);
+        describe.setAccessible(true);
+        int[][] frames={frame(0),frame(-10)};
+        double[][] previous=(double[][])describe.invoke(null,frames[0],144,0,320);
+        long[] descriptorCpu=new long[60],estimatorCpu=new long[60];
+        for(int i=0;i<80;i++) {
+            long start=Debug.threadCpuTimeNanos();
+            double[][] current=(double[][])describe.invoke(null,frames[(i+1)%2],144,0,320);
+            long prepared=Debug.threadCpuTimeNanos();
+            RowMotionEstimator.Result result=RowMotionEstimator.estimate(previous,current);
+            long matched=Debug.threadCpuTimeNanos();
+            assertTrue(result.accepted);
+            assertEquals(i%2==0 ? -5 : 5,result.dy,0);
+            if(i>=20) {descriptorCpu[i-20]=prepared-start;estimatorCpu[i-20]=matched-prepared;}
+            previous=current;
+        }
+        Arrays.sort(descriptorCpu);Arrays.sort(estimatorCpu);
+        Log.i("RowMotionCpuTest","ROW_STAGE_CPU samples=60 descriptorIncludesReflection=true"
+                +" descriptorMedianUs="+descriptorCpu[30]/1000
+                +" descriptorP95Us="+descriptorCpu[56]/1000
+                +" estimatorMedianUs="+estimatorCpu[30]/1000
+                +" estimatorP95Us="+estimatorCpu[56]/1000);
+    }
+
     private static int[] frame(int shift) {
         int[] pixels=new int[144*320];Random random=new Random(60);
         for(int row=0;row<160;row++) for(int column=0;column<4;column++) {

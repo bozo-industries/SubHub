@@ -37,6 +37,17 @@ The expanded suite passes 530 JVM tests and lintDebug. This is deterministic cor
 coverage, not additional capture-age, queue-drop, inference, publication, or stability telemetry;
 those pipeline metrics were not remeasured in this arithmetic-only pass.
 
+Stage-probe follow-up (same production source, emulator only): descriptor CPU median/p95
+2.874/8.396ms, estimator 14.080/25.661ms. Descriptor timing includes reflective invocation
+overhead to avoid widening production visibility; estimator timing calls the real matcher
+directly. Both assert the known alternating displacement. The two instrumentation tests pass.
+The unchanged full-observer rerun measured CPU median/p95 13.878/20.834ms and wall
+14.751/25.087ms. This substantial run-to-run variation limits precise speedup claims. Stage
+medians are from a separate loop and must not be summed to reconstruct the full-observer
+median. Matching, not descriptor extraction, is the dominant cost in this probe; avoid trading
+away descriptor coverage merely to optimize the smaller stage. Full JVM/lint and paired builds
+remain green. No new end-to-end performance claim follows from these measurements.
+
 Only emulator-5554 was installed or tested. Pixel access was not resumed. Existing experimental
 GPU/anchor/row-motion switches stay OFF, and no release or production deployment occurred.
 
