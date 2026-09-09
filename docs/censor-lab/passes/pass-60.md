@@ -1,0 +1,38 @@
+# Pass 60: isolate and reduce row-observer CPU cost
+
+Status: arithmetic optimization verified on emulator only; shadow observer remains OFF.
+
+The previous clean-source shadow/control runs showed a generally slow emulator. An isolated
+instrumentation benchmark now distinguishes observer thread CPU from elapsed wall time. It
+uses 144x320 prepared pixels, alternating known +/-10px translations, 20 warmup iterations
+and 60 measured iterations, asserting acceptance and exact displacement every time. It does
+not measure screenshot capture, inference, rendering, or live scrolling.
+
+| Implementation | CPU median / p95 (ms) | Wall median / p95 (ms) |
+| --- | --- | --- |
+| Initial benchmark | 37.905 / 65.599 | 43.008 / 98.242 |
+| Cache row references, unroll four columns (`9e73d17`) | 24.525 / 38.419 | 32.538 / 51.786 |
+| Abandon noncompetitive candidates (`5803b32`) | 19.222 / 30.990 | 22.906 / 33.345 |
+
+Latest maxima: CPU 39.802ms, wall 60.900ms. These are sequential single-run emulator results,
+not randomized paired measurements or physical-device performance claims. The roughly 49%
+lower median CPU cost is promising, but the remaining cost is still too high to grant this
+observer presentation authority or enable it by default.
+
+The estimator scores stationary fully first. Other shifts stop once their accumulated error,
+divided by the complete sample count, exceeds both the current best and its ambiguity margin.
+That partial score is a lower bound: it cannot conceal a better candidate or a competitor
+inside the rejection margin. Stationary takes exact ties. No acceptance threshold is relaxed.
+
+Checks: 528 JVM tests, zero failures; lintDebug; application and instrumentation APKs built
+together; emulator-5554 instrumentation 1/1 passed with the declared SubHubTestRunner.
+Before the final build, 1000 deterministic old/new comparisons retained acceptance and dy
+across translated, locally animated, and narrow-column pairs. Saved descriptor transitions
+also retained their prior results. These checks are not a proof across every possible input.
+
+Only emulator-5554 was installed or tested. Pixel access was not resumed. Existing experimental
+GPU/anchor/row-motion switches stay OFF, and no release or production deployment occurred.
+
+Next: require broader stationary/animation/scroll controls, a repeatable CPU budget, and explicit
+capture-coordinate integration before any render authority. Real-device product acceptance
+remains outstanding; this pass does not resolve early-scroll alignment or visible flashing.
