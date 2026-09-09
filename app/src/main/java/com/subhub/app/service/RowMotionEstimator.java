@@ -31,8 +31,15 @@ final class RowMotionEstimator {
             for (int shift = -MAX_SHIFT; shift <= MAX_SHIFT; shift++) {
                 int from = Math.max(top, -shift), to = Math.min(bottom, height-shift);
                 double error = 0;
-                for (int y = from; y < to; y++)
-                    for (int x = 0; x < COLUMNS; x++) error += Math.abs(previous[y][x] - current[y+shift][x]);
+                for (int y = from; y < to; y++) {
+                    double[] left=previous[y], right=current[y+shift];
+                    // Descriptors have exactly four validated columns. Avoid repeated row lookups
+                    // and a nested loop in the dominant shift-scoring path on Android's runtime.
+                    error += Math.abs(left[0]-right[0]);
+                    error += Math.abs(left[1]-right[1]);
+                    error += Math.abs(left[2]-right[2]);
+                    error += Math.abs(left[3]-right[3]);
+                }
                 int index = shift + MAX_SHIFT;
                 scores[index] = to-from < (bottom-top)*.6 ? Double.POSITIVE_INFINITY
                         : error / ((to-from)*COLUMNS);
