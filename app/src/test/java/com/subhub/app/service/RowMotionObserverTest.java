@@ -15,7 +15,7 @@ public final class RowMotionObserverTest {
         return out;
     }
     private static RowMotionObserver.Sample observe(RowMotionObserver observer,int[] frame,long time,boolean active) {
-        return observer.observe(frame,64,320,0,320,1,2,time,active);
+        return observer.observe(frame,64,320,0,320,new RowMotionObserver.Scope(1,1,2,64,320),time,active);
     }
     @Test public void scalesMotionAndCarriesExactPairTimes() {
         RowMotionObserver o=new RowMotionObserver();
@@ -37,10 +37,12 @@ public final class RowMotionObserverTest {
         assertFalse(observe(o,frame(-10),200,true).accepted);
         assertTrue(observe(o,frame(-20),400,true).accepted);
         assertFalse(observe(o,frame(-10),1200,true).accepted);
-        assertFalse(o.observe(frame(-10),64,320,0,320,2,2,1400,true).accepted);
-        assertFalse(o.observe(frame(-10),64,320,0,320,2,3,1500,true).accepted);
-        assertFalse(o.observe(frame(-10),64,320,1,320,2,3,1600,true).accepted);
-        assertFalse(o.observe(null,64,320,0,320,2,3,1700,true).accepted);
-        assertFalse(o.observe(frame(-10),64,320,0,320,2,3,1800,true).accepted);
+        assertFalse(o.observe(frame(-10),64,320,0,320,new RowMotionObserver.Scope(1,2,2,64,320),1400,true).accepted);
+        assertFalse(o.observe(frame(-10),64,320,0,320,new RowMotionObserver.Scope(1,2,3,64,320),1500,true).accepted);
+        assertFalse(o.observe(frame(-10),64,320,1,320,new RowMotionObserver.Scope(1,2,3,64,320),1600,true).accepted);
+        assertFalse(o.observe(null,64,320,0,320,new RowMotionObserver.Scope(1,2,3,64,320),1700,true).accepted);
+        assertFalse(o.observe(frame(-10),64,320,0,320,new RowMotionObserver.Scope(1,2,3,64,320),1800,true).accepted);
+        assertFalse(o.observe(frame(-10),64,320,0,320,new RowMotionObserver.Scope(2,2,3,64,320),1900,true).accepted);
+        assertFalse(o.observe(frame(-10),64,320,0,320,new RowMotionObserver.Scope(2,2,3,128,640),2000,true).accepted);
     }
 }

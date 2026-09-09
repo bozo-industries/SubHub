@@ -214,6 +214,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener =
             (preferences, key) -> reloadSettings();
     private ScheduledExecutorService worker;
+    private final RowMotionObserver rowMotionObserver = new RowMotionObserver();
+    private boolean rowMotionShadow;
     private volatile boolean gpuPreparationExperiment;
     private boolean gpuPreparationReady; // capture-worker owned
     private final AtomicBoolean gpuWarmupScheduled = new AtomicBoolean();
@@ -350,6 +352,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         configureAccessibilityCadence(settings.loadDetectorConfig());
 
         worker = newScheduledWorker("SubHub-capture", Process.THREAD_PRIORITY_DISPLAY);
+        rowMotionShadow = BuildConfig.DEBUG && getSharedPreferences("row_motion_experiment", MODE_PRIVATE)
+                .getBoolean("enabled", false);
         gpuPreparationExperiment = BuildConfig.DEBUG && Build.VERSION.SDK_INT >= 29
                 && getSharedPreferences("gpu_preparation_experiment", MODE_PRIVATE)
                 .getBoolean("enabled", false);
@@ -682,6 +686,25 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             }
             traceCaptureStage(requestedAtUptimeMillis, "prepare-end");
             frame = prepared.bitmap;
+            if (rowMotionShadow) {
+                long rowStarted = SystemClock.uptimeMillis();
+                if (capturePhase.phaseUncertain) rowMotionObserver.clear();
+                else {
+                    int fw=frame.getWidth(), fh=frame.getHeight();
+                    int[] rowPixels=new int[fw*fh];
+                    frame.getPixels(rowPixels,0,fw,0,0,fw,fh);
+                    RowMotionObserver.Sample rowSample=rowMotionObserver.observe(rowPixels,fw,fh,
+                            fh/5,fh*19/20,new RowMotionObserver.Scope(requestedEpoch,
+                            requestedDocumentEpoch,requestedWindowId,prepared.sourceWidth,prepared.sourceHeight),
+                            capturePhase.screenshotUptimeMillis,
+                            lastScrollTraceEventUptime>0 && SystemClock.uptimeMillis()-lastScrollTraceEventUptime<750);
+                    CensorLabLog.i(TAG,"ROW_MOTION accepted="+rowSample.accepted
+                            +" previousMs="+rowSample.previousTime+" currentMs="+rowSample.currentTime
+                            +" dyMilliPx="+Math.round(rowSample.dy*1000)+" bands="+rowSample.bands
+                            +" preparedHeight="+fh+" sourceHeight="+prepared.sourceHeight
+                            +" costMs="+(SystemClock.uptimeMillis()-rowStarted));
+                }
+            }
             // Priority means "publish the first settled fast frame", not "immediately saturate
             // the CPU with quality and text refinement at the same time".
             if (priorityFrame && motionSettled) {
