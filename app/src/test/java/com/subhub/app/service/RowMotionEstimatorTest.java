@@ -56,4 +56,33 @@ public final class RowMotionEstimatorTest {
         assertFalse(RowMotionEstimator.estimate(a,shift(a,24)).accepted);
         a[0][0]=Double.NaN; assertFalse(RowMotionEstimator.estimate(a,a).accepted);
     }
+
+    @Test public void everyInteriorShiftSurvivesSmallNoiseAcrossIndependentTextures() {
+        for(int seed=0;seed<20;seed++) {
+            Random random=new Random(6100+seed);
+            double[][] previous=new double[160][4];
+            for(double[] row:previous) for(int x=0;x<4;x++) row[x]=20+random.nextInt(200);
+            for(int dy=-23;dy<=23;dy++) {
+                double[][] current=shift(previous,dy);
+                for(int y=0;y<160;y++) if(y-dy>=0 && y-dy<160)
+                    for(int x=0;x<4;x++) current[y][x]+=random.nextInt(5)-2;
+                RowMotionEstimator.Result result=RowMotionEstimator.estimate(previous,current);
+                String context="seed="+seed+" dy="+dy;
+                assertTrue(context,result.accepted);
+                assertEquals(context,dy,result.dy,0);
+            }
+        }
+    }
+
+    @Test public void unrelatedTexturedFramesNeverProduceAcceptedCameraMotion() {
+        for(int seed=0;seed<100;seed++) {
+            Random random=new Random(6200+seed);
+            double[][] previous=new double[160][4],current=new double[160][4];
+            for(int y=0;y<160;y++) for(int x=0;x<4;x++) {
+                previous[y][x]=20+random.nextInt(200);
+                current[y][x]=20+random.nextInt(200);
+            }
+            assertFalse("seed="+seed,RowMotionEstimator.estimate(previous,current).accepted);
+        }
+    }
 }

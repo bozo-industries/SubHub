@@ -30,6 +30,13 @@ Before the final build, 1000 deterministic old/new comparisons retained acceptan
 across translated, locally animated, and narrow-column pairs. Saved descriptor transitions
 also retained their prior results. These checks are not a proof across every possible input.
 
+Follow-up persistent regression coverage now tests all 47 interior shifts (-23 through +23)
+against 20 independent textures with bounded pixel-descriptor noise (940 pairs), asserting
+exact accepted displacement, plus 100 unrelated textured pairs that must be rejected.
+The expanded suite passes 530 JVM tests and lintDebug. This is deterministic correctness
+coverage, not additional capture-age, queue-drop, inference, publication, or stability telemetry;
+those pipeline metrics were not remeasured in this arithmetic-only pass.
+
 Only emulator-5554 was installed or tested. Pixel access was not resumed. Existing experimental
 GPU/anchor/row-motion switches stay OFF, and no release or production deployment occurred.
 
