@@ -31,12 +31,17 @@ final class RowMotionEstimator {
             // lower bound exceeds both the best score and its required ambiguity margin.
             int best = MAX_SHIFT;
             scores[best]=score(previous,current,top,bottom,0,Double.POSITIVE_INFINITY);
-            for (int shift = -MAX_SHIFT; shift <= MAX_SHIFT; shift++) {
-                if(shift==0) continue;
+            // Visit small offsets first to tighten the bound early for ordinary scrolling.
+            // Still search every offset; preserve stationary-first then lowest-shift tie order.
+            for (int candidate = 1; candidate <= MAX_SHIFT*2; candidate++) {
+                int magnitude=(candidate+1)/2;
+                int shift=candidate%2==1 ? -magnitude : magnitude;
                 int index = shift + MAX_SHIFT;
                 double cutoff=Math.max(scores[best]+2,scores[best]/.92);
                 scores[index]=score(previous,current,top,bottom,shift,cutoff);
-                if (scores[index] < scores[best]) best = index;
+                if (scores[index] < scores[best]
+                        || (scores[index] == scores[best] && best != MAX_SHIFT && index < best))
+                    best = index;
             }
             int dy = best-MAX_SHIFT;
             double runnerUp = Double.POSITIVE_INFINITY;
