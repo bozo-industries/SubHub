@@ -46,7 +46,8 @@ final class RowMotionEstimator {
             boolean improved = dy == 0 ? scores[best] <= 2
                     : scores[best] <= scores[MAX_SHIFT]*.8;
             reliable[band] = distinct && improved && scores[best] <= 32
-                    && Math.abs(dy) < MAX_SHIFT;
+                    && Math.abs(dy) < MAX_SHIFT
+                    && supportedColumns(previous,current,top,bottom,dy)>=2;
             shifts[band] = dy;
         }
         int bestCount = 0; double bestShift = 0;
@@ -62,6 +63,22 @@ final class RowMotionEstimator {
             }
         }
         return bestCount >= 3 ? new Result(true, bestShift, bestCount) : REJECTED;
+    }
+
+    private static int supportedColumns(double[][] previous,double[][] current,int top,int bottom,int dy) {
+        int from=Math.max(top,-dy), to=Math.min(bottom,previous.length-dy), supported=0;
+        for(int x=0;x<COLUMNS;x++) {
+            double texture=0, shifted=0, stationary=0;
+            for(int y=top+1;y<bottom;y++) texture+=Math.abs(previous[y][x]-previous[y-1][x]);
+            if(texture/(bottom-top-1)<3) continue;
+            for(int y=from;y<to;y++) {
+                shifted+=Math.abs(previous[y][x]-current[y+dy][x]);
+                stationary+=Math.abs(previous[y][x]-current[y][x]);
+            }
+            shifted/=to-from; stationary/=to-from;
+            if(shifted<=32 && (dy==0 ? shifted<=2 : shifted<=stationary*.8)) supported++;
+        }
+        return supported;
     }
 
     private static boolean valid(double[][] rows) {

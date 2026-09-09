@@ -42,6 +42,11 @@ public final class RowMotionEstimatorTest {
         for(int y=80;y<160;y++) b[y]=other[y];
         assertFalse(RowMotionEstimator.estimate(a,b).accepted);
     }
+    @Test public void narrowAnimatedColumnCannotImpersonateWholeViewportMotion() {
+        double[][] a=texture();
+        for(double[] row:a) for(int x=1;x<4;x++) row[x]=128;
+        assertFalse(RowMotionEstimator.estimate(a,shift(a,5)).accepted);
+    }
     @Test public void flatRepeatedInvalidAndSearchBoundaryAreRejected() {
         assertFalse(RowMotionEstimator.estimate(new double[160][4],new double[160][4]).accepted);
         double[][] repeated=new double[160][4];
