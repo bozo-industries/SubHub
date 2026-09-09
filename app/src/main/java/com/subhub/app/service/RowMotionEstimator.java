@@ -27,22 +27,15 @@ final class RowMotionEstimator {
                 for (int x = 0; x < COLUMNS; x++) texture += Math.abs(previous[y][x] - previous[y-1][x]);
             if (texture / ((bottom-top-1) * COLUMNS) < 3) continue;
             double[] scores = new double[MAX_SHIFT * 2 + 1];
-            int best = 0;
+            // Score stationary fully first. Other candidates may stop once even their partial
+            // lower bound exceeds both the best score and its required ambiguity margin.
+            int best = MAX_SHIFT;
+            scores[best]=score(previous,current,top,bottom,0,Double.POSITIVE_INFINITY);
             for (int shift = -MAX_SHIFT; shift <= MAX_SHIFT; shift++) {
-                int from = Math.max(top, -shift), to = Math.min(bottom, height-shift);
-                double error = 0;
-                for (int y = from; y < to; y++) {
-                    double[] left=previous[y], right=current[y+shift];
-                    // Descriptors have exactly four validated columns. Avoid repeated row lookups
-                    // and a nested loop in the dominant shift-scoring path on Android's runtime.
-                    error += Math.abs(left[0]-right[0]);
-                    error += Math.abs(left[1]-right[1]);
-                    error += Math.abs(left[2]-right[2]);
-                    error += Math.abs(left[3]-right[3]);
-                }
+                if(shift==0) continue;
                 int index = shift + MAX_SHIFT;
-                scores[index] = to-from < (bottom-top)*.6 ? Double.POSITIVE_INFINITY
-                        : error / ((to-from)*COLUMNS);
+                double cutoff=Math.max(scores[best]+2,scores[best]/.92);
+                scores[index]=score(previous,current,top,bottom,shift,cutoff);
                 if (scores[index] < scores[best]) best = index;
             }
             int dy = best-MAX_SHIFT;
@@ -70,6 +63,20 @@ final class RowMotionEstimator {
             }
         }
         return bestCount >= 3 ? new Result(true, bestShift, bestCount) : REJECTED;
+    }
+
+    private static double score(double[][] previous,double[][] current,int top,int bottom,int shift,double cutoff) {
+        int from=Math.max(top,-shift),to=Math.min(bottom,previous.length-shift);
+        if(to-from<(bottom-top)*.6) return Double.POSITIVE_INFINITY;
+        int count=(to-from)*COLUMNS;
+        double limit=cutoff*count,error=0;
+        for(int y=from;y<to;y++) {
+            double[] left=previous[y],right=current[y+shift];
+            error+=Math.abs(left[0]-right[0]); error+=Math.abs(left[1]-right[1]);
+            error+=Math.abs(left[2]-right[2]); error+=Math.abs(left[3]-right[3]);
+            if(error>limit) break;
+        }
+        return error/count;
     }
 
     private static int supportedColumns(double[][] previous,double[][] current,int top,int bottom,int dy) {
