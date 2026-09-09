@@ -53,6 +53,23 @@ class CaptureSpanTest(unittest.TestCase):
                           span("callback-success", 150), span("callback-exit", 250)])
         self.assertEqual(1, report["counts"]["invalidRequests"])
 
+    def test_async_publication_stages_have_their_own_order(self):
+        # Worker may finish before callback-exit; no false cross-thread total order.
+        report = analyze(self.full() + [span("fast-ready", 239), span("geometry-ready", 245),
+                         span("publication-post", 248), span("publication-main", 270),
+                         span("publication-tick", 280)])
+        self.assertEqual(0, report["malformedRecords"])
+        self.assertEqual(1, report["counts"]["completedCallbacks"])
+        self.assertEqual(22, report["timings"]["publicationQueueMs"]["p50"])
+        self.assertEqual(10, report["timings"]["publicationMainToTickMs"]["p50"])
+        self.assertEqual(6, report["timings"]["fastToGeometryMs"]["p50"])
+
+    def test_bad_or_unknown_publication_stages_still_fail_closed(self):
+        for extra in ([span("publication-post", 280), span("publication-main", 270)],
+                      [span("future-publication", 270)]):
+            report = analyze(self.full() + extra)
+            self.assertEqual(1, report["counts"]["invalidRequests"])
+
     def test_markers_scope_and_require_unambiguous_order(self):
         report = analyze(["START", *self.full(), "END", span("accepted", 100)], "START", "END")
         self.assertEqual(1, report["counts"]["sceneBegun"])

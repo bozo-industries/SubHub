@@ -9,6 +9,8 @@ EVENT = re.compile(r"\b(CAPTURE_SPAN|CAPTURE_PREPARE)\s+(.*)")
 FIELD = re.compile(r"\b([A-Za-z][A-Za-z0-9]*)=([^\s]+)")
 ORDER = ("accepted", "dispatch", "callback-success", "prepare-start", "prepare-end",
          "scene-begun", "callback-exit")
+PUBLICATION_ORDER = ("fast-ready", "geometry-ready", "publication-post", "publication-main",
+                     "publication-tick")
 PAIRS = {
     "preflightMs": ("accepted", "dispatch"),
     "dispatchToCallbackMs": ("dispatch", "callback-success"),
@@ -16,6 +18,9 @@ PAIRS = {
     "prepareMs": ("prepare-start", "prepare-end"),
     "prepareToSceneMs": ("prepare-end", "scene-begun"),
     "callbackWorkMs": ("callback-success", "callback-exit"),
+    "fastToGeometryMs": ("fast-ready", "geometry-ready"),
+    "publicationQueueMs": ("publication-post", "publication-main"),
+    "publicationMainToTickMs": ("publication-main", "publication-tick"),
 }
 
 
@@ -59,7 +64,7 @@ def analyze(lines, start=None, end=None):
             if match[1] == "CAPTURE_SPAN":
                 stage = fields["stage"]
                 now, age = int(fields["uptimeMs"]), int(fields["requestAgeMs"])
-                if (stage not in ORDER and not re.fullmatch(r"callback-failure-\d+", stage)
+                if (stage not in ORDER + PUBLICATION_ORDER and not re.fullmatch(r"callback-failure-\d+", stage)
                         or now < request_id or age != now - request_id
                         or stage in request["stages"]):
                     raise ValueError("Invalid stage")
@@ -81,8 +86,10 @@ def analyze(lines, start=None, end=None):
     for request_id, request in requests.items():
         stages = request["stages"]
         ordered = [stages[stage] for stage in ORDER if stage in stages]
+        publication = [stages[stage] for stage in PUBLICATION_ORDER if stage in stages]
         failures = [stage for stage in stages if stage.startswith("callback-failure-")]
-        if (request["bad"] or ordered != sorted(ordered) or len(failures) > 1
+        if (request["bad"] or ordered != sorted(ordered) or publication != sorted(publication)
+                or len(failures) > 1
                 or failures and "callback-success" in stages):
             counts["invalidRequests"] += 1
             continue
@@ -91,7 +98,7 @@ def analyze(lines, start=None, end=None):
             continue
         if failures:
             if ("dispatch" not in stages or stages[failures[0]] < stages["dispatch"]
-                    or any(stage in stages for stage in ORDER[2:])):
+                    or any(stage in stages for stage in ORDER[2:] + PUBLICATION_ORDER)):
                 counts["invalidRequests"] += 1
                 continue
             counts["failedRequests"] += 1
