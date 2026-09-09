@@ -688,6 +688,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             frame = prepared.bitmap;
             if (rowMotionShadow) {
                 long rowStarted = SystemClock.uptimeMillis();
+                long rowCpuStarted = android.os.Debug.threadCpuTimeNanos();
                 if (capturePhase.phaseUncertain) rowMotionObserver.clear();
                 else {
                     int fw=frame.getWidth(), fh=frame.getHeight();
@@ -702,7 +703,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                             +" previousMs="+rowSample.previousTime+" currentMs="+rowSample.currentTime
                             +" dyMilliPx="+Math.round(rowSample.dy*1000)+" bands="+rowSample.bands
                             +" preparedHeight="+fh+" sourceHeight="+prepared.sourceHeight
-                            +" costMs="+(SystemClock.uptimeMillis()-rowStarted));
+                            +" costMs="+(SystemClock.uptimeMillis()-rowStarted)
+                            +" cpuUs="+(android.os.Debug.threadCpuTimeNanos()-rowCpuStarted)/1000);
                 }
             }
             // Priority means "publish the first settled fast frame", not "immediately saturate
