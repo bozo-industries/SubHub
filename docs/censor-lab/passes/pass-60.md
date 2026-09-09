@@ -2,6 +2,10 @@
 
 Status: arithmetic optimization verified on emulator only; shadow observer remains OFF.
 
+Important follow-up: the 20-iteration timings below were not steady-state measurements.
+With 400 warmup iterations the current observer measured 0.190ms median thread CPU. Preserve
+the older results as startup/warmup evidence, not as a steady-state cost or proven speedup.
+
 The previous clean-source shadow/control runs showed a generally slow emulator. An isolated
 instrumentation benchmark now distinguishes observer thread CPU from elapsed wall time. It
 uses 144x320 prepared pixels, alternating known +/-10px translations, 20 warmup iterations
@@ -54,3 +58,30 @@ GPU/anchor/row-motion switches stay OFF, and no release or production deployment
 Next: require broader stationary/animation/scroll controls, a repeatable CPU budget, and explicit
 capture-coordinate integration before any render authority. Real-device product acceptance
 remains outstanding; this pass does not resolve early-scroll alignment or visible flashing.
+
+## Candidate ordering and warmup correction
+
+`fff4a6c` visits shifts in increasing absolute magnitude, still evaluating every candidate and
+preserving stationary-first then lowest-shift tie order. Full JVM/lint/paired builds passed;
+1000 deterministic baseline comparisons retained acceptance and dy; instrumentation 2/2 passed.
+Its initial short-warmup full-observer CPU median/p95 was 13.383/21.420ms, while the later stage
+probe reported descriptor 0.048/1.361ms and estimator 1.061/5.241ms. The unchanged descriptor's
+large reduction invalidates attribution of all timing differences to algorithm changes.
+
+Increasing warmup from 20 to 400 iterations, with 60 measured iterations and correctness
+assertions on every call, produced:
+
+- Full observer CPU median/p95/max: 0.190/0.294/0.401ms.
+- Full observer wall median/p95/max: 0.232/4.777/9.938ms.
+- Descriptor CPU median/p95 (includes reflection): 0.037/0.049ms.
+- Estimator CPU median/p95: 0.145/0.800ms.
+
+Both tests passed again. This is consistent with runtime warmup/compilation effects; compilation
+events were not captured, so the mechanism is an inference. Four hundred iterations are not a
+general guarantee of convergence. Future comparisons must report startup separately, verify
+stability across later measurement windows and fresh processes, and compare identical warmup
+protocols. Do not prescribe 400 hot calls on the capture path or ignore startup cost: real
+screenshot cadence is far lower than this benchmark and first-detection latency still matters.
+No old-version long-warmup baseline was measured, so no steady-state optimization percentage
+is established. The next useful gate is clean-source shadow behavior with complete pipeline
+telemetry, not further optimization justified by the superseded multi-millisecond median.

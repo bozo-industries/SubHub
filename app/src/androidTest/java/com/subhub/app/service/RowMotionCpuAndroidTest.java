@@ -9,6 +9,7 @@ import static org.junit.Assert.*;
 
 /** Arithmetic/descriptor benchmark only; no capture, settings or render authority. */
 public final class RowMotionCpuAndroidTest {
+    private static final int WARMUP = 400;
     @Test public void measurePreparedPixelObserverCpuAndWallTime() {
         int[][] frames={frame(0),frame(-10)};
         RowMotionObserver observer=new RowMotionObserver();
@@ -16,17 +17,17 @@ public final class RowMotionCpuAndroidTest {
         long[] cpu=new long[60],wall=new long[60];
         long timestamp=1000;
         observer.observe(frames[0],144,320,0,320,scope,timestamp,true);
-        for(int i=0;i<80;i++) {
+        for(int i=0;i<WARMUP+60;i++) {
             timestamp+=333;
             long wallStart=System.nanoTime(),cpuStart=Debug.threadCpuTimeNanos();
             RowMotionObserver.Sample sample=observer.observe(frames[(i+1)%2],144,320,0,320,scope,timestamp,true);
             long cpuTime=Debug.threadCpuTimeNanos()-cpuStart,wallTime=System.nanoTime()-wallStart;
             assertTrue(sample.accepted);
             assertEquals(i%2==0 ? -10 : 10,sample.dy,0);
-            if(i>=20) {cpu[i-20]=cpuTime;wall[i-20]=wallTime;}
+            if(i>=WARMUP) {cpu[i-WARMUP]=cpuTime;wall[i-WARMUP]=wallTime;}
         }
         Arrays.sort(cpu);Arrays.sort(wall);
-        Log.i("RowMotionCpuTest","ROW_CPU_PROBE samples=60 cpuMedianUs="+cpu[30]/1000
+        Log.i("RowMotionCpuTest","ROW_CPU_PROBE samples=60 warmup="+WARMUP+" cpuMedianUs="+cpu[30]/1000
                 +" cpuP95Us="+cpu[56]/1000+" cpuMaxUs="+cpu[59]/1000
                 +" wallMedianUs="+wall[30]/1000+" wallP95Us="+wall[56]/1000
                 +" wallMaxUs="+wall[59]/1000);
@@ -40,7 +41,7 @@ public final class RowMotionCpuAndroidTest {
         int[][] frames={frame(0),frame(-10)};
         double[][] previous=(double[][])describe.invoke(null,frames[0],144,0,320);
         long[] descriptorCpu=new long[60],estimatorCpu=new long[60];
-        for(int i=0;i<80;i++) {
+        for(int i=0;i<WARMUP+60;i++) {
             long start=Debug.threadCpuTimeNanos();
             double[][] current=(double[][])describe.invoke(null,frames[(i+1)%2],144,0,320);
             long prepared=Debug.threadCpuTimeNanos();
@@ -48,11 +49,11 @@ public final class RowMotionCpuAndroidTest {
             long matched=Debug.threadCpuTimeNanos();
             assertTrue(result.accepted);
             assertEquals(i%2==0 ? -5 : 5,result.dy,0);
-            if(i>=20) {descriptorCpu[i-20]=prepared-start;estimatorCpu[i-20]=matched-prepared;}
+            if(i>=WARMUP) {descriptorCpu[i-WARMUP]=prepared-start;estimatorCpu[i-WARMUP]=matched-prepared;}
             previous=current;
         }
         Arrays.sort(descriptorCpu);Arrays.sort(estimatorCpu);
-        Log.i("RowMotionCpuTest","ROW_STAGE_CPU samples=60 descriptorIncludesReflection=true"
+        Log.i("RowMotionCpuTest","ROW_STAGE_CPU samples=60 warmup="+WARMUP+" descriptorIncludesReflection=true"
                 +" descriptorMedianUs="+descriptorCpu[30]/1000
                 +" descriptorP95Us="+descriptorCpu[56]/1000
                 +" estimatorMedianUs="+estimatorCpu[30]/1000
