@@ -168,6 +168,70 @@ public final class QualityBackfillCoordinatorTest {
         assertEquals(3, coordinator.candidateCount());
     }
 
+    @Test public void crossFamilyObservationWithReturnDriftCannotConfirmBackfill() {
+        QualityBackfillCoordinator<String> coordinator = new QualityBackfillCoordinator<>();
+        QualityBackfillCoordinator.BackfillContext context = context();
+        coordinator.observe(stamp(1L, 100L, 1L, 1L), context, 100L,
+                List.of(region("FACE_FEMALE", "face_female", 0, 0)));
+
+        QualityBackfillCoordinator.ObservationResult promoted = coordinator.observe(
+                stamp(1L, 200L, 2L, 2L), context, 200L,
+                List.of(region("FEMALE_BREAST_EXPOSED", "breasts", 55, 0)));
+
+        assertEquals(QualityBackfillCoordinator.ObservationStatus.ACCEPTED,
+                promoted.status());
+        assertEquals(0, promoted.newlyPromoted());
+        assertEquals(2, coordinator.candidateCount());
+    }
+
+    @Test public void distinctBodyPartCannotBorrowFaceConfirmationAtIdenticalGeometry() {
+        QualityBackfillCoordinator<String> coordinator = new QualityBackfillCoordinator<>();
+        coordinator.observe(stamp(1L, 100L, 1L, 1L), context(), 100L,
+                List.of(region("FACE_FEMALE", "face_female", 0, 0)));
+        QualityBackfillCoordinator.ObservationResult firstBody = coordinator.observe(
+                stamp(1L, 200L, 2L, 2L), context(), 200L,
+                List.of(region("FEMALE_BREAST_EXPOSED", "breasts", 0, 0)));
+        assertEquals(0, firstBody.matched());
+        assertEquals(0, firstBody.newlyPromoted());
+        assertEquals(0, firstBody.readyRegions().size());
+        assertEquals(2, coordinator.candidateCount());
+
+        QualityBackfillCoordinator.ObservationResult secondBody = coordinator.observe(
+                stamp(1L, 300L, 3L, 3L), context(), 300L,
+                List.of(region("FEMALE_BREAST_EXPOSED", "breasts", 0, 0)));
+        assertEquals(1, secondBody.newlyPromoted());
+        assertEquals("breasts", secondBody.readyRegions().get(0).category());
+    }
+
+    @Test public void unrelatedVisualRegionsInOneCaptureDoNotDeduplicateEachOther() {
+        QualityBackfillCoordinator<String> coordinator = new QualityBackfillCoordinator<>();
+        List<QualityBackfillCoordinator.BackfillRegion> regions = List.of(
+                region("FACE_FEMALE", "face_female", 0, 0),
+                region("FEMALE_BREAST_EXPOSED", "breasts", 0, 0));
+        coordinator.observe(stamp(1L, 100L, 1L, 1L), context(), 100L, regions);
+        assertEquals(2, coordinator.candidateCount());
+        QualityBackfillCoordinator.ObservationResult repeated = coordinator.observe(
+                stamp(1L, 200L, 2L, 2L), context(), 200L, regions);
+        assertEquals(2, repeated.newlyPromoted());
+        assertEquals(2, repeated.readyRegions().size());
+    }
+
+    @Test public void promotedBodyPartCannotLendItsReadyStateToAnotherCategory() {
+        QualityBackfillCoordinator<String> coordinator = new QualityBackfillCoordinator<>();
+        for (int sequence = 1; sequence <= 2; sequence++) {
+            coordinator.observe(stamp(1L, sequence * 100L, sequence, sequence),
+                    context(), sequence * 100L,
+                    List.of(region("FEMALE_BREAST_EXPOSED", "breasts", 0, 0)));
+        }
+        QualityBackfillCoordinator.ObservationResult switched = coordinator.observe(
+                stamp(1L, 300L, 3L, 3L), context(), 300L,
+                List.of(region("BUTTOCKS_EXPOSED", "buttocks", 0, 0)));
+        assertEquals(0, switched.refined());
+        assertEquals(0, switched.newlyPromoted());
+        assertEquals(0, switched.readyRegions().size());
+        assertEquals(2, coordinator.candidateCount());
+    }
+
     @Test public void absentObservationsNeverRemoveCandidates() {
         QualityBackfillCoordinator<String> coordinator = new QualityBackfillCoordinator<>();
         QualityBackfillCoordinator.BackfillContext context = context();
