@@ -332,6 +332,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        MainThreadSampler.startIfArmed(this);
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             Log.w(TAG, "Accessibility screenshot capture requires Android 11 or newer");
             disableSelf();
