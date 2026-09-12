@@ -217,6 +217,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final RowMotionObserver rowMotionObserver = new RowMotionObserver();
     private final VisualCameraShadow visualCameraShadow = new VisualCameraShadow();
     private PreparedFrameRecorder preparedFrameRecorder;
+    private ChromeGeometryProbe chromeGeometryProbe;
     private boolean rowMotionShadow;
     private volatile boolean gpuPreparationExperiment;
     private boolean gpuPreparationReady; // capture-worker owned
@@ -371,6 +372,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         main.post(this::reevaluateRecognition);
         main.post(this::reevaluateSubliminals);
         main.post(timerTick);
+        chromeGeometryProbe = ChromeGeometryProbe.startIfArmed(this);
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -4731,6 +4733,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (motionEstimator != null) motionEstimator.close();
         motionEstimator = null;
         if (preparedFrameRecorder != null) preparedFrameRecorder.close();
+        if (chromeGeometryProbe != null) chromeGeometryProbe.close();
         if (hardcoreSettingsGuard != null) hardcoreSettingsGuard.clear();
         hardcoreSettingsGuard = null;
         if (subliminalOverlay != null) subliminalOverlay.close();
