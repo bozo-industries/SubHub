@@ -8,6 +8,7 @@ final class VisualCameraShadow {
     private final VisualScrollReconciler camera = new VisualScrollReconciler();
     private final Map<Long, Long> producerTimes = new LinkedHashMap<>();
     private RowMotionObserver.Scope scope;
+    private CaptureTimeReference previousTime;
     private long horizontalTime = -1L;
 
     synchronized void event(RowMotionObserver.Scope observedScope, long producer, long sourceTime,
@@ -25,15 +26,29 @@ final class VisualCameraShadow {
     }
 
     synchronized Result observe(RowMotionObserver.Scope observedScope, RowMotionObserver.Sample sample,
-            int preparedHeight, double eventFrameY) {
+            int preparedHeight, double eventFrameY, CaptureTimeReference time) {
         if (sample == null || preparedHeight <= 0 || !acceptScope(observedScope, eventFrameY)) {
-            return new Result(false, false, true, false, 0, 0, 0);
+            return new Result(false, false, true, false, false, 0, 0, 0);
         }
+        if (time != null && previousTime != null && time.kind != previousTime.kind) {
+            camera.reset(eventFrameY);
+            producerTimes.clear();
+            horizontalTime = -1L;
+            previousTime = null;
+        }
+        boolean pixelTimeKnown = time != null && time.pixelTimeKnown()
+                && time.reportedUptimeMillis == sample.currentTime
+                && (sample.previousTime < 0L || previousTime != null && previousTime.pixelTimeKnown()
+                && previousTime.reportedUptimeMillis == sample.previousTime);
         boolean horizontal = horizontalTime > sample.previousTime && horizontalTime <= sample.currentTime;
         double screenDy = sample.dy * observedScope.sourceHeight / preparedHeight;
         VisualScrollReconciler.Measurement measurement = camera.observe(
-                sample.previousTime, sample.currentTime, screenDy, sample.accepted && !horizontal);
-        return new Result(true, measurement.accepted, camera.hasUnresolvedEventInterval(), horizontal,
+                sample.previousTime, sample.currentTime, screenDy,
+                sample.accepted && !horizontal && pixelTimeKnown);
+        if (time != null && (previousTime == null
+                || time.reportedUptimeMillis > previousTime.reportedUptimeMillis)) previousTime = time;
+        return new Result(true, measurement.accepted,
+                !pixelTimeKnown || camera.hasUnresolvedEventInterval(), horizontal, pixelTimeKnown,
                 measurement.frameY, measurement.correctionY, camera.cameraY());
     }
 
@@ -47,19 +62,21 @@ final class VisualCameraShadow {
             camera.reset(initialY);
             producerTimes.clear();
             horizontalTime = -1L;
+            previousTime = null;
         }
         return true;
     }
 
     static final class Result {
-        final boolean scopeValid, accepted, uncertain, horizontal;
+        final boolean scopeValid, accepted, uncertain, horizontal, pixelTimeKnown;
         final double frameY, correctionY, cameraY;
         Result(boolean scopeValid, boolean accepted, boolean uncertain, boolean horizontal,
-                double frameY, double correctionY, double cameraY) {
+                boolean pixelTimeKnown, double frameY, double correctionY, double cameraY) {
             this.scopeValid = scopeValid;
             this.accepted = accepted;
             this.uncertain = uncertain;
             this.horizontal = horizontal;
+            this.pixelTimeKnown = pixelTimeKnown;
             this.frameY = frameY;
             this.correctionY = correctionY;
             this.cameraY = cameraY;

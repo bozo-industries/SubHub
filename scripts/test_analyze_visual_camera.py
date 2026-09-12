@@ -2,7 +2,7 @@ import unittest
 from analyze_visual_camera import parse
 
 VALID = ("ROW_CAMERA previousMs=100 currentMs=200 scopeValid=true accepted=true "
-         "uncertain=false horizontal=false frameMilliY=100000 eventFrameMilliY=60000 "
+         "uncertain=false horizontal=false pixelTimeKnown=true frameMilliY=100000 eventFrameMilliY=60000 "
          "correctionMilliY=40000 cameraMilliY=120000")
 
 
@@ -26,6 +26,13 @@ class VisualCameraParserTest(unittest.TestCase):
         self.assertTrue(result["complete"])
         self.assertEqual(result["uncertainRecords"], 1)
         self.assertFalse(parse("")["complete"])
+
+    def test_legacy_provenance_is_unknown_and_receipt_cannot_be_accepted(self):
+        legacy = parse(VALID.replace(" pixelTimeKnown=true", ""))
+        self.assertTrue(legacy["complete"])
+        self.assertFalse(legacy["provenanceComplete"])
+        self.assertIsNone(legacy["records"][0]["pixelTimeKnown"])
+        self.assertFalse(parse(VALID.replace("pixelTimeKnown=true", "pixelTimeKnown=false"))["complete"])
 
 
 if __name__ == "__main__":

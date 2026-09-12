@@ -2,7 +2,7 @@ package com.subhub.app.service;
 
 import java.util.ArrayDeque;
 
-/** Resolves event-sourced viewport state at the hardware screenshot timestamp. */
+/** Resolves an event-coordinate estimate at a typed time reference, retaining its uncertainty. */
 final class CaptureScrollTimeline {
     private static final int MAX_SAMPLES = 192;
 
@@ -26,21 +26,23 @@ final class CaptureScrollTimeline {
     }
 
     synchronized Phase resolve(
-            long screenshotUptimeMillis,
-            long requestedAtUptimeMillis,
+            CaptureTimeReference time,
             long requestedScrollX,
             long requestedScrollY,
             long requestedGeneration) {
+        if (time == null) throw new IllegalArgumentException("Capture time provenance required");
+        long screenshotUptimeMillis = time.reportedUptimeMillis;
         long scrollX = requestedScrollX;
         long scrollY = requestedScrollY;
         long resolvedGeneration = requestedGeneration;
         long maximumDeliveryDelayMs = 0L;
         boolean resolved = false;
-        boolean uncertain = false;
+        boolean uncertain = !time.valid;
         for (Motion motion : motions) {
             // Generation says whether the request-time snapshot already incorporated this delta.
-            // Effective time says whether the pixels had incorporated it when Android captured
-            // the hardware buffer. This remains correct even when delivery crosses the request.
+            // Effective time orders events against the reference. For Accessibility receipt/
+            // completion stamps this is only an event-coordinate estimate, NOT proof of the
+            // pixel phase. Keep pixelTimeKnown separate from event-order confidence.
             if (motion.motionGeneration <= requestedGeneration
                     || motion.effectiveUptimeMillis > screenshotUptimeMillis) continue;
             scrollX += motion.contentDx;
@@ -53,7 +55,7 @@ final class CaptureScrollTimeline {
         }
         return new Phase(scrollX, scrollY, resolvedGeneration,
                 screenshotUptimeMillis, resolved, uncertain, maximumDeliveryDelayMs,
-                requestedAtUptimeMillis);
+                time);
     }
 
     synchronized void clear() {
@@ -91,9 +93,12 @@ final class CaptureScrollTimeline {
         final long motionGeneration;
         final long screenshotUptimeMillis;
         final boolean resolvedFromMotion;
+        /** Event-order confidence only; false does not establish exact pixel timing. */
         final boolean phaseUncertain;
         final long maximumDeliveryDelayMs;
         final long requestedAtUptimeMillis;
+        final CaptureTimeReference timeReference;
+        final boolean pixelTimeKnown;
 
         private Phase(
                 long scrollX,
@@ -103,7 +108,7 @@ final class CaptureScrollTimeline {
                 boolean resolvedFromMotion,
                 boolean phaseUncertain,
                 long maximumDeliveryDelayMs,
-                long requestedAtUptimeMillis) {
+                CaptureTimeReference timeReference) {
             this.scrollX = scrollX;
             this.scrollY = scrollY;
             this.motionGeneration = motionGeneration;
@@ -111,7 +116,9 @@ final class CaptureScrollTimeline {
             this.resolvedFromMotion = resolvedFromMotion;
             this.phaseUncertain = phaseUncertain;
             this.maximumDeliveryDelayMs = Math.max(0L, maximumDeliveryDelayMs);
-            this.requestedAtUptimeMillis = Math.max(0L, requestedAtUptimeMillis);
+            this.requestedAtUptimeMillis = Math.max(0L, timeReference.requestUptimeMillis);
+            this.timeReference = timeReference;
+            this.pixelTimeKnown = timeReference.pixelTimeKnown();
         }
     }
 }

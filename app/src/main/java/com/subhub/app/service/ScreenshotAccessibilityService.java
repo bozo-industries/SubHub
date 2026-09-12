@@ -576,8 +576,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (!isCurrentCapture(requestedEpoch)) return;
             wrapped = Bitmap.wrapHardwareBuffer(buffer, result.getColorSpace());
             if (wrapped == null) return;
+            CaptureTimeReference captureTime = CaptureTimeReference.accessibility(
+                    Build.VERSION.SDK_INT >= 34 && requestedWindowId >= 0,
+                    requestedAtUptimeMillis, result.getTimestamp(), SystemClock.uptimeMillis());
+            if (BuildConfig.DEBUG) {
+                CensorLabLog.i(TAG, "CAPTURE_TIME id=" + requestedAtUptimeMillis
+                        + " kind=" + captureTime.kind
+                        + " requestMs=" + captureTime.requestUptimeMillis
+                        + " reportedMs=" + captureTime.reportedUptimeMillis
+                        + " callbackMs=" + captureTime.callbackUptimeMillis
+                        + " valid=" + captureTime.valid
+                        + " pixelTimeKnown=" + captureTime.pixelTimeKnown());
+            }
             CaptureScrollTimeline.Phase capturePhase = captureScrollTimeline.resolve(
-                    result.getTimestamp(), requestedAtUptimeMillis,
+                    captureTime,
                     requestedScrollX, requestedScrollY, requestedGeneration);
             long sourceScrollX = capturePhase.scrollX;
             long sourceScrollY = capturePhase.scrollY;
@@ -712,13 +724,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     VisualCameraShadow.Result cameraSample = visualCameraShadow.observe(
                             new RowMotionObserver.Scope(requestedEpoch, requestedDocumentEpoch,
                                     requestedWindowId, prepared.sourceWidth, prepared.sourceHeight),
-                            rowSample, fh, sourceScrollY);
+                            rowSample, fh, sourceScrollY, captureTime);
                     CensorLabLog.i(TAG, "ROW_CAMERA previousMs=" + rowSample.previousTime
                             + " currentMs=" + rowSample.currentTime
                             + " scopeValid=" + cameraSample.scopeValid
                             + " accepted=" + cameraSample.accepted
                             + " uncertain=" + cameraSample.uncertain
                             + " horizontal=" + cameraSample.horizontal
+                            + " pixelTimeKnown=" + cameraSample.pixelTimeKnown
                             + " frameMilliY=" + Math.round(cameraSample.frameY * 1000)
                             + " eventFrameMilliY=" + sourceScrollY * 1000L
                             + " correctionMilliY=" + Math.round(cameraSample.correctionY * 1000)
@@ -753,7 +766,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     false,
                     requestedAtUptimeMillis,
                     requestedScrollX, requestedScrollY, requestedGeneration,
-                    capturePhase.screenshotUptimeMillis,
+                    captureTime,
                     capturePhase.phaseUncertain,
                     capturePhase.maximumDeliveryDelayMs,
                     inferenceDocumentEpoch, inferenceSurfaceKey,
@@ -2061,8 +2074,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private CaptureScrollTimeline.Phase resolveCapturePhase(InferenceFrame candidate) {
         return captureScrollTimeline.resolve(
-                candidate.screenshotUptimeMillis,
-                candidate.capturedAtUptimeMillis,
+                candidate.captureTime,
                 candidate.requestedScrollX,
                 candidate.requestedScrollY,
                 candidate.requestedGeneration);
@@ -4488,11 +4500,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private final boolean continuousMotionInference;
         private final boolean qualityRefine;
         private final boolean qualityConfirmation;
+        /** Request start retained for legacy metrics; not the pixel-capture or receipt time. */
         private final long capturedAtUptimeMillis;
         private final long requestedScrollX;
         private final long requestedScrollY;
         private final long requestedGeneration;
         private final long screenshotUptimeMillis;
+        private final CaptureTimeReference captureTime;
         private final boolean capturePhaseUncertain;
         private final long captureEventDeliveryDelayMs;
         private final long visualDocumentEpoch;
@@ -4517,7 +4531,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 long requestedScrollX,
                 long requestedScrollY,
                 long requestedGeneration,
-                long screenshotUptimeMillis,
+                CaptureTimeReference captureTime,
                 boolean capturePhaseUncertain,
                 long captureEventDeliveryDelayMs,
                 long visualDocumentEpoch,
@@ -4539,7 +4553,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             this.requestedScrollX = requestedScrollX;
             this.requestedScrollY = requestedScrollY;
             this.requestedGeneration = requestedGeneration;
-            this.screenshotUptimeMillis = screenshotUptimeMillis;
+            this.captureTime = captureTime;
+            this.screenshotUptimeMillis = captureTime.reportedUptimeMillis;
             this.capturePhaseUncertain = capturePhaseUncertain;
             this.captureEventDeliveryDelayMs = Math.max(0L, captureEventDeliveryDelayMs);
             this.visualDocumentEpoch = visualDocumentEpoch;

@@ -38,7 +38,9 @@ presentation timestamp. The source was read through the authenticated file API f
 
 Our CaptureScrollTimeline and shadow reconciliation currently interpret the reported value as the
 pixel-capture instant. That contract must be corrected before granting visual anchors authority.
-The log field captureAgeMs measures age since the reported timestamp; it can understate pixel age.
+Correction from Pass67 call-site audit: the legacy log field captureAgeMs is request-to-publication
+duration (InferenceFrame.capturedAtUptimeMillis receives requestedAtUptimeMillis), not reported-stamp
+age and not exact pixel age. Keep request, reported and callback timestamps distinct.
 This finding does not prove a universal compositor delay, nor authorize subtracting a fixed offset.
 
 ## Bounded telemetry (recording plus private source export)
@@ -46,7 +48,7 @@ This finding does not prove a universal compositor delay, nor authorize subtract
 | Metric | Run |
 | --- | --- |
 | Raw / parsed publications | 22 / 22 |
-| Reported-timestamp age median / p95 ms | 382 / 565.95 |
+| Request-to-publication age median / p95 ms | 382 / 565.95 |
 | Published preprocess / runtime / postprocess median ms | 2.5 / 103.5 / 1 |
 | Maximum cumulative inference drops | 0 |
 | Capture callbacks complete / failed / partial | 29 / 2 / 1 |
