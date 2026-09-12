@@ -823,7 +823,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     ? beginScene(requestedEpoch, submissionSequence,
                             inferenceMotionGeneration, capturePhase.screenshotUptimeMillis,
                             requestedAtUptimeMillis,
-                            motionSettled, qualityRefine, spatialFrame)
+                            motionSettled, qualityRefine, continuousMotionInference, spatialFrame)
                     : null;
             traceCaptureStage(requestedAtUptimeMillis, "scene-begun");
             long submittedFastSequence = enqueueInference(new InferenceFrame(
@@ -909,6 +909,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long requestedAtUptimeMillis,
             boolean motionSettled,
             boolean qualityExpected,
+            boolean continuousMotionInference,
             SpatialRegionCache.Frame spatialFrame) {
         SceneTransactionCoordinator.SceneKey key =
                 new SceneTransactionCoordinator.SceneKey(
@@ -922,7 +923,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 visibleDeadline - ATOMIC_SCENE_JOIN_GUARD_MS);
         SceneTransactionCoordinator.BeginResult begun;
         SceneContext next = new SceneContext(
-                key, joinDeadline, visibleDeadline, spatialFrame);
+                key, joinDeadline, visibleDeadline, continuousMotionInference, spatialFrame);
         synchronized (sceneLifecycleLock) {
             // Fast coverage owns the visible scene. Quality may continue as shadow/cache evidence,
             // but it can never hold a settled censor behind a join deadline again.
@@ -977,6 +978,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (invalidated != null) {
             CensorLabLog.i(TAG, "SCENE_INVALIDATE id=" + invalidated + " reason=" + reason);
+        }
+    }
+
+    private void invalidateNonReprojectableSceneForMotion() {
+        // Continuous fast scenes already reproject at publication. Motion is not a structural fence.
+        SceneTransactionCoordinator.SceneKey invalidated;
+        synchronized (sceneLifecycleLock) {
+            SceneContext scene = currentScene.get();
+            invalidated = sceneCoordinator.invalidateForMotion(
+                    scene != null && scene.continuousMotionInference);
+            if (invalidated != null && scene != null) scene.cancel("motion");
+        }
+        if (invalidated != null) {
+            CensorLabLog.i(TAG, "SCENE_INVALIDATE id=" + invalidated + " reason=motion");
         }
     }
 
@@ -1878,6 +1893,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 sceneCommit != null && sceneCommit.includesQuality(),
                 sceneCommit == null ? "legacy-fast" : sceneCommit.kind().name(),
                 candidate.visualDocumentEpoch, candidate.scrollSurfaceKey,
+                inferenceMotionGeneration,
                 candidate.scene == null ? null : candidate.scene.spatialFrame);
         int qualityOnlyTrackCount = 0;
         traceCaptureStage(candidate.capturedAtUptimeMillis, "geometry-ready");
@@ -2499,6 +2515,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             String source,
             long expectedDocument,
             String expectedSurface,
+            long expectedMotionGeneration,
             SpatialRegionCache.Frame spatialFrame) {
         if (spatialTrackingExperiment) return Collections.emptyList();
         String surface = expectedSurface == null ? "" : expectedSurface;
@@ -2539,14 +2556,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         ContentSpaceRegionCache.Update update;
         List<Detection> cached;
         int entries;
+        boolean cacheWriteAccepted;
         synchronized (worldCacheLock) {
             if (!isCurrentVisualDocument(expectedDocument, surface)) {
                 return Collections.emptyList();
             }
-            update = contentSpaceRegionCache.observeCommittedScene(
+            // Motion-surviving fast results may render, but cannot write old-generation event coordinates.
+            cacheWriteAccepted = expectedMotionGeneration == motionGeneration.get();
+            update = cacheWriteAccepted ? contentSpaceRegionCache.observeCommittedScene(
                     expectedDocument, surface, now, cameraX, cameraY,
                     sourceWidth, sourceHeight, viewportWidth, viewportHeight,
-                    unifiedScene, observations);
+                    unifiedScene, observations) : ContentSpaceRegionCache.Update.EMPTY;
             if (update.viewportReset) qualityBackfillCoordinator.clear();
             cached = contentSpaceRegionCache.queryNearAsScreenDetections(
                     expectedDocument, surface, now, cameraX, cameraY,
@@ -2563,7 +2583,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 + " viewportReset=" + update.viewportReset
                 + " candidates=" + cached.size()
                 + " camera=" + cameraX + ',' + cameraY
-                + " documentEpoch=" + expectedDocument);
+                + " documentEpoch=" + expectedDocument
+                + " cacheWriteAccepted=" + cacheWriteAccepted
+                + " sourceGeneration=" + expectedMotionGeneration);
         return cached;
     }
 
@@ -2715,7 +2737,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long effectiveUptimeMillis,
             long receivedUptimeMillis) {
         if (dx == 0 && dy == 0) return;
-        invalidateCurrentScene("motion");
+        invalidateNonReprojectableSceneForMotion();
         qualityVisualStabilizer.clear();
         qualityConfirmationRequested.set(false);
         qualityConfirmationBurstUsed.set(false);
@@ -4581,6 +4603,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final class SceneContext {
         private final SpatialRegionCache.Frame spatialFrame;
         private final SceneTransactionCoordinator.SceneKey key;
+        private final boolean continuousMotionInference;
         private final long joinDeadlineUptimeMillis;
         private final long visibleDeadlineUptimeMillis;
         private final CountDownLatch commitReady = new CountDownLatch(1);
@@ -4592,9 +4615,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 SceneTransactionCoordinator.SceneKey key,
                 long joinDeadlineUptimeMillis,
                 long visibleDeadlineUptimeMillis,
+                boolean continuousMotionInference,
                 SpatialRegionCache.Frame spatialFrame) {
             this.spatialFrame = spatialFrame;
             this.key = key;
+            this.continuousMotionInference = continuousMotionInference;
             this.joinDeadlineUptimeMillis = joinDeadlineUptimeMillis;
             this.visibleDeadlineUptimeMillis = visibleDeadlineUptimeMillis;
         }
