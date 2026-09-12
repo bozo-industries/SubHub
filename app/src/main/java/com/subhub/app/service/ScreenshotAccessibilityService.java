@@ -219,6 +219,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private CaptureGapProbe captureGapProbe;
     private java.io.File captureGapArmFile;
     private boolean spatialCacheExperiment;
+    private boolean spatialTrackingExperiment;
+    private boolean correctSpatialTracks;
+    private final SourceTrackContinuity sourceTrackContinuity = new SourceTrackContinuity();
     private final VisualCameraShadow visualCameraShadow = new VisualCameraShadow();
     private PreparedFrameRecorder preparedFrameRecorder;
     private ChromeGeometryProbe chromeGeometryProbe;
@@ -365,7 +368,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (rowMotionShadow) preparedFrameRecorder = PreparedFrameRecorder.startIfArmed(this);
         spatialCacheExperiment = BuildConfig.DEBUG && getSharedPreferences(
                 "spatial_cache_experiment", MODE_PRIVATE).getBoolean("enabled", false);
-        if (spatialCacheExperiment) spatialRegionCache = new SpatialRegionCache();
+        spatialTrackingExperiment = BuildConfig.DEBUG
+                && (Build.HARDWARE.contains("ranchu") || Build.HARDWARE.contains("goldfish"))
+                && getSharedPreferences("spatial_tracking_experiment", MODE_PRIVATE).getBoolean("enabled", false);
+        correctSpatialTracks = spatialTrackingExperiment && getSharedPreferences(
+                "spatial_tracking_experiment", MODE_PRIVATE).getBoolean("correctTracks", false);
+        // Registration-only A/B must not admit either spatial or legacy cache output.
+        if (spatialTrackingExperiment) spatialCacheExperiment = false;
+        if (spatialCacheExperiment || spatialTrackingExperiment) spatialRegionCache = new SpatialRegionCache();
         captureGapProbe = null;
         captureGapArmFile = null;
         if (BuildConfig.DEBUG && (Build.HARDWARE.contains("ranchu") || Build.HARDWARE.contains("goldfish"))
@@ -417,6 +427,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (tracker == null) tracker = new ObjectTracker(trackerConfig);
             else tracker.setConfig(trackerConfig);
             tracker.clear();
+            sourceTrackContinuity.clear();
             if (!recognitionActive) {
                 Log.i(TAG, "Fast detector prewarmed; capture remains asleep");
                 return;
@@ -736,7 +747,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             traceCaptureStage(requestedAtUptimeMillis, "prepare-end");
             frame = prepared.bitmap;
             SpatialRegionCache.Frame spatialFrame = null;
-            if (spatialCacheExperiment) {
+            if (spatialCacheExperiment || spatialTrackingExperiment) {
                 long started = android.os.Debug.threadCpuTimeNanos();
                 int fw = frame.getWidth(), fh = frame.getHeight();
                 int[] pixels = new int[fw * fh];
@@ -1833,7 +1844,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + " lane=commit reason=not-current-before-tracker");
                 return;
             }
-            alignment = consumeTrackerMotion(width, height);
+            alignment = consumeTrackerMotion(width, height,
+                    candidate.scene == null ? null : candidate.scene.spatialFrame,
+                    requestedScrollX, requestedScrollY, detections, candidate.continuousMotionInference);
             if (!candidate.continuousMotionInference
                     && inferenceMotionGeneration != motionGeneration.get()) return;
             if (candidate.continuousMotionInference) {
@@ -1844,6 +1857,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         alignment.scrollX, alignment.scrollY);
             }
             tracks = tracker.update(detections);
+            if (spatialTrackingExperiment) {
+                sourceTrackContinuity.record(candidate.scene == null ? null : candidate.scene.spatialFrame,
+                        requestedScrollX, requestedScrollY);
+                CensorLabLog.i(TAG, "SOURCE_TRACK v=1 id=" + candidate.capturedAtUptimeMillis
+                        + " enabled=" + correctSpatialTracks + " corrected=" + alignment.correctedTracks
+                        + " extraDy=" + alignment.extraDy);
+            }
         }
         VisualTrackArbitrator.Result renderArbitration = visualRenderTracks(tracks);
         List<TrackedObject> renderTracks = renderArbitration.tracks();
@@ -1909,7 +1929,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 InferenceScrollReprojector.screenMotion(
                         requestedScrollX, requestedScrollY,
                         alignment.scrollX, alignment.scrollY);
-        String faceGeometry = captureGapProbe == null ? null : FaceGeometryTrace.encode(visualDetections, renderTracks);
+        String faceGeometry = captureGapProbe == null && !spatialTrackingExperiment
+                ? null : FaceGeometryTrace.encode(visualDetections, renderTracks);
         String faceSourcePose = faceGeometry == null ? "-" : FaceGeometryTrace.sourcePose(
                 candidate.scene == null ? null : candidate.scene.spatialFrame);
         Rect publicationViewport = cacheViewport;
@@ -2475,6 +2496,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long expectedDocument,
             String expectedSurface,
             SpatialRegionCache.Frame spatialFrame) {
+        if (spatialTrackingExperiment) return Collections.emptyList();
         String surface = expectedSurface == null ? "" : expectedSurface;
         if (surface.isEmpty() && !spatialCacheExperiment) return Collections.emptyList();
         List<ContentSpaceRegionCache.Observation> observations = new ArrayList<>();
@@ -2740,7 +2762,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         List<Detection> reentryRegions = Collections.emptyList();
         boolean refreshedCacheWindow = false;
         SpatialRegionCache.Frame eventSourceFrame = null;
-        if (spatialCacheExperiment) {
+        if (spatialTrackingExperiment) {
+            refreshedCacheWindow = true;
+        } else if (spatialCacheExperiment) {
             SpatialRegionCache.Frame source = spatialRegionCache.latest();
             if (source != null && source.scope != null
                     && source.scope.captureEpoch == captureEpoch.token()
@@ -2860,11 +2884,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         main.removeCallbacks(staleAccessibilityTextExpiry);
     }
 
-    private ScrollAlignment consumeTrackerMotion(int width, int height) {
+    private ScrollAlignment consumeTrackerMotion(int width, int height, SpatialRegionCache.Frame frame,
+            long sourceX, long sourceY, List<Detection> detections, boolean reproject) {
         long scrollX;
         long scrollY;
         int dx;
         int dy;
+        Map<Integer, Integer> corrections = Collections.emptyMap();
         synchronized (scrollStateLock) {
             scrollX = cumulativeScrollX.get();
             scrollY = cumulativeScrollY.get();
@@ -2873,7 +2899,24 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         if (tracker != null) {
             synchronized (tracker) {
-                tracker.offsetActiveTracks(dx, dy, width, height);
+                if (correctSpatialTracks) {
+                    Rect viewport = screenBounds();
+                    if (frame != null && frame.scope != null
+                            && frame.viewportWidth == viewport.width() && frame.viewportHeight == viewport.height()
+                            && isCurrentCapture(frame.scope.captureEpoch)
+                            && frame.scope.document == visualDocumentEpoch.get()
+                            && frame.scope.window == activeApplicationWindowId.get()) {
+                        List<Detection> aligned = reproject ? InferenceScrollReprojector.toCurrentViewport(
+                                detections, width, height, viewport.width(), viewport.height(),
+                                sourceX, sourceY, scrollX, scrollY) : detections;
+                        corrections = sourceTrackContinuity.corrections(frame, sourceX, sourceY,
+                                trackerScrollY, scrollY, dx, dy, width, height, tracker.activeTracks(),
+                                aligned, detectorConfig == null ? 1f : detectorConfig.getConfidenceThreshold());
+                    }
+                }
+                // If a subsequent generation guard aborts update, never reuse the pre-mutation basis.
+                if (spatialTrackingExperiment) sourceTrackContinuity.clear();
+                tracker.offsetActiveTracks(dx, dy, width, height, corrections);
                 trackerScrollX = scrollX;
                 trackerScrollY = scrollY;
             }
@@ -2881,7 +2924,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             trackerScrollX = scrollX;
             trackerScrollY = scrollY;
         }
-        return new ScrollAlignment(scrollX, scrollY);
+        return new ScrollAlignment(scrollX, scrollY, corrections.size(),
+                corrections.isEmpty() ? 0 : corrections.values().iterator().next());
     }
 
     /** Atomically detaches renderer geometry from its tracker-camera coordinate phase. */
@@ -4419,6 +4463,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void resetScrollCompensation() {
+        sourceTrackContinuity.clear();
         invalidateCurrentScene("scroll-state-reset");
         invalidateWorldCache("scroll-state-reset");
         cancelPendingTextConfirmation();
@@ -4843,8 +4888,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private static final class ScrollAlignment extends ScrollPosition {
-        ScrollAlignment(long scrollX, long scrollY) {
+        final int correctedTracks, extraDy;
+        ScrollAlignment(long scrollX, long scrollY, int correctedTracks, int extraDy) {
             super(scrollX, scrollY);
+            this.correctedTracks = correctedTracks;
+            this.extraDy = extraDy;
         }
     }
 

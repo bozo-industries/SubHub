@@ -198,6 +198,14 @@ final class SpatialRegionCache {
         final RowMotionObserver.Scope scope;
         final long id, receipt, eventX, eventY;
         final int viewportWidth, viewportHeight, top, bottom;
+        boolean sameMapAs(Frame other) {
+            return other != null && owner == other.owner && result.pose != null && other.result.pose != null
+                    && scope != null && scope.matches(other.scope)
+                    && result.pose.mapGeneration == other.result.pose.mapGeneration
+                    && viewportWidth > 0 && viewportHeight > 0
+                    && viewportWidth == other.viewportWidth && viewportHeight == other.viewportHeight
+                    && top == other.top && bottom == other.bottom;
+        }
         private Frame(SpatialRegionCache owner, SpatialFrameMap.Result result, RowMotionObserver.Scope scope,
                 long id, long receipt, long eventX, long eventY, int viewportWidth, int viewportHeight, int top, int bottom) {
             this.owner = owner; this.result = result; this.scope = scope; this.receipt = receipt;

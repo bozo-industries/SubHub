@@ -222,9 +222,20 @@ public final class ObjectTracker {
 
     /** Keeps tracker identity in the same moving screen coordinate space as the overlay. */
     public synchronized void offsetActiveTracks(int dx, int dy, int frameWidth, int frameHeight) {
-        if (dx == 0 && dy == 0) return;
+        offsetActiveTracks(dx, dy, frameWidth, frameHeight, Collections.emptyMap());
+    }
+
+    /** Combine independently validated source corrections with event motion before clipping. */
+    public synchronized void offsetActiveTracks(int dx, int dy, int frameWidth, int frameHeight,
+            Map<Integer, Integer> sourceCorrections) {
+        if (dx == 0 && dy == 0 && sourceCorrections.isEmpty()) return;
         for (TrackedObject track : tracks.values()) {
-            if (track.isActive()) track.offset(dx, dy, frameWidth, frameHeight);
+            int extra = sourceCorrections.getOrDefault(track.getId(), 0);
+            long combined = (long) dy + extra;
+            if (combined < Integer.MIN_VALUE || combined > Integer.MAX_VALUE) combined = dy;
+            if (track.isActive() && (dx != 0 || combined != 0)) {
+                track.offset(dx, (int) combined, frameWidth, frameHeight);
+            }
         }
     }
 
