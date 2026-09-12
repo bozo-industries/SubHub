@@ -90,7 +90,7 @@ public final class VisualTrackArbitrator {
         if (first == null || second == null
                 || first.getFramesMissing() == second.getFramesMissing()
                 || first.getFramesMissing() > 0 && second.getFramesMissing() > 0
-                || !first.getCategory().equals(second.getCategory())) return false;
+                || !sameCensorCategory(first.getCategory(), second.getCategory())) return false;
         BBox firstBox = first.getBox();
         BBox secondBox = second.getBox();
         if (firstBox == null || secondBox == null
@@ -99,6 +99,12 @@ public final class VisualTrackArbitrator {
             return false;
         }
         return firstBox.intersectionOverUnion(secondBox) >= MOTION_MIN_IOU;
+    }
+
+    private static boolean sameCensorCategory(String first, String second) {
+        // Partial overlap plus one missed observation does not establish cross-category identity.
+        // Keep independent coverage until stronger correspondence evidence is available.
+        return first != null && first.equals(second) && !first.startsWith("text_");
     }
 
     private static float ratio(int first, int second) {

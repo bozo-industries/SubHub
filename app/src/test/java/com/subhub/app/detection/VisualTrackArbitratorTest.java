@@ -87,8 +87,32 @@ public final class VisualTrackArbitratorTest {
         assertEquals(0, result.handedOff());
     }
 
+    @Test
+    public void changedCategoryAloneCannotProvePostScrollIdentity() {
+        TrackedObject stale = tracked(
+                41, "face_female", new BBox(100, 200, 180, 180), 7);
+        stale.miss(stale.getBox());
+        TrackedObject fresh = tracked(
+                82, "EXPOSED", new BBox(100, 286, 176, 184), 2);
+
+        VisualTrackArbitrator.Result result = VisualTrackArbitrator.arbitrate(
+                List.of(stale, fresh));
+
+        assertEquals(2, result.tracks().size());
+        // A different category at partial overlap is not sufficient correspondence evidence.
+        assertEquals(stale.getId(), result.tracks().get(0).getId());
+        assertEquals(stale.getBox(), result.tracks().get(0).getBox());
+        assertEquals(0, result.suppressed());
+        assertEquals(0, result.handedOff());
+    }
+
     private static TrackedObject tracked(int id, BBox box, int observations) {
-        Detection detection = new Detection("FACE_FEMALE", "face", 0.90f,
+        return tracked(id, "face", box, observations);
+    }
+
+    private static TrackedObject tracked(
+            int id, String category, BBox box, int observations) {
+        Detection detection = new Detection("FACE_FEMALE", category, 0.90f,
                 box, true, true);
         TrackedObject track = new TrackedObject(id, detection, 0L);
         for (int index = 1; index < observations; index++) {
