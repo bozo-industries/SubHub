@@ -1910,6 +1910,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         requestedScrollX, requestedScrollY,
                         alignment.scrollX, alignment.scrollY);
         String faceGeometry = captureGapProbe == null ? null : FaceGeometryTrace.encode(visualDetections, renderTracks);
+        String faceSourcePose = faceGeometry == null ? "-" : FaceGeometryTrace.sourcePose(
+                candidate.scene == null ? null : candidate.scene.spatialFrame);
         Rect publicationViewport = cacheViewport;
         traceCaptureStage(candidate.capturedAtUptimeMillis, "publication-post");
         main.post(() -> {
@@ -1929,12 +1931,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                 alignment.scrollX, alignment.scrollY,
                                 current.scrollX, current.scrollY);
                 long publishedAt = SystemClock.uptimeMillis();
-                if (faceGeometry != null) CensorLabLog.i(TAG, "FACE_GEOMETRY v=1 id="
+                if (faceGeometry != null) CensorLabLog.i(TAG, "FACE_GEOMETRY v=2 id="
                         + candidate.capturedAtUptimeMillis + " source=" + width + 'x' + height
                         + " viewport=" + publicationViewport.width() + 'x' + publicationViewport.height()
                         + " cameras=" + requestedScrollX + ',' + requestedScrollY + ','
                         + alignment.scrollX + ',' + alignment.scrollY + ',' + current.scrollX + ',' + current.scrollY
-                        + " " + faceGeometry);
+                        + " " + faceGeometry + " spatial=" + faceSourcePose);
                 overlay.setDiagnostics(diagnosticText);
                 List<Detection> regionsForView = spatialCacheExperiment
                         ? spatialRegionCache.revalidatePresentation(

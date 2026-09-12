@@ -10,6 +10,18 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public final class FaceGeometryTraceTest {
+    @Test public void sourcePoseIsUnknownUnlessImageRegistrationHasAPose() {
+        assertEquals("-", FaceGeometryTrace.sourcePose(null));
+        SpatialRegionCache cache = new SpatialRegionCache();
+        RowMotionObserver.Scope scope = new RowMotionObserver.Scope(1, 2, 3, 100, 200);
+        SpatialRegionCache.Frame baseline = cache.register(new int[64 * 192], 64, 192, 0, 192,
+                scope, 1, 100, false, 0, 0, 100, 200);
+        assertEquals("1,2,3,1,0.0", FaceGeometryTrace.sourcePose(baseline));
+        SpatialRegionCache.Frame unknown = cache.register(new int[64 * 192], 64, 192, 0, 192,
+                scope, 2, 200, false, 0, 0, 100, 200);
+        assertEquals("-", FaceGeometryTrace.sourcePose(unknown));
+    }
+
     @Test public void keepsObservationRawAndSmoothedGeometrySeparate() {
         ObjectTracker tracker = new ObjectTracker(DetectorConfig.builder().motionPrediction(false)
                 .trackingSmoothing(.5f).build());

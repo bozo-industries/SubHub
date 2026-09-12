@@ -10,6 +10,13 @@ final class FaceGeometryTrace {
     private static final int LIMIT = 8;
     private FaceGeometryTrace() {}
 
+    /** Source-image pose only; never a receipt-time/current-display camera measurement. */
+    static String sourcePose(SpatialRegionCache.Frame frame) {
+        if (frame == null || frame.result.pose == null || frame.scope == null) return "-";
+        return frame.scope.captureEpoch + "," + frame.scope.document + "," + frame.scope.window
+                + "," + frame.result.pose.mapGeneration + "," + frame.result.pose.sourceY;
+    }
+
     static String encode(List<Detection> observations, List<TrackedObject> tracks) {
         StringBuilder observed = new StringBuilder(), tracked = new StringBuilder();
         int totalObserved = 0, encodedObserved = 0, totalTracked = 0, encodedTracked = 0;
