@@ -46,6 +46,7 @@ IDs or bypass denied permission/input operations.
 
 For main-thread sampling, follow [live Accessibility profiling](docs/censor-lab/main-thread-profiling.md).
 Instrumentation setup must not be mistaken for a live, bound Accessibility pipeline.
+For video/source comparisons, follow [recording clock alignment](docs/censor-lab/recording-clock-alignment.md).
 
 Before using performance traces as evidence, compare raw publication counts with parsed counts.
 Every trace-schema change must include a parser fixture for the changed record. Unknown fields or
