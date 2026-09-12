@@ -78,6 +78,20 @@ public final class SpatialFrameRegistrationTest {
         assertFalse(refine(source, shifted(source, 6), 6).accepted);
     }
 
+    @Test public void verticalEdgesDoNotDrownInformativeMovingPatches() {
+        int[] source = texture(9);
+        for (int y = 0; y < HEIGHT; y++) for (int x = 0; x < WIDTH; x++) {
+            if (x < WIDTH / 4 || x >= WIDTH * 3 / 4) {
+                int value = (x / 3) % 2 == 0 ? 32 : 224;
+                source[y * WIDTH + x] = 0xff000000 | value << 16 | value << 8 | value;
+            }
+        }
+        SpatialFrameRegistration.Result result = refine(source, shifted(source, 6), 6);
+        assertTrue(result.accepted);
+        assertEquals(6, result.dy, .125);
+        assertEquals(16, result.features);
+    }
+
     private static int[] continuousTexture(double shift) {
         int[] result = new int[WIDTH * HEIGHT];
         for (int y = 0; y < HEIGHT; y++) for (int x = 0; x < WIDTH; x++) {

@@ -34,7 +34,7 @@ final class SpatialFrameRegistration {
                 for (int y = firstY; y <= lastY; y += 3) {
                     for (int x = firstX; x <= lastX; x += 3) {
                         float texture = variance(before, width, x, y);
-                        if (texture > bestTexture) {
+                        if (texture > bestTexture && verticalTexture(before, width, x, y) > 16) {
                             bestTexture = texture;
                             selectedX = x;
                             selectedY = y;
@@ -139,6 +139,19 @@ final class SpatialFrameRegistration {
             }
         }
         return square / 49 - (sum / 49) * (sum / 49);
+    }
+
+    private static float verticalTexture(float[] values, int width, int x, int y) {
+        // A vertical edge can have huge intensity variance but no vertical-position information.
+        // Do not count aperture-only patches in the support denominator for vertical registration.
+        float square = 0;
+        for (int yy = y - RADIUS + 1; yy <= y + RADIUS - 1; yy++) {
+            for (int xx = x - RADIUS; xx <= x + RADIUS; xx++) {
+                float difference = values[(yy + 1) * width + xx] - values[(yy - 1) * width + xx];
+                square += difference * difference;
+            }
+        }
+        return square / 35;
     }
 
     private static float[] luminance(int[] pixels) {

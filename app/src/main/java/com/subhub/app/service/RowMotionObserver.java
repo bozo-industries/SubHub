@@ -2,7 +2,7 @@ package com.subhub.app.service;
 
 /** Worker-owned shadow observer. Retains descriptors only, never source pixels or camera state. */
 final class RowMotionObserver {
-    private static final int ROWS = 160;
+    static final int ROWS = 160;
     static final class Scope {
         final long captureEpoch, document;
         final int window, sourceWidth, sourceHeight;
@@ -54,7 +54,7 @@ final class RowMotionObserver {
                 result==null ? 0 : result.agreeingBands);
     }
 
-    private static double[][] describe(int[] pixels,int width,int top,int bottom) {
+    static double[][] describe(int[] pixels,int width,int top,int bottom) {
         double[][] rows=new double[ROWS][4];
         for(int row=0;row<ROWS;row++) {
             int y=top+(int)((row+.5)*(bottom-top)/ROWS);
