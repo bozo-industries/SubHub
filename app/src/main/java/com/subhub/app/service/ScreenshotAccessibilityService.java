@@ -216,6 +216,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private ScheduledExecutorService worker;
     private final RowMotionObserver rowMotionObserver = new RowMotionObserver();
     private SpatialRegionCache spatialRegionCache;
+    private CaptureGapProbe captureGapProbe;
+    private java.io.File captureGapArmFile;
     private boolean spatialCacheExperiment;
     private final VisualCameraShadow visualCameraShadow = new VisualCameraShadow();
     private PreparedFrameRecorder preparedFrameRecorder;
@@ -364,6 +366,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         spatialCacheExperiment = BuildConfig.DEBUG && getSharedPreferences(
                 "spatial_cache_experiment", MODE_PRIVATE).getBoolean("enabled", false);
         if (spatialCacheExperiment) spatialRegionCache = new SpatialRegionCache();
+        captureGapProbe = null;
+        captureGapArmFile = null;
+        if (BuildConfig.DEBUG && (Build.HARDWARE.contains("ranchu") || Build.HARDWARE.contains("goldfish"))
+                && getSharedPreferences("capture_gap_experiment", MODE_PRIVATE).getBoolean("enabled", false)) {
+            captureGapProbe = new CaptureGapProbe();
+            captureGapArmFile = new java.io.File(getCacheDir(), "capture-gap-arm");
+        }
         gpuPreparationExperiment = BuildConfig.DEBUG && Build.VERSION.SDK_INT >= 29
                 && getSharedPreferences("gpu_preparation_experiment", MODE_PRIVATE)
                 .getBoolean("enabled", false);
@@ -496,6 +505,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void requestScreenshot() {
         if (!running || !recognitionActive) return;
         long requestUptime = SystemClock.uptimeMillis();
+        if (captureGapProbe != null) {
+            boolean armed = captureGapProbe.awaitingArm() && !processing.get()
+                    && captureGapArmFile.isFile() && captureGapArmFile.delete();
+            CaptureGapProbe.Action action = captureGapProbe.poll(requestUptime, armed);
+            if (action == CaptureGapProbe.Action.START || action == CaptureGapProbe.Action.END) {
+                CensorLabLog.i(TAG, "CAPTURE_GAP phase="
+                        + (action == CaptureGapProbe.Action.START ? "start" : "end")
+                        + " nowMs=" + requestUptime + " untilMs=" + captureGapProbe.deadline());
+            }
+            if (action == CaptureGapProbe.Action.START || action == CaptureGapProbe.Action.WAIT) return;
+        }
         if (requestUptime - lastScreenshotRequestUptime
                 < ACCESSIBILITY_SCREENSHOT_INTERVAL_MS) return;
         long qualityActiveMs = inferenceGate.qualityActiveMs(System.nanoTime());
