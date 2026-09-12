@@ -136,21 +136,25 @@ public final class DetectionPostProcessor {
 
         for (int candidate = 0; candidate < candidateCount; candidate++) {
             int bestClass = -1;
+            int secondClass = -1;
             float bestScore = 0f;
             float secondScore = 0f;
             for (int classIndex = 0; classIndex < NudeNetClassCatalog.CLASS_COUNT; classIndex++) {
                 float score = output.get(classIndex + 4, candidate);
                 if (score > bestScore) {
+                    secondClass = bestClass;
                     secondScore = bestScore;
                     bestScore = score;
                     bestClass = classIndex;
                 } else if (score > secondScore) {
                     secondScore = score;
+                    secondClass = classIndex;
                 }
             }
 
             if (bestClass < 0 || bestScore < confidenceFloors[bestClass]
-                    || (secondScore >= 0.10f && bestScore - secondScore < 0.10f)) {
+                    || isCrossCategoryAmbiguity(
+                    bestClass, secondClass, bestScore, secondScore, config)) {
                 continue;
             }
             String className = NudeNetClassCatalog.nameByIndex(bestClass);
@@ -246,6 +250,26 @@ public final class DetectionPostProcessor {
             floors[index] = confidenceFloor(NudeNetClassCatalog.nameByIndex(index), configured);
         }
         return floors;
+    }
+
+    private static boolean isCrossCategoryAmbiguity(
+            int bestClass,
+            int secondClass,
+            float bestScore,
+            float secondScore,
+            DetectorConfig config) {
+        if (secondClass < 0 || secondScore < 0.10f || bestScore - secondScore >= 0.10f) {
+            return false;
+        }
+        NudeNetClassCatalog.ClassInfo best = NudeNetClassCatalog.byIndex(bestClass);
+        NudeNetClassCatalog.ClassInfo second = NudeNetClassCatalog.byIndex(secondClass);
+        if (best == null || second == null) return true;
+        String bestCategory = firstEnabled(best.getCategories(), config.getEnabledCategories());
+        String secondCategory = firstEnabled(
+                second.getCategories(), config.getEnabledCategories());
+        // Sex-specific face logits often trade places on stylized/AI faces. If both resolve to
+        // the same user-enabled censor category, the distinction has no policy consequence.
+        return bestCategory == null || !bestCategory.equals(secondCategory);
     }
 
     private static BBox decodeBox(
