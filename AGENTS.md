@@ -44,6 +44,9 @@ IDs or bypass denied permission/input operations.
 
 ## Diagnostic trace evidence
 
+For main-thread sampling, follow [live Accessibility profiling](docs/censor-lab/main-thread-profiling.md).
+Instrumentation setup must not be mistaken for a live, bound Accessibility pipeline.
+
 Before using performance traces as evidence, compare raw publication counts with parsed counts.
 Every trace-schema change must include a parser fixture for the changed record. Unknown fields or
 unsupported formats must be exposed as incomplete parsing, never silently reported as zero work.
