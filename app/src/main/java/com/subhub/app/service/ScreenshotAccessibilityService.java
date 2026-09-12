@@ -215,6 +215,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             (preferences, key) -> reloadSettings();
     private ScheduledExecutorService worker;
     private final RowMotionObserver rowMotionObserver = new RowMotionObserver();
+    private final VisualCameraShadow visualCameraShadow = new VisualCameraShadow();
     private boolean rowMotionShadow;
     private volatile boolean gpuPreparationExperiment;
     private boolean gpuPreparationReady; // capture-worker owned
@@ -706,6 +707,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                             +" preparedHeight="+fh+" sourceHeight="+prepared.sourceHeight
                             +" costMs="+(SystemClock.uptimeMillis()-rowStarted)
                             +" cpuUs="+(android.os.Debug.threadCpuTimeNanos()-rowCpuStarted)/1000);
+                    VisualCameraShadow.Result cameraSample = visualCameraShadow.observe(
+                            new RowMotionObserver.Scope(requestedEpoch, requestedDocumentEpoch,
+                                    requestedWindowId, prepared.sourceWidth, prepared.sourceHeight),
+                            rowSample, fh, sourceScrollY);
+                    CensorLabLog.i(TAG, "ROW_CAMERA previousMs=" + rowSample.previousTime
+                            + " currentMs=" + rowSample.currentTime
+                            + " scopeValid=" + cameraSample.scopeValid
+                            + " accepted=" + cameraSample.accepted
+                            + " uncertain=" + cameraSample.uncertain
+                            + " horizontal=" + cameraSample.horizontal
+                            + " frameMilliY=" + Math.round(cameraSample.frameY * 1000)
+                            + " eventFrameMilliY=" + sourceScrollY * 1000L
+                            + " correctionMilliY=" + Math.round(cameraSample.correctionY * 1000)
+                            + " cameraMilliY=" + Math.round(cameraSample.cameraY * 1000));
                 }
             }
             // Priority means "publish the first settled fast frame", not "immediately saturate
@@ -3781,6 +3796,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         surfaceTelemetryToken, surfaceConfidence, surfaceCacheable,
                         surfaceIdentity.confidence, surfaceDecision, observedMotionToken);
                 if (motion.moved()) {
+                    if (rowMotionShadow) {
+                        visualCameraShadow.event(new RowMotionObserver.Scope(captureEpoch.token(),
+                                        visualDocumentEpoch.get(), activeApplicationWindowId.get(),
+                                        latestCaptureWidth, latestCaptureHeight), observedMotionToken,
+                                sourceTime, motion.dx, motion.dy, cumulativeScrollY.get());
+                    }
                     applyEventMotion(motion.dx, motion.dy, motion.authoritative,
                             sourceTime, scrollNow);
                 } else {
