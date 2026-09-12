@@ -114,6 +114,74 @@ public final class SpatialRegionCacheTest {
         assertEquals(new BBox(40, 228, 40, 60), cache.querySource(moved, 300).get(0).getBox());
     }
 
+    @Test public void captureOutageHoldsOnlyAppliedCoverageWithoutRequeryingStaleSource() {
+        SpatialRegionCache cache = new SpatialRegionCache();
+        SpatialRegionCache.Frame source = frame(cache, texture(10), 1, 0);
+        write(cache, source);
+        assertFalse(cache.retainAppliedCoverage(source, 1200));
+        cache.markApplied(source, 150);
+        assertEquals(source.id, cache.appliedFrameId());
+        assertTrue(cache.querySource(source, 1200).isEmpty());
+        assertTrue(cache.retainAppliedCoverage(source, 1200));
+        assertTrue(cache.retainAppliedCoverage(source, 5500));
+        assertFalse(cache.retainAppliedCoverage(source, 6101));
+        assertFalse(cache.retainAppliedCoverage(source, 90));
+    }
+
+    @Test public void newUnknownAndNewMapCannotBorrowAppliedCoverage() {
+        SpatialRegionCache cache = new SpatialRegionCache();
+        SpatialRegionCache.Frame first = frame(cache, texture(11), 1, 0);
+        write(cache, first);
+        cache.markApplied(first, 100);
+        SpatialRegionCache.Frame unknown = frame(cache, texture(12), 2, 0);
+        assertFalse(cache.retainAppliedCoverage(unknown, 1200));
+        assertFalse(cache.retainAppliedCoverage(first, 1200));
+        SpatialRegionCache.Frame otherMap = frame(cache, texture(13), 40, 0);
+        assertFalse(cache.retainAppliedCoverage(otherMap, 5000));
+        cache.clear();
+        assertEquals(-1, cache.appliedFrameId());
+    }
+
+    @Test public void queuedCacheIsRecheckedWithoutRemovingIndependentCurrentQuality() {
+        SpatialRegionCache cache = new SpatialRegionCache();
+        SpatialRegionCache.Frame first = frame(cache, texture(14), 1, 0);
+        write(cache, first);
+        List<Detection> cached = cache.querySource(first, 100);
+        Detection quality = new Detection("FACE_MALE", "face", .98f, BOX, true, false);
+        List<Detection> combined = new java.util.ArrayList<>(cached);
+        combined.add(quality);
+        assertEquals(2, cache.revalidatePresentation(first, 150, cached, combined).size());
+        frame(cache, texture(15), 2, 0);
+        assertEquals(Collections.singletonList(quality),
+                cache.revalidatePresentation(first, 210, cached, combined));
+        cache.markApplied(first, 210);
+        assertEquals(-1, cache.appliedFrameId());
+    }
+
+    @Test public void sourceRecoveryUsesMotionDuringTheGapWithoutPredictingIntermediatePositions() {
+        SpatialRegionCache cache = new SpatialRegionCache();
+        int[] pixels = texture(16);
+        SpatialRegionCache.Frame first = frame(cache, pixels, 1, 0);
+        write(cache, first);
+        cache.markApplied(first, 100);
+        assertTrue(cache.querySource(first, 5000).isEmpty());
+        assertTrue(cache.motionHintForReference(first.scope, 2500, 5500));
+        SpatialRegionCache.Frame recovered = cache.register(shift(pixels, -6), W, H, 64, 304,
+                first.scope, 2, 5500, cache.motionHintForReference(first.scope, 2500, 5500), 0, 0, W, H);
+        assertEquals(SpatialFrameMap.Status.REGISTERED, recovered.result.status);
+        assertEquals(first.result.pose.mapGeneration, recovered.result.pose.mapGeneration);
+        assertEquals(114, cache.querySource(recovered, 5500).get(0).getBox().getY());
+        assertFalse(cache.retainAppliedCoverage(recovered, 6251));
+    }
+
+    @Test public void oldOtherScopeAndFutureEventsDoNotAuthorizeDelayedMotion() {
+        SpatialRegionCache cache = new SpatialRegionCache();
+        SpatialRegionCache.Frame source = frame(cache, texture(17), 1, 0);
+        assertFalse(cache.motionHintForReference(source.scope, 50, 5500));
+        assertFalse(cache.motionHintForReference(source.scope, 5501, 5500));
+        assertFalse(cache.motionHintForReference(new RowMotionObserver.Scope(1, 2, 7, W, H), 2000, 5500));
+    }
+
     private static int[] texture(long seed) {
         Random random = new Random(seed);
         int[] pixels = new int[W * H];

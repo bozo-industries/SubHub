@@ -12,6 +12,13 @@ class SpatialCacheParserTest(unittest.TestCase):
         self.assertEqual(1, result["knownFrames"])
         self.assertEqual(1, result["queriesWithRegions"])
 
+    def test_applied_coverage_hold_is_not_an_image_registration(self):
+        result = analyze("SPATIAL_CACHE_HOLD id=12")
+        self.assertTrue(result["complete"])
+        self.assertEqual(1, result["holdEvents"])
+        self.assertEqual(0, result["knownFrames"])
+        self.assertFalse(analyze("SPATIAL_CACHE_HOLD id=-1")["complete"])
+
     def test_new_fields_invalid_state_and_unknown_record_are_incomplete(self):
         for record in ("SPATIAL_CACHE_FRAME id=1 status=UNMATCHED known=true cpuUs=1",
                        "SPATIAL_CACHE_FRAME id=1 status=BASELINE known=true cpuUs=1 added=2",

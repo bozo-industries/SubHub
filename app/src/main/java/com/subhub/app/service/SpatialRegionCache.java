@@ -13,6 +13,7 @@ final class SpatialRegionCache {
     private final ContentSpaceRegionCache regions = new ContentSpaceRegionCache();
     private Frame latest;
     private Frame lastRegistered;
+    private Frame appliedFrame;
 
     Frame register(int[] pixels, int width, int height, int top, int bottom,
             RowMotionObserver.Scope scope, long id, long receipt, boolean motionHint,
@@ -53,6 +54,40 @@ final class SpatialRegionCache {
 
     synchronized Frame latest() { return latest; }
 
+    synchronized boolean motionHintForReference(RowMotionObserver.Scope scope, long lastEvent, long receipt) {
+        if (lastEvent <= 0 || lastEvent > receipt) return false;
+        return receipt - lastEvent < 750 || lastRegistered != null
+                && lastRegistered.scope.matches(scope) && lastEvent >= lastRegistered.receipt;
+    }
+
+    /** Called only after a cache replacement was delivered to the overlay view, not at inference. */
+    synchronized void markApplied(Frame frame, long now) {
+        appliedFrame = fresh(frame, now) ? frame : null;
+    }
+
+    synchronized boolean retainAppliedCoverage(Frame frame, long now) {
+        return compatible(frame) && frame == latest && appliedFrame != null
+                && appliedFrame.scope.matches(frame.scope)
+                && appliedFrame.result.pose.mapGeneration == frame.result.pose.mapGeneration
+                && now >= frame.receipt && now - frame.receipt > 750
+                && now >= appliedFrame.receipt && now - appliedFrame.receipt <= 6000;
+    }
+
+    synchronized long appliedFrameId() { return appliedFrame == null ? -1 : appliedFrame.id; }
+
+    synchronized List<Detection> revalidatePresentation(Frame frame, long now,
+            List<Detection> cached, List<Detection> combined) {
+        if (fresh(frame, now)) return combined;
+        // Preserve independently supplied current quality coverage, but never a stale queued cache.
+        List<Detection> result = new ArrayList<>(combined);
+        result.removeAll(cached);
+        return result;
+    }
+
+    private boolean fresh(Frame frame, long now) {
+        return compatible(frame) && frame == latest && now >= frame.receipt && now - frame.receipt <= 750;
+    }
+
     synchronized ContentSpaceRegionCache.Update observeSource(Frame frame, long now,
             boolean completeScene, List<ContentSpaceRegionCache.Observation> observations) {
         if (!compatible(frame) || now < frame.receipt || now - frame.receipt > 2500) {
@@ -72,8 +107,7 @@ final class SpatialRegionCache {
 
     synchronized List<Detection> querySource(Frame frame, long now) {
         // An older fast result must not restore cache output after a newer unregistered image.
-        if (!compatible(frame) || frame != latest || now < frame.receipt
-                || now - frame.receipt > 750) return Collections.emptyList();
+        if (!fresh(frame, now)) return Collections.emptyList();
         List<Detection> found = regions.queryNearAsScreenDetections(frame.scope.document, key(frame),
                 now, 0, Math.round(frame.result.pose.sourceY), frame.scope.sourceWidth,
                 frame.scope.sourceHeight, frame.scope.sourceWidth, frame.scope.sourceHeight);
@@ -86,7 +120,7 @@ final class SpatialRegionCache {
 
     void clear() {
         synchronized (registrationLock) {
-            synchronized (this) { latest = lastRegistered = null; regions.clear(); map.clear(); }
+            synchronized (this) { latest = lastRegistered = appliedFrame = null; regions.clear(); map.clear(); }
         }
     }
 

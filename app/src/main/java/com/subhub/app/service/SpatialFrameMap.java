@@ -38,26 +38,24 @@ final class SpatialFrameMap {
         }
         if (sameDocument && (frameId <= lastId || receivedAt < lastReceipt)) return unknown(Status.STALE, frameId);
         boolean reset = scope == null || !scope.matches(candidateScope) || referencePixels == null
-                || this.width != width || this.height != height || this.top != top || this.bottom != bottom
-                || receivedAt - referenceReceipt > MAX_REFERENCE_AGE_MS;
+                || this.width != width || this.height != height || this.top != top || this.bottom != bottom;
         lastId = frameId;
         lastReceipt = receivedAt;
         double[][] rows = RowMotionObserver.describe(pixels, width, top, bottom);
         if (reset) {
             scope = candidateScope;
             this.width = width; this.height = height; this.top = top; this.bottom = bottom;
-            mapGeneration++;
-            referenceY = 0;
-            keepReference(pixels, rows, frameId, receivedAt);
-            return new Result(Status.BASELINE, new Pose(mapGeneration, frameId, 0), frameId, 0, 0);
+            return baseline(pixels, rows, frameId, receivedAt);
         }
         RowMotionEstimator.Result coarse = RowMotionEstimator.estimate(referenceRows, rows);
-        if (!coarse.accepted) return unknown(Status.UNMATCHED, frameId);
+        if (!coarse.accepted) return unmatched(Status.UNMATCHED, pixels, rows, frameId, receivedAt);
         double coarseDy = coarse.dy * (bottom - top) / RowMotionObserver.ROWS;
-        if (!recentMotionHint && Math.abs(coarseDy) > .01) return unknown(Status.NO_MOTION_HINT, frameId);
+        if (!recentMotionHint && Math.abs(coarseDy) > .01) {
+            return unmatched(Status.NO_MOTION_HINT, pixels, rows, frameId, receivedAt);
+        }
         SpatialFrameRegistration.Result registration = SpatialFrameRegistration.refine(
                 referencePixels, pixels, width, height, top, bottom, coarseDy);
-        if (!registration.accepted) return unknown(Status.UNMATCHED, frameId);
+        if (!registration.accepted) return unmatched(Status.UNMATCHED, pixels, rows, frameId, receivedAt);
         double sourceDy = registration.dy * scope.sourceHeight / height;
         double nextY = referenceY - sourceDy;
         if (!Double.isFinite(nextY)) return unknown(Status.INVALID, frameId);
@@ -66,6 +64,20 @@ final class SpatialFrameMap {
         keepReference(pixels, rows, frameId, receivedAt);
         return new Result(Status.REGISTERED, new Pose(mapGeneration, frameId, nextY),
                 matchedReferenceId, sourceDy, registration.inliers);
+    }
+
+    private Result unmatched(Status status, int[] pixels, double[][] rows, long id, long receipt) {
+        // Try spatial re-identification before expiring a retained image. An old receipt is not
+        // evidence of image motion, nor does a successful image match establish display time.
+        return receipt - referenceReceipt > MAX_REFERENCE_AGE_MS
+                ? baseline(pixels, rows, id, receipt) : unknown(status, id);
+    }
+
+    private Result baseline(int[] pixels, double[][] rows, long id, long receipt) {
+        mapGeneration++;
+        referenceY = 0;
+        keepReference(pixels, rows, id, receipt);
+        return new Result(Status.BASELINE, new Pose(mapGeneration, id, 0), id, 0, 0);
     }
 
     void clear() {

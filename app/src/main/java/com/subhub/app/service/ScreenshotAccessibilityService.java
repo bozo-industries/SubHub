@@ -722,12 +722,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 int[] pixels = new int[fw * fh];
                 frame.getPixels(pixels, 0, fw, 0, 0, fw, fh);
                 Rect viewport = screenBounds();
+                RowMotionObserver.Scope spatialScope = new RowMotionObserver.Scope(requestedEpoch,
+                        requestedDocumentEpoch, requestedWindowId, prepared.sourceWidth, prepared.sourceHeight);
                 spatialFrame = spatialRegionCache.register(pixels, fw, fh, fh / 5, fh * 19 / 20,
-                        new RowMotionObserver.Scope(requestedEpoch, requestedDocumentEpoch,
-                                requestedWindowId, prepared.sourceWidth, prepared.sourceHeight),
+                        spatialScope,
                         requestedAtUptimeMillis, capturePhase.screenshotUptimeMillis,
-                        lastScrollTraceEventUptime > 0
-                                && SystemClock.uptimeMillis() - lastScrollTraceEventUptime < 750,
+                        spatialRegionCache.motionHintForReference(spatialScope,
+                                lastScrollTraceEventUptime, capturePhase.screenshotUptimeMillis),
                         sourceScrollX, sourceScrollY, viewport.width(), viewport.height());
                 CensorLabLog.i(TAG, "SPATIAL_CACHE_FRAME id=" + requestedAtUptimeMillis
                         + " status=" + spatialFrame.result.status
@@ -1908,15 +1909,22 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                 current.scrollX, current.scrollY);
                 long publishedAt = SystemClock.uptimeMillis();
                 overlay.setDiagnostics(diagnosticText);
+                List<Detection> regionsForView = spatialCacheExperiment
+                        ? spatialRegionCache.revalidatePresentation(
+                                candidate.scene == null ? null : candidate.scene.spatialFrame,
+                                publishedAt, cachedRenderRegions, cachedRenderRegions)
+                        : cachedRenderRegions;
                 overlay.updateWorldWithCache(
-                        renderTracks, cachedRenderRegions, width, height, overlayFrame,
+                        renderTracks, regionsForView, width, height, overlayFrame,
                         alignment.scrollX, alignment.scrollY,
                         requestedScrollX, requestedScrollY,
                         publicationViewport.width(), publicationViewport.height());
+                if (spatialCacheExperiment) spatialRegionCache.markApplied(
+                        candidate.scene == null ? null : candidate.scene.spatialFrame, publishedAt);
                 traceCalibrationScene(
                         publishedSceneCommit == null ? "legacy"
                                 : publishedSceneCommit.key().toString(),
-                        renderTracks, cachedRenderRegions,
+                        renderTracks, regionsForView,
                         width, height, alignment.scrollX, alignment.scrollY,
                         current.scrollX, current.scrollY);
                 lastFastOverlayGeneration = motionGeneration.get();
@@ -2692,6 +2700,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         Rect cacheViewport = screenBounds();
         List<Detection> reentryRegions = Collections.emptyList();
         boolean refreshedCacheWindow = false;
+        SpatialRegionCache.Frame eventSourceFrame = null;
         if (spatialCacheExperiment) {
             SpatialRegionCache.Frame source = spatialRegionCache.latest();
             if (source != null && source.scope != null
@@ -2702,6 +2711,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     && source.scope.sourceHeight == cacheSourceHeight
                     && source.viewportWidth == cacheViewport.width()
                     && source.viewportHeight == cacheViewport.height()) {
+                eventSourceFrame = source;
                 reentryRegions = InferenceScrollReprojector.toCurrentViewport(
                         spatialRegionCache.querySource(source, SystemClock.uptimeMillis()),
                         cacheSourceWidth, cacheSourceHeight, cacheViewport.width(), cacheViewport.height(),
@@ -2729,21 +2739,41 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
         List<Detection> cachedForFrame = reentryRegions;
         boolean publishCacheWindow = refreshedCacheWindow;
+        SpatialRegionCache.Frame queriedSpatialFrame = eventSourceFrame;
         Runnable moveOverlay = () -> {
             if (recognitionActive && overlay != null) {
+                if (spatialCacheExperiment && publishCacheWindow
+                        && queriedSpatialFrame != null
+                        && queriedSpatialFrame.scope.window == activeApplicationWindowId.get()
+                        && motionGeneration.get() == expectedMotionGeneration
+                        && isCurrentVisualDocument(cacheDocument, cacheSurface)
+                        && spatialRegionCache.retainAppliedCoverage(
+                                queriedSpatialFrame, SystemClock.uptimeMillis())) {
+                    // No new image is not the same as an unmatched new image. Move only coverage
+                    // already delivered to this view; do not query or insert expired-source data.
+                    overlay.offsetContent(dx, dy, allowPrediction, effectiveAt);
+                    CensorLabLog.i(TAG, "SPATIAL_CACHE_HOLD id=" + spatialRegionCache.appliedFrameId());
+                    return;
+                }
                 if (publishCacheWindow
                         && motionGeneration.get() == expectedMotionGeneration
                         && isCurrentVisualDocument(cacheDocument, cacheSurface)) {
                     // Both mutations occur in this UI callback. The View exposes their union only
                     // when Android draws the next frame; cache work cannot evict a real scene from
                     // the detector's latest-only presentation broker.
+                    List<Detection> regionsForEvent = spatialCacheExperiment
+                            ? spatialRegionCache.revalidatePresentation(queriedSpatialFrame,
+                                    SystemClock.uptimeMillis(), cachedForFrame, cachedForFrame)
+                            : cachedForFrame;
                     overlay.offsetContentWithWorldCache(
-                            dx, dy, allowPrediction, effectiveAt, cachedForFrame,
+                            dx, dy, allowPrediction, effectiveAt, regionsForEvent,
                             cacheSourceWidth, cacheSourceHeight,
                             cacheCamera.scrollX, cacheCamera.scrollY,
                             cacheViewport.width(), cacheViewport.height());
+                    if (spatialCacheExperiment) spatialRegionCache.markApplied(
+                            queriedSpatialFrame, SystemClock.uptimeMillis());
                     CensorLabLog.i(TAG, "WORLD_CACHE_REENTRY candidates="
-                            + cachedForFrame.size()
+                            + regionsForEvent.size()
                             + " generation=" + expectedMotionGeneration
                             + " camera=" + cacheCamera.scrollX + ',' + cacheCamera.scrollY
                             + " documentEpoch=" + cacheDocument);

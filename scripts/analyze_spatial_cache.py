@@ -7,11 +7,12 @@ from pathlib import Path
 
 FRAME = re.compile(r"SPATIAL_CACHE_FRAME id=(\d+) status=(BASELINE|REGISTERED|UNMATCHED|NO_MOTION_HINT|INVALID|STALE) known=(true|false) cpuUs=(\d+)")
 QUERY = re.compile(r"SPATIAL_CACHE_QUERY id=(\d+) entries=(\d+) inserted=(\d+) candidates=(\d+)")
+HOLD = re.compile(r"SPATIAL_CACHE_HOLD id=(\d+)")
 
 
 def analyze(text):
     raw = parsed = 0
-    frames, queries = [], []
+    frames, queries, holds = [], [], []
     for line in text.splitlines():
         if "SPATIAL_CACHE_" not in line:
             continue
@@ -28,6 +29,8 @@ def analyze(text):
             if candidates > 24 or entries > 2048 or inserted > entries:
                 continue
             queries.append(dict(id=identity, entries=entries, inserted=inserted, candidates=candidates))
+        elif HOLD.fullmatch(record):
+            holds.append(int(HOLD.fullmatch(record)[1]))
         else:
             continue
         parsed += 1
@@ -38,7 +41,7 @@ def analyze(text):
                 queries=len(queries), queriesWithRegions=sum(query["candidates"] > 0 for query in queries),
                 inserted=sum(query["inserted"] for query in queries),
                 maxEntries=max([query["entries"] for query in queries], default=0),
-                visualAcceptance=False)
+                holdEvents=len(holds), visualAcceptance=False)
 
 
 if __name__ == "__main__":
