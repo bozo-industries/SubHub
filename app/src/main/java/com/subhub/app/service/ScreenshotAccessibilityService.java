@@ -215,6 +215,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             (preferences, key) -> reloadSettings();
     private ScheduledExecutorService worker;
     private final RowMotionObserver rowMotionObserver = new RowMotionObserver();
+    private SpatialRegionCache spatialRegionCache;
+    private boolean spatialCacheExperiment;
     private final VisualCameraShadow visualCameraShadow = new VisualCameraShadow();
     private PreparedFrameRecorder preparedFrameRecorder;
     private ChromeGeometryProbe chromeGeometryProbe;
@@ -359,6 +361,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         rowMotionShadow = BuildConfig.DEBUG && getSharedPreferences("row_motion_experiment", MODE_PRIVATE)
                 .getBoolean("enabled", false);
         if (rowMotionShadow) preparedFrameRecorder = PreparedFrameRecorder.startIfArmed(this);
+        spatialCacheExperiment = BuildConfig.DEBUG && getSharedPreferences(
+                "spatial_cache_experiment", MODE_PRIVATE).getBoolean("enabled", false);
+        if (spatialCacheExperiment) spatialRegionCache = new SpatialRegionCache();
         gpuPreparationExperiment = BuildConfig.DEBUG && Build.VERSION.SDK_INT >= 29
                 && getSharedPreferences("gpu_preparation_experiment", MODE_PRIVATE)
                 .getBoolean("enabled", false);
@@ -521,13 +526,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             finishScreenshotRequest();
             return;
         }
+        long requestedDocumentEpoch = visualDocumentEpoch.get();
         TakeScreenshotCallback callback = new TakeScreenshotCallback() {
             @Override
             public void onSuccess(ScreenshotResult result) {
                 traceCaptureStage(requestUptime, "callback-success");
                 try {
                     process(result, requestedEpoch, requestedScrollX, requestedScrollY,
-                            requestedGeneration, requestUptime);
+                            requestedGeneration, requestUptime, activeWindowId, requestedDocumentEpoch);
                 } finally {
                     traceCaptureStage(requestUptime, "callback-exit");
                 }
@@ -570,12 +576,17 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long requestedScrollX,
             long requestedScrollY,
             long requestedGeneration,
-            long requestedAtUptimeMillis) {
+            long requestedAtUptimeMillis,
+            int requestedWindowId,
+            long requestedDocumentEpoch) {
         Bitmap wrapped = null;
         Bitmap frame = null;
         HardwareBuffer buffer = result.getHardwareBuffer();
         try {
-            if (!isCurrentCapture(requestedEpoch)) return;
+            if (!isCurrentCapture(requestedEpoch)
+                    || requestedDocumentEpoch != visualDocumentEpoch.get()
+                    || requestedWindowId >= 0
+                    && requestedWindowId != activeApplicationWindowId.get()) return;
             wrapped = Bitmap.wrapHardwareBuffer(buffer, result.getColorSpace());
             if (wrapped == null) return;
             CaptureTimeReference captureTime = CaptureTimeReference.accessibility(
@@ -648,7 +659,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             boolean motionSettled = lastMotionUptime <= 0L
                     || nowUptime - lastMotionUptime >= MOTION_SETTLE_MS;
             long inferenceMotionGeneration = sampledGeneration;
-            long inferenceDocumentEpoch = visualDocumentEpoch.get();
+            long inferenceDocumentEpoch = requestedDocumentEpoch;
             String inferenceSurfaceKey = activeScrollSurfaceKey;
             long inferenceSurfaceTelemetryToken = activeScrollTelemetryToken;
             if (!isCurrentCapture(requestedEpoch)) return;
@@ -704,6 +715,25 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             }
             traceCaptureStage(requestedAtUptimeMillis, "prepare-end");
             frame = prepared.bitmap;
+            SpatialRegionCache.Frame spatialFrame = null;
+            if (spatialCacheExperiment) {
+                long started = android.os.Debug.threadCpuTimeNanos();
+                int fw = frame.getWidth(), fh = frame.getHeight();
+                int[] pixels = new int[fw * fh];
+                frame.getPixels(pixels, 0, fw, 0, 0, fw, fh);
+                Rect viewport = screenBounds();
+                spatialFrame = spatialRegionCache.register(pixels, fw, fh, fh / 5, fh * 19 / 20,
+                        new RowMotionObserver.Scope(requestedEpoch, requestedDocumentEpoch,
+                                requestedWindowId, prepared.sourceWidth, prepared.sourceHeight),
+                        requestedAtUptimeMillis, capturePhase.screenshotUptimeMillis,
+                        lastScrollTraceEventUptime > 0
+                                && SystemClock.uptimeMillis() - lastScrollTraceEventUptime < 750,
+                        sourceScrollX, sourceScrollY, viewport.width(), viewport.height());
+                CensorLabLog.i(TAG, "SPATIAL_CACHE_FRAME id=" + requestedAtUptimeMillis
+                        + " status=" + spatialFrame.result.status
+                        + " known=" + (spatialFrame.result.pose != null)
+                        + " cpuUs=" + (android.os.Debug.threadCpuTimeNanos() - started) / 1000);
+            }
             if (rowMotionShadow) {
                 long rowStarted = SystemClock.uptimeMillis();
                 long rowCpuStarted = android.os.Debug.threadCpuTimeNanos();
@@ -743,6 +773,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     }
                 }
             }
+            if (requestedDocumentEpoch != visualDocumentEpoch.get()
+                    || requestedWindowId >= 0
+                    && requestedWindowId != activeApplicationWindowId.get()) return;
             // Priority means "publish the first settled fast frame", not "immediately saturate
             // the CPU with quality and text refinement at the same time".
             if (priorityFrame && motionSettled) {
@@ -756,7 +789,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     ? beginScene(requestedEpoch, submissionSequence,
                             inferenceMotionGeneration, capturePhase.screenshotUptimeMillis,
                             requestedAtUptimeMillis,
-                            motionSettled, qualityRefine)
+                            motionSettled, qualityRefine, spatialFrame)
                     : null;
             traceCaptureStage(requestedAtUptimeMillis, "scene-begun");
             long submittedFastSequence = enqueueInference(new InferenceFrame(
@@ -841,7 +874,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             long screenshotUptimeMillis,
             long requestedAtUptimeMillis,
             boolean motionSettled,
-            boolean qualityExpected) {
+            boolean qualityExpected,
+            SpatialRegionCache.Frame spatialFrame) {
         SceneTransactionCoordinator.SceneKey key =
                 new SceneTransactionCoordinator.SceneKey(
                         epoch, fastSequence, generation, screenshotUptimeMillis);
@@ -854,7 +888,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 visibleDeadline - ATOMIC_SCENE_JOIN_GUARD_MS);
         SceneTransactionCoordinator.BeginResult begun;
         SceneContext next = new SceneContext(
-                key, joinDeadline, visibleDeadline);
+                key, joinDeadline, visibleDeadline, spatialFrame);
         synchronized (sceneLifecycleLock) {
             // Fast coverage owns the visible scene. Quality may continue as shadow/cache evidence,
             // but it can never hold a settled censor behind a join deadline again.
@@ -1153,6 +1187,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     candidate.visualDocumentEpoch, candidate.scrollSurfaceKey)
                     || candidate.surfaceTelemetryToken != activeScrollTelemetryToken) {
                 return result;
+            }
+            if (spatialCacheExperiment && candidate.scene != null) {
+                spatialRegionCache.observeSource(candidate.scene.spatialFrame, readyAtUptime,
+                        false, observations);
             }
             update = contentSpaceRegionCache.observeCommittedScene(
                     candidate.visualDocumentEpoch,
@@ -1794,7 +1832,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 width, height, cacheViewport.width(), cacheViewport.height(),
                 sceneCommit != null && sceneCommit.includesQuality(),
                 sceneCommit == null ? "legacy-fast" : sceneCommit.kind().name(),
-                candidate.visualDocumentEpoch, candidate.scrollSurfaceKey);
+                candidate.visualDocumentEpoch, candidate.scrollSurfaceKey,
+                candidate.scene == null ? null : candidate.scene.spatialFrame);
         int qualityOnlyTrackCount = 0;
         traceCaptureStage(candidate.capturedAtUptimeMillis, "geometry-ready");
         for (TrackedObject track : tracks) {
@@ -2392,21 +2431,38 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             boolean unifiedScene,
             String source,
             long expectedDocument,
-            String expectedSurface) {
+            String expectedSurface,
+            SpatialRegionCache.Frame spatialFrame) {
         String surface = expectedSurface == null ? "" : expectedSurface;
-        if (surface.isEmpty()) return Collections.emptyList();
+        if (surface.isEmpty() && !spatialCacheExperiment) return Collections.emptyList();
         List<ContentSpaceRegionCache.Observation> observations = new ArrayList<>();
         if (liveTracks != null) {
             for (TrackedObject track : liveTracks) {
                 if (track == null || !track.isActive() || !track.isVisible()) continue;
                 observations.add(new ContentSpaceRegionCache.Observation(
                         track.getId(), track.getClassName(), track.getCategory(),
-                        track.getConfidence(), track.getBox(), true, false,
+                        track.getConfidence(), spatialCacheExperiment ? track.getRawBox() : track.getBox(), true, false,
                         track.getFramesTracked(), track.getFramesMissing(),
                         false));
             }
         }
         long now = SystemClock.uptimeMillis();
+        if (spatialCacheExperiment) {
+            synchronized (worldCacheLock) {
+                if (!isCurrentVisualDocument(expectedDocument, surface)) return Collections.emptyList();
+                if (spatialFrame == null || spatialFrame.viewportWidth != viewportWidth
+                        || spatialFrame.viewportHeight != viewportHeight) return Collections.emptyList();
+                ContentSpaceRegionCache.Update spatialUpdate = spatialRegionCache.observeSource(spatialFrame, now, unifiedScene,
+                        SpatialRegionCache.sourceObservations(spatialFrame, cameraX, cameraY, observations));
+                List<Detection> spatialRegions = spatialRegionCache.querySource(spatialFrame, now);
+                CensorLabLog.i(TAG, "SPATIAL_CACHE_QUERY id=" + spatialFrame.id
+                        + " entries=" + spatialRegionCache.size() + " inserted=" + spatialUpdate.inserted
+                        + " candidates=" + spatialRegions.size());
+                return InferenceScrollReprojector.toCurrentViewport(
+                        spatialRegions, sourceWidth, sourceHeight,
+                        viewportWidth, viewportHeight, spatialFrame.eventX, spatialFrame.eventY, cameraX, cameraY);
+            }
+        }
         ContentSpaceRegionCache.Update update;
         List<Detection> cached;
         int entries;
@@ -2636,7 +2692,23 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         Rect cacheViewport = screenBounds();
         List<Detection> reentryRegions = Collections.emptyList();
         boolean refreshedCacheWindow = false;
-        if (cacheSurface != null && !cacheSurface.isEmpty()
+        if (spatialCacheExperiment) {
+            SpatialRegionCache.Frame source = spatialRegionCache.latest();
+            if (source != null && source.scope != null
+                    && source.scope.captureEpoch == captureEpoch.token()
+                    && source.scope.document == cacheDocument
+                    && source.scope.window == activeApplicationWindowId.get()
+                    && source.scope.sourceWidth == cacheSourceWidth
+                    && source.scope.sourceHeight == cacheSourceHeight
+                    && source.viewportWidth == cacheViewport.width()
+                    && source.viewportHeight == cacheViewport.height()) {
+                reentryRegions = InferenceScrollReprojector.toCurrentViewport(
+                        spatialRegionCache.querySource(source, SystemClock.uptimeMillis()),
+                        cacheSourceWidth, cacheSourceHeight, cacheViewport.width(), cacheViewport.height(),
+                        source.eventX, source.eventY, cacheCamera.scrollX, cacheCamera.scrollY);
+            }
+            refreshedCacheWindow = true;
+        } else if (cacheSurface != null && !cacheSurface.isEmpty()
                 && cacheSourceWidth > 0 && cacheSourceHeight > 0) {
             synchronized (worldCacheLock) {
                 if (isCurrentVisualDocument(cacheDocument, cacheSurface)
@@ -4383,6 +4455,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     /** Bridges the pure scene state machine to the two inference workers without UI authority. */
     private static final class SceneContext {
+        private final SpatialRegionCache.Frame spatialFrame;
         private final SceneTransactionCoordinator.SceneKey key;
         private final long joinDeadlineUptimeMillis;
         private final long visibleDeadlineUptimeMillis;
@@ -4394,7 +4467,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         private SceneContext(
                 SceneTransactionCoordinator.SceneKey key,
                 long joinDeadlineUptimeMillis,
-                long visibleDeadlineUptimeMillis) {
+                long visibleDeadlineUptimeMillis,
+                SpatialRegionCache.Frame spatialFrame) {
+            this.spatialFrame = spatialFrame;
             this.key = key;
             this.joinDeadlineUptimeMillis = joinDeadlineUptimeMillis;
             this.visibleDeadlineUptimeMillis = visibleDeadlineUptimeMillis;

@@ -50,7 +50,7 @@ public final class GpuReadbackProbeAndroidTest {
         DetectorConfig config = new SettingsRepository(context).loadDetectorConfig().toBuilder()
                 .enabledCategories(categories).inferenceResolution(320).detectionIntervalMs(0).build();
         try (DetectionEngine engine = new DetectionEngine(context, config, true)) {
-            engine.initializeForProvider("CPU");
+            DetectorTestAccess.initializeCpu(engine);
             int baselineDetections = 0;
             for (File file : files) {
                 Bitmap frame = BitmapFactory.decodeFile(file.getAbsolutePath());
