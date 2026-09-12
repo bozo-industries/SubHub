@@ -11,6 +11,9 @@ public final class RowMotionSetupAndroidTest {
         assumeTrue("Explicit argument required", "true".equals(value)||"false".equals(value));
         Context context=ApplicationProvider.getApplicationContext();
         assertTrue(context.getSharedPreferences("row_motion_experiment",Context.MODE_PRIVATE)
-                .edit().putBoolean("enabled",Boolean.parseBoolean(value)).commit());
+                .edit().putBoolean("enabled",Boolean.parseBoolean(value))
+                .putBoolean("save_frames", Boolean.parseBoolean(value) && "true".equals(
+                        InstrumentationRegistry.getArguments().getString("saveRowFrames", "false")))
+                .commit());
     }
 }

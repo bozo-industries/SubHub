@@ -216,6 +216,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private ScheduledExecutorService worker;
     private final RowMotionObserver rowMotionObserver = new RowMotionObserver();
     private final VisualCameraShadow visualCameraShadow = new VisualCameraShadow();
+    private PreparedFrameRecorder preparedFrameRecorder;
     private boolean rowMotionShadow;
     private volatile boolean gpuPreparationExperiment;
     private boolean gpuPreparationReady; // capture-worker owned
@@ -356,6 +357,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         worker = newScheduledWorker("SubHub-capture", Process.THREAD_PRIORITY_DISPLAY);
         rowMotionShadow = BuildConfig.DEBUG && getSharedPreferences("row_motion_experiment", MODE_PRIVATE)
                 .getBoolean("enabled", false);
+        if (rowMotionShadow) preparedFrameRecorder = PreparedFrameRecorder.startIfArmed(this);
         gpuPreparationExperiment = BuildConfig.DEBUG && Build.VERSION.SDK_INT >= 29
                 && getSharedPreferences("gpu_preparation_experiment", MODE_PRIVATE)
                 .getBoolean("enabled", false);
@@ -721,6 +723,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                             + " eventFrameMilliY=" + sourceScrollY * 1000L
                             + " correctionMilliY=" + Math.round(cameraSample.correctionY * 1000)
                             + " cameraMilliY=" + Math.round(cameraSample.cameraY * 1000));
+                    if (preparedFrameRecorder != null) {
+                        preparedFrameRecorder.offer(rowPixels, fw, fh, rowSample.currentTime);
+                    }
                 }
             }
             // Priority means "publish the first settled fast frame", not "immediately saturate
@@ -4710,6 +4715,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         fastDetector = null;
         if (motionEstimator != null) motionEstimator.close();
         motionEstimator = null;
+        if (preparedFrameRecorder != null) preparedFrameRecorder.close();
         if (hardcoreSettingsGuard != null) hardcoreSettingsGuard.clear();
         hardcoreSettingsGuard = null;
         if (subliminalOverlay != null) subliminalOverlay.close();
