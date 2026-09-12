@@ -11,9 +11,13 @@ final class SpatialRegionCache {
     private final SpatialFrameMap map = new SpatialFrameMap();
     private final Object registrationLock = new Object();
     private final ContentSpaceRegionCache regions = new ContentSpaceRegionCache();
+    private final boolean retainTrackingImages;
     private Frame latest;
     private Frame lastRegistered;
     private Frame appliedFrame;
+
+    SpatialRegionCache() { this(false); }
+    SpatialRegionCache(boolean retainTrackingImages) { this.retainTrackingImages = retainTrackingImages; }
 
     Frame register(int[] pixels, int width, int height, int top, int bottom,
             RowMotionObserver.Scope scope, long id, long receipt, boolean motionHint,
@@ -35,7 +39,10 @@ final class SpatialRegionCache {
                 viewportWidth, viewportHeight, height > 0 && scope != null
                 ? (int) Math.ceil(top * (double) scope.sourceHeight / height) : 0,
                 height > 0 && scope != null
-                ? (int) Math.floor(bottom * (double) scope.sourceHeight / height) : 0);
+                ? (int) Math.floor(bottom * (double) scope.sourceHeight / height) : 0,
+                retainTrackingImages && scope != null && scope.valid()
+                        && result.status != SpatialFrameMap.Status.INVALID && result.status != SpatialFrameMap.Status.STALE
+                        ? SourcePatchMatcher.Image.copyOf(pixels, width, height) : null);
         // The registration work above never holds the cache lock used by UI scroll queries.
         synchronized (this) {
             if (result.status == SpatialFrameMap.Status.BASELINE) regions.clear();
@@ -198,21 +205,27 @@ final class SpatialRegionCache {
         final RowMotionObserver.Scope scope;
         final long id, receipt, eventX, eventY;
         final int viewportWidth, viewportHeight, top, bottom;
+        final SourcePatchMatcher.Image trackingImage;
         boolean sameMapAs(Frame other) {
-            return other != null && owner == other.owner && result.pose != null && other.result.pose != null
+            return sameScopeAs(other) && result.pose != null && other.result.pose != null
+                    && result.pose.mapGeneration == other.result.pose.mapGeneration;
+        }
+        boolean sameScopeAs(Frame other) {
+            return other != null && owner == other.owner
                     && scope != null && scope.matches(other.scope)
-                    && result.pose.mapGeneration == other.result.pose.mapGeneration
                     && viewportWidth > 0 && viewportHeight > 0
                     && viewportWidth == other.viewportWidth && viewportHeight == other.viewportHeight
                     && top == other.top && bottom == other.bottom;
         }
         private Frame(SpatialRegionCache owner, SpatialFrameMap.Result result, RowMotionObserver.Scope scope,
-                long id, long receipt, long eventX, long eventY, int viewportWidth, int viewportHeight, int top, int bottom) {
+                long id, long receipt, long eventX, long eventY, int viewportWidth, int viewportHeight,
+                int top, int bottom, SourcePatchMatcher.Image trackingImage) {
             this.owner = owner; this.result = result; this.scope = scope; this.receipt = receipt;
             this.id = id;
             this.eventX = eventX; this.eventY = eventY;
             this.viewportWidth = viewportWidth; this.viewportHeight = viewportHeight;
             this.top = top; this.bottom = bottom;
+            this.trackingImage = trackingImage;
         }
     }
 }

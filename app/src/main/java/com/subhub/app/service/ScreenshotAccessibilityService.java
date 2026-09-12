@@ -375,7 +375,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 "spatial_tracking_experiment", MODE_PRIVATE).getBoolean("correctTracks", false);
         // Registration-only A/B must not admit either spatial or legacy cache output.
         if (spatialTrackingExperiment) spatialCacheExperiment = false;
-        if (spatialCacheExperiment || spatialTrackingExperiment) spatialRegionCache = new SpatialRegionCache();
+        if (spatialCacheExperiment || spatialTrackingExperiment) {
+            spatialRegionCache = new SpatialRegionCache(spatialTrackingExperiment);
+        }
         captureGapProbe = null;
         captureGapArmFile = null;
         if (BuildConfig.DEBUG && (Build.HARDWARE.contains("ranchu") || Build.HARDWARE.contains("goldfish"))
@@ -1860,9 +1862,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (spatialTrackingExperiment) {
                 sourceTrackContinuity.record(candidate.scene == null ? null : candidate.scene.spatialFrame,
                         requestedScrollX, requestedScrollY);
-                CensorLabLog.i(TAG, "SOURCE_TRACK v=1 id=" + candidate.capturedAtUptimeMillis
+                CensorLabLog.i(TAG, "SOURCE_TRACK v=2 id=" + candidate.capturedAtUptimeMillis
                         + " enabled=" + correctSpatialTracks + " corrected=" + alignment.correctedTracks
-                        + " extraDy=" + alignment.extraDy);
+                        + " global=" + alignment.globalCorrections + " local=" + alignment.localCorrections
+                        + " pairs=" + alignment.localPairs + " maxAbsExtraDy=" + alignment.maxAbsExtraDy
+                        + " cpuUs=" + alignment.correctionCpuUs);
             }
         }
         VisualTrackArbitrator.Result renderArbitration = visualRenderTracks(tracks);
@@ -2890,7 +2894,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         long scrollY;
         int dx;
         int dy;
-        Map<Integer, Integer> corrections = Collections.emptyMap();
+        long correctionCpuStarted = spatialTrackingExperiment ? android.os.Debug.threadCpuTimeNanos() : 0;
+        SourceTrackContinuity.Proposal proposal = SourceTrackContinuity.Proposal.EMPTY;
         synchronized (scrollStateLock) {
             scrollX = cumulativeScrollX.get();
             scrollY = cumulativeScrollY.get();
@@ -2909,14 +2914,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         List<Detection> aligned = reproject ? InferenceScrollReprojector.toCurrentViewport(
                                 detections, width, height, viewport.width(), viewport.height(),
                                 sourceX, sourceY, scrollX, scrollY) : detections;
-                        corrections = sourceTrackContinuity.corrections(frame, sourceX, sourceY,
+                        proposal = sourceTrackContinuity.propose(frame, sourceX, sourceY,
                                 trackerScrollY, scrollY, dx, dy, width, height, tracker.activeTracks(),
                                 aligned, detectorConfig == null ? 1f : detectorConfig.getConfidenceThreshold());
                     }
                 }
                 // If a subsequent generation guard aborts update, never reuse the pre-mutation basis.
                 if (spatialTrackingExperiment) sourceTrackContinuity.clear();
-                tracker.offsetActiveTracks(dx, dy, width, height, corrections);
+                tracker.offsetActiveTracks(dx, dy, width, height, proposal.offsets);
                 trackerScrollX = scrollX;
                 trackerScrollY = scrollY;
             }
@@ -2924,8 +2929,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             trackerScrollX = scrollX;
             trackerScrollY = scrollY;
         }
-        return new ScrollAlignment(scrollX, scrollY, corrections.size(),
-                corrections.isEmpty() ? 0 : corrections.values().iterator().next());
+        return new ScrollAlignment(scrollX, scrollY, proposal, spatialTrackingExperiment
+                ? (android.os.Debug.threadCpuTimeNanos() - correctionCpuStarted) / 1000 : 0);
     }
 
     /** Atomically detaches renderer geometry from its tracker-camera coordinate phase. */
@@ -4888,11 +4893,16 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private static final class ScrollAlignment extends ScrollPosition {
-        final int correctedTracks, extraDy;
-        ScrollAlignment(long scrollX, long scrollY, int correctedTracks, int extraDy) {
+        final int correctedTracks, globalCorrections, localCorrections, localPairs, maxAbsExtraDy;
+        final long correctionCpuUs;
+        ScrollAlignment(long scrollX, long scrollY, SourceTrackContinuity.Proposal proposal, long correctionCpuUs) {
             super(scrollX, scrollY);
-            this.correctedTracks = correctedTracks;
-            this.extraDy = extraDy;
+            this.correctedTracks = proposal.offsets.size();
+            this.globalCorrections = proposal.global;
+            this.localCorrections = proposal.local;
+            this.localPairs = proposal.pairs;
+            this.maxAbsExtraDy = proposal.maxAbsDy();
+            this.correctionCpuUs = correctionCpuUs;
         }
     }
 
