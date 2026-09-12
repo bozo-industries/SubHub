@@ -84,7 +84,7 @@ final class RenderTrackSnapshot {
     }
 
     /** Keep render-memory identities disjoint from positive tracker and text identities. */
-    private static int stableCacheId(Detection detection, BBox identityBox) {
+    static int stableCacheId(Detection detection, BBox identityBox) {
         int positive = stableTextId(detection, identityBox);
         return positive == Integer.MIN_VALUE ? Integer.MIN_VALUE + 1 : -positive;
     }

@@ -1939,8 +1939,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         alignment.scrollX, alignment.scrollY,
                         requestedScrollX, requestedScrollY,
                         publicationViewport.width(), publicationViewport.height());
-                if (spatialCacheExperiment) spatialRegionCache.markApplied(
-                        candidate.scene == null ? null : candidate.scene.spatialFrame, publishedAt);
+                if (spatialCacheExperiment) {
+                    int admitted = overlay.admittedCachedRegionCount(cachedRenderRegions);
+                    spatialRegionCache.markApplied(candidate.scene == null ? null : candidate.scene.spatialFrame,
+                            publishedAt, admitted);
+                    CensorLabLog.i(TAG, "SPATIAL_CACHE_APPLIED kind=scene input=" + cachedRenderRegions.size()
+                            + " admitted=" + admitted);
+                }
                 traceCalibrationScene(
                         publishedSceneCommit == null ? "legacy"
                                 : publishedSceneCommit.key().toString(),
@@ -2480,8 +2485,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 if (!isCurrentVisualDocument(expectedDocument, surface)) return Collections.emptyList();
                 if (spatialFrame == null || spatialFrame.viewportWidth != viewportWidth
                         || spatialFrame.viewportHeight != viewportHeight) return Collections.emptyList();
-                ContentSpaceRegionCache.Update spatialUpdate = spatialRegionCache.observeSource(spatialFrame, now, unifiedScene,
+                SpatialRegionCache.WriteResult spatialWrite = spatialRegionCache.observeSourceWithStats(spatialFrame, now, unifiedScene,
                         SpatialRegionCache.sourceObservations(spatialFrame, cameraX, cameraY, observations));
+                ContentSpaceRegionCache.Update spatialUpdate = spatialWrite.update;
+                CensorLabLog.i(TAG, "SPATIAL_CACHE_WRITE id=" + spatialFrame.id + " known=" + spatialWrite.known
+                        + " input=" + spatialWrite.input + " crop=" + spatialWrite.cropRejected
+                        + " unconfirmed=" + spatialWrite.unconfirmed + " faces=" + spatialWrite.faces
+                        + " faceCrop=" + spatialWrite.faceCropRejected);
                 List<Detection> spatialRegions = spatialRegionCache.querySource(spatialFrame, now);
                 CensorLabLog.i(TAG, "SPATIAL_CACHE_QUERY id=" + spatialFrame.id
                         + " entries=" + spatialRegionCache.size() + " inserted=" + spatialUpdate.inserted
@@ -2790,8 +2800,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                             cacheSourceWidth, cacheSourceHeight,
                             cacheCamera.scrollX, cacheCamera.scrollY,
                             cacheViewport.width(), cacheViewport.height());
-                    if (spatialCacheExperiment) spatialRegionCache.markApplied(
-                            queriedSpatialFrame, SystemClock.uptimeMillis());
+                    if (spatialCacheExperiment) {
+                        int admitted = overlay.admittedCachedRegionCount(regionsForEvent);
+                        spatialRegionCache.markApplied(queriedSpatialFrame, SystemClock.uptimeMillis(),
+                                admitted);
+                        CensorLabLog.i(TAG, "SPATIAL_CACHE_APPLIED kind=event input=" + regionsForEvent.size()
+                                + " admitted=" + admitted);
+                    }
                     CensorLabLog.i(TAG, "WORLD_CACHE_REENTRY candidates="
                             + regionsForEvent.size()
                             + " generation=" + expectedMotionGeneration

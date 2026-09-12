@@ -30,6 +30,11 @@ public final class OverlayController implements AutoCloseable {
         this.windowType = windowType;
     }
 
+    /** Cache-identified snapshots retained for rendering; not compositor-visible pixel counts. */
+    public int admittedCachedRegionCount(List<Detection> candidates) {
+        return view.admittedCachedRegionCount(candidates);
+    }
+
     public void show() {
         if (attached) return;
         WindowManager.LayoutParams params = createLayoutParams(windowType);

@@ -119,7 +119,7 @@ public final class SpatialRegionCacheTest {
         SpatialRegionCache.Frame source = frame(cache, texture(10), 1, 0);
         write(cache, source);
         assertFalse(cache.retainAppliedCoverage(source, 1200));
-        cache.markApplied(source, 150);
+        cache.markApplied(source, 150, 1);
         assertEquals(source.id, cache.appliedFrameId());
         assertTrue(cache.querySource(source, 1200).isEmpty());
         assertTrue(cache.retainAppliedCoverage(source, 1200));
@@ -132,7 +132,7 @@ public final class SpatialRegionCacheTest {
         SpatialRegionCache cache = new SpatialRegionCache();
         SpatialRegionCache.Frame first = frame(cache, texture(11), 1, 0);
         write(cache, first);
-        cache.markApplied(first, 100);
+        cache.markApplied(first, 100, 1);
         SpatialRegionCache.Frame unknown = frame(cache, texture(12), 2, 0);
         assertFalse(cache.retainAppliedCoverage(unknown, 1200));
         assertFalse(cache.retainAppliedCoverage(first, 1200));
@@ -154,7 +154,7 @@ public final class SpatialRegionCacheTest {
         frame(cache, texture(15), 2, 0);
         assertEquals(Collections.singletonList(quality),
                 cache.revalidatePresentation(first, 210, cached, combined));
-        cache.markApplied(first, 210);
+        cache.markApplied(first, 210, 1);
         assertEquals(-1, cache.appliedFrameId());
     }
 
@@ -163,7 +163,7 @@ public final class SpatialRegionCacheTest {
         int[] pixels = texture(16);
         SpatialRegionCache.Frame first = frame(cache, pixels, 1, 0);
         write(cache, first);
-        cache.markApplied(first, 100);
+        cache.markApplied(first, 100, 1);
         assertTrue(cache.querySource(first, 5000).isEmpty());
         assertTrue(cache.motionHintForReference(first.scope, 2500, 5500));
         SpatialRegionCache.Frame recovered = cache.register(shift(pixels, -6), W, H, 64, 304,
@@ -180,6 +180,33 @@ public final class SpatialRegionCacheTest {
         assertFalse(cache.motionHintForReference(source.scope, 50, 5500));
         assertFalse(cache.motionHintForReference(source.scope, 5501, 5500));
         assertFalse(cache.motionHintForReference(new RowMotionObserver.Scope(1, 2, 7, W, H), 2000, 5500));
+    }
+
+    @Test public void queryCandidatesAloneDoNotAuthorizeHoldingAnEmptyViewCache() {
+        SpatialRegionCache cache = new SpatialRegionCache();
+        SpatialRegionCache.Frame source = frame(cache, texture(18), 1, 0);
+        write(cache, source);
+        assertEquals(1, cache.querySource(source, 100).size());
+        cache.markApplied(source, 150, 0);
+        assertFalse(cache.retainAppliedCoverage(source, 1200));
+        assertEquals(-1, cache.appliedFrameId());
+    }
+
+    @Test public void writeDiagnosticsDistinguishCropAndConfirmationRejection() {
+        SpatialRegionCache cache = new SpatialRegionCache();
+        SpatialRegionCache.Frame source = frame(cache, texture(19), 1, 0);
+        SpatialRegionCache.WriteResult outside = cache.observeSourceWithStats(source, 100, false,
+                observation(new BBox(20, 40, 20, 30), 3, 0));
+        assertTrue(outside.known);
+        assertEquals(1, outside.input);
+        assertEquals(1, outside.faces);
+        assertEquals(1, outside.faceCropRejected);
+        assertEquals(1, outside.cropRejected);
+        SpatialRegionCache.WriteResult unconfirmed = cache.observeSourceWithStats(source, 100, false,
+                observation(BOX, 1, 0));
+        assertEquals(0, unconfirmed.cropRejected);
+        assertEquals(1, unconfirmed.unconfirmed);
+        assertEquals(0, unconfirmed.update.inserted);
     }
 
     private static int[] texture(long seed) {

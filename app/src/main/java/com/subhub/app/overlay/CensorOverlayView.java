@@ -382,6 +382,24 @@ final class CensorOverlayView extends View {
         scheduleNextFrame(SystemClock.uptimeMillis());
     }
 
+    int admittedCachedRegionCount(List<Detection> candidates) {
+        int count = 0;
+        for (RenderTrackSnapshot snapshot : tracks) {
+            if (!snapshot.isCached()) continue;
+            for (Detection candidate : candidates) {
+                // Count only the requested anchored cache entries, not independent one-hit quality
+                // regions which may share the presentation list in an experimental pipeline.
+                if (candidate != null && candidate.getAnchorKey() != null
+                        && !candidate.getAnchorKey().isEmpty()
+                        && snapshot.id() == RenderTrackSnapshot.stableCacheId(candidate, candidate.getBox())) {
+                    count++;
+                    break;
+                }
+            }
+        }
+        return count;
+    }
+
     private static List<RenderTrackSnapshot> mergedVisualTracks(
             List<RenderTrackSnapshot> live, List<RenderTrackSnapshot> cached) {
         if (cached == null || cached.isEmpty()) return live;
@@ -579,10 +597,11 @@ final class CensorOverlayView extends View {
     void clearContent() {
         long nowMillis = SystemClock.uptimeMillis();
         latestMutationUptime = nowMillis;
-        liveTracks.clear();
-        cachedTracks.clear();
-        tracks.clear();
-        textTracks.clear();
+        // Renderer snapshots may be immutable or shared by a consolidation result.
+        liveTracks = Collections.emptyList();
+        cachedTracks = Collections.emptyList();
+        tracks = Collections.emptyList();
+        textTracks = Collections.emptyList();
         visualSteering.clear();
         textSteering.clear();
         solidRenderLayers.clear();

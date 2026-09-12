@@ -61,8 +61,8 @@ final class SpatialRegionCache {
     }
 
     /** Called only after a cache replacement was delivered to the overlay view, not at inference. */
-    synchronized void markApplied(Frame frame, long now) {
-        appliedFrame = fresh(frame, now) ? frame : null;
+    synchronized void markApplied(Frame frame, long now, int admittedCacheRegions) {
+        appliedFrame = admittedCacheRegions > 0 && fresh(frame, now) ? frame : null;
     }
 
     synchronized boolean retainAppliedCoverage(Frame frame, long now) {
@@ -90,19 +90,34 @@ final class SpatialRegionCache {
 
     synchronized ContentSpaceRegionCache.Update observeSource(Frame frame, long now,
             boolean completeScene, List<ContentSpaceRegionCache.Observation> observations) {
+        return observeSourceWithStats(frame, now, completeScene, observations).update;
+    }
+
+    synchronized WriteResult observeSourceWithStats(Frame frame, long now,
+            boolean completeScene, List<ContentSpaceRegionCache.Observation> observations) {
         if (!compatible(frame) || now < frame.receipt || now - frame.receipt > 2500) {
-            return ContentSpaceRegionCache.Update.EMPTY;
+            return new WriteResult(ContentSpaceRegionCache.Update.EMPTY, false, 0, 0, 0, 0, 0);
         }
+        int input = 0, cropRejected = 0, unconfirmed = 0, faces = 0, faceCropRejected = 0;
         List<ContentSpaceRegionCache.Observation> scoped = new ArrayList<>();
         if (observations != null) for (ContentSpaceRegionCache.Observation observation : observations) {
-            if (observation == null || !inside(frame, observation.screenBox)
-                    || observation.category == null || observation.category.startsWith("text_")) continue;
+            if (observation == null || observation.category == null || observation.category.startsWith("text_")) continue;
+            input++;
+            boolean face = "FACE_FEMALE".equals(observation.className) || "FACE_MALE".equals(observation.className);
+            if (face) faces++;
+            if (!inside(frame, observation.screenBox)) {
+                cropRejected++;
+                if (face) faceCropRejected++;
+                continue;
+            }
+            if (!observation.cacheable()) unconfirmed++;
             // The box is in a registered source image, not an exact-time display coordinate basis.
             scoped.add(copy(observation, observation.screenBox));
         }
-        return regions.observeCommittedScene(frame.scope.document, key(frame), now, 0,
+        ContentSpaceRegionCache.Update update = regions.observeCommittedScene(frame.scope.document, key(frame), now, 0,
                 Math.round(frame.result.pose.sourceY), frame.scope.sourceWidth, frame.scope.sourceHeight,
                 frame.scope.sourceWidth, frame.scope.sourceHeight, completeScene && frame == latest, scoped);
+        return new WriteResult(update, true, input, cropRejected, unconfirmed, faces, faceCropRejected);
     }
 
     synchronized List<Detection> querySource(Frame frame, long now) {
@@ -164,6 +179,17 @@ final class SpatialRegionCache {
         return new ContentSpaceRegionCache.Observation(value.liveTrackId, value.className, value.category,
                 value.confidence, box, value.nsfw, value.exposed, value.framesTracked, value.framesMissing,
                 value.qualityConfirmed, value.anchorKey, value.deferUntilDeparture);
+    }
+
+    static final class WriteResult {
+        final ContentSpaceRegionCache.Update update;
+        final boolean known;
+        final int input, cropRejected, unconfirmed, faces, faceCropRejected;
+        WriteResult(ContentSpaceRegionCache.Update update, boolean known, int input, int cropRejected,
+                int unconfirmed, int faces, int faceCropRejected) {
+            this.update = update; this.known = known; this.input = input; this.cropRejected = cropRejected;
+            this.unconfirmed = unconfirmed; this.faces = faces; this.faceCropRejected = faceCropRejected;
+        }
     }
 
     static final class Frame {
