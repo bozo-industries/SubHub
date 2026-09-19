@@ -90,7 +90,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             AutomaticScrollLearningObserver current = scrollLearningObserver;
             writer.println("SUBHUB_SCROLL_LEARNING " + (current == null
                     ? "{\"schemaVersion\":1,\"state\":\"DISABLED\",\"applied\":false}"
-                    : current.diagnostics().replace("\"applied\":false", scrollCalibrationDiagnostics)));
+                    : current.diagnostics().replace("\"applied\":false", scrollCalibrationDiagnostics
+                            + ",\"admission\":" + learningAdmissionDiagnostics)));
             return;
         }
         if (args != null && args.length == 1 && "render-layout".equals(args[0])) {
@@ -108,6 +109,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile AutomaticScrollLearningObserver scrollLearningObserver;
     private final ScrollMotionCalibration scrollMotionCalibration = new ScrollMotionCalibration();
     private volatile String scrollCalibrationDiagnostics = "\"applied\":false";
+    private final ScrollLearningEpisodes learningEpisodes = new ScrollLearningEpisodes();
+    private volatile String learningAdmissionDiagnostics = "{}";
+    private long learningOffered, learningUnknownOwner, learningCompanionRecords;
+    private long learningInvalidMotion, learningInvalidTime, learningNoTouchEvents;
     private static final long MIN_TEXT_REFRESH_MS = 120L;
     private static final long TEXT_CANDIDATE_CONFIRM_MS = 48L;
     private static final long CONTENT_TEXT_REFRESH_MS = 80L;
@@ -5383,28 +5388,50 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         // that displacement with the event owner's geometry. Clamped/diagonal deltas are also
         // unsuitable for identifying a single-axis physical mapping.
         if (observer == null) return null;
-        if (!recognitionActive || !identity.isCacheable() || !motion.moved()
-                || event.getRecordCount() != 0 || touchTraceId <= 0
-                || sourceTime <= 0 || event.getEventTime() != sourceTime
-                || motion.dx != 0 && motion.dy != 0) { observer.invalidate(); return null; }
+        if (touchTraceId <= 0) learningNoTouchEvents++;
+        boolean unknownOwner = !identity.isCacheable();
+        boolean companions = event.getRecordCount() != 0;
+        boolean invalidMotion = !motion.moved() || motion.dx != 0 && motion.dy != 0;
+        boolean invalidTime = sourceTime <= 0 || event.getEventTime() != sourceTime;
+        if (unknownOwner) learningUnknownOwner++;
+        if (companions) learningCompanionRecords++;
+        if (invalidMotion) learningInvalidMotion++;
+        if (invalidTime) learningInvalidTime++;
+        updateLearningAdmissionDiagnostics(identity.ownerKind);
+        if (!recognitionActive || unknownOwner || companions || invalidMotion || invalidTime) {
+            learningEpisodes.breakInterval(); observer.invalidate(); return null;
+        }
         android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
         WindowManager manager = (WindowManager) getSystemService(WINDOW_SERVICE);
         Display display = manager == null ? null : manager.getDefaultDisplay();
         if (display == null || Math.abs((long) motion.dx) >= metrics.widthPixels * 2L
                 || Math.abs((long) motion.dy) >= metrics.heightPixels * 2L) {
-            observer.invalidate(); return null;
+            learningEpisodes.breakInterval(); observer.invalidate(); return null;
         }
         ScrollLearningKey.Axis axis = motion.dx != 0 ? ScrollLearningKey.Axis.X : ScrollLearningKey.Axis.Y;
         ScrollLearningKey.Evidence evidence;
         try { evidence = ScrollLearningKey.Evidence.valueOf(motion.evidence.name()); }
-        catch (IllegalArgumentException unsupported) { observer.invalidate(); return null; }
+        catch (IllegalArgumentException unsupported) {
+            learningEpisodes.breakInterval(); observer.invalidate(); return null;
+        }
         AutomaticScrollLearningObserver.Scope scope = new AutomaticScrollLearningObserver.Scope(
                 foregroundPackage, captureEpoch.token(), learningDocumentEpoch.get(), identity.telemetryToken(),
                 identity.windowId, metrics.widthPixels, metrics.heightPixels, metrics.densityDpi,
                 display.getRotation(), Math.round(display.getRefreshRate() * 1000), axis, evidence);
-        observer.offer(new LearningEvent(scope, touchTraceId, sourceTime, received,
+        long episode = learningEpisodes.observe(scope, sourceTime, touchTraceId);
+        if (episode <= 0) { observer.invalidate(); return null; }
+        learningOffered++;
+        updateLearningAdmissionDiagnostics(identity.ownerKind);
+        observer.offer(new LearningEvent(scope, episode, sourceTime, received,
                 axis == ScrollLearningKey.Axis.X ? motion.dx : motion.dy, event));
         return scope;
+    }
+
+    private void updateLearningAdmissionDiagnostics(int ownerKind) {
+        learningAdmissionDiagnostics = "{\"offered\":" + learningOffered
+                + ",\"unknownOwner\":" + learningUnknownOwner + ",\"companionRecords\":" + learningCompanionRecords
+                + ",\"invalidMotion\":" + learningInvalidMotion + ",\"invalidTime\":" + learningInvalidTime
+                + ",\"withoutTouchEvents\":" + learningNoTouchEvents + ",\"lastOwnerKind\":" + ownerKind + "}";
     }
 
     @SuppressWarnings("deprecation")
@@ -5486,6 +5513,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         AutomaticScrollLearningObserver observer = scrollLearningObserver;
         scrollLearningObserver = null;
         if (observer != null) observer.close();
+        learningEpisodes.breakInterval();
         ScrollMotionCalibration.Motion reset = scrollMotionCalibration.apply(null, null, 0, 0);
         if (reset.scaleChanged && running && recognitionActive) fenceCalibrationCoordinates();
         scrollMotionCalibration.reset();

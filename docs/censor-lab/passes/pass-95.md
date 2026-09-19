@@ -42,8 +42,26 @@ admission changes. Local APKs are not signed with the installed release identity
 
 The avatar disappeared from cached renderer inputs in repeated stationary layout
 dumps without any live avatar track. That is upstream of grouping and remains under
-investigation; this render change does not claim to fix it. X learning admission and
-touch-independent episode changes are also a separate unfinished checkpoint.
+investigation; this render change does not claim to fix it.
+
+## Scroll-learning admission checkpoint
+
+Installed X observations had `touchId=0` and zero observer acquisition attempts, as
+well as low-confidence observed producer identities. Admission previously required
+a touch event stream the service does not request through touch exploration or input
+interception. Scroll episodes now split on a 500 ms quiet gap, a source scope change,
+or a new actual touch ID when one is available. A continuous fling remains one episode.
+Out-of-order events and explicit invalidation break the interval. No input interception,
+extra Accessibility permissions, app-specific scale, or relaxed producer-identity
+rule is introduced. Numeric diagnostics distinguish offered events, unknown owners,
+companion records, invalid motion/time, and events without touch IDs.
+
+The isolated combined staged source tree `7bb96d09801d307275b3e1c541317f2db133d9fa`
+passed 749 unit tests (including five episode tests), `lintDebug`, `assembleDebug`,
+and `assembleDebugAndroidTest` together with the immediate-quality flag enabled.
+This removes one admission blocker, not proof that X can supply trustworthy
+independent geometry. Unknown producer identities still fail closed and require device
+diagnostics before changing that boundary.
 
 No new candidate is installed. Capture age, queue drops, preprocessing/inference/
 postprocessing time, publication latency, on-device layout cost, size-change rate,
