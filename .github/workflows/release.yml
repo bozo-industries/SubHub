@@ -19,6 +19,11 @@ on:
         required: true
         default: true
         type: boolean
+      immediate_quality_experiment:
+        description: "Enable same-capture quality refresh in a private signed candidate only"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -34,6 +39,7 @@ jobs:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
       BUILD_REF: ${{ inputs.build_ref || inputs.release_tag || github.ref_name }}
       PUBLISH_RELEASE: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_release }}
+      IMMEDIATE_QUALITY_EXPERIMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.immediate_quality_experiment || false }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,6 +54,10 @@ jobs:
         id: version
         shell: bash
         run: |
+          if [[ "$IMMEDIATE_QUALITY_EXPERIMENT" == "true" && "$PUBLISH_RELEASE" == "true" ]]; then
+            echo "Experimental quality refresh is restricted to private signed artifacts."
+            exit 1
+          fi
           if [[ "$PUBLISH_RELEASE" == "true" ]]; then
             python3 scripts/release_version.py \
               --tag "${RELEASE_TAG}" \
@@ -73,7 +83,10 @@ jobs:
           test -n "$SUBHUB_SIGNING_STORE_PASSWORD"
           test -n "$SUBHUB_SIGNING_KEY_ALIAS"
           test -n "$SUBHUB_SIGNING_KEY_PASSWORD"
-          ./gradlew testDebugUnitTest lintRelease assembleRelease
+          ./gradlew testDebugUnitTest lintRelease assembleRelease \
+            "-PimmediateQualityExperiment=${IMMEDIATE_QUALITY_EXPERIMENT}"
+          grep -F "IMMEDIATE_QUALITY_EXPERIMENT = ${IMMEDIATE_QUALITY_EXPERIMENT};" \
+            app/build/generated/source/buildConfig/release/com/subhub/app/BuildConfig.java
       - name: Verify release signatures
         shell: bash
         run: |
@@ -205,13 +218,36 @@ jobs:
 
           gh release edit "${RELEASE_TAG}" --draft=false
 
+      - name: Record private signed-build provenance
+        if: github.event_name == 'workflow_dispatch' && env.PUBLISH_RELEASE != 'true'
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          provenance = {
+              "sourceCommit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+              "workflowCommit": os.environ["WORKFLOW_SHA"],
+              "immediateQualityExperiment": os.environ["IMMEDIATE_QUALITY_EXPERIMENT"] == "true",
+              "versionName": os.environ["VERSION_NAME"],
+              "publishedRelease": False,
+          }
+          Path("dist/SubHub-build.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
+          PY
+
       - name: Upload private signed-build artifact
         if: github.event_name == 'workflow_dispatch' && env.PUBLISH_RELEASE != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: SubHub-${{ steps.version.outputs.version_name }}-signed-${{ github.run_id }}
+          name: SubHub-${{ steps.version.outputs.version_name }}-signed-immediate-${{ inputs.immediate_quality_experiment && 'on' || 'off' }}-${{ github.run_id }}
           path: |
             dist/*.apk
             dist/*-SHA256SUMS.txt
+            dist/*-build.json
           if-no-files-found: error
           retention-days: 7
