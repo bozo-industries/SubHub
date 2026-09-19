@@ -62,6 +62,15 @@ final class InferenceBitmapPreparer {
         }
     }
 
+    static Prepared prepareRegion(
+            Bitmap source,
+            QualityTilePlanner.Tile tile,
+            int inferenceResolution) {
+        if (tile == null) return null;
+        return prepareRegion(source, tile.left(), tile.top(), tile.width(), tile.height(),
+                inferenceResolution);
+    }
+
     static Prepared prepareRegion(Bitmap source, int left, int top, int width, int height,
                                   int inferenceResolution) {
         if (source == null || source.isRecycled() || left < 0 || top < 0
