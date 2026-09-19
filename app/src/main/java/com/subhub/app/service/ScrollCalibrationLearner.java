@@ -12,6 +12,8 @@ final class ScrollCalibrationLearner {
         INVALIDATED, BUDGET_EXHAUSTED }
     private static final int TRAINING_COUNT = 12, VALIDATION_COUNT = 6, MAX_TRAINING = 32;
     private static final long MOTION_BUDGET_MS = 6000;
+    // Calibration fits settings from retained history; this is NOT a live-pose freshness limit.
+    static final long MAX_EVIDENCE_AGE_MS = 500;
 
     /** Adapter must pair independent geometry and event displacement over the same interval. */
     static final class Sample {
@@ -56,6 +58,7 @@ final class ScrollCalibrationLearner {
     private final Set<Long> trainingGestures = new HashSet<>(), validationGestures = new HashSet<>();
     private double candidateScale;
     private Profile profile;
+    private Profile prior;
 
     void begin(boolean censoringActive, ScrollLearningKey key, long fence) {
         clearEvidence();
@@ -69,6 +72,20 @@ final class ScrollCalibrationLearner {
     int rejectedSamples() { return rejected; }
     int acceptedSamples() { return accepted; }
     long observedMotionMillis() { return observedMotionMs; }
+
+    /** A matching persisted profile skips fitting, not fresh independent validation. */
+    boolean useCandidate(Profile candidate) {
+        if (state != State.LEARNING || !training.isEmpty() || candidate == null
+                || !key.equals(candidate.key) || !Double.isFinite(candidate.pixelsPerEventPixel)
+                || candidate.pixelsPerEventPixel < .125 || candidate.pixelsPerEventPixel > 8
+                || candidate.trainingSamples < 12 || candidate.trainingSamples > 32
+                || candidate.validationSamples < 6 || candidate.validationSamples > 32
+                || candidate.gestures < 3 || candidate.gestures > 64) return false;
+        prior = candidate;
+        candidateScale = candidate.pixelsPerEventPixel;
+        state = State.VALIDATING;
+        return true;
+    }
 
     Result observe(Sample sample, long now) {
         if (state == State.DISABLED || state == State.INSUFFICIENT || !valid(sample, now)) {
@@ -126,12 +143,13 @@ final class ScrollCalibrationLearner {
         for (Sample entry : validation) {
             error += Math.abs(entry.measuredDelta - candidateScale * entry.eventDelta);
         }
-        double lag = median(training, 2);
+        List<Sample> timingSamples = prior == null ? training : validation;
+        double lag = median(timingSamples, 2);
         List<Double> deviations = new ArrayList<>();
-        for (Sample entry : training) deviations.add(Math.abs(entry.receivedAt - entry.eventEnd - lag));
-        profile = new Profile(key, candidateScale, median(training, 1), lag, medianValues(deviations),
-                error / validation.size(), training.size(), validation.size(),
-                trainingGestures.size() + validationGestures.size());
+        for (Sample entry : timingSamples) deviations.add(Math.abs(entry.receivedAt - entry.eventEnd - lag));
+        profile = new Profile(key, candidateScale, median(timingSamples, 1), lag, medianValues(deviations),
+                error / validation.size(), prior == null ? training.size() : prior.trainingSamples, validation.size(),
+                prior == null ? trainingGestures.size() + validationGestures.size() : prior.gestures);
         state = State.READY;
         return Result.READY;
     }
@@ -143,7 +161,8 @@ final class ScrollCalibrationLearner {
                 || !Double.isFinite(s.uncertaintyPixels) || s.uncertaintyPixels < 0
                 || s.eventStart < 0 || s.eventEnd <= s.eventStart || s.eventEnd > now
                 || s.referenceStart < 0 || s.referenceEnd <= s.referenceStart || s.referenceEnd > now
-                || s.receivedAt < s.eventEnd || s.receivedAt > now || now - s.referenceEnd > 64
+                || s.receivedAt < s.eventEnd || s.receivedAt > now
+                || now - s.referenceEnd > MAX_EVIDENCE_AGE_MS
                 || s.eventStart < lastEnd || s.eventEnd <= lastEnd) return false;
         long interval = s.eventEnd - s.eventStart;
         if (interval < 16 || interval > 300) return false;
@@ -181,7 +200,7 @@ final class ScrollCalibrationLearner {
 
     private void clearEvidence() {
         training.clear(); validation.clear(); trainingGestures.clear(); validationGestures.clear();
-        profile = null; lastEnd = -1; observedMotionMs = 0; accepted = rejected = consecutiveErrors = 0;
+        profile = prior = null; lastEnd = -1; observedMotionMs = 0; accepted = rejected = consecutiveErrors = 0;
         candidateScale = 0;
     }
 }

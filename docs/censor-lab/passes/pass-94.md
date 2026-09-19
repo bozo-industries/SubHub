@@ -41,19 +41,50 @@ disarming, configuration separation, stale/future scope, duplicate evidence and 
 budgets. No new data collection, device installation or runtime behavior is enabled by
 this checkpoint; the Pixel remains on Pass 93.
 
+## Aligned evidence and local persistence checkpoint
+
+`ScrollReferenceAligner` retains up to 96 independent anchor observations. It aligns
+event source intervals, not callback arrival times, to short locally consistent
+geometry segments. It never extrapolates missing endpoints or bridges different
+anchor origins. Interpolation carries read-time, geometry-consensus and local
+curvature uncertainty; pairs exceeding the learner's uncertainty limit are rejected.
+Sparse or staircase-like provider updates do not become precise calibration truth.
+
+Geometry must be fresh when sampled (32 ms age, 16 ms read duration). The learner can
+use that retained history to match events delivered up to 500 ms later. That bound
+applies to historical calibration evidence only; no live-pose freshness limit was
+relaxed. The end-to-end fixture recovers a known physical scale from independent
+geometry without using overlay predictions, including delayed event delivery.
+
+`ScrollProfileCodec` and the worker-only `ScrollProfileRepository` provide a bounded,
+versioned format for at most 32 validated profiles. Entries expire after 30 days;
+unknown schemas, unknown fields, invalid values and clock rollback fail closed.
+Atomic writes receive an independent readback. Storage is app-private and under
+`getNoBackupFilesDir()`, with no frames, page text, URLs or unique device identifiers.
+The runtime adapter must explicitly attest that a surface key is durable before saving.
+Loaded profiles are only candidates: six fresh independent holdout pairs are required
+before reuse. File corruption or failed validation cannot grant motion authority.
+
+Exact staged source `02a6b030b043a0b529df289a3a2bcee84012e029` passed 698 unit tests,
+lintDebug and assembleDebug in an isolated export with immediate quality enabled.
+Tests cover the numerical evidence-to-profile path, no-extrapolation/uncertainty
+rejection, origin changes, bounded history, schema round trips, expiration, corruption,
+file-size bounds and fresh validation of saved candidates. Android atomic-file I/O
+has compiled but has not yet been exercised through the running feature on-device.
+These components are still unwired: no new collection, profile file or device update
+has been activated by this checkpoint.
+
 ## Required next steps — do not call this feature complete
 
-1. Build independent event/geometry endpoint alignment with uncertainty propagation;
-   never create training truth from the renderer's own trajectory.
-2. Supply stable Android surface/configuration identity without retaining page content.
+1. Supply stable Android surface/configuration identity without retaining page content.
    Current cache identity deliberately contains per-process salt and window identity;
    it must not be reused as a durable calibration key.
-3. Integrate a bounded production observer that activates only during active censoring,
+2. Integrate a bounded production observer that activates only during active censoring,
    cancels on scope changes/disarming and backs off after confidence or poor evidence.
    Existing DEBUG anchor sampling is not this feature and must not simply be enabled.
-4. Persist only compact validated parameters, with compatibility/revalidation rules.
-5. Apply learned timing and displacement safely to live presentation and capture/camera
+3. Connect local persistence and candidate revalidation to that observer.
+4. Apply learned timing and displacement safely to live presentation and capture/camera
    accounting without double-applying motion or reinterpreting historical cache data.
-6. Validate overhead and alignment on multiple real apps/devices, including stop/reversal
+5. Validate overhead and alignment on multiple real apps/devices, including stop/reversal
    behavior, and obtain the user's perceived verdict. No new capture/inference/drop/
    publication timing population exists for this unwired core.

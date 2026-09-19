@@ -58,6 +58,29 @@ public final class ScrollCalibrationLearnerTest {
         assertEquals(3, profile.gestures);
     }
 
+    @Test public void persistedCandidateStillNeedsFreshEvidenceBeforeBecomingUsable() {
+        ScrollCalibrationLearner learner = learner();
+        assertTrue(learner.useCandidate(ready().profile()));
+        assertNull(learner.profile());
+        for (int index = 0; index < 5; index++) feed(learner, index, 1, 2);
+        assertNull(learner.profile());
+        feed(learner, 5, 1, 2);
+        assertNotNull(learner.profile());
+        assertEquals(2, learner.profile().pixelsPerEventPixel, .001);
+        assertEquals(20, learner.profile().deliveryLagMs, .001);
+        assertEquals(12, learner.profile().trainingSamples);
+    }
+
+    @Test public void cachedCandidateCannotBypassDisarmingOrContradictoryCurrentEvidence() {
+        ScrollCalibrationLearner learner = learner();
+        learner.disable();
+        assertFalse(learner.useCandidate(ready().profile()));
+        learner.begin(true, key(), 7);
+        assertTrue(learner.useCandidate(ready().profile()));
+        assertEquals(ScrollCalibrationLearner.Result.VALIDATION_FAILED, feed(learner, 0, 1, 4));
+        assertNull(learner.profile());
+    }
+
     @Test public void passingTrainingDoesNotHideHoldoutFailure() {
         ScrollCalibrationLearner learner = learner();
         train(learner);
@@ -135,7 +158,7 @@ public final class ScrollCalibrationLearnerTest {
                     fault == 2 ? Double.NaN : -100, fault == 3 ? 0 : -200,
                     fault == 4 ? 50 : 1, fault == 5 ? 2 : 3, fault == 6 ? 20 : 8, fault != 7);
             assertEquals("fault " + fault, ScrollCalibrationLearner.Result.REJECTED,
-                    learner.observe(sample, fault == 8 ? 1200 : 1120));
+                    learner.observe(sample, fault == 8 ? 1700 : 1120));
             assertEquals(0, learner.acceptedSamples());
         }
         ScrollCalibrationLearner learner = learner();
