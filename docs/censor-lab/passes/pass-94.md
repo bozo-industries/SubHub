@@ -161,3 +161,24 @@ Sign/install this development candidate and validate Android resource/node acqui
 overhead, storage and alignment on multiple real apps, including stop/reversal behavior,
 then obtain the user's perceived verdict. No new capture/inference/drop/publication timing
 population exists yet. At this source checkpoint, Pixel remains on Pass 93.
+
+## Signed candidate — verified, installation blocked by offline Pixel
+
+Private workflow run `35458765437` succeeded for source
+`3e15e784463806f8c4a332c58b988d8b209d2349`, including the small follow-up that keeps
+trace adjustment totals relative to raw Android input. That final source was separately
+tested from staged tree `a9effa94b1d63040f5a939a9e35cf6569d8f4d94`: 736 unit tests,
+lintDebug and paired app/test APK builds passed. GitHub also passed its signed-release
+tests/lint/build and signer verification. Public release generation was skipped.
+
+Compact artifact `SubHub-0.6.3-pixel-immediate-on-35458765437` (ID `10589621363`)
+was downloaded locally. Provenance confirms the exact source, immediate quality enabled
+and no published release. ARM64 SHA-256 is
+`5ee69bcc504f0d05fb7488f03669716bdf4d00bbf48fd015a3952333ef9cbf7c`; its checksum
+matches the artifact manifest and apksigner verifies the expected existing signing key.
+
+The Pixel was initially connected but dozing. Before installation its wireless ADB
+transport went offline, discovery returned no advertised service, and one reconnect
+attempt timed out. No install command ran. The new observer/application path has not
+executed on the phone; no Android calibration success or performance gain is claimed.
+Installation and real-app checks require the user to restore the debugging connection.
