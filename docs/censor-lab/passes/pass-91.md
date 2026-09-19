@@ -59,3 +59,27 @@ and sustained scroll/text stability are not remeasured for this pass yet. Preser
 immediate-delivery setting the user found better, install a fingerprinted signed dev
 candidate, inspect the provided scene through the new dump and screenshots, then ask
 for another human verdict. MediaProjection remains pending.
+
+## Signed Pixel installation and first live readback
+
+Private signing run `35445338688` succeeded for source
+`67b2358b262ad7f55e189aff1f72c3f393254f1a`, with immediate quality enabled and no
+public release. Compact artifact `10584313886` contains the ARM64 APK, checksum
+and provenance. APK SHA-256:
+`fbbd1876dd03846efccbe089645a0f43ae4f27776a2d72b6bac8cbb67cad70f1`.
+The expected signing certificate was verified before replacement installation;
+the Pixel's installed `base.apk` independently returned the same SHA-256.
+No app data was cleared. The Accessibility service rebound successfully.
+
+The first active diagnostic reported 42 inputs (9 live and 33 cached) consolidated
+to 9 outputs, with no diagnostic truncation. It showed successful torso grouping,
+but also an identical live/cache torso pair left as separate output groups and
+another overlapping torso group nearby. Therefore the merge issue is not fully
+resolved. One layout invocation reported 4,189 microseconds; this is a single
+sample, not a sustained latency measurement. A later screenshot was at a different
+scroll position and must not be paired with that diagnostic as one frame.
+
+User acceptance of reduced jitter, merge stability and unchanged trailing remains
+pending. The raw diagnostic and screenshot are retained only in ignored local
+device reports; no inference-speed or scroll-performance improvement is claimed
+from this installation check.
