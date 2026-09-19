@@ -98,6 +98,7 @@ final class CensorOverlayView extends View {
     private final ViewportMotion viewportMotion = new ViewportMotion();
     private final ContinuousTrackSteering visualSteering = new ContinuousTrackSteering();
     private final ContinuousTrackSteering textSteering = new ContinuousTrackSteering();
+    private final StableVisualLayout visualLayout = new StableVisualLayout();
     private float sourceFrameOffsetX;
     private float sourceFrameOffsetY;
     private RenderSourceReference bitmapReference = RenderSourceReference.UNKNOWN;
@@ -223,7 +224,10 @@ final class CensorOverlayView extends View {
             int sourceMotionX,
             int sourceMotionY,
             Runnable latestFrameRelease) {
-        if (worldSpaceTracks) visualSteering.clear();
+        if (worldSpaceTracks) {
+            visualSteering.clear();
+            visualLayout.clear();
+        }
         worldSpaceTracks = false;
         List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
         for (TrackedObject track : value) snapshots.add(RenderTrackSnapshot.from(track));
@@ -319,7 +323,10 @@ final class CensorOverlayView extends View {
             long trackCameraX, long trackCameraY, long sourceCameraX, long sourceCameraY,
             int viewportWidth, int viewportHeight, Runnable latestFrameRelease,
             RenderSourceReference sourceReference) {
-        if (!worldSpaceTracks) visualSteering.clear();
+        if (!worldSpaceTracks) {
+            visualSteering.clear();
+            visualLayout.clear();
+        }
         List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
         for (TrackedObject track : value) {
             snapshots.add(RenderTrackSnapshot.fromWorld(
@@ -347,10 +354,8 @@ final class CensorOverlayView extends View {
             }
         }
         cachedTracks = cachedSnapshots;
-        VisualRenderRegionConsolidator.Result displayResult =
-                VisualRenderRegionConsolidator.consolidate(
-                        mergedVisualTracks(liveTracks, cachedTracks));
-        tracks = displayResult.regions();
+        tracks = visualLayout.update(mergedVisualTracks(liveTracks, cachedTracks),
+                appearance.getSizePadding(), tracksPublishedAtMillis);
         updateVisualSteeringForDisplay(tracksPublishedAtMillis);
         traceVisualConsolidation(
                 snapshots.size() + (cachedRegions == null ? 0 : cachedRegions.size()),
@@ -400,11 +405,9 @@ final class CensorOverlayView extends View {
             }
         }
         cachedTracks = cachedSnapshots;
-        VisualRenderRegionConsolidator.Result displayResult =
-                VisualRenderRegionConsolidator.consolidate(
-                        mergedVisualTracks(liveTracks, cachedTracks));
-        tracks = displayResult.regions();
         long nowMillis = SystemClock.uptimeMillis();
+        tracks = visualLayout.update(mergedVisualTracks(liveTracks, cachedTracks),
+                appearance.getSizePadding(), nowMillis);
         updateVisualSteeringForDisplay(nowMillis);
         traceVisualConsolidation(
                 liveTracks.size() + (cachedRegions == null ? 0 : cachedRegions.size()),
@@ -468,7 +471,7 @@ final class CensorOverlayView extends View {
                 // regions which may share the presentation list in an experimental pipeline.
                 if (candidate != null && candidate.getAnchorKey() != null
                         && !candidate.getAnchorKey().isEmpty()
-                        && snapshot.id() == RenderTrackSnapshot.stableCacheId(candidate, candidate.getBox())) {
+                        && snapshot.sourceId() == RenderTrackSnapshot.stableCacheId(candidate, candidate.getBox())) {
                     count++;
                     break;
                 }
@@ -484,6 +487,16 @@ final class CensorOverlayView extends View {
         merged.addAll(live);
         merged.addAll(cached);
         return merged;
+    }
+
+    void dumpRenderLayout(java.io.PrintWriter writer) {
+        try {
+            writer.println("SUBHUB_RENDER_LAYOUT " + RenderLayoutDiagnostics.encode(
+                    liveTracks, cachedTracks, tracks, visualLayout, captureWidth, captureHeight,
+                    getWidth(), getHeight(), appearance.getSizePadding(), contentOffsetX, contentOffsetY));
+        } catch (org.json.JSONException failure) {
+            writer.println("SUBHUB_RENDER_LAYOUT_ERROR invalid-numeric-state");
+        }
     }
 
     private void retainRenderAssignments() {
@@ -696,6 +709,7 @@ final class CensorOverlayView extends View {
         textTracks = Collections.emptyList();
         visualSteering.clear();
         textSteering.clear();
+        visualLayout.clear();
         solidRenderLayers.clear();
         contentOffsetX = 0;
         contentOffsetY = 0;
@@ -723,6 +737,13 @@ final class CensorOverlayView extends View {
         latestMutationUptime = SystemClock.uptimeMillis();
         CensorAppearance.Type previous = appearance.getType();
         appearance = value;
+        visualLayout.clear();
+        if (worldSpaceTracks) {
+            tracks = visualLayout.update(mergedVisualTracks(liveTracks, cachedTracks),
+                    appearance.getSizePadding(), latestMutationUptime);
+            visualSteering.clear();
+            updateVisualSteeringForDisplay(latestMutationUptime);
+        }
         solidRenderLayers.clear();
         cyanShiftPaint.setColorFilter(new PorterDuffColorFilter(
                 value.getEffectPalette().first(), PorterDuff.Mode.SRC_ATOP));
@@ -1029,7 +1050,7 @@ final class CensorOverlayView extends View {
             drawRect.offset(offsetX, offsetY);
             return;
         }
-        float padding = textRegion
+        float padding = track.paddingApplied() ? 0f : textRegion
                 ? Math.min(0.025f, appearance.getSizePadding())
                 : appearance.getSizePadding();
         float horizontal = box.getWidth() * padding * scaleX;
@@ -1692,6 +1713,7 @@ final class CensorOverlayView extends View {
         customImages.close();
         visualSteering.clear();
         textSteering.clear();
+        visualLayout.clear();
         visualReferences.clear();
         textReferences.clear();
         measuredOrigin = null;

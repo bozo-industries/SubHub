@@ -15,6 +15,9 @@ final class RenderTrackSnapshot {
     private final boolean cached;
     private final RenderSourceReference reference;
     private final boolean consolidated;
+    private final BBox associationBox;
+    private final boolean paddingApplied;
+    private final int sourceId;
 
     static RenderTrackSnapshot from(TrackedObject track) {
         return new RenderTrackSnapshot(
@@ -116,6 +119,13 @@ final class RenderTrackSnapshot {
 
     RenderTrackSnapshot(int id, String category, BBox box, float velocityXPerMs,
             float velocityYPerMs, boolean cached, RenderSourceReference reference, boolean consolidated) {
+        this(id, category, box, velocityXPerMs, velocityYPerMs, cached, reference,
+                consolidated, box, false, id);
+    }
+
+    private RenderTrackSnapshot(int id, String category, BBox box, float velocityXPerMs,
+            float velocityYPerMs, boolean cached, RenderSourceReference reference,
+            boolean consolidated, BBox associationBox, boolean paddingApplied, int sourceId) {
         this.id = id;
         this.category = category;
         this.box = box;
@@ -124,6 +134,9 @@ final class RenderTrackSnapshot {
         this.cached = cached;
         this.reference = java.util.Objects.requireNonNull(reference);
         this.consolidated = consolidated;
+        this.associationBox = associationBox;
+        this.paddingApplied = paddingApplied;
+        this.sourceId = sourceId;
     }
 
     int id() { return id; }
@@ -133,15 +146,34 @@ final class RenderTrackSnapshot {
     float velocityYPerMs() { return velocityYPerMs; }
     boolean isCached() { return cached; }
     RenderSourceReference reference() { return reference; }
+    BBox associationBox() { return associationBox; }
+    boolean paddingApplied() { return paddingApplied; }
+    int sourceId() { return sourceId; }
 
-    /** A newly enlarged group must cover its members immediately, not ease up from one member. */
+    RenderTrackSnapshot withPadding(float padding) {
+        if (paddingApplied) return this;
+        float safe = Float.isFinite(padding) ? Math.max(0f, Math.min(1f, padding)) : 0f;
+        int dx = Math.round(box.getWidth() * safe);
+        int dy = Math.round(box.getHeight() * safe);
+        BBox footprint = new BBox(box.getX() - dx, box.getY() - dy,
+                box.getWidth() + 2 * dx, box.getHeight() + 2 * dy);
+        return new RenderTrackSnapshot(id, category, footprint, velocityXPerMs,
+                velocityYPerMs, cached, reference, consolidated, associationBox, true, sourceId);
+    }
+
+    RenderTrackSnapshot withRenderBox(BBox rendered, int renderId) {
+        return new RenderTrackSnapshot(renderId, category, rendered, velocityXPerMs,
+                velocityYPerMs, cached, reference, consolidated, associationBox, paddingApplied, sourceId);
+    }
+
+    RenderTrackSnapshot withGroupBox(BBox rendered) {
+        return new RenderTrackSnapshot(id, category, rendered, velocityXPerMs,
+                velocityYPerMs, cached, reference, true, associationBox, paddingApplied, sourceId);
+    }
+
+    /** A group uses its current footprint, never a corridor to historical smoothed geometry. */
     BBox preserveGroupCoverage(BBox steered) {
-        if (!consolidated) return steered;
-        int left = Math.min(box.getX(), steered.getX());
-        int top = Math.min(box.getY(), steered.getY());
-        int right = Math.max(box.getRight(), steered.getRight());
-        int bottom = Math.max(box.getBottom(), steered.getBottom());
-        return new BBox(left, top, right - left, bottom - top);
+        return consolidated ? box : steered;
     }
 
     BBox predict(float ageMs, float maxExtrapolationMs) {

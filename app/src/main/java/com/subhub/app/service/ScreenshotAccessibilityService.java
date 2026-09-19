@@ -84,6 +84,16 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /** User-enabled screenshot capture mode backed by Android's accessibility consent screen. */
 public final class ScreenshotAccessibilityService extends AccessibilityService {
+    /** Android's existing DUMP permission protects this explicit, read-only shell diagnostic. */
+    @Override protected void dump(java.io.FileDescriptor fd, java.io.PrintWriter writer, String[] args) {
+        if (args != null && args.length == 1 && "render-layout".equals(args[0])) {
+            OverlayController current = overlay;
+            if (current == null) writer.println("SUBHUB_RENDER_LAYOUT {\"schemaVersion\":1,\"active\":false}");
+            else current.dumpRenderLayout(writer);
+            return;
+        }
+        super.dump(fd, writer, args);
+    }
     private static final String TAG = "ScreenshotA11y";
     private static final String DIAGNOSTICS_MODE = "Accessibility screenshot";
     private static volatile boolean running;

@@ -40,6 +40,10 @@ public final class OverlayController implements AutoCloseable {
         return view.admittedCachedRegionCount(candidates);
     }
 
+    public void dumpRenderLayout(java.io.PrintWriter writer) {
+        view.dumpRenderLayout(writer);
+    }
+
     /**
      * Re-attaches a window Android removed behind the controller's back.
      *

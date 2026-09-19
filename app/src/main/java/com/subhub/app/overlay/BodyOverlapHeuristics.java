@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
 
 /** Cheap render grouping hints, not person recognition or detector confirmation. */
 final class BodyOverlapHeuristics {
@@ -13,6 +14,11 @@ final class BodyOverlapHeuristics {
     private final Map<RenderTrackSnapshot, Integer> owners = new IdentityHashMap<>();
 
     BodyOverlapHeuristics(List<RenderTrackSnapshot> ordered) {
+        ordered = new ArrayList<>(ordered);
+        ordered.sort(Comparator.comparing(RenderTrackSnapshot::isCached)
+                .thenComparingInt(item -> item.associationBox().getY())
+                .thenComparingInt(item -> item.associationBox().getX())
+                .thenComparingInt(RenderTrackSnapshot::id));
         // Input has stable geometry/id order. Compare to original representatives rather than
         // growing unions: a chain of face boxes must not collapse three distinct heads.
         for (RenderTrackSnapshot item : ordered) {
@@ -21,7 +27,7 @@ final class BodyOverlapHeuristics {
             for (int index = 0; index < heads.size(); index++) {
                 RenderTrackSnapshot head = heads.get(index);
                 if (item.reference().sameBasis(head.reference())
-                        && duplicateHead(item.box(), head.box())) {
+                        && duplicateHead(item.associationBox(), head.associationBox())) {
                     owner = index;
                     break;
                 }
@@ -39,12 +45,31 @@ final class BodyOverlapHeuristics {
 
     boolean oneBody(List<RenderTrackSnapshot> first, List<RenderTrackSnapshot> second) {
         int owner = -1;
+        int left = Integer.MAX_VALUE, right = Integer.MIN_VALUE, bottom = Integer.MIN_VALUE;
         for (List<RenderTrackSnapshot> group : List.of(first, second)) {
             for (RenderTrackSnapshot item : group) {
+                left = Math.min(left, item.box().getX());
+                right = Math.max(right, item.box().getRight());
+                bottom = Math.max(bottom, item.box().getBottom());
                 int candidate = owners.getOrDefault(item, -1);
                 if (candidate < 0) continue;
                 if (owner >= 0 && candidate != owner) return false;
                 owner = candidate;
+            }
+        }
+        if (owner >= 0) {
+            RenderTrackSnapshot anchor = heads.get(owner);
+            BBox anchorBox = anchor.associationBox();
+            for (int index = 0; index < heads.size(); index++) {
+                if (index == owner) continue;
+                RenderTrackSnapshot other = heads.get(index);
+                if (!other.reference().sameBasis(anchor.reference())) continue;
+                BBox box = other.associationBox();
+                // Do not let an upper-card body envelope swallow the next card's head, even
+                // when cached body fragments were all assigned to the upper head.
+                if (box.getCenterX() > left && box.getCenterX() < right
+                        && box.getCenterY() >= anchorBox.getY()
+                        && box.getCenterY() < bottom) return false;
             }
         }
         return true;
@@ -68,7 +93,7 @@ final class BodyOverlapHeuristics {
                 Math.min(a.getHeight(), b.getHeight()));
         // Favor plausible overlap. A shared head permits partial torso/abdomen overlap; without
         // heads require stronger aligned overlap, but do not demand a visible face.
-        float minimumOverlap = sameHead ? .18f : .40f;
+        float minimumOverlap = sameHead ? .08f : .25f;
         float minimumAlignment = sameHead ? .55f : .75f;
         if (overlap < minimumOverlap || Math.max(horizontal, vertical) < minimumAlignment) return 0f;
         return overlap;
@@ -78,11 +103,11 @@ final class BodyOverlapHeuristics {
         if (!isBody(item.category())) return -1;
         int best = -1;
         float bestScore = Float.MAX_VALUE;
-        BBox body = item.box();
+        BBox body = item.associationBox();
         for (int index = 0; index < heads.size(); index++) {
             RenderTrackSnapshot head = heads.get(index);
             if (!item.reference().sameBasis(head.reference())) continue;
-            BBox box = head.box();
+            BBox box = head.associationBox();
             float dx = Math.abs(body.getCenterX() - box.getCenterX())
                     / (float) Math.max(1, box.getWidth());
             float dy = (body.getCenterY() - box.getCenterY())

@@ -26,7 +26,7 @@ final class VisualRenderRegionConsolidator {
     private static final float MAX_PHASE_SHIFT_CENTER_RATIO = 0.58f;
     private static final float MIN_UNION_FILL = 0.62f;
     private static final float MAX_UNION_TO_LARGEST_MEMBER = 4.50f;
-    private static final int MAX_COMPONENT_MEMBERS = 8;
+    private static final int MAX_COMPONENT_MEMBERS = 32;
     private static final int MAX_INPUT_REGIONS = 128;
 
     private VisualRenderRegionConsolidator() {}
@@ -84,8 +84,13 @@ final class VisualRenderRegionConsolidator {
             clusters.sort(CLUSTER_ORDER);
         }
         List<RenderTrackSnapshot> output = new ArrayList<>(clusters.size());
-        for (Cluster cluster : clusters) output.add(cluster.snapshot());
-        return new Result(Collections.unmodifiableList(output), inputCount, output.size());
+        List<List<RenderTrackSnapshot>> sources = new ArrayList<>(clusters.size());
+        for (Cluster cluster : clusters) {
+            output.add(cluster.snapshot());
+            sources.add(cluster.sources);
+        }
+        return new Result(Collections.unmodifiableList(output), inputCount, output.size(),
+                Collections.unmodifiableList(sources));
     }
 
     private static boolean isText(RenderTrackSnapshot track) {
@@ -98,6 +103,16 @@ final class VisualRenderRegionConsolidator {
         if (first.members + second.members > MAX_COMPONENT_MEMBERS) return false;
         if (!bodyPass && !liveMembersRemainOneComponent(first, second)) return false;
         BBox merged = union(first.box, second.box);
+        int largestWidth = 0, largestHeight = 0;
+        for (List<RenderTrackSnapshot> group : List.of(first.sources, second.sources)) {
+            for (RenderTrackSnapshot source : group) {
+                largestWidth = Math.max(largestWidth, source.box().getWidth());
+                largestHeight = Math.max(largestHeight, source.box().getHeight());
+            }
+        }
+        float maximumSpan = bodyPass ? 2.25f : 1.9f;
+        if (merged.getWidth() > largestWidth * maximumSpan
+                || merged.getHeight() > largestHeight * maximumSpan) return false;
         long unionArea = merged.getArea();
         long summedArea = first.summedMemberArea + second.summedMemberArea;
         long largestArea = Math.max(first.largestMemberArea, second.largestMemberArea);
@@ -304,9 +319,7 @@ final class VisualRenderRegionConsolidator {
             if (members == 1 && allCached == anchor.isCached() && box.equals(anchor.box())) {
                 return anchor;
             }
-            return new RenderTrackSnapshot(
-                    anchor.id(), anchor.category(), box,
-                    anchor.velocityXPerMs(), anchor.velocityYPerMs(), allCached, anchor.reference(), true);
+            return anchor.withGroupBox(box);
         }
     }
 
@@ -314,16 +327,30 @@ final class VisualRenderRegionConsolidator {
         private final List<RenderTrackSnapshot> regions;
         private final int inputCount;
         private final int outputCount;
+        private final List<List<RenderTrackSnapshot>> sources;
 
         private Result(List<RenderTrackSnapshot> regions, int inputCount, int outputCount) {
+            this(regions, inputCount, outputCount, singletons(regions));
+        }
+
+        private Result(List<RenderTrackSnapshot> regions, int inputCount, int outputCount,
+                List<List<RenderTrackSnapshot>> sources) {
             this.regions = regions;
             this.inputCount = inputCount;
             this.outputCount = outputCount;
+            this.sources = sources;
+        }
+
+        private static List<List<RenderTrackSnapshot>> singletons(List<RenderTrackSnapshot> regions) {
+            List<List<RenderTrackSnapshot>> result = new ArrayList<>();
+            for (RenderTrackSnapshot region : regions) result.add(List.of(region));
+            return Collections.unmodifiableList(result);
         }
 
         List<RenderTrackSnapshot> regions() { return regions; }
         int inputCount() { return inputCount; }
         int outputCount() { return outputCount; }
         int consolidatedCount() { return Math.max(0, inputCount - outputCount); }
+        List<List<RenderTrackSnapshot>> sources() { return sources; }
     }
 }
