@@ -251,3 +251,19 @@ jobs:
             dist/*-build.json
           if-no-files-found: error
           retention-days: 7
+
+      - name: Stage compact Pixel checksum
+        if: github.event_name == 'workflow_dispatch' && env.PUBLISH_RELEASE != 'true'
+        run: sha256sum dist/*-arm64-v8a.apk > dist/SubHub-pixel-SHA256SUMS.txt
+
+      - name: Upload compact private Pixel artifact
+        if: github.event_name == 'workflow_dispatch' && env.PUBLISH_RELEASE != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SubHub-${{ steps.version.outputs.version_name }}-pixel-immediate-${{ inputs.immediate_quality_experiment && 'on' || 'off' }}-${{ github.run_id }}
+          path: |
+            dist/*-arm64-v8a.apk
+            dist/SubHub-pixel-SHA256SUMS.txt
+            dist/SubHub-build.json
+          if-no-files-found: error
+          retention-days: 7
