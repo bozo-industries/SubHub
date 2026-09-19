@@ -1,11 +1,13 @@
 package com.subhub.app.service;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.Detection;
+import com.subhub.app.detection.RenderSourceReference;
 
 import org.junit.Test;
 
@@ -351,5 +353,77 @@ public final class ContentSpaceRegionCacheTest {
                 id, "FACE_FEMALE", "face_female", 0.9f,
                 new BBox(x, y, width, height), true, false,
                 framesTracked, 0, qualityConfirmed);
+    }
+    @Test public void insertedRenderReferenceSurvivesCacheQuery() {
+        ContentSpaceRegionCache cache = new ContentSpaceRegionCache();
+        RenderSourceReference reference = renderReference(100L, 12.5, -4.0);
+        cache.observeCommittedScene(1L, "surface", 100L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(new ContentSpaceRegionCache.Observation(
+                        7, "FACE_FEMALE", "face_female", 0.9f,
+                        new BBox(100, 300, 200, 240), true, false,
+                        2, 0, false, null, false, reference)));
+
+        List<Detection> returned = cache.queryNearAsScreenDetections(
+                1L, "surface", 200L, 0L, 0L,
+                1_000, 2_000, 1_000, 2_000);
+
+        assertEquals(1, returned.size());
+        assertSame(reference, returned.get(0).getRenderSourceReference());
+    }
+
+    @Test public void geometryRevisionUpdatesRenderReferenceWithWorldBox() {
+        ContentSpaceRegionCache cache = new ContentSpaceRegionCache();
+        RenderSourceReference first = renderReference(100L, 12.5, -4.0);
+        RenderSourceReference next = renderReference(200L, 18.0, -1.0);
+        cache.observeCommittedScene(1L, "surface", 100L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(new ContentSpaceRegionCache.Observation(
+                        7, "FACE_FEMALE", "face_female", 0.9f,
+                        new BBox(100, 300, 200, 240), true, false,
+                        2, 0, false, null, false, first)));
+        cache.observeCommittedScene(1L, "surface", 200L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(new ContentSpaceRegionCache.Observation(
+                        7, "FACE_FEMALE", "face_female", 0.9f,
+                        new BBox(130, 320, 200, 240), true, false,
+                        3, 0, false, null, false, next)));
+
+        List<Detection> returned = cache.queryNearAsScreenDetections(
+                1L, "surface", 300L, 0L, 0L,
+                1_000, 2_000, 1_000, 2_000);
+
+        assertEquals(1, returned.size());
+        assertEquals(new BBox(130, 320, 200, 240), returned.get(0).getBox());
+        assertSame(next, returned.get(0).getRenderSourceReference());
+    }
+
+    @Test public void clearedAndReusedSlotDoesNotInheritRenderReference() {
+        ContentSpaceRegionCache cache = new ContentSpaceRegionCache();
+        RenderSourceReference reference = renderReference(100L, 12.5, -4.0);
+        cache.observeCommittedScene(1L, "surface", 100L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(new ContentSpaceRegionCache.Observation(
+                        7, "FACE_FEMALE", "face_female", 0.9f,
+                        new BBox(100, 300, 200, 240), true, false,
+                        2, 0, false, null, false, reference)));
+        cache.clear();
+        cache.observeCommittedScene(1L, "surface", 200L,
+                0L, 0L, 1_000, 2_000, 1_000, 2_000,
+                false, List.of(observation(7, 100, 300, 200, 240, 2, false)));
+
+        List<Detection> returned = cache.queryNearAsScreenDetections(
+                1L, "surface", 300L, 0L, 0L,
+                1_000, 2_000, 1_000, 2_000);
+
+        assertEquals(1, returned.size());
+        assertSame(RenderSourceReference.UNKNOWN, returned.get(0).getRenderSourceReference());
+    }
+
+    private static RenderSourceReference renderReference(
+            long sourceUptimeMillis, double biasX, double biasY) {
+        RenderSourceReference.Origin origin = new RenderSourceReference.Origin(
+                1L, 1L, 7, 1_000, 2_000, 1L);
+        return RenderSourceReference.known(origin, sourceUptimeMillis, biasX, biasY);
     }
 }

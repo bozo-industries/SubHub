@@ -174,7 +174,9 @@ final class AsyncViewportAnchorSampler implements AutoCloseable {
                     } else {
                         consecutiveDrops = 0;
                         if (Math.abs(result.measuredX - lastX) > 1
-                                || Math.abs(result.measuredY - lastY) > 1) {
+                                || Math.abs(result.measuredY - lastY) > 1
+                                || Math.abs(result.measuredX - after.cameraX) > 1
+                                || Math.abs(result.measuredY - after.cameraY) > 1) {
                             burstUntil = clock.now() + BURST_MS;
                         }
                         lastX = result.measuredX; lastY = result.measuredY;

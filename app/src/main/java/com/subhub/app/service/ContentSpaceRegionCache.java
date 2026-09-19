@@ -2,6 +2,7 @@ package com.subhub.app.service;
 
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.Detection;
+import com.subhub.app.detection.RenderSourceReference;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,6 +40,7 @@ final class ContentSpaceRegionCache {
 
     /* Conservative Java-heap estimate for dynamic metadata, not a pixel buffer size. */
     private static final int ENTRY_FIXED_METADATA_BYTES = 64;
+    private static final int RENDER_SOURCE_REFERENCE_METADATA_BYTES = 128;
     private static final int STRING_OBJECT_BYTES = 24;
     private static final int STRING_CHAR_BYTES = 2;
     private static final int MAX_METADATA_STRING_CHARS = 128;
@@ -58,6 +60,7 @@ final class ContentSpaceRegionCache {
     private final boolean[] nsfw = new boolean[MAX_ENTRIES];
     private final boolean[] exposed = new boolean[MAX_ENTRIES];
     private final boolean[] dormantUntilDeparture = new boolean[MAX_ENTRIES];
+    private final RenderSourceReference[] renderSourceReferences = new RenderSourceReference[MAX_ENTRIES];
     private final long[] lastSeenUptimeMillis = new long[MAX_ENTRIES];
     private final int[] inViewContradictions = new int[MAX_ENTRIES];
     private final int[] entryMetadataBytes = new int[MAX_ENTRIES];
@@ -105,6 +108,7 @@ final class ContentSpaceRegionCache {
     ContentSpaceRegionCache() {
         Arrays.fill(bucketHeads, -1);
         Arrays.fill(entryIndexHead, -1);
+        Arrays.fill(renderSourceReferences, RenderSourceReference.UNKNOWN);
         resetNodePool();
     }
 
@@ -154,7 +158,7 @@ final class ContentSpaceRegionCache {
                 if (match >= 0) {
                     observedSceneStamp[match] = stamp;
                     int newBytes = estimateEntryBytes(className, category,
-                            sourceAnchor, renderAnchors[match]);
+                            sourceAnchor, renderAnchors[match], observation.renderSourceReference);
                     int delta = newBytes - entryMetadataBytes[match];
                     int roomEvictions = ensureAdditionalMetadataRoom(delta, match);
                     if (roomEvictions < 0) continue;
@@ -165,7 +169,7 @@ final class ContentSpaceRegionCache {
                     continue;
                 }
 
-                int newBytes = estimateEntryBytes(className, category, sourceAnchor, null);
+                int newBytes = estimateEntryBytes(className, category, sourceAnchor, null, observation.renderSourceReference);
                 int roomEvictions = ensureInsertRoom(newBytes);
                 if (roomEvictions < 0) continue;
                 evicted += roomEvictions;
@@ -174,7 +178,7 @@ final class ContentSpaceRegionCache {
                 long entryId = takeEntryId();
                 String renderAnchor = "world-cache:" + entryId;
                 /* The generated anchor is included in the budget before retaining it. */
-                int exactBytes = estimateEntryBytes(className, category, sourceAnchor, renderAnchor);
+                int exactBytes = estimateEntryBytes(className, category, sourceAnchor, renderAnchor, observation.renderSourceReference);
                 if (exactBytes > newBytes) {
                     int extra = ensureAdditionalMetadataRoom(exactBytes - newBytes, -1);
                     if (extra < 0) continue;
@@ -371,7 +375,8 @@ final class ContentSpaceRegionCache {
                 classNames[slot], categories[slot], confidences[slot], screen,
                 nsfw[slot], exposed[slot],
                 Detection.ObservationSource.EXACT_GEOMETRY,
-                Detection.GeometryQuality.EXACT, renderAnchors[slot]);
+                Detection.GeometryQuality.EXACT, renderAnchors[slot])
+                .withRenderSourceReference(renderSourceReferences[slot]);
     }
 
     private List<Detection> immutableResult(ArrayList<Detection> result) {
@@ -587,6 +592,7 @@ final class ContentSpaceRegionCache {
         worldYs[slot] = worldY;
         worldWidths[slot] = worldWidth;
         worldHeights[slot] = worldHeight;
+        renderSourceReferences[slot] = observation.renderSourceReference;
         nsfw[slot] = observation.nsfw;
         exposed[slot] = observation.exposed;
         lastSeenUptimeMillis[slot] = nowUptimeMillis;
@@ -638,6 +644,7 @@ final class ContentSpaceRegionCache {
         categories[slot] = null;
         sourceAnchors[slot] = null;
         renderAnchors[slot] = null;
+        renderSourceReferences[slot] = RenderSourceReference.UNKNOWN;
         liveTrackIds[slot] = -1;
         confidences[slot] = 0f;
         dormantUntilDeparture[slot] = false;
@@ -653,6 +660,7 @@ final class ContentSpaceRegionCache {
             categories[slot] = null;
             sourceAnchors[slot] = null;
             renderAnchors[slot] = null;
+            renderSourceReferences[slot] = RenderSourceReference.UNKNOWN;
             liveTrackIds[slot] = -1;
             confidences[slot] = 0f;
             dormantUntilDeparture[slot] = false;
@@ -900,13 +908,20 @@ final class ContentSpaceRegionCache {
     }
 
     private static int estimateEntryBytes(String className, String category,
-            String sourceAnchor, String renderAnchor) {
+            String sourceAnchor, String renderAnchor,
+            RenderSourceReference renderSourceReference) {
         long bytes = ENTRY_FIXED_METADATA_BYTES
                 + estimateStringBytes(className)
                 + estimateStringBytes(category)
                 + estimateStringBytes(sourceAnchor)
-                + estimateStringBytes(renderAnchor);
+                + estimateStringBytes(renderAnchor)
+                + estimateRenderSourceReferenceBytes(renderSourceReference);
         return bytes >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes;
+    }
+
+    private static int estimateRenderSourceReferenceBytes(RenderSourceReference reference) {
+        return reference != null && reference.isKnown()
+                ? RENDER_SOURCE_REFERENCE_METADATA_BYTES : 0;
     }
 
     private static int estimateStringBytes(String value) {
@@ -968,6 +983,7 @@ final class ContentSpaceRegionCache {
         final boolean qualityConfirmed;
         final String anchorKey;
         final boolean deferUntilDeparture;
+        final RenderSourceReference renderSourceReference;
 
         Observation(
                 int liveTrackId,
@@ -981,7 +997,8 @@ final class ContentSpaceRegionCache {
                 int framesMissing,
                 boolean qualityConfirmed) {
             this(liveTrackId, className, category, confidence, screenBox, nsfw, exposed,
-                    framesTracked, framesMissing, qualityConfirmed, null, false);
+                    framesTracked, framesMissing, qualityConfirmed, null, false,
+                    RenderSourceReference.UNKNOWN);
         }
 
         Observation(
@@ -997,7 +1014,8 @@ final class ContentSpaceRegionCache {
                 boolean qualityConfirmed,
                 String anchorKey) {
             this(liveTrackId, className, category, confidence, screenBox, nsfw, exposed,
-                    framesTracked, framesMissing, qualityConfirmed, anchorKey, false);
+                    framesTracked, framesMissing, qualityConfirmed, anchorKey, false,
+                    RenderSourceReference.UNKNOWN);
         }
 
         Observation(
@@ -1013,6 +1031,25 @@ final class ContentSpaceRegionCache {
                 boolean qualityConfirmed,
                 String anchorKey,
                 boolean deferUntilDeparture) {
+            this(liveTrackId, className, category, confidence, screenBox, nsfw, exposed,
+                    framesTracked, framesMissing, qualityConfirmed, anchorKey,
+                    deferUntilDeparture, RenderSourceReference.UNKNOWN);
+        }
+
+        Observation(
+                int liveTrackId,
+                String className,
+                String category,
+                float confidence,
+                BBox screenBox,
+                boolean nsfw,
+                boolean exposed,
+                int framesTracked,
+                int framesMissing,
+                boolean qualityConfirmed,
+                String anchorKey,
+                boolean deferUntilDeparture,
+                RenderSourceReference renderSourceReference) {
             this.liveTrackId = liveTrackId;
             this.className = className;
             this.category = category;
@@ -1025,6 +1062,8 @@ final class ContentSpaceRegionCache {
             this.qualityConfirmed = qualityConfirmed;
             this.anchorKey = anchorKey;
             this.deferUntilDeparture = deferUntilDeparture;
+            this.renderSourceReference = renderSourceReference == null
+                    ? RenderSourceReference.UNKNOWN : renderSourceReference;
         }
 
         boolean cacheable() {
@@ -1034,6 +1073,7 @@ final class ContentSpaceRegionCache {
                     && (framesTracked >= 2 || qualityConfirmed)
                     && (!isAnchoredText(category) || anchorKey != null);
         }
+
     }
 
     static final class Update {

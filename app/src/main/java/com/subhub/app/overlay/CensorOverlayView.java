@@ -27,6 +27,7 @@ import com.subhub.app.capture.CustomImagePool;
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.TrackedObject;
+import com.subhub.app.detection.RenderSourceReference;
 import com.subhub.app.diagnostics.CensorLabLog;
 import com.subhub.app.settings.CensorAppearance;
 
@@ -42,6 +43,7 @@ import java.util.Set;
 final class CensorOverlayView extends View {
     private static final String MOTION_TAG = "CensorMotion";
     private static final long MOTION_TRACE_INTERVAL_MS = 32L;
+    private static final long CONSOLIDATION_TRACE_INTERVAL_MS = 250L;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -83,7 +85,6 @@ final class CensorOverlayView extends View {
     private Bitmap noiseBitmap;
     private int[] noisePixels;
     private long noiseTick = Long.MIN_VALUE;
-    private static final long CONSOLIDATION_TRACE_INTERVAL_MS = 250L;
     private long lastConsolidationTraceUptime;
     private int lastConsolidationInput = -1;
     private int lastConsolidationOutput = -1;
@@ -99,6 +100,13 @@ final class CensorOverlayView extends View {
     private final ContinuousTrackSteering textSteering = new ContinuousTrackSteering();
     private float sourceFrameOffsetX;
     private float sourceFrameOffsetY;
+    private RenderSourceReference bitmapReference = RenderSourceReference.UNKNOWN;
+    private RenderSourceReference.Origin measuredOrigin;
+    private RenderSourceReference currentRenderReference = RenderSourceReference.UNKNOWN;
+    private RenderSourceReference activeEffectReference = RenderSourceReference.UNKNOWN;
+    private float activeEffectOffsetX, activeEffectOffsetY;
+    private final Map<Integer, RenderSourceReference> visualReferences = new HashMap<>();
+    private final Map<Integer, RenderSourceReference> textReferences = new HashMap<>();
     private float textContentOffsetX;
     private float textContentOffsetY;
     private boolean worldSpaceTracks;
@@ -233,10 +241,12 @@ final class CensorOverlayView extends View {
         Set<Integer> visualIds = new HashSet<>();
         for (RenderTrackSnapshot track : snapshots) {
             visualIds.add(track.id());
+            updateSteeringReference(visualSteering, visualReferences, track);
             visualSteering.updateTarget(track.id(), track.box(), captureWidth, captureHeight,
                     tracksPublishedAtMillis, true);
         }
         visualSteering.retain(visualIds);
+        visualReferences.keySet().retainAll(visualIds);
         liveTracks = snapshots;
         cachedTracks = Collections.emptyList();
         tracks = snapshots;
@@ -246,6 +256,7 @@ final class CensorOverlayView extends View {
         motionAnimationWasActive = false;
         sourceFrameOffsetX = sourceMotionX;
         sourceFrameOffsetY = sourceMotionY;
+        bitmapReference = RenderSourceReference.UNKNOWN;
         if (frame != latestFrame) {
             releaseFrame();
             frame = latestFrame;
@@ -298,6 +309,16 @@ final class CensorOverlayView extends View {
             int viewportWidth,
             int viewportHeight,
             Runnable latestFrameRelease) {
+        setWorldTracksAndCache(value, cachedRegions, sourceWidth, sourceHeight, latestFrame,
+                trackCameraX, trackCameraY, sourceCameraX, sourceCameraY,
+                viewportWidth, viewportHeight, latestFrameRelease, RenderSourceReference.UNKNOWN);
+    }
+
+    void setWorldTracksAndCache(List<TrackedObject> value, List<Detection> cachedRegions,
+            int sourceWidth, int sourceHeight, Bitmap latestFrame,
+            long trackCameraX, long trackCameraY, long sourceCameraX, long sourceCameraY,
+            int viewportWidth, int viewportHeight, Runnable latestFrameRelease,
+            RenderSourceReference sourceReference) {
         if (!worldSpaceTracks) visualSteering.clear();
         List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
         for (TrackedObject track : value) {
@@ -339,6 +360,7 @@ final class CensorOverlayView extends View {
         // World geometry minus this absolute source camera maps back into the retained bitmap.
         sourceFrameOffsetX = sourceCameraX;
         sourceFrameOffsetY = sourceCameraY;
+        bitmapReference = sourceReference;
         if (frame != latestFrame) {
             releaseFrame();
             frame = latestFrame;
@@ -399,10 +421,18 @@ final class CensorOverlayView extends View {
         for (RenderTrackSnapshot track : tracks) {
             if (track.isCached()) continue;
             visualIds.add(track.id());
+            updateSteeringReference(visualSteering, visualReferences, track);
             visualSteering.updateTarget(track.id(), track.box(), captureWidth, captureHeight,
                     nowMillis, true);
         }
         visualSteering.retain(visualIds);
+        visualReferences.keySet().retainAll(visualIds);
+    }
+
+    private static void updateSteeringReference(ContinuousTrackSteering steering,
+            Map<Integer, RenderSourceReference> references, RenderTrackSnapshot track) {
+        RenderSourceReference previous = references.put(track.id(), track.reference());
+        if (previous != null && !previous.sameBasis(track.reference())) steering.forget(track.id());
     }
 
     private void traceVisualConsolidation(
@@ -464,34 +494,6 @@ final class CensorOverlayView extends View {
         customImages.retainAssignments(activeIds);
     }
 
-    private static boolean overlapsRegion(
-            RenderTrackSnapshot cached,
-            List<RenderTrackSnapshot> candidates,
-            boolean includeCached) {
-        BBox candidate = cached.box();
-        for (RenderTrackSnapshot live : candidates) {
-            if (!includeCached && live.isCached()
-                    || !sameVisualFamily(cached.category(), live.category())) continue;
-            BBox existing = live.box();
-            float iou = candidate.intersectionOverUnion(existing);
-            int left = Math.max(candidate.getX(), existing.getX());
-            int top = Math.max(candidate.getY(), existing.getY());
-            int right = Math.min(candidate.getRight(), existing.getRight());
-            int bottom = Math.min(candidate.getBottom(), existing.getBottom());
-            long intersection = right <= left || bottom <= top
-                    ? 0L : (long) (right - left) * (bottom - top);
-            long smaller = Math.min(candidate.getArea(), existing.getArea());
-            float containment = smaller <= 0L ? 0f : intersection / (float) smaller;
-            if (iou >= 0.28f || containment >= 0.62f) return true;
-        }
-        return false;
-    }
-
-    private static boolean sameVisualFamily(String first, String second) {
-        return first != null && second != null && (first.equals(second)
-                || first.startsWith("face_") && second.startsWith("face_"));
-    }
-
     void setWorldTracksPreservingFrame(
             List<TrackedObject> value,
             int sourceWidth,
@@ -500,10 +502,10 @@ final class CensorOverlayView extends View {
             long trackCameraY,
             int viewportWidth,
             int viewportHeight) {
-        setWorldTracks(value, sourceWidth, sourceHeight, frame,
+        setWorldTracksAndCache(value, Collections.emptyList(), sourceWidth, sourceHeight, frame,
                 trackCameraX, trackCameraY,
                 Math.round(sourceFrameOffsetX), Math.round(sourceFrameOffsetY),
-                viewportWidth, viewportHeight, frameRelease);
+                viewportWidth, viewportHeight, frameRelease, bitmapReference);
     }
 
     void setTextDetections(
@@ -536,10 +538,12 @@ final class CensorOverlayView extends View {
         Set<Integer> textIds = new HashSet<>();
         for (RenderTrackSnapshot track : snapshots) {
             textIds.add(track.id());
+            updateSteeringReference(textSteering, textReferences, track);
             textSteering.updateTarget(track.id(), track.box(),
                     textCaptureWidth, textCaptureHeight, nowMillis, false);
         }
         textSteering.retain(textIds);
+        textReferences.keySet().retainAll(textIds);
         textTracks = snapshots;
         textContentOffsetX = motionX;
         textContentOffsetY = motionY;
@@ -577,10 +581,12 @@ final class CensorOverlayView extends View {
         Set<Integer> textIds = new HashSet<>();
         for (RenderTrackSnapshot track : snapshots) {
             textIds.add(track.id());
+            updateSteeringReference(textSteering, textReferences, track);
             textSteering.updateTarget(track.id(), track.box(),
                     textCaptureWidth, textCaptureHeight, nowMillis, false);
         }
         textSteering.retain(textIds);
+        textReferences.keySet().retainAll(textIds);
         textTracks = snapshots;
         worldSpaceText = true;
         Set<Integer> activeIds = new HashSet<>();
@@ -616,10 +622,15 @@ final class CensorOverlayView extends View {
         // before this callback reaches the overlay, so anchoring animation in historical time
         // compresses or entirely skips its first visible segment when delivery is delayed.
         viewportMotion.addDelta(deltaX, deltaY, nowMillis,
-                Math.max(1, getWidth()), Math.max(1, getHeight()), authoritative);
+                Math.max(1, getWidth()), Math.max(1, getHeight()), authoritative,
+                effectiveUptimeMillis);
         noteMotionInput("event", deltaX, deltaY, true);
         if (tracks.isEmpty() && textTracks.isEmpty()) return;
-        postInvalidateOnAnimation();
+        // This mutation already runs on the UI thread. postInvalidateOnAnimation() waits for a
+        // Choreographer callback before invalidating and can miss the immediately upcoming
+        // traversal, producing the measured two-frame input-to-draw delay. Mark this traversal
+        // dirty now; scheduleNextFrame() still owns all follow-up prediction/settle ticks.
+        invalidate();
         scheduleNextFrame(SystemClock.uptimeMillis());
     }
 
@@ -636,8 +647,42 @@ final class CensorOverlayView extends View {
                     Math.max(1, getWidth()), Math.max(1, getHeight()));
             noteMotionInput("anchor-poll", deltaX, deltaY, false);
         }
-        postInvalidateOnAnimation();
+        invalidate();
         scheduleNextFrame(nowMillis);
+    }
+
+    boolean measureViewport(float x, float y, long readStart, long sourceMillis) {
+        return measureViewport(x, y, readStart, sourceMillis, null);
+    }
+
+    boolean measureViewport(float x, float y, long readStart, long sourceMillis,
+            RenderSourceReference.Origin origin) {
+        if (!worldSpaceTracks) return false;
+        long now = SystemClock.uptimeMillis();
+        int interval = renderTickMillis > 0L ? (int) renderTickMillis : 16;
+        ViewportMotion.Position previous = viewportMotion.position(now);
+        boolean accepted = viewportMotion.measurePresentation(x, y, readStart, sourceMillis, now,
+                Math.max(1, getWidth()), Math.max(1, getHeight()), interval);
+        if (accepted) {
+            measuredOrigin = origin;
+            if (Math.abs(x - previous.x) > .5f || Math.abs(y - previous.y) > .5f
+                    || viewportMotion.isAnimating(now)) {
+                latestMutationUptime = now;
+                noteMotionInput("anchor-absolute", x - previous.x, y - previous.y, false);
+                invalidate();
+                scheduleNextFrame(now);
+            }
+        }
+        return accepted;
+    }
+
+    void clearMeasuredViewport() {
+        measuredOrigin = null;
+        currentRenderReference = RenderSourceReference.UNKNOWN;
+        long now = SystemClock.uptimeMillis();
+        viewportMotion.clearMeasuredPresentation(now);
+        invalidate();
+        scheduleNextFrame(now);
     }
 
     /** Hide all censor pixels without treating an empty track list as reverse-mode content. */
@@ -659,6 +704,11 @@ final class CensorOverlayView extends View {
         worldSpaceTracks = false;
         worldSpaceText = false;
         viewportMotion.reset(0f, 0f, nowMillis);
+        measuredOrigin = null;
+        currentRenderReference = RenderSourceReference.UNKNOWN;
+        bitmapReference = RenderSourceReference.UNKNOWN;
+        visualReferences.clear();
+        textReferences.clear();
         motionAnimationWasActive = false;
         sourceFrameOffsetX = 0;
         sourceFrameOffsetY = 0;
@@ -710,10 +760,24 @@ final class CensorOverlayView extends View {
         super.onDraw(canvas);
         activeRenderTimeMillis = renderTimeMillis();
         ViewportMotion.Position viewport = viewportMotion.position(activeRenderTimeMillis);
+        if (viewportMotion.isMeasuredPresentationMode()
+                && !viewportMotion.hasMeasuredPresentation(activeRenderTimeMillis)) {
+            // The estimator's 48-64ms fade still contains expired anchor displacement. It is
+            // not event prediction and must not enter the UNKNOWN-reference fallback path.
+            viewport = new ViewportMotion.Position(contentOffsetX, contentOffsetY);
+        }
         renderContentOffsetX = viewport.x;
         renderContentOffsetY = viewport.y;
         renderViewportLeadX = viewport.x - contentOffsetX;
         renderViewportLeadY = viewport.y - contentOffsetY;
+        currentRenderReference = measuredOrigin != null
+                && viewportMotion.hasMeasuredPresentation(activeRenderTimeMillis)
+                ? RenderSourceReference.known(measuredOrigin, activeRenderTimeMillis,
+                        renderViewportLeadX, renderViewportLeadY)
+                : RenderSourceReference.UNKNOWN;
+        activeEffectReference = RenderSourceReference.UNKNOWN;
+        activeEffectOffsetX = renderContentOffsetX;
+        activeEffectOffsetY = renderContentOffsetY;
         if (appearance.isReverseMode()) drawReverse(canvas);
         else drawNormal(canvas);
         drawDiagnostics(canvas);
@@ -762,7 +826,7 @@ final class CensorOverlayView extends View {
             BBox predicted = visualBox(track, ageMs);
             activePredictionX = (predicted.getX() - track.box().getX()) * scaleX;
             activePredictionY = (predicted.getY() - track.box().getY()) * scaleY;
-            setTrackRect(predicted, scaleX, scaleY, textRegion,
+            setTrackRect(track, predicted, scaleX, scaleY, textRegion,
                     renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
             drawEffect(canvas, drawRect, track.id(), effectTypeFor(track),
                     appearance.getIntensity());
@@ -792,7 +856,7 @@ final class CensorOverlayView extends View {
         activePredictionX = 0f;
         activePredictionY = 0f;
         for (RenderTrackSnapshot track : textTracks) {
-            setTrackRect(textBox(track), scaleX, scaleY, true,
+            setTrackRect(track, textBox(track), scaleX, scaleY, true,
                     renderContentOffsetX, renderContentOffsetY, worldSpaceText);
             drawEffect(canvas, drawRect, track.id(), appearance.getType(),
                     appearance.getIntensity());
@@ -813,7 +877,7 @@ final class CensorOverlayView extends View {
         float ageMs = renderAgeMillis();
         for (RenderTrackSnapshot track : tracks) {
             BBox predicted = visualBox(track, ageMs);
-            setTrackRect(predicted, scaleX, scaleY,
+            setTrackRect(track, predicted, scaleX, scaleY,
                     "text_smut".equals(track.category()),
                     renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
             if (drawRect.isEmpty()) continue;
@@ -843,7 +907,7 @@ final class CensorOverlayView extends View {
         float scaleX = (float) getWidth() / textCaptureWidth;
         float scaleY = (float) getHeight() / textCaptureHeight;
         for (RenderTrackSnapshot track : textTracks) {
-            setTrackRect(textBox(track), scaleX, scaleY, true,
+            setTrackRect(track, textBox(track), scaleX, scaleY, true,
                     renderContentOffsetX, renderContentOffsetY, worldSpaceText);
             if (drawRect.isEmpty()) continue;
             int width = Math.max(1, Math.round(drawRect.width()));
@@ -897,7 +961,7 @@ final class CensorOverlayView extends View {
         float ageMs = renderAgeMillis();
         for (RenderTrackSnapshot track : tracks) {
             BBox predicted = visualBox(track, ageMs);
-            setTrackRect(predicted, scaleX, scaleY,
+            setTrackRect(track, predicted, scaleX, scaleY,
                     "text_smut".equals(track.category()),
                     renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
             RectF hole = new RectF(drawRect);
@@ -914,7 +978,7 @@ final class CensorOverlayView extends View {
             float textScaleX = (float) getWidth() / textCaptureWidth;
             float textScaleY = (float) getHeight() / textCaptureHeight;
             for (RenderTrackSnapshot track : textTracks) {
-                setTrackRect(textBox(track), textScaleX, textScaleY, true,
+                setTrackRect(track, textBox(track), textScaleX, textScaleY, true,
                         renderContentOffsetX, renderContentOffsetY, worldSpaceText);
                 RectF hole = new RectF(drawRect);
                 holes.add(hole);
@@ -943,6 +1007,7 @@ final class CensorOverlayView extends View {
     }
 
     private void setTrackRect(
+            RenderTrackSnapshot track,
             BBox box,
             float scaleX,
             float scaleY,
@@ -950,6 +1015,15 @@ final class CensorOverlayView extends View {
             float offsetX,
             float offsetY,
             boolean worldSpace) {
+        if (worldSpace) {
+            offsetX = RenderCoordinates.offsetX(contentOffsetX, offsetX,
+                    track.reference(), currentRenderReference);
+            offsetY = RenderCoordinates.offsetY(contentOffsetY, offsetY,
+                    track.reference(), currentRenderReference);
+        }
+        activeEffectReference = track.reference();
+        activeEffectOffsetX = offsetX;
+        activeEffectOffsetY = offsetY;
         if (!worldSpace) {
             setPaddedRect(box, scaleX, scaleY, textRegion);
             drawRect.offset(offsetX, offsetY);
@@ -985,7 +1059,8 @@ final class CensorOverlayView extends View {
                 if (!drawPixelatedFrame(canvas, rect, intensity)) drawSolid(canvas, rect, intensity);
                 break;
             case BLUR:
-                if (!drawBlurredFrame(canvas, rect, intensity)) drawPixelatedFrame(canvas, rect, intensity);
+                if (!drawBlurredFrame(canvas, rect, intensity)
+                        && !drawPixelatedFrame(canvas, rect, intensity)) drawSolid(canvas, rect, intensity);
                 break;
             case CUSTOM:
                 if (!drawCustom(canvas, rect, stableId)) drawSolid(canvas, rect, intensity);
@@ -1363,7 +1438,7 @@ final class CensorOverlayView extends View {
         float ageMs = renderAgeMillis();
         for (RenderTrackSnapshot track : tracks) {
             BBox predicted = visualBox(track, ageMs);
-            setTrackRect(predicted, scaleX, scaleY,
+            setTrackRect(track, predicted, scaleX, scaleY,
                     "text_smut".equals(track.category()),
                     renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
             addLabelPlacement(drawRect, track.id());
@@ -1376,7 +1451,7 @@ final class CensorOverlayView extends View {
         float textOffsetY = worldSpaceText ? renderContentOffsetY
                 : textContentOffsetY + renderViewportLeadY;
         for (RenderTrackSnapshot track : textTracks) {
-            setTrackRect(textBox(track), textScaleX, textScaleY, true,
+            setTrackRect(track, textBox(track), textScaleX, textScaleY, true,
                     textOffsetX, textOffsetY, worldSpaceText);
             addLabelPlacement(drawRect, track.id());
         }
@@ -1434,16 +1509,19 @@ final class CensorOverlayView extends View {
 
     private boolean prepareSourceRect(RectF destination) {
         if (frame == null || frame.isRecycled() || getWidth() <= 0 || getHeight() <= 0) return false;
+        if (!RenderCoordinates.canSample(activeEffectReference, bitmapReference)) return false;
         // The retained frame predates any compensated scroll. Sample the original source pixels
         // while drawing them at the translated destination so blur/pixelate/glitch remain stable.
-        float sourceLeft = destination.left - renderContentOffsetX - sourceFrameOffsetX
-                - activePredictionX;
-        float sourceTop = destination.top - renderContentOffsetY - sourceFrameOffsetY
-                - activePredictionY;
-        float sourceRight = destination.right - renderContentOffsetX - sourceFrameOffsetX
-                - activePredictionX;
-        float sourceBottom = destination.bottom - renderContentOffsetY - sourceFrameOffsetY
-                - activePredictionY;
+        double biasX = activeEffectReference.correctionX(bitmapReference);
+        double biasY = activeEffectReference.correctionY(bitmapReference);
+        float sourceLeft = RenderCoordinates.source(destination.left, activeEffectOffsetX,
+                sourceFrameOffsetX, activePredictionX, biasX);
+        float sourceTop = RenderCoordinates.source(destination.top, activeEffectOffsetY,
+                sourceFrameOffsetY, activePredictionY, biasY);
+        float sourceRight = RenderCoordinates.source(destination.right, activeEffectOffsetX,
+                sourceFrameOffsetX, activePredictionX, biasX);
+        float sourceBottom = RenderCoordinates.source(destination.bottom, activeEffectOffsetY,
+                sourceFrameOffsetY, activePredictionY, biasY);
         int left = Math.max(0, Math.min(frame.getWidth() - 1,
                 Math.round(sourceLeft / getWidth() * frame.getWidth())));
         int top = Math.max(0, Math.min(frame.getHeight() - 1,
@@ -1614,6 +1692,11 @@ final class CensorOverlayView extends View {
         customImages.close();
         visualSteering.clear();
         textSteering.clear();
+        visualReferences.clear();
+        textReferences.clear();
+        measuredOrigin = null;
+        currentRenderReference = RenderSourceReference.UNKNOWN;
+        bitmapReference = RenderSourceReference.UNKNOWN;
         solidRenderLayers.clear();
     }
 

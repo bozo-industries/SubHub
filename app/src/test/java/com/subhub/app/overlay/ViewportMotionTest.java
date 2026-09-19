@@ -7,6 +7,183 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public final class ViewportMotionTest {
+    @Test public void staleMeasuredFadeRemainsDistinctFromOrdinaryEventPrediction() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0, 0, 1000);
+        assertFalse(motion.isMeasuredPresentationMode());
+        assertTrue(motion.measurePresentation(20, -100, 1010, 1012, 1012, 1344, 2992, 16));
+        assertTrue(motion.hasMeasuredPresentation(1060));
+        for (long now : new long[]{1061, 1068, 1075, 1076}) {
+            assertTrue(motion.isMeasuredPresentationMode());
+            assertFalse(motion.hasMeasuredPresentation(now));
+            if (now < 1076) assertTrue("stale pose still needs document-only fallback",
+                    Math.abs(motion.position(now).y) > 0);
+        }
+        motion.addDelta(0, -120, 1080, 1344, 2992, true, 1079);
+        assertFalse(motion.isMeasuredPresentationMode());
+        assertFalse(motion.hasMeasuredPresentation(1096));
+        assertTrue("ordinary event prediction remains available", motion.position(1096).y < -120);
+        assertTrue(motion.measurePresentation(0, -140, 1100, 1102, 1102, 1344, 2992, 16));
+        motion.clearMeasuredPresentation(1104);
+        assertFalse(motion.isMeasuredPresentationMode());
+        motion.reset(0, 0, 1200);
+        assertFalse(motion.isMeasuredPresentationMode());
+    }
+
+    @Test public void hostTraceMeasurementCatchesUpWithinOneFrameWithoutExtendingPrediction() {
+        for (boolean horizontal : new boolean[]{false, true}) {
+            for (int direction : new int[]{-1, 1}) {
+                for (int frameStep : new int[]{8, 16}) {
+                    ViewportMotion motion = new ViewportMotion();
+                    motion.reset(0, 0, 0);
+                    motion.addDelta(horizontal ? direction * 338 : 0,
+                            horizontal ? 0 : direction * 338,
+                            3_761_279L, 2_992, 2_992, true, 3_761_278L);
+                    float before = axis(motion.position(3_761_396L), horizontal);
+                    motion.addDelta(horizontal ? direction * 324 : 0,
+                            horizontal ? 0 : direction * 324,
+                            3_761_396L, 2_992, 2_992, true, 3_761_387L);
+                    float initial = axis(motion.position(3_761_396L), horizontal);
+                    assertEquals("existing bounded immediate correction",
+                            before + direction * 56f, initial, .001f);
+                    assertEquals(150L, motion.predictionPeakMillis());
+                    float amplitude = axis(motion.predictionAmplitude(), horizontal);
+                    assertEquals(direction * 95.3846f, amplitude, .001f);
+                    float previous = initial;
+                    for (int elapsed = frameStep; elapsed <= 32; elapsed += frameStep) {
+                        float displayed = axis(motion.position(3_761_396L + elapsed), horizontal);
+                        assertTrue("no backward correction", direction * (displayed - previous) >= -.001f);
+                        assertTrue("no extra prediction", direction * displayed <= 662f + Math.abs(amplitude) + .001f);
+                        if (elapsed >= 16) {
+                            assertTrue("known displacement caught up by " + elapsed,
+                                    direction * displayed >= 662f - .001f);
+                        }
+                        previous = displayed;
+                    }
+                    assertEquals(direction * 662f, axis(motion.position(3_762_000L), horizontal), .001f);
+                }
+            }
+        }
+    }
+
+    private static float axis(ViewportMotion.Position position, boolean horizontal) {
+        return horizontal ? position.x : position.y;
+    }
+
+    private static ViewportMotion pendingMeasurementCorrection() {
+        ViewportMotion motion = new ViewportMotion();
+        motion.reset(0, 0, 0);
+        motion.addDelta(0, -338, 1000, 1344, 2992, true);
+        motion.addDelta(0, -324, 1117, 1344, 2992, true);
+        assertTrue(motion.position(1121).y > -662f);
+        return motion;
+    }
+
+    @Test public void resetAndRebaseCannotRetainPendingMeasuredCorrection() {
+        ViewportMotion reset = pendingMeasurementCorrection();
+        reset.reset(12, 25, 1121);
+        ViewportMotion rebased = pendingMeasurementCorrection();
+        rebased.rebase(12, 25, 1121);
+        for (long now : new long[]{1121, 1129, 1137, 1200}) {
+            assertEquals(25f, reset.position(now).y, .001f);
+            assertEquals(25f, rebased.position(now).y, .001f);
+        }
+    }
+
+    @Test public void pollAndAbsoluteMeasurementReplacePendingCorrection() {
+        ViewportMotion polled = pendingMeasurementCorrection();
+        polled.addPresentationDelta(0, -20, 1121, 1344, 2992);
+        assertEquals(-682f, polled.position(1121).y, .001f);
+        polled.settlePresentation(1125);
+        assertEquals(-682f, polled.position(1141).y, .001f);
+
+        ViewportMotion measured = pendingMeasurementCorrection();
+        assertTrue(measured.measurePresentation(0, -690, 1121, 1123, 1123, 1344, 2992, 16));
+        assertEquals(-690f, measured.position(1123).y, .001f);
+        measured.clearMeasuredPresentation(1125);
+        assertEquals(-662f, measured.position(1141).y, .001f);
+        assertEquals(-662f, measured.position(1200).y, .001f);
+    }
+
+    @Test public void fallbackReversalAndDecelerationReplacePendingCorrection() {
+        ViewportMotion fallback = pendingMeasurementCorrection();
+        float displayed = fallback.position(1121).y;
+        fallback.addDelta(0, -20, 1121, 1344, 2992, false);
+        assertEquals(displayed, fallback.position(1121).y, .001f);
+        assertEquals(-682f, fallback.position(1137).y, .001f);
+        for (int delta : new int[]{20, -20}) {
+            ViewportMotion motion = pendingMeasurementCorrection();
+            motion.addDelta(0, delta, 1121, 1344, 2992, true);
+            assertEquals(0f, motion.predictionAmplitude().y, .001f);
+            assertEquals(-662f + delta, motion.position(1153).y, .001f);
+            assertEquals(-662f + delta, motion.position(1250).y, .001f);
+        }
+    }
+
+    @Test public void unchangedAlignedMeasurementDoesNotForceIdleAnimation() {
+        ViewportMotion motion = new ViewportMotion(); motion.reset(0, 0, 1000);
+        assertTrue(motion.measurePresentation(0, 0, 1010, 1012, 1012, 1000, 2000, 16));
+        assertFalse(motion.isAnimating(1012));
+    }
+    @Test public void delayedCoveredEventDoesNotDoubleApplyAbsoluteMeasurement() {
+        ViewportMotion motion = new ViewportMotion(); motion.reset(0, 0, 1000);
+        assertTrue(motion.measurePresentation(0, -30, 1010, 1012, 1012, 1000, 2000, 16));
+        motion.addDelta(0, -20, 1020, 1000, 2000, true, 1005);
+        assertEquals(-30, motion.position(1020).y, .001f);
+        assertEquals(-20, motion.position(1076).y, .001f);
+    }
+
+    @Test public void newerOrOverlappingEventSupersedesMeasuredPosition() {
+        for (long source : new long[]{1011, 1015}) {
+            ViewportMotion motion = new ViewportMotion(); motion.reset(0, 0, 1000);
+            assertTrue(motion.measurePresentation(0, -30, 1010, 1013, 1013, 1000, 2000, 16));
+            motion.addDelta(0, -40, 1020, 1000, 2000, true, source);
+            assertEquals(-40, motion.position(1020).y, .001f);
+        }
+    }
+
+    @Test public void delayedPreEventReadCannotSnapPresentationBackward() {
+        ViewportMotion motion = new ViewportMotion(); motion.reset(0, 0, 1000);
+        motion.addDelta(0, -40, 1020, 1000, 2000, true, 1015);
+        assertFalse(motion.measurePresentation(0, -30, 1012, 1018, 1021, 1000, 2000, 16));
+    }
+
+    @Test public void measuredPresentationExpiresToAuthorityWithoutFurtherInput() {
+        ViewportMotion motion = new ViewportMotion(); motion.reset(0, 0, 1000);
+        motion.addDelta(0, -20, 1005, 1000, 2000, true, 1005);
+        assertTrue(motion.measurePresentation(0, -30, 1010, 1012, 1012, 1000, 2000, 16));
+        assertTrue(motion.isAnimating(1065));
+        assertEquals(-20, motion.position(1076).y, .001f);
+        assertFalse(motion.isAnimating(1076));
+    }
+
+    @Test public void staleDuplicateAndPreRebaseSamplesAreRejected() {
+        ViewportMotion motion = new ViewportMotion(); motion.reset(0, 0, 1000);
+        assertFalse(motion.measurePresentation(0, -30, 1001, 1005, 1040, 1000, 2000, 16));
+        assertTrue(motion.measurePresentation(0, -30, 1041, 1045, 1045, 1000, 2000, 16));
+        assertFalse(motion.measurePresentation(0, -30, 1041, 1045, 1046, 1000, 2000, 16));
+        motion.rebase(0, 0, 1050);
+        assertFalse(motion.measurePresentation(0, -30, 1049, 1052, 1053, 1000, 2000, 16));
+    }
+
+    @Test public void oldPollingCanResumeAfterAbsoluteModeExpires() {
+        ViewportMotion motion = new ViewportMotion(); motion.reset(0, 0, 1000);
+        assertTrue(motion.measurePresentation(0, -30, 1010, 1012, 1012, 1000, 2000, 16));
+        motion.addPresentationDelta(0, -10, 1100, 1000, 2000);
+        assertEquals(-10, motion.position(1100).y, .001f);
+    }
+
+    @Test public void absolutePredictionUsesOneBoundedFrameAndStopsOnZeroMovement() {
+        for (int frame : new int[]{8, 16, 24}) {
+            ViewportMotion motion = new ViewportMotion(); motion.reset(0, 0, 1000);
+            assertTrue(motion.measurePresentation(0, -30, 1010, 1012, 1012, 1000, 2000, frame));
+            assertTrue(motion.measurePresentation(0, -130, 1030, 1032, 1032, 1000, 2000, frame));
+            assertTrue(Math.abs(motion.position(1056).y + 130) <= 32.01);
+            assertTrue(motion.measurePresentation(0, -130, 1058, 1060, 1060, 1000, 2000, frame));
+            assertEquals(-130, motion.position(1070).y, .001f);
+        }
+    }
+
     @Test
     public void steadySlowScrollCorrectsPhaseWithoutIncreasingJumpBudget() {
         for (int interval : new int[]{60, 100, 120}) {

@@ -29,8 +29,8 @@ final class ViewportMotion {
     private static final long CONTINUING_HORIZON_MS = 36L;
     private static final float MAX_PREDICTION_SAMPLE_FRACTION = 0.36f;
     private static final float MAX_PREDICTION_VIEWPORT_FRACTION = 0.12f;
-    private static final long MEASUREMENT_RECONCILIATION_MS = 16L;
     private static final float MAX_CORRECTION_JUMP_PX = 56f;
+    private static final long MEASUREMENT_RECONCILIATION_MS = 16L;
     private static final float MAX_REVERSAL_JUMP_PX = 96f;
     private static final float SAME_DIRECTION_CORRECTION_FRACTION = 1.0f;
     private static final float REVERSAL_CORRECTION_FRACTION = 0.50f;
@@ -66,8 +66,13 @@ final class ViewportMotion {
             int viewportWidth,
             int viewportHeight,
             boolean authoritative) {
-        x.addDelta(dx, nowMillis, viewportWidth, authoritative);
-        y.addDelta(dy, nowMillis, viewportHeight, authoritative);
+        addDelta(dx, dy, nowMillis, viewportWidth, viewportHeight, authoritative, nowMillis);
+    }
+
+    void addDelta(float dx, float dy, long nowMillis, int viewportWidth, int viewportHeight,
+            boolean authoritative, long eventSourceMillis) {
+        x.addDelta(dx, nowMillis, viewportWidth, authoritative, eventSourceMillis);
+        y.addDelta(dy, nowMillis, viewportHeight, authoritative, eventSourceMillis);
     }
 
     /** Adds a fast, presentation-only motion sample without changing authoritative coordinates. */
@@ -87,8 +92,38 @@ final class ViewportMotion {
         y.settlePresentation(nowMillis);
     }
 
+    /** Absolute screen-space measurement; never changes the event-authoritative coordinate. */
+    boolean measurePresentation(float px, float py, long readStart, long sourceMillis, long nowMillis,
+            int width, int height, int frameIntervalMs) {
+        if (!Float.isFinite(px) || !Float.isFinite(py) || sourceMillis > nowMillis
+                || nowMillis - readStart > 32L || readStart < 0L || sourceMillis < readStart
+                || !x.acceptsMeasurement(px, readStart, sourceMillis, width)
+                || !y.acceptsMeasurement(py, readStart, sourceMillis, height)) return false;
+        int horizon = Math.max(8, Math.min(24, frameIntervalMs));
+        x.measurePresentation(px, readStart, sourceMillis, horizon);
+        y.measurePresentation(py, readStart, sourceMillis, horizon);
+        return true;
+    }
+
+    void clearMeasuredPresentation(long nowMillis) {
+        x.clearMeasuredPresentation(nowMillis);
+        y.clearMeasuredPresentation(nowMillis);
+    }
+
     Position position(long nowMillis) {
         return new Position(x.position(nowMillis), y.position(nowMillis));
+    }
+
+    boolean hasMeasuredPresentation(long nowMillis) {
+        return x.absoluteMeasurement && y.absoluteMeasurement
+                && nowMillis >= x.absoluteSourceMillis && nowMillis >= y.absoluteSourceMillis
+                && nowMillis - x.absoluteSourceMillis <= 48L
+                && nowMillis - y.absoluteSourceMillis <= 48L;
+    }
+
+    /** Includes the stale measured fade; that fade is not an event-camera prediction. */
+    boolean isMeasuredPresentationMode() {
+        return x.absoluteMeasurement || y.absoluteMeasurement;
     }
 
     boolean isAnimating(long nowMillis) {
@@ -120,8 +155,58 @@ final class ViewportMotion {
         private float pollVelocity;
         private int consecutivePollSamples;
         private boolean pollMoving;
+        private boolean absoluteMeasurement;
+        private long absoluteSourceMillis = -1L;
+        private long absoluteReadStartMillis, measurementOriginMillis, lastAuthoritySourceMillis;
+
+        boolean acceptsMeasurement(float value, long readStart, long sourceMillis, int viewportSize) {
+            return sourceMillis > absoluteSourceMillis
+                    && readStart >= measurementOriginMillis && readStart >= lastAuthoritySourceMillis
+                    && Math.abs(value - exact) <= Math.max(96f, viewportSize * .5f);
+        }
+
+        void measurePresentation(float value, long readStart, long sourceMillis, int horizon) {
+            measurementResidual = 0f;
+            long gap = sourceMillis - absoluteSourceMillis;
+            float velocity = absoluteMeasurement && gap > 0L && gap <= 64L
+                    ? (value - pollMeasured) / gap : 0f;
+            pollMeasured = value;
+            pollVelocity = velocity;
+            consecutivePollSamples = MIN_PHASE_LOCK_SAMPLES;
+            lastPresentationSampleTime = sourceMillis;
+            absoluteSourceMillis = sourceMillis;
+            absoluteReadStartMillis = readStart;
+            absoluteMeasurement = true;
+            pollMoving = Math.abs(velocity) > .001f;
+            segmentStart = value;
+            segmentTarget = value + clamp(velocity * horizon, -32f, 32f);
+            startVelocity = (segmentTarget - value) / horizon;
+            trajectoryDuration = horizon;
+            returnDuration = 0L;
+            anchorTime = sourceMillis;
+            authoritativeTrajectory = false;
+        }
+
+        void clearMeasuredPresentation(long nowMillis) {
+            if (!absoluteMeasurement) return;
+            float displayed = position(nowMillis);
+            measurementResidual = 0f;
+            absoluteMeasurement = false;
+            absoluteSourceMillis = -1L;
+            lastPresentationSampleTime = 0L;
+            consecutivePollSamples = 0;
+            pollMoving = false;
+            segmentStart = displayed;
+            segmentTarget = exact;
+            startVelocity = 0f;
+            anchorTime = nowMillis;
+            trajectoryDuration = 16L;
+            returnDuration = 0L;
+            authoritativeTrajectory = false;
+        }
 
         void addPresentationDelta(float delta, long nowMillis, int viewportSize) {
+            if (absoluteMeasurement) clearMeasuredPresentation(nowMillis);
             if (Math.abs(delta) < 0.5f) return;
             measurementResidual = 0f;
             long gap = lastPresentationSampleTime <= 0L
@@ -183,6 +268,10 @@ final class ViewportMotion {
 
         void reset(float value, long nowMillis) {
             measurementResidual = 0f;
+            absoluteMeasurement = false;
+            absoluteSourceMillis = -1L;
+            measurementOriginMillis = nowMillis;
+            lastAuthoritySourceMillis = nowMillis;
             exact = value;
             segmentStart = value;
             segmentTarget = value;
@@ -201,6 +290,9 @@ final class ViewportMotion {
         }
 
         void rebase(float value, long nowMillis) {
+            absoluteMeasurement = false;
+            absoluteSourceMillis = -1L;
+            measurementOriginMillis = nowMillis;
             float velocityBefore = velocity(nowMillis);
             measurementResidual = 0f;
             boolean pollingLive = lastPresentationSampleTime > 0L
@@ -228,7 +320,8 @@ final class ViewportMotion {
                 float delta,
                 long nowMillis,
                 int viewportSize,
-                boolean authoritative) {
+                boolean authoritative,
+                long eventSourceMillis) {
             // Accessibility callbacks can arrive after their event-source timestamp. Replay an
             // ordered sample at that source time so the next vsync observes the elapsed portion
             // of its trajectory. Never rewrite history when a producer delivers out of order.
@@ -238,6 +331,25 @@ final class ViewportMotion {
             float displayedBefore = position(sampleMillis);
             measurementResidual = 0f;
             exact += delta;
+            long sourceTime = Math.max(0L, Math.min(nowMillis, eventSourceMillis));
+            lastAuthoritySourceMillis = Math.max(lastAuthoritySourceMillis, sourceTime);
+            if (absoluteMeasurement && sampleMillis - absoluteSourceMillis <= 48L
+                    && sourceTime <= absoluteReadStartMillis) {
+                // This read already measured the page, including some or all of this event.
+                // Record authority, but do not add its displacement to measured presentation.
+                lastEventTime = sampleMillis;
+                lastDelta = delta;
+                return;
+            }
+            if (absoluteMeasurement) {
+                // A newer event (or one overlapping the read interval) supersedes the sample.
+                // Use the known absolute event position, never add its entire interval twice.
+                displayedBefore = exact;
+                consecutivePollSamples = 0;
+                lastPresentationSampleTime = 0L;
+                pollMoving = false;
+                absoluteMeasurement = false;
+            }
             long gap = lastEventTime <= 0L
                     ? Long.MAX_VALUE : sampleMillis - lastEventTime;
 
@@ -358,6 +470,11 @@ final class ViewportMotion {
         }
 
         float position(long nowMillis) {
+            if (absoluteMeasurement && nowMillis - absoluteSourceMillis > 48L) {
+                long expiredAge = nowMillis - absoluteSourceMillis - 48L;
+                if (expiredAge >= 16L) return exact;
+                return segmentTarget + (exact - segmentTarget) * smootherStep(expiredAge / 16f);
+            }
             if (trajectoryDuration <= 0L) return segmentTarget;
             long age = Math.max(0L, nowMillis - anchorTime);
             if (age <= trajectoryDuration) {
@@ -401,6 +518,9 @@ final class ViewportMotion {
         }
 
         boolean isAnimating(long nowMillis) {
+            if (absoluteMeasurement) return nowMillis - absoluteSourceMillis < 64L
+                    && (Math.abs(segmentTarget - segmentStart) > .01f
+                    || Math.abs(segmentTarget - exact) > .01f);
             if (trajectoryDuration <= 0L) return false;
             long total = trajectoryDuration
                     + (authoritativeTrajectory ? returnDuration : 0L);

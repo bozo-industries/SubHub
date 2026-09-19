@@ -9,6 +9,7 @@ import android.view.WindowManager;
 
 import com.subhub.app.detection.TrackedObject;
 import com.subhub.app.detection.Detection;
+import com.subhub.app.detection.RenderSourceReference;
 import com.subhub.app.settings.CensorAppearance;
 
 import java.util.List;
@@ -30,16 +31,16 @@ public final class OverlayController implements AutoCloseable {
         this.windowType = windowType;
     }
 
-    /** Cache-identified snapshots retained for rendering; not compositor-visible pixel counts. */
-    public int admittedCachedRegionCount(List<Detection> candidates) {
-        return view.admittedCachedRegionCount(candidates);
-    }
-
     public void show() {
         if (attached) return;
         WindowManager.LayoutParams params = createLayoutParams(windowType);
         windowManager.addView(view, params);
         attached = true;
+    }
+
+    /** Cache-identified snapshots retained for rendering; not compositor-visible pixel counts. */
+    public int admittedCachedRegionCount(List<Detection> candidates) {
+        return view.admittedCachedRegionCount(candidates);
     }
 
     static WindowManager.LayoutParams createLayoutParams(int windowType) {
@@ -134,10 +135,19 @@ public final class OverlayController implements AutoCloseable {
             long sourceCameraY,
             int viewportWidth,
             int viewportHeight) {
+        updateWorldWithCache(tracks, cachedRegions, captureWidth, captureHeight, frame,
+                trackCameraX, trackCameraY, sourceCameraX, sourceCameraY,
+                viewportWidth, viewportHeight, RenderSourceReference.UNKNOWN);
+    }
+
+    public void updateWorldWithCache(List<TrackedObject> tracks, List<Detection> cachedRegions,
+            int captureWidth, int captureHeight, Bitmap frame,
+            long trackCameraX, long trackCameraY, long sourceCameraX, long sourceCameraY,
+            int viewportWidth, int viewportHeight, RenderSourceReference bitmapReference) {
         view.setWorldTracksAndCache(tracks, cachedRegions,
                 captureWidth, captureHeight, frame,
                 trackCameraX, trackCameraY, sourceCameraX, sourceCameraY,
-                viewportWidth, viewportHeight, null);
+                viewportWidth, viewportHeight, null, bitmapReference);
     }
 
     /** Re-queries scroll memory while preserving live geometry and the current source frame. */
@@ -232,6 +242,17 @@ public final class OverlayController implements AutoCloseable {
     public void offsetPresentation(int deltaX, int deltaY) {
         view.offsetPresentation(deltaX, deltaY);
     }
+
+    public boolean measureViewport(float screenOffsetX, float screenOffsetY, long readStart, long sourceMillis) {
+        return view.measureViewport(screenOffsetX, screenOffsetY, readStart, sourceMillis);
+    }
+
+    public boolean measureViewport(float screenOffsetX, float screenOffsetY,
+            long readStart, long sourceMillis, RenderSourceReference.Origin origin) {
+        return view.measureViewport(screenOffsetX, screenOffsetY, readStart, sourceMillis, origin);
+    }
+
+    public void clearMeasuredViewport() { view.clearMeasuredViewport(); }
 
     /** Publishes stabilized Accessibility/OCR geometry without waiting behind visual inference. */
     public void updateText(
