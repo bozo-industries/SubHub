@@ -164,8 +164,11 @@ public final class DetectionEngine implements AutoCloseable {
                 PROVIDER_PREFS, Context.MODE_PRIVATE);
         String cachedProvider = providerPrefs.getString(cacheKey, null);
         List<String> providers = new java.util.ArrayList<>();
-        addUniqueProvider(providers, cachedProvider);
+        // This entry point is used by the optional quality lane. Prefer the device accelerator
+        // before a cached CPU/XNNPACK winner from another profile; otherwise Accessibility's
+        // split-hardware admission can silently disable quality forever.
         addUniqueProvider(providers, "NNAPI");
+        addUniqueProvider(providers, cachedProvider);
         addUniqueProvider(providers, fallbackProvider);
         addUniqueProvider(providers, "CPU");
         Exception lastFailure = null;
@@ -200,7 +203,7 @@ public final class DetectionEngine implements AutoCloseable {
     }
 
     /** Device benchmark hook: creates one requested EP without provider-selection side effects. */
-    synchronized void initializeForProvider(String provider) throws IOException, OrtException {
+    public synchronized void initializeForProvider(String provider) throws IOException, OrtException {
         closeSession();
         String model = config.getModelFilename();
         byte[] bytes = readAsset(model);

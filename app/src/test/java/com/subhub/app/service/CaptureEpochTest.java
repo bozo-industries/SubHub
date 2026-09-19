@@ -101,7 +101,11 @@ public final class CaptureEpochTest {
     @Test public void qualityBudgetMustFitBeforeTheNextFastCapture() {
         assertEquals(160L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(0L));
         assertEquals(176L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(160L));
-        assertEquals(300L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(500L));
+        assertEquals(516L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(500L));
+        assertEquals(600L, ScreenshotAccessibilityService.qualityExecutionBudgetMs(1_000L));
+        assertEquals(300L, ScreenshotAccessibilityService.qualityReservationWindowMs(0L));
+        assertEquals(564L, ScreenshotAccessibilityService.qualityReservationWindowMs(500L));
+        assertEquals(648L, ScreenshotAccessibilityService.qualityReservationWindowMs(1_000L));
         assertEquals(134L, ScreenshotAccessibilityService.qualityAvailableSlackMs(
                 1_000L, 1_200L));
         assertEquals(0L, ScreenshotAccessibilityService.qualityAvailableSlackMs(
@@ -366,17 +370,56 @@ public final class CaptureEpochTest {
         assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
                 11_500L, 10_000L, 11_400L, true, true));
         assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
-                11_500L, 10_000L, 11_000L, true, false));
+                11_499L, 10_000L, 11_000L, true, false));
         assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
-                12_000L, 10_000L, 11_000L, true, false));
+                11_500L, 10_000L, 11_000L, true, false));
         assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
                 100L, 0L, 0L, false, true));
         assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
-                12_000L, 10_000L, 11_000L, true, false, 180L, false));
+                11_999L, 10_000L, 11_000L, true, false, 180L, false));
         assertTrue(ScreenshotAccessibilityService.shouldRunQualityRefinement(
-                13_500L, 10_000L, 11_000L, true, false, 180L, false));
+                12_000L, 10_000L, 11_000L, true, false, 180L, false));
         assertFalse(ScreenshotAccessibilityService.shouldRunQualityRefinement(
                 20_000L, 0L, 0L, false, true, 0L, true));
+    }
+
+    @Test public void qualityReservationYieldsOnlyAnIdleOrdinaryTick() {
+        assertTrue(ScreenshotAccessibilityService.shouldReserveQualityTick(
+                1_000L, 0L, 1_200L, true, false));
+        assertTrue(ScreenshotAccessibilityService.shouldReserveQualityTick(
+                1_000L, 800L, 1_200L, false, true));
+        assertFalse(ScreenshotAccessibilityService.shouldReserveQualityTick(
+                1_000L, 950L, 1_200L, true, false));
+        assertFalse(ScreenshotAccessibilityService.shouldReserveQualityTick(
+                1_200L, 0L, 1_200L, true, false));
+        assertFalse(ScreenshotAccessibilityService.shouldReserveQualityTick(
+                1_000L, 0L, 1_200L, false, false));
+    }
+
+    @Test public void currentQualityMayRideNextFastAfterOneAcceptedObservation() {
+        assertTrue(ScreenshotAccessibilityService.qualityObservationAccepted(
+                QualityBackfillCoordinator.ObservationStatus.ACCEPTED));
+        assertTrue(ScreenshotAccessibilityService.qualityObservationAccepted(
+                QualityBackfillCoordinator.ObservationStatus.PROMOTED));
+        assertTrue(ScreenshotAccessibilityService.qualityObservationAccepted(
+                QualityBackfillCoordinator.ObservationStatus.REFINED));
+        assertFalse(ScreenshotAccessibilityService.qualityObservationAccepted(
+                QualityBackfillCoordinator.ObservationStatus.REJECTED_STALE));
+        assertFalse(ScreenshotAccessibilityService.qualityObservationAccepted(
+                QualityBackfillCoordinator.ObservationStatus.REJECTED_FENCE));
+        assertFalse(ScreenshotAccessibilityService.qualityObservationAccepted(
+                QualityBackfillCoordinator.ObservationStatus.REJECTED_CLOSED));
+    }
+
+    @Test public void sameWindowStateTransitionFencesAProvisionalDocument() {
+        assertTrue(ScreenshotAccessibilityService.shouldInvalidateProvisionalDocument(
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED, true, 7, 7));
+        assertFalse(ScreenshotAccessibilityService.shouldInvalidateProvisionalDocument(
+                AccessibilityEvent.TYPE_WINDOWS_CHANGED, true, 7, 7));
+        assertFalse(ScreenshotAccessibilityService.shouldInvalidateProvisionalDocument(
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED, false, 7, 7));
+        assertFalse(ScreenshotAccessibilityService.shouldInvalidateProvisionalDocument(
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED, true, 8, 7));
     }
 
     @Test public void qualityCacheCannotCrossAMotionGeneration() {

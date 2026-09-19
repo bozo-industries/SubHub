@@ -32,15 +32,37 @@ public final class OverlayController implements AutoCloseable {
     }
 
     public void show() {
-        if (attached) return;
-        WindowManager.LayoutParams params = createLayoutParams(windowType);
-        windowManager.addView(view, params);
-        attached = true;
+        ensureShown();
     }
 
     /** Cache-identified snapshots retained for rendering; not compositor-visible pixel counts. */
     public int admittedCachedRegionCount(List<Detection> candidates) {
         return view.admittedCachedRegionCount(candidates);
+    }
+
+    /**
+     * Re-attaches a window Android removed behind the controller's back.
+     *
+     * <p>Accessibility overlay tokens can be rebuilt while the target application recreates its
+     * window. The service and detector remain alive in that case, so trusting only our boolean
+     * leaves valid censor scenes rendering into a detached View forever.</p>
+     *
+     * @return true when a new WindowManager attachment was created.
+     */
+    public boolean ensureShown() {
+        if (attached && view.isAttachedToWindow()) return false;
+        if (attached) {
+            try {
+                windowManager.removeViewImmediate(view);
+            } catch (IllegalArgumentException ignored) {
+                // WindowManager already forgot this root; addView below is the recovery path.
+            }
+            attached = false;
+        }
+        WindowManager.LayoutParams params = createLayoutParams(windowType);
+        windowManager.addView(view, params);
+        attached = true;
+        return true;
     }
 
     static WindowManager.LayoutParams createLayoutParams(int windowType) {
@@ -297,8 +319,13 @@ public final class OverlayController implements AutoCloseable {
 
     @Override
     public void close() {
-        if (attached) windowManager.removeViewImmediate(view);
-        else view.release();
+        if (attached) {
+            try {
+                windowManager.removeViewImmediate(view);
+            } catch (IllegalArgumentException ignored) {
+                view.release();
+            }
+        } else view.release();
         attached = false;
     }
 }
