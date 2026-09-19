@@ -27,3 +27,9 @@ Use a Python interpreter matching the native dependencies' ABI. The existing cal
 packages contain cp312 modules; PATH Python can change and must not be assumed compatible. Discover
 the bundled Python runtime, verify its version, and set a task-local PYTHONPATH to the analysis
 packages. Do not replace global NumPy/OpenCV installations to repair a mismatched interpreter.
+
+When validating decode through FFmpeg's null output, preserve a sufficiently fine output timebase
+(for example, `-fps_mode passthrough -enc_time_base 1:90000` with FFmpeg 7.1). A coarse inferred
+output timebase can emit duplicate/non-monotonic DTS warnings for otherwise distinct decoded
+frames. Check source timing metadata and decoded count independently before treating a null-sink
+timestamp warning as source corruption; never repair it by silently dropping source frames.
