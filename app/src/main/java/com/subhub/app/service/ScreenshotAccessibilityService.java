@@ -86,6 +86,13 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class ScreenshotAccessibilityService extends AccessibilityService {
     /** Android's existing DUMP permission protects this explicit, read-only shell diagnostic. */
     @Override protected void dump(java.io.FileDescriptor fd, java.io.PrintWriter writer, String[] args) {
+        if (args != null && args.length == 1 && "scroll-learning".equals(args[0])) {
+            AutomaticScrollLearningObserver current = scrollLearningObserver;
+            writer.println("SUBHUB_SCROLL_LEARNING " + (current == null
+                    ? "{\"schemaVersion\":1,\"state\":\"DISABLED\",\"applied\":false}"
+                    : current.diagnostics()));
+            return;
+        }
         if (args != null && args.length == 1 && "render-layout".equals(args[0])) {
             OverlayController current = overlay;
             if (current == null) writer.println("SUBHUB_RENDER_LAYOUT {\"schemaVersion\":1,\"active\":false}");
@@ -98,6 +105,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final String DIAGNOSTICS_MODE = "Accessibility screenshot";
     private static volatile boolean running;
     private static volatile boolean recognitionActive;
+    private volatile AutomaticScrollLearningObserver scrollLearningObserver;
     private static final long MIN_TEXT_REFRESH_MS = 120L;
     private static final long TEXT_CANDIDATE_CONFIRM_MS = 48L;
     private static final long CONTENT_TEXT_REFRESH_MS = 80L;
@@ -4779,6 +4787,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 long sourceTime = event.getEventTime();
                 if (sourceTime <= 0L || sourceTime > scrollNow) sourceTime = scrollNow;
                 long eventAgeMs = Math.max(0L, scrollNow - sourceTime);
+                try {
+                    observeScrollLearning(event, rawMotion, surfaceIdentity, sourceTime, scrollNow);
+                } catch (RuntimeException learningFailure) {
+                    stopScrollLearningObserver();
+                    Log.w(TAG, "SCROLL_LEARNING_DISABLED callbackFailure=true");
+                }
                 ScrollDeltaStabilizer.Result motion = scrollDeltaStabilizer.filter(
                         rawMotion.dx, rawMotion.dy, sourceTime, viewportWidth, viewportHeight,
                         rawMotion.authoritative());
@@ -5308,6 +5322,118 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return renderSourceTimeline.resolve(origin, sourceTime, cameraX, cameraY);
     }
 
+    private void observeScrollLearning(AccessibilityEvent event,
+            AccessibilityScrollMotionResolver.Motion motion,
+            AccessibilitySurfaceIdentityResolver.Identity identity, long sourceTime, long received) {
+        AutomaticScrollLearningObserver observer = scrollLearningObserver;
+        // Companion records may describe a different node than event.getSource(). Never pair
+        // that displacement with the event owner's geometry. Clamped/diagonal deltas are also
+        // unsuitable for identifying a single-axis physical mapping.
+        if (observer == null) return;
+        if (!recognitionActive || !identity.isCacheable() || !motion.moved()
+                || event.getRecordCount() != 0 || touchTraceId <= 0
+                || sourceTime <= 0 || event.getEventTime() != sourceTime
+                || motion.dx != 0 && motion.dy != 0) { observer.invalidate(); return; }
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        WindowManager manager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        Display display = manager == null ? null : manager.getDefaultDisplay();
+        if (display == null || Math.abs((long) motion.dx) >= metrics.widthPixels * 2L
+                || Math.abs((long) motion.dy) >= metrics.heightPixels * 2L) {
+            observer.invalidate(); return;
+        }
+        ScrollLearningKey.Axis axis = motion.dx != 0 ? ScrollLearningKey.Axis.X : ScrollLearningKey.Axis.Y;
+        ScrollLearningKey.Evidence evidence;
+        try { evidence = ScrollLearningKey.Evidence.valueOf(motion.evidence.name()); }
+        catch (IllegalArgumentException unsupported) { observer.invalidate(); return; }
+        AutomaticScrollLearningObserver.Scope scope = new AutomaticScrollLearningObserver.Scope(
+                foregroundPackage, captureEpoch.token(), visualDocumentEpoch.get(), identity.telemetryToken(),
+                identity.windowId, metrics.widthPixels, metrics.heightPixels, metrics.densityDpi,
+                display.getRotation(), Math.round(display.getRefreshRate() * 1000), axis, evidence);
+        observer.offer(new LearningEvent(scope, touchTraceId, sourceTime, received,
+                axis == ScrollLearningKey.Axis.X ? motion.dx : motion.dy, event));
+    }
+
+    @SuppressWarnings("deprecation")
+    private static final class LearningEvent extends AutomaticScrollLearningObserver.Event {
+        private final AccessibilityEvent event;
+        LearningEvent(AutomaticScrollLearningObserver.Scope scope, long gesture, long time,
+                long received, double delta, AccessibilityEvent event) {
+            super(scope, gesture, time, received, delta);
+            this.event = AccessibilityEvent.obtain(event);
+        }
+        @Override public void close() { event.recycle(); }
+    }
+
+    private boolean learningScopeActive(AutomaticScrollLearningObserver.Scope scope) {
+        if (!recognitionActive || !running || scope == null
+                || !Objects.equals(foregroundPackage, scope.packageName)
+                || captureEpoch.token() != scope.captureEpoch
+                || visualDocumentEpoch.get() != scope.documentEpoch
+                || activeApplicationWindowId.get() != scope.windowId) return false;
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        WindowManager manager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        Display display = manager == null ? null : manager.getDefaultDisplay();
+        return display != null && metrics.widthPixels == scope.width && metrics.heightPixels == scope.height
+                && metrics.densityDpi == scope.densityDpi && display.getRotation() == scope.rotation
+                && Math.round(display.getRefreshRate() * 1000) == scope.refreshMilliHz;
+    }
+
+    private void startScrollLearningObserver() {
+        stopScrollLearningObserver();
+        ScheduledExecutorService executor = newScheduledWorker("SubHub-scroll-learning",
+                Process.THREAD_PRIORITY_BACKGROUND);
+        scrollLearningObserver = new AutomaticScrollLearningObserver(SystemClock::uptimeMillis,
+                new AsyncViewportAnchorSampler.Worker() {
+                    @Override public void execute(Runnable task) { executor.execute(task); }
+                    @Override public void schedule(Runnable task, long delayMs) {
+                        executor.schedule(task, delayMs, TimeUnit.MILLISECONDS);
+                    }
+                    @Override public void shutdown() { executor.shutdown(); }
+                }, new AutomaticScrollLearningObserver.Source() {
+                    @Override public boolean active(AutomaticScrollLearningObserver.Scope scope) {
+                        return learningScopeActive(scope);
+                    }
+                    @Override public AutomaticScrollLearningObserver.Acquired acquire(
+                            AutomaticScrollLearningObserver.Event value, long deadline) {
+                        if (!learningScopeActive(value.scope) || inferenceDraining.get()
+                                || textRefreshRunning.get()) return null;
+                        AutomaticScrollLearningObserver.Scope scope = value.scope;
+                        try (AndroidScrollLearningSurface.Surface surface = AndroidScrollLearningSurface.acquire(
+                                ScreenshotAccessibilityService.this, ((LearningEvent) value).event,
+                                scope.packageName, scope.windowId, scope.producer, scope.width, scope.height,
+                                scope.densityDpi, scope.rotation, scope.refreshMilliHz, scope.axis,
+                                scope.evidence, deadline)) {
+                            if (surface == null) return null;
+                            List<AsyncViewportAnchorSampler.Anchor> anchors = AndroidViewportAnchors.collectForLearning(
+                                    surface.takeOwner(), scope.packageName, scope.windowId,
+                                    scope.width, scope.height, deadline);
+                            return new AutomaticScrollLearningObserver.Acquired(surface.key, surface.durable, anchors);
+                        }
+                    }
+                }, new AutomaticScrollLearningObserver.Store() {
+                    private ScrollProfileRepository repository;
+                    private ScrollProfileRepository repository() {
+                        if (repository == null) repository = new ScrollProfileRepository(ScreenshotAccessibilityService.this);
+                        return repository;
+                    }
+                    @Override public ScrollCalibrationLearner.Profile candidate(ScrollLearningKey key) {
+                        return repository().candidate(key, System.currentTimeMillis());
+                    }
+                    @Override public boolean save(ScrollCalibrationLearner.Profile profile, boolean durable) {
+                        return repository().save(profile, durable, System.currentTimeMillis());
+                    }
+                    @Override public void remove(ScrollLearningKey key) {
+                        repository().remove(key, System.currentTimeMillis());
+                    }
+                });
+    }
+
+    private void stopScrollLearningObserver() {
+        AutomaticScrollLearningObserver observer = scrollLearningObserver;
+        scrollLearningObserver = null;
+        if (observer != null) observer.close();
+    }
+
     private AsyncViewportAnchorSampler.State anchorState() {
         android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
         ScrollPosition camera = currentScrollPosition();
@@ -5452,6 +5578,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             // Publish active only after every synchronous authority surface exists. A failed
             // overlay/window setup must remain retryable on the next foreground window event.
             recognitionActive = true;
+            try { startScrollLearningObserver(); }
+            catch (RuntimeException learningFailure) {
+                stopScrollLearningObserver();
+                Log.w(TAG, "SCROLL_LEARNING_DISABLED startupFailure=true");
+            }
             Log.i(TAG, "Recognition activated for foreground package " + foregroundPackage);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 worker.execute(this::initializePipeline);
@@ -5464,6 +5595,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             }
         } catch (RuntimeException failure) {
             recognitionActive = false;
+            stopScrollLearningObserver();
             captureEpoch.invalidate();
             LatestFrameBroker<PendingScenePresentation> presenter = scenePresenter;
             scenePresenter = null;
@@ -5479,6 +5611,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void deactivateRecognition() {
         if (!recognitionActive && overlay == null) return;
         recognitionActive = false;
+        stopScrollLearningObserver();
         stopExperimentalAnchorSampler();
         captureEpoch.invalidate();
         invalidateCurrentScene("recognition-deactivated");

@@ -162,6 +162,109 @@ public final class AccessibilitySurfaceIdentityResolverTest {
         assertFalse(first.sameSurface(differentPackage));
     }
 
+    @Test public void verifiedStructureIgnoresRuntimeWindowAndUniqueIds() {
+        AccessibilitySurfaceIdentityResolver resolver = new AccessibilitySurfaceIdentityResolver();
+        AccessibilitySurfaceIdentityResolver.Identity first = resolver.resolveForNode(
+                1, "com.example.app", nativeOwner("runtime-one", "feed"), name -> true);
+        AccessibilitySurfaceIdentityResolver.Identity second = resolver.resolveForNode(
+                92, "com.example.app", nativeOwner("runtime-two", "feed"), name -> true);
+        assertTrue(first.durableDigest.matches("[0-9a-f]{64}"));
+        assertEquals(first.durableDigest, second.durableDigest);
+        assertFalse(first.sameSurface(second));
+        assertEquals(first.durableDigest, first.learningDigest());
+    }
+
+    @Test public void unverifiedResourceShapedIdsAreSessionOnly() {
+        AccessibilitySurfaceIdentityResolver resolver = new AccessibilitySurfaceIdentityResolver();
+        AccessibilitySurfaceIdentityResolver.Identity first = resolver.resolveForNode(
+                1, "com.example.app", nativeOwner("first", "feed"), name -> false);
+        AccessibilitySurfaceIdentityResolver.Identity second = resolver.resolveForNode(
+                2, "com.example.app", nativeOwner("first", "feed"), name -> false);
+        assertEquals(null, first.durableDigest);
+        assertNotEquals(first.learningDigest(), second.learningDigest());
+        assertTrue(first.learningDigest().matches("[0-9a-f]{64}"));
+    }
+
+    @Test public void ordinaryCallbackDoesNotComputeADurableKey() {
+        AccessibilitySurfaceIdentityResolver.Identity identity =
+                new AccessibilitySurfaceIdentityResolver().resolveForNode(
+                        1, "com.example.app", nativeOwner("first", "feed"));
+        assertEquals(null, identity.durableDigest);
+    }
+
+    @Test public void rawDomIdsAndForeignResourcesNeverReachVerifier() {
+        String[] invalidIds = {"private-page-id", "com.foreign.app:id/feed",
+                "com.example.app:id/url?secret", "com.example.app:id/123"};
+        for (String id : invalidIds) {
+            AccessibilitySurfaceIdentityResolver.Identity identity =
+                    new AccessibilitySurfaceIdentityResolver().resolveForNode(1, "com.example.app",
+                            new FakeNode(true, "android.view.View", "virtual-owner", id), name -> {
+                                throw new AssertionError("Unvalidated id must not reach Resources");
+                            });
+            assertEquals(null, identity.durableDigest);
+        }
+    }
+
+    @Test public void browserStructureIsNeverDurableEvenWithACompiledResource() {
+        FakeNode owner = nativeOwner("virtual-owner", "content");
+        owner.parent = new FakeNode(false, "android.webkit.WebView", null, null);
+        AccessibilitySurfaceIdentityResolver.Identity identity =
+                new AccessibilitySurfaceIdentityResolver().resolveForNode(
+                        1, "com.example.app", owner, name -> true);
+        assertEquals(null, identity.durableDigest);
+        assertFalse(identity.learningDigest().contains("content"));
+    }
+
+    @Test public void nestedOwnersAndAncestorStructureHaveDifferentKeys() {
+        AccessibilitySurfaceIdentityResolver resolver = new AccessibilitySurfaceIdentityResolver();
+        FakeNode inner = nativeOwner("inner", "feed");
+        inner.parent = nativeOwner("outer", "page");
+        String innerKey = resolver.resolveForNode(1, "com.example.app", inner, name -> true).durableDigest;
+        String outerKey = resolver.resolveForNode(1, "com.example.app",
+                nativeOwner("outer", "page"), name -> true).durableDigest;
+        FakeNode other = nativeOwner("inner", "feed");
+        other.parent = nativeOwner("outer", "other_page");
+        String otherKey = resolver.resolveForNode(1, "com.example.app", other, name -> true).durableDigest;
+        assertTrue(innerKey != null && outerKey != null && otherKey != null);
+        assertNotEquals(innerKey, outerKey);
+        assertNotEquals(innerKey, otherKey);
+    }
+
+    @Test public void recycledChildrenDoNotEnterDurableSignature() {
+        AccessibilitySurfaceIdentityResolver resolver = new AccessibilitySurfaceIdentityResolver();
+        FakeNode child = new FakeNode(false, "android.view.View", "private-item-123", "private-dom-id");
+        child.parent = nativeOwner("one", "feed");
+        String childKey = resolver.resolveForNode(1, "com.example.app", child, name -> true).durableDigest;
+        String ownerKey = resolver.resolveForNode(1, "com.example.app",
+                nativeOwner("different", "feed"), name -> true).durableDigest;
+        assertTrue(childKey != null);
+        assertEquals(ownerKey, childKey);
+        assertEquals(1, child.closeCount);
+        assertEquals(1, child.parent.closeCount);
+    }
+
+    @Test public void truncatedAncestryAndFailedVerifierNeverBecomeDurable() {
+        FakeNode owner = nativeOwner("one", "feed");
+        FakeNode tail = owner;
+        for (int index = 0; index < 8; index++) {
+            tail.parent = new FakeNode(false, "android.view.View", null, null);
+            tail = tail.parent;
+        }
+        AccessibilitySurfaceIdentityResolver resolver = new AccessibilitySurfaceIdentityResolver();
+        assertEquals(null, resolver.resolveForNode(1, "com.example.app", owner, name -> true).durableDigest);
+        FakeNode broken = nativeOwner("two", "feed");
+        AccessibilitySurfaceIdentityResolver.Identity failed = resolver.resolveForNode(
+                1, "com.example.app", broken, name -> { throw new IllegalStateException("lookup"); });
+        assertEquals(null, failed.durableDigest);
+        assertFalse(failed.isCacheable());
+        assertEquals(1, broken.closeCount);
+    }
+
+    private static FakeNode nativeOwner(String unique, String resource) {
+        return new FakeNode(true, "android.widget.ScrollView", unique,
+                "com.example.app:id/" + resource);
+    }
+
     private static FakeNode newOwner(String uniqueId) {
         return new FakeNode(true, "android.widget.ScrollView", uniqueId, null);
     }

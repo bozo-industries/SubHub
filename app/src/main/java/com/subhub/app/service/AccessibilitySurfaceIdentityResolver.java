@@ -5,6 +5,9 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import java.security.SecureRandom;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * Resolves the scroll owner of an Accessibility event without retaining Accessibility content.
@@ -70,18 +73,40 @@ final class AccessibilitySurfaceIdentityResolver {
      * this method: {@code source} and all parents returned by {@link Node#parent()} are closed.
      */
     synchronized Identity resolveForNode(int windowId, String packageName, Node source) {
+        return resolveForNode(windowId, packageName, source, null);
+    }
+
+    /** Worker-only learning path; resource verification must never perform I/O in callbacks. */
+    synchronized Identity resolveForNode(int windowId, String packageName, Node source,
+            ResourceVerifier verifier) {
         clearScratch();
+        String[] structuralParts = verifier == null ? null : new String[MAX_PARENT_HOPS + 1];
+        boolean[] compiledIds = verifier == null ? null : new boolean[MAX_PARENT_HOPS + 1];
         int count = 0;
         Node current = source;
         boolean traversalFailed = false;
+        boolean reachedRoot = false;
         try {
             while (current != null && count <= MAX_PARENT_HOPS) {
-                classHashesLo[count] = hashString(current.className(), HASH_SEED_LO);
-                classHashesHi[count] = hashString(current.className(), HASH_SEED_HI);
+                String className = current.className();
+                classHashesLo[count] = hashString(className, HASH_SEED_LO);
+                classHashesHi[count] = hashString(className, HASH_SEED_HI);
                 // The Android adapter gates this call by API level. Keeping the generic seam
                 // unguarded makes it usable by deterministic in-process node adapters too.
                 String uniqueId = current.uniqueId();
                 String viewId = current.viewId();
+                if (verifier != null) {
+                    // A resource-shaped DOM id is not proof of a compiled Android resource.
+                    // Only the worker's package Resources adapter may establish that proof.
+                    boolean compiled = resourceShape(viewId, packageName)
+                            && verifier.isCompiledResource(viewId);
+                    compiledIds[count] = compiled;
+                    if (classShape(className) && !className.contains("WebView")
+                            && (viewId == null || viewId.isEmpty() || compiled)) {
+                        structuralParts[count] = className + "|" + (compiled ? viewId : "")
+                                + "|" + current.isScrollable();
+                    }
+                }
                 if (uniqueId != null && !uniqueId.isEmpty()) {
                     stableIdKinds[count] = OWNER_UNIQUE_ID;
                     stableIdHashesLo[count] = hashString(uniqueId, HASH_SEED_LO);
@@ -100,6 +125,7 @@ final class AccessibilitySurfaceIdentityResolver {
                 if (count > MAX_PARENT_HOPS) break;
                 Node next = current.parent();
                 close(current);
+                reachedRoot = next == null;
                 current = next == current ? null : next;
             }
         } catch (RuntimeException ignored) {
@@ -145,9 +171,52 @@ final class AccessibilitySurfaceIdentityResolver {
         if (traversalFailed || !knownPackage || !stableWindow) confidence = CONFIDENCE_LOW;
         boolean cacheable = !traversalFailed && knownPackage && stableWindow
                 && (ownerKind == OWNER_UNIQUE_ID || ownerKind == OWNER_VIEW_ID);
+        String durableDigest = null;
+        if (verifier != null && cacheable && reachedRoot && compiledIds[ownerDepth]) {
+            durableDigest = structuralDigest(packageName, structuralParts, ownerDepth, count);
+        }
         return new Identity(windowId, tokenHi, tokenLo, ownerHi, ownerLo,
                 ownerKind == OWNER_NONE ? OWNER_STRUCTURAL : ownerKind,
-                confidence, cacheable);
+                confidence, cacheable, durableDigest);
+    }
+
+    interface ResourceVerifier { boolean isCompiledResource(String resourceName); }
+
+    private static boolean resourceShape(String value, String packageName) {
+        if (value == null || value.length() > 300 || packageName == null) return false;
+        String prefix = packageName + ":id/";
+        if (!value.startsWith(prefix) && !value.startsWith("android:id/")) return false;
+        return value.substring(value.indexOf('/') + 1).matches("[A-Za-z_][A-Za-z0-9_]{0,127}");
+    }
+
+    private static boolean classShape(String value) {
+        return value != null && value.length() <= 255
+                && value.matches("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)+");
+    }
+
+    private static String structuralDigest(String packageName, String[] parts, int start, int end) {
+        StringBuilder canonical = new StringBuilder("scroll-surface-v1|").append(packageName);
+        for (int index = start; index < end; index++) {
+            if (parts[index] == null) return null;
+            canonical.append('\n').append(parts[index]);
+        }
+        return digest(canonical.toString());
+    }
+
+    private static String digest(String value) {
+        try {
+            byte[] bytes = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            char[] hex = new char[bytes.length * 2];
+            final String digits = "0123456789abcdef";
+            for (int index = 0; index < bytes.length; index++) {
+                hex[index * 2] = digits.charAt((bytes[index] >>> 4) & 15);
+                hex[index * 2 + 1] = digits.charAt(bytes[index] & 15);
+            }
+            return new String(hex);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 unavailable", impossible);
+        }
     }
 
     private int firstScrollable(int count) {
@@ -223,6 +292,8 @@ final class AccessibilitySurfaceIdentityResolver {
         final byte ownerKind;
         final byte confidence;
         final boolean cacheable;
+        // A prior-candidate key only. Every runtime producer still needs independent validation.
+        final String durableDigest;
 
         private Identity(
                 int windowId,
@@ -233,6 +304,11 @@ final class AccessibilitySurfaceIdentityResolver {
                 byte ownerKind,
                 byte confidence,
                 boolean cacheable) {
+            this(windowId, tokenHi, tokenLo, ownerHi, ownerLo, ownerKind, confidence, cacheable, null);
+        }
+
+        private Identity(int windowId, long tokenHi, long tokenLo, long ownerHi, long ownerLo,
+                byte ownerKind, byte confidence, boolean cacheable, String durableDigest) {
             this.windowId = windowId;
             this.tokenHi = tokenHi;
             this.tokenLo = tokenLo;
@@ -241,12 +317,19 @@ final class AccessibilitySurfaceIdentityResolver {
             this.ownerKind = ownerKind;
             this.confidence = confidence;
             this.cacheable = cacheable;
+            this.durableDigest = durableDigest;
         }
 
         static Identity empty() { return EMPTY; }
 
         boolean isCacheable() { return cacheable; }
         boolean isLowConfidence() { return confidence == CONFIDENCE_LOW; }
+
+        /** Unknown structures are process/window-local and must never be persisted. */
+        String learningDigest() {
+            return durableDigest != null ? durableDigest
+                    : digest("scroll-session-v1|" + tokenHi + "|" + tokenLo + "|" + windowId);
+        }
 
         /** A salted token suitable for allowlisted telemetry; it is not a raw identifier. */
         long telemetryToken() {
