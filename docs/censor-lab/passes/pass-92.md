@@ -62,3 +62,14 @@ stability. The earlier layout dump demonstrated residual fragmentation; perceive
 jitter, merge/unmerge oscillation, trailing, text stability and false positives still
 require the user's verdict. No improvement in detection speed is claimed for this
 render-only fix. MediaProjection work remains pending Accessibility acceptance.
+
+## Private signed candidate ready, not installed
+
+Signing run `35446109355` succeeded for exact source
+`efd37a118010a1742688e89428d4067e86a6f178`, immediate quality enabled,
+`publishedRelease=false`. Compact artifact `10585064342` was downloaded and its
+provenance, checksum and expected compatible signer independently verified.
+ARM64 APK SHA-256:
+`12ad32a4fc46a76c483d74f7328e6368666d223ae1c3d43fde1ae9b62298cee4`.
+No public release/tag was created. The Pixel remains on Pass 91; do not conflate
+the signed candidate with an installed or visually accepted build.
