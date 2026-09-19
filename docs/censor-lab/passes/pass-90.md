@@ -68,7 +68,9 @@ hash read back exactly as above; version remains 0.6.3/code 19. The Accessibilit
 service was observed running after installation. Previous APK backup SHA-256:
 `82781925205bbab63f4fd635d696de56e0d3bb13d3dc3129c621726ad0346918`.
 
-The matched flag-off Actions run `35443365698` also succeeded from the same source;
-local control-artifact download/verification is pending at this checkpoint. The
-enabled candidate is installed, not the control. User testing has been requested;
+The matched flag-off Actions run `35443365698` also succeeded from the same source.
+Its manifest confirms flag **false**; local checksum and signer verification passed.
+Control ARM64 APK SHA-256:
+`a30684d8b1d16fa525e2e71df45706e52cbaf767af76804543e7684393edc9de`.
+The enabled candidate is installed, not the control. User testing has been requested;
 no post-update perceived verdict or measured performance improvement is claimed.
