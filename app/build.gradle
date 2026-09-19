@@ -31,6 +31,8 @@ android {
         targetSdk 35
         versionCode releaseVersion.getProperty('VERSION_CODE').toInteger()
         versionName releaseVersion.getProperty('VERSION_NAME')
+        buildConfigField 'boolean', 'IMMEDIATE_QUALITY_EXPERIMENT',
+                (project.findProperty('immediateQualityExperiment') == 'true' ? 'true' : 'false')
 
         testInstrumentationRunner 'com.subhub.app.SubHubTestRunner'
     }
