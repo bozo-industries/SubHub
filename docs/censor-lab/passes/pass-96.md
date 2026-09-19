@@ -45,7 +45,16 @@ prose changed afterward. The first local attempt suffered a JVM native allocatio
 test assertion; after confirming the daemon had exited, a single-worker 1536 MiB
 single-use daemon completed the focused run successfully.
 
-No candidate containing this change is signed or installed yet. Existing diagnostics
+Private signing run `35470039225` succeeded for exact source
+`fdf5a72bd7c172c50cecd78ab913a8bcb84e6e87`. Compact artifact `10592777104` was
+downloaded and verified: source provenance, immediate-quality enabled, no published
+release, APK checksum, and compatible signer all match.
+APK SHA-256: `de095c236661277e96bdb3bc4259ef9ea8a696c7aadac43b1787c520fe571896`.
+Signer SHA-256: `3ad7c66a3b50ddc0d71b8907f7f91926e39287f2c4f1def67831a30d439260dd`.
+The phone remains on Pass 94; no device commands or installation were performed
+while the user was free to use it. Installation readiness and user feedback are pending.
+
+Existing diagnostics
 report fast/quality timing and drops, `QUALITY_BACKFILL_COMMIT.cacheEvicted`, cache
 query counts, render-layout duration and membership. Capture age, preprocessing,
 inference, postprocessing, publication latency, avatar continuity, group changes,
