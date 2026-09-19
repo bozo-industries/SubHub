@@ -14,6 +14,7 @@ final class RenderTrackSnapshot {
     private final float velocityYPerMs;
     private final boolean cached;
     private final RenderSourceReference reference;
+    private final boolean consolidated;
 
     static RenderTrackSnapshot from(TrackedObject track) {
         return new RenderTrackSnapshot(
@@ -110,6 +111,11 @@ final class RenderTrackSnapshot {
 
     RenderTrackSnapshot(int id, String category, BBox box, float velocityXPerMs,
             float velocityYPerMs, boolean cached, RenderSourceReference reference) {
+        this(id, category, box, velocityXPerMs, velocityYPerMs, cached, reference, false);
+    }
+
+    RenderTrackSnapshot(int id, String category, BBox box, float velocityXPerMs,
+            float velocityYPerMs, boolean cached, RenderSourceReference reference, boolean consolidated) {
         this.id = id;
         this.category = category;
         this.box = box;
@@ -117,6 +123,7 @@ final class RenderTrackSnapshot {
         this.velocityYPerMs = velocityYPerMs;
         this.cached = cached;
         this.reference = java.util.Objects.requireNonNull(reference);
+        this.consolidated = consolidated;
     }
 
     int id() { return id; }
@@ -126,6 +133,16 @@ final class RenderTrackSnapshot {
     float velocityYPerMs() { return velocityYPerMs; }
     boolean isCached() { return cached; }
     RenderSourceReference reference() { return reference; }
+
+    /** A newly enlarged group must cover its members immediately, not ease up from one member. */
+    BBox preserveGroupCoverage(BBox steered) {
+        if (!consolidated) return steered;
+        int left = Math.min(box.getX(), steered.getX());
+        int top = Math.min(box.getY(), steered.getY());
+        int right = Math.max(box.getRight(), steered.getRight());
+        int bottom = Math.max(box.getBottom(), steered.getBottom());
+        return new BBox(left, top, right - left, bottom - top);
+    }
 
     BBox predict(float ageMs, float maxExtrapolationMs) {
         // Accessibility/OCR rectangles already follow content through the viewport transform.

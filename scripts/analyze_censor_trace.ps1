@@ -91,6 +91,7 @@ foreach ($requestedPath in $Path) {
     $fastPublishTimes = [Collections.Generic.List[datetime]]::new()
     $motionDraws = [Collections.Generic.List[object]]::new()
     $motionInputs = [Collections.Generic.List[object]]::new()
+    $renderConsolidations = [Collections.Generic.List[object]]::new()
     $motionSettles = [Collections.Generic.List[object]]::new()
     $anchorSets = [Collections.Generic.List[object]]::new()
     $anchorPhases = [Collections.Generic.List[object]]::new()
@@ -156,6 +157,35 @@ foreach ($requestedPath in $Path) {
                 predictionPeak = [int] $Matches[4]
             })
             continue
+        }
+        if ($line -match 'CONSOLIDATE input=(\d+) output=(\d+) merged=(\d+) rawLive=(\d+) selectedLive=(\d+) rawCache=(\d+) selectedCache=(\d+)\s*$') {
+            if (([int] $Matches[1] - [int] $Matches[2] -ne [int] $Matches[3]) -or
+                    ([int] $Matches[4] + [int] $Matches[6] -ne [int] $Matches[1])) {
+                throw 'Inconsistent CONSOLIDATE counts; parsing is incomplete.'
+            }
+            $renderConsolidations.Add([pscustomobject]@{
+                time = $time
+                input = [int] $Matches[1]
+                output = [int] $Matches[2]
+                merged = [int] $Matches[3]
+                live = [int] $Matches[5]
+                cached = [int] $Matches[7]
+            })
+            continue
+        }
+        if ($line -match 'CONSOLIDATE input=(\d+) output=(\d+) merged=(\d+) live=(\d+) cached=(\d+)\s*$') {
+            $renderConsolidations.Add([pscustomobject]@{
+                time = $time
+                input = [int] $Matches[1]
+                output = [int] $Matches[2]
+                merged = [int] $Matches[3]
+                live = [int] $Matches[4]
+                cached = [int] $Matches[5]
+            })
+            continue
+        }
+        if ($line -match '\bCONSOLIDATE\b') {
+            throw 'Unsupported CONSOLIDATE record; parsing is incomplete.'
         }
         if ($line -match 'CensorAnchorPoll(?:\(\d+\))?: ANCHOR_SET count=(\d+) candidates=(\d+) visited=(\d+) selectionMs=(\d+)') {
             $anchorSets.Add([pscustomobject]@{
@@ -938,6 +968,11 @@ foreach ($requestedPath in $Path) {
             viewportLeadAbsPx = Get-Distribution @($motionDraws.leadAbs)
             settles = $motionSettles.Count
             inputToSettledMs = Get-Distribution @($motionSettles.inputToSettled)
+            consolidationPublishes = $renderConsolidations.Count
+            consolidatedRegions = ($renderConsolidations |
+                Measure-Object -Property merged -Sum).Sum
+            consolidationInput = Get-Distribution @($renderConsolidations.input)
+            consolidationOutput = Get-Distribution @($renderConsolidations.output)
         }
         anchorPolling = [ordered]@{
             selections = $anchorSets.Count

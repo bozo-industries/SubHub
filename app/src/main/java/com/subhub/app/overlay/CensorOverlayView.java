@@ -83,6 +83,10 @@ final class CensorOverlayView extends View {
     private Bitmap noiseBitmap;
     private int[] noisePixels;
     private long noiseTick = Long.MIN_VALUE;
+    private static final long CONSOLIDATION_TRACE_INTERVAL_MS = 250L;
+    private long lastConsolidationTraceUptime;
+    private int lastConsolidationInput = -1;
+    private int lastConsolidationOutput = -1;
     private String diagnostics = "";
     private float contentOffsetX;
     private float contentOffsetY;
@@ -301,6 +305,13 @@ final class CensorOverlayView extends View {
                     track, trackCameraX, trackCameraY,
                     sourceWidth, sourceHeight, viewportWidth, viewportHeight));
         }
+        tracksPublishedAtMillis = SystemClock.uptimeMillis();
+        latestMutationUptime = tracksPublishedAtMillis;
+        captureWidth = Math.max(1, sourceWidth);
+        captureHeight = Math.max(1, sourceHeight);
+        // Keep original head/body membership for cache refreshes. Feeding previously merged
+        // rectangles back into grouping loses head anchors and can bridge neighboring people.
+        liveTracks = Collections.unmodifiableList(snapshots);
         List<RenderTrackSnapshot> cachedSnapshots = new ArrayList<>(
                 cachedRegions == null ? 0 : cachedRegions.size());
         if (cachedRegions != null) {
@@ -309,26 +320,21 @@ final class CensorOverlayView extends View {
                 RenderTrackSnapshot candidate = RenderTrackSnapshot.fromWorldCacheDetection(
                         cached, trackCameraX, trackCameraY,
                         sourceWidth, sourceHeight, viewportWidth, viewportHeight);
-                if (!overlapsRegion(candidate, snapshots, false)
-                        && !overlapsRegion(candidate, cachedSnapshots, true)) {
-                    cachedSnapshots.add(candidate);
-                }
+                // Keep coverage until the render-only grouping pass. Group unions do not feed
+                // back into tracker identity, detector policy, or cache confirmation.
+                cachedSnapshots.add(candidate);
             }
         }
-        tracksPublishedAtMillis = SystemClock.uptimeMillis();
-        latestMutationUptime = tracksPublishedAtMillis;
-        captureWidth = Math.max(1, sourceWidth);
-        captureHeight = Math.max(1, sourceHeight);
-        Set<Integer> visualIds = new HashSet<>();
-        for (RenderTrackSnapshot track : snapshots) {
-            visualIds.add(track.id());
-            visualSteering.updateTarget(track.id(), track.box(), captureWidth, captureHeight,
-                    tracksPublishedAtMillis, true);
-        }
-        visualSteering.retain(visualIds);
-        liveTracks = snapshots;
         cachedTracks = cachedSnapshots;
-        tracks = mergedVisualTracks(liveTracks, cachedTracks);
+        VisualRenderRegionConsolidator.Result displayResult =
+                VisualRenderRegionConsolidator.consolidate(
+                        mergedVisualTracks(liveTracks, cachedTracks));
+        tracks = displayResult.regions();
+        updateVisualSteeringForDisplay(tracksPublishedAtMillis);
+        traceVisualConsolidation(
+                snapshots.size() + (cachedRegions == null ? 0 : cachedRegions.size()),
+                tracks.size(), snapshots.size(), liveTracks.size(),
+                cachedRegions == null ? 0 : cachedRegions.size(), cachedTracks.size());
         worldSpaceTracks = true;
         // World geometry minus this absolute source camera maps back into the retained bitmap.
         sourceFrameOffsetX = sourceCameraX;
@@ -368,18 +374,59 @@ final class CensorOverlayView extends View {
                 RenderTrackSnapshot candidate = RenderTrackSnapshot.fromWorldCacheDetection(
                         cached, cacheCameraX, cacheCameraY,
                         sourceWidth, sourceHeight, viewportWidth, viewportHeight);
-                if (!overlapsRegion(candidate, liveTracks, false)
-                        && !overlapsRegion(candidate, cachedSnapshots, true)) {
-                    cachedSnapshots.add(candidate);
-                }
+                cachedSnapshots.add(candidate);
             }
         }
         cachedTracks = cachedSnapshots;
-        tracks = mergedVisualTracks(liveTracks, cachedTracks);
+        VisualRenderRegionConsolidator.Result displayResult =
+                VisualRenderRegionConsolidator.consolidate(
+                        mergedVisualTracks(liveTracks, cachedTracks));
+        tracks = displayResult.regions();
+        long nowMillis = SystemClock.uptimeMillis();
+        updateVisualSteeringForDisplay(nowMillis);
+        traceVisualConsolidation(
+                liveTracks.size() + (cachedRegions == null ? 0 : cachedRegions.size()),
+                tracks.size(), liveTracks.size(), liveTracks.size(),
+                cachedRegions == null ? 0 : cachedRegions.size(), cachedTracks.size());
         retainRenderAssignments();
         setVisibility(tracks.isEmpty() && textTracks.isEmpty() ? INVISIBLE : VISIBLE);
         postInvalidateOnAnimation();
-        scheduleNextFrame(SystemClock.uptimeMillis());
+        scheduleNextFrame(nowMillis);
+    }
+
+    private void updateVisualSteeringForDisplay(long nowMillis) {
+        Set<Integer> visualIds = new HashSet<>();
+        for (RenderTrackSnapshot track : tracks) {
+            if (track.isCached()) continue;
+            visualIds.add(track.id());
+            visualSteering.updateTarget(track.id(), track.box(), captureWidth, captureHeight,
+                    nowMillis, true);
+        }
+        visualSteering.retain(visualIds);
+    }
+
+    private void traceVisualConsolidation(
+            int inputCount,
+            int outputCount,
+            int rawLiveCount,
+            int selectedLiveCount,
+            int rawCacheCount,
+            int selectedCacheCount) {
+        if (inputCount <= outputCount) return;
+        long now = SystemClock.uptimeMillis();
+        if (inputCount == lastConsolidationInput
+                && outputCount == lastConsolidationOutput
+                && now - lastConsolidationTraceUptime < CONSOLIDATION_TRACE_INTERVAL_MS) return;
+        lastConsolidationTraceUptime = now;
+        lastConsolidationInput = inputCount;
+        lastConsolidationOutput = outputCount;
+        CensorLabLog.i(MOTION_TAG, "CONSOLIDATE input=" + inputCount
+                + " output=" + outputCount
+                + " merged=" + (inputCount - outputCount)
+                + " rawLive=" + rawLiveCount
+                + " selectedLive=" + selectedLiveCount
+                + " rawCache=" + rawCacheCount
+                + " selectedCache=" + selectedCacheCount);
     }
 
     int admittedCachedRegionCount(List<Detection> candidates) {
@@ -1435,9 +1482,9 @@ final class CensorOverlayView extends View {
         if (usesContinuousSteering()) {
             BBox steered = visualSteering.position(
                     track.id(), captureWidth, captureHeight, activeRenderTimeMillis);
-            if (steered != null) return steered;
+            if (steered != null) return track.preserveGroupCoverage(steered);
         }
-        return track.predict(ageMs, maxExtrapolationMs);
+        return track.preserveGroupCoverage(track.predict(ageMs, maxExtrapolationMs));
     }
 
     private BBox textBox(RenderTrackSnapshot track) {
