@@ -92,3 +92,19 @@ there is no new controlled on-device capture-age, queue-drop, preprocessing,
 inference, postprocessing or publication-latency population yet. Those metrics remain
 instrumented but must be remeasured after activation. User perception of scroll
 smoothness, stopping/reversal behavior, text stability and flashes remains required.
+
+## Signed Pixel update
+
+Private signing run `35451337405` succeeded for exact source
+`a5cf1d4979d3dc8eb6f28e79d68686cd0dd31eb2`, immediate quality enabled, no public
+release. Compact artifact `10586836479` was downloaded; provenance, checksum and
+the expected compatible signing certificate were verified. ARM64 APK SHA-256:
+`0f7687e5572342690b0be59ff9947eb89d7011b2173644e785e1b3bdb1d716b4`.
+
+Replacement installation succeeded without clearing app data. Independent installed
+`base.apk` readback matched that hash, and the Accessibility service rebound (PID
+18753 at verification). The phone subsequently reported Awake, but recognition
+reported `armed=false`, and the layout dump remained `active:false`. No app-mode
+settings were changed by the verification. Enable App Mode and use a protected app
+before collecting live scroll samples; this inactive interval proves no visual or
+performance outcome. Source/installation evidence is not real-device acceptance.
