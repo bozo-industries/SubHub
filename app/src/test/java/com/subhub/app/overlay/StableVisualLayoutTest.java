@@ -119,6 +119,56 @@ public final class StableVisualLayoutTest {
         }
     }
 
+    @Test public void lowerCardTorsoDoesNotAssociateWithLargerDistantUpperHead() {
+        // Numeric source geometry from the active Pass 91 Pixel dump. The distant,
+        // larger head used to narrowly win a head-size-normalized distance score.
+        List<RenderTrackSnapshot> items = List.of(
+                box(1, "face", 842, 1179, 272, 238),
+                box(9, "face", 966, 2125, 176, 173),
+                box(7, "breasts_covered", 867, 2347, 217, 224),
+                new RenderTrackSnapshot(524626693, "breasts_covered",
+                        new BBox(867, 2347, 217, 224), 0, 0, true),
+                box(4, "breasts_covered", 994, 2395, 207, 207),
+                box(6, "belly", 914, 2623, 239, 166));
+        StableVisualLayout layout = new StableVisualLayout();
+        List<RenderTrackSnapshot> result = layout.update(items, .14f, 100);
+        assertEquals("two distinct heads and one lower-card body", 3, result.size());
+        RenderTrackSnapshot body = result.stream()
+                .filter(item -> "breasts_covered".equals(item.category())).findFirst().get();
+        assertEquals(4, layout.memberIds(body.id()).size());
+        for (RenderTrackSnapshot item : items.subList(2, items.size())) {
+            BBox raw = item.box();
+            assertTrue(body.box().getX() <= raw.getX());
+            assertTrue(body.box().getY() <= raw.getY());
+            assertTrue(body.box().getRight() >= raw.getRight());
+            assertTrue(body.box().getBottom() >= raw.getBottom());
+        }
+    }
+
+    @Test public void headRankingIsStableAcrossScaleAndInputOrder() {
+        for (float scale : new float[]{.5f, 1f, 2f}) {
+            List<RenderTrackSnapshot> items = new ArrayList<>();
+            for (RenderTrackSnapshot raw : List.of(
+                    box(1, "face", 842, 1179, 272, 238),
+                    box(9, "face", 966, 2125, 176, 173),
+                    box(7, "breasts_covered", 867, 2347, 217, 224),
+                    box(4, "breasts_covered", 994, 2395, 207, 207))) {
+                BBox b = raw.box();
+                items.add(box(raw.id(), raw.category(), Math.round(b.getX() * scale),
+                        Math.round(b.getY() * scale), Math.round(b.getWidth() * scale),
+                        Math.round(b.getHeight() * scale)));
+            }
+            for (int order = 0; order < 2; order++) {
+                StableVisualLayout layout = new StableVisualLayout();
+                List<RenderTrackSnapshot> result = layout.update(items, .14f, 100);
+                assertEquals(3, result.size());
+                RenderTrackSnapshot body = result.get(2);
+                assertTrue(layout.memberIds(body.id()).containsAll(List.of(4, 7)));
+                java.util.Collections.reverse(items);
+            }
+        }
+    }
+
     @Test public void layoutIdsStayUniqueEvenIfInputsReuseAnId() {
         StableVisualLayout layout = new StableVisualLayout();
         List<RenderTrackSnapshot> result = layout.update(List.of(

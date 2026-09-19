@@ -108,13 +108,17 @@ final class BodyOverlapHeuristics {
             RenderTrackSnapshot head = heads.get(index);
             if (!item.reference().sameBasis(head.reference())) continue;
             BBox box = head.associationBox();
-            float dx = Math.abs(body.getCenterX() - box.getCenterX())
-                    / (float) Math.max(1, box.getWidth());
-            float dy = (body.getCenterY() - box.getCenterY())
-                    / (float) Math.max(1, box.getHeight());
+            float pixelDx = Math.abs(body.getCenterX() - box.getCenterX());
+            float pixelDy = body.getCenterY() - box.getCenterY();
+            float dx = pixelDx / Math.max(1, box.getWidth());
+            float dy = pixelDy / Math.max(1, box.getHeight());
             if (dy < -.25f || dy > 6f || dx > 1.6f
                     || body.getWidth() > box.getWidth() * 4f) continue;
-            float score = dx * 2f + Math.max(0f, dy) * .25f;
+            // Head-relative dimensions are useful eligibility bounds, but not a common
+            // ranking unit: dividing each candidate by its own size makes a distant
+            // large head beat a nearby small head in the next image card. Rank eligible
+            // heads in the shared source coordinate space, retaining horizontal priority.
+            float score = pixelDx * 2f + Math.max(0f, pixelDy) * .25f;
             if (score < bestScore) {
                 bestScore = score;
                 best = index;
