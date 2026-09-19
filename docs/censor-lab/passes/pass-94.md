@@ -182,3 +182,12 @@ transport went offline, discovery returned no advertised service, and one reconn
 attempt timed out. No install command ran. The new observer/application path has not
 executed on the phone; no Android calibration success or performance gain is claimed.
 Installation and real-app checks require the user to restore the debugging connection.
+
+### Wireless installation completed
+
+After the user restored wireless availability, discovery identified the same Pixel serial
+on a new endpoint. Replacement installation succeeded without uninstalling or clearing
+data. On-device SHA-256 readback exactly matches the signed candidate above. The phone
+is awake and the Accessibility service is running. Its initial learning diagnostic reports
+zero acquisitions/reads/samples and `applied:false`; this is not calibration or performance
+validation. Protected-app scrolling and the user's perceived verdict remain outstanding.
