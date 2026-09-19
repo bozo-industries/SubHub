@@ -73,3 +73,10 @@ ARM64 APK SHA-256:
 `12ad32a4fc46a76c483d74f7328e6368666d223ae1c3d43fde1ae9b62298cee4`.
 No public release/tag was created. The Pixel remains on Pass 91; do not conflate
 the signed candidate with an installed or visually accepted build.
+
+The user subsequently instructed "just proceed". The verified ARM64 candidate was
+replacement-installed successfully without clearing app data. An independent
+`base.apk` readback matched the SHA-256 above, and the Accessibility service
+rebound (PID 28721 at verification). The phone was Dozing and the layout diagnostic
+reported `active:false`, so no live grouping or performance verdict is available
+from this post-install interval. Device/user acceptance remains outstanding.
