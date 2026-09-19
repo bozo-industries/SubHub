@@ -90,7 +90,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             AutomaticScrollLearningObserver current = scrollLearningObserver;
             writer.println("SUBHUB_SCROLL_LEARNING " + (current == null
                     ? "{\"schemaVersion\":1,\"state\":\"DISABLED\",\"applied\":false}"
-                    : current.diagnostics()));
+                    : current.diagnostics().replace("\"applied\":false", scrollCalibrationDiagnostics)));
             return;
         }
         if (args != null && args.length == 1 && "render-layout".equals(args[0])) {
@@ -106,6 +106,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static volatile boolean running;
     private static volatile boolean recognitionActive;
     private volatile AutomaticScrollLearningObserver scrollLearningObserver;
+    private final ScrollMotionCalibration scrollMotionCalibration = new ScrollMotionCalibration();
+    private volatile String scrollCalibrationDiagnostics = "\"applied\":false";
     private static final long MIN_TEXT_REFRESH_MS = 120L;
     private static final long TEXT_CANDIDATE_CONFIRM_MS = 48L;
     private static final long CONTENT_TEXT_REFRESH_MS = 80L;
@@ -237,6 +239,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     qualityBackfillCoordinator, QualityBackfillRunner.Policy.defaults());
     private final Object worldCacheLock = new Object();
     private final AtomicLong visualDocumentEpoch = new AtomicLong(1L);
+    // Real document changes fence the learner. A calibration-only render epoch change does not.
+    private final AtomicLong learningDocumentEpoch = new AtomicLong(1L);
     private final AtomicInteger activeApplicationWindowId = new AtomicInteger(-1);
     private volatile String activeScrollSurfaceKey = "";
     private volatile int activeScrollSurfaceWindowId = -1;
@@ -2491,6 +2495,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         ScrollAlignment alignment;
         List<TrackedObject> tracks;
         synchronized (sceneLifecycleLock) {
+            // A capture can pass its entry guard immediately before a calibration fence.
+            // Recheck under the same lock as that fence, including non-transactional scenes.
+            if (!isCurrentVisualDocument(candidate.visualDocumentEpoch, candidate.scrollSurfaceKey)) return;
             if (sceneCommit != null && !sceneCoordinator.isPresentationCurrent(sceneCommit)) {
                 CensorLabLog.i(TAG, "SCENE_LATE_DROP id=" + sceneCommit.key()
                         + " lane=commit reason=not-current-before-tracker");
@@ -3152,7 +3159,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     : identity.confidence;
             activeScrollSurfaceLastTrustedUptime = Math.max(0L, trustedAtUptime);
             activeScrollSurfaceLowReuseCount = 0;
-            document = changed ? visualDocumentEpoch.incrementAndGet()
+            document = changed ? advanceVisualDocument()
                     : visualDocumentEpoch.get();
             if (changed) resetWorldCacheQueryLocked();
         }
@@ -3192,7 +3199,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             activeScrollSurfaceConfidence = AccessibilitySurfaceIdentityResolver.CONFIDENCE_LOW;
             activeScrollSurfaceLastTrustedUptime = 0L;
             activeScrollSurfaceLowReuseCount = 0;
-            document = visualDocumentEpoch.incrementAndGet();
+            document = advanceVisualDocument();
             resetWorldCacheQueryLocked();
         }
         invalidateCurrentScene("world-surface-low-confidence");
@@ -3223,7 +3230,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             activeScrollSurfaceConfidence = AccessibilitySurfaceIdentityResolver.CONFIDENCE_LOW;
             activeScrollSurfaceLastTrustedUptime = 0L;
             activeScrollSurfaceLowReuseCount = 0;
-            document = visualDocumentEpoch.incrementAndGet();
+            document = advanceVisualDocument();
             resetWorldCacheQueryLocked();
         }
         // A structural reset starts a new document even if Android reuses the same application
@@ -3235,6 +3242,34 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         invalidateCurrentScene("world-cache-" + reason);
         CensorLabLog.i(TAG, "WORLD_CACHE_INVALIDATE reason=" + reason
                 + " removed=" + removed + " documentEpoch=" + document);
+    }
+
+    private long advanceVisualDocument() {
+        learningDocumentEpoch.incrementAndGet();
+        return visualDocumentEpoch.incrementAndGet();
+    }
+
+    /** Fence old captures/cache entries without changing the live camera or learning lineage. */
+    private void fenceCalibrationCoordinates() {
+        synchronized (sceneLifecycleLock) {
+            synchronized (worldCacheLock) {
+                visualDocumentEpoch.incrementAndGet();
+                contentSpaceRegionCache.clear();
+                qualityBackfillCoordinator.clear();
+                resetWorldCacheQueryLocked();
+            }
+            invalidateCurrentScene("scroll-calibration");
+        }
+        discardPendingInference();
+        discardPendingQualityInference();
+        cancelQualityRetrySchedule();
+        qualityBackfillRunner.resetPolicyState();
+        clearLateQualityPresentation("scroll-calibration");
+        cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
+        qualityVisualStabilizer.clear();
+        // Existing on-screen tracks remain at their current position. New physical increments
+        // offset those tracks normally; no absolute camera rescale or overlay clearing occurs.
+        settledInferenceNeeded.set(true);
     }
 
     private boolean isCurrentVisualDocument(long documentEpoch, String surfaceKey) {
@@ -4787,15 +4822,28 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 long sourceTime = event.getEventTime();
                 if (sourceTime <= 0L || sourceTime > scrollNow) sourceTime = scrollNow;
                 long eventAgeMs = Math.max(0L, scrollNow - sourceTime);
+                AutomaticScrollLearningObserver.Scope learningScope = null;
                 try {
-                    observeScrollLearning(event, rawMotion, surfaceIdentity, sourceTime, scrollNow);
+                    learningScope = observeScrollLearning(event, rawMotion, surfaceIdentity, sourceTime, scrollNow);
                 } catch (RuntimeException learningFailure) {
                     stopScrollLearningObserver();
                     Log.w(TAG, "SCROLL_LEARNING_DISABLED callbackFailure=true");
                 }
+                AutomaticScrollLearningObserver observer = scrollLearningObserver;
+                ScrollMotionCalibration.Motion calibrated = scrollMotionCalibration.apply(learningScope,
+                        observer == null ? null : observer.validatedProfile(learningScope), rawMotion.dx, rawMotion.dy);
+                if (calibrated.scaleChanged) fenceCalibrationCoordinates();
+                scrollCalibrationDiagnostics = scrollMotionCalibration.diagnostics();
+                if (overlay != null) {
+                    ScrollCalibrationLearner.Profile profile = calibrated.profile;
+                    overlay.configureEventTiming(profile != null && profile.key.axis == ScrollLearningKey.Axis.X,
+                            profile == null ? 0 : (float) profile.eventIntervalMs,
+                            profile == null ? 0 : (float) profile.deliveryLagMs,
+                            profile == null ? 0 : (float) profile.deliveryJitterMs);
+                }
                 ScrollDeltaStabilizer.Result motion = scrollDeltaStabilizer.filter(
-                        rawMotion.dx, rawMotion.dy, sourceTime, viewportWidth, viewportHeight,
-                        rawMotion.authoritative());
+                        calibrated.dx, calibrated.dy, sourceTime, viewportWidth, viewportHeight,
+                        rawMotion.authoritative() || calibrated.calibrated);
                 if (BuildConfig.DEBUG && scrollNow - lastScrollDiagnosticUptime >= 250L) {
                     lastScrollDiagnosticUptime = scrollNow;
                     Log.d(TAG, "Scroll event screen motion raw=" + rawMotion.dx + ','
@@ -4979,7 +5027,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             activeScrollSurfaceConfidence = AccessibilitySurfaceIdentityResolver.CONFIDENCE_LOW;
             activeScrollSurfaceLastTrustedUptime = 0L;
             activeScrollSurfaceLowReuseCount = 0;
-            document = visualDocumentEpoch.incrementAndGet();
+            document = advanceVisualDocument();
             resetWorldCacheQueryLocked();
         }
         invalidateCurrentScene("world-surface-provisional");
@@ -5322,35 +5370,36 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return renderSourceTimeline.resolve(origin, sourceTime, cameraX, cameraY);
     }
 
-    private void observeScrollLearning(AccessibilityEvent event,
+    private AutomaticScrollLearningObserver.Scope observeScrollLearning(AccessibilityEvent event,
             AccessibilityScrollMotionResolver.Motion motion,
             AccessibilitySurfaceIdentityResolver.Identity identity, long sourceTime, long received) {
         AutomaticScrollLearningObserver observer = scrollLearningObserver;
         // Companion records may describe a different node than event.getSource(). Never pair
         // that displacement with the event owner's geometry. Clamped/diagonal deltas are also
         // unsuitable for identifying a single-axis physical mapping.
-        if (observer == null) return;
+        if (observer == null) return null;
         if (!recognitionActive || !identity.isCacheable() || !motion.moved()
                 || event.getRecordCount() != 0 || touchTraceId <= 0
                 || sourceTime <= 0 || event.getEventTime() != sourceTime
-                || motion.dx != 0 && motion.dy != 0) { observer.invalidate(); return; }
+                || motion.dx != 0 && motion.dy != 0) { observer.invalidate(); return null; }
         android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
         WindowManager manager = (WindowManager) getSystemService(WINDOW_SERVICE);
         Display display = manager == null ? null : manager.getDefaultDisplay();
         if (display == null || Math.abs((long) motion.dx) >= metrics.widthPixels * 2L
                 || Math.abs((long) motion.dy) >= metrics.heightPixels * 2L) {
-            observer.invalidate(); return;
+            observer.invalidate(); return null;
         }
         ScrollLearningKey.Axis axis = motion.dx != 0 ? ScrollLearningKey.Axis.X : ScrollLearningKey.Axis.Y;
         ScrollLearningKey.Evidence evidence;
         try { evidence = ScrollLearningKey.Evidence.valueOf(motion.evidence.name()); }
-        catch (IllegalArgumentException unsupported) { observer.invalidate(); return; }
+        catch (IllegalArgumentException unsupported) { observer.invalidate(); return null; }
         AutomaticScrollLearningObserver.Scope scope = new AutomaticScrollLearningObserver.Scope(
-                foregroundPackage, captureEpoch.token(), visualDocumentEpoch.get(), identity.telemetryToken(),
+                foregroundPackage, captureEpoch.token(), learningDocumentEpoch.get(), identity.telemetryToken(),
                 identity.windowId, metrics.widthPixels, metrics.heightPixels, metrics.densityDpi,
                 display.getRotation(), Math.round(display.getRefreshRate() * 1000), axis, evidence);
         observer.offer(new LearningEvent(scope, touchTraceId, sourceTime, received,
                 axis == ScrollLearningKey.Axis.X ? motion.dx : motion.dy, event));
+        return scope;
     }
 
     @SuppressWarnings("deprecation")
@@ -5368,7 +5417,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (!recognitionActive || !running || scope == null
                 || !Objects.equals(foregroundPackage, scope.packageName)
                 || captureEpoch.token() != scope.captureEpoch
-                || visualDocumentEpoch.get() != scope.documentEpoch
+                || learningDocumentEpoch.get() != scope.documentEpoch
                 || activeApplicationWindowId.get() != scope.windowId) return false;
         android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
         WindowManager manager = (WindowManager) getSystemService(WINDOW_SERVICE);
@@ -5432,6 +5481,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         AutomaticScrollLearningObserver observer = scrollLearningObserver;
         scrollLearningObserver = null;
         if (observer != null) observer.close();
+        ScrollMotionCalibration.Motion reset = scrollMotionCalibration.apply(null, null, 0, 0);
+        if (reset.scaleChanged && running && recognitionActive) fenceCalibrationCoordinates();
+        scrollMotionCalibration.reset();
+        scrollCalibrationDiagnostics = "\"applied\":false";
+        if (overlay != null) overlay.configureEventTiming(false, 0, 0, 0);
     }
 
     private AsyncViewportAnchorSampler.State anchorState() {

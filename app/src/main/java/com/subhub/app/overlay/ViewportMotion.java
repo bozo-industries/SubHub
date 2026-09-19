@@ -25,6 +25,11 @@ final class ViewportMotion {
     private final Axis x = new Axis();
     private final Axis y = new Axis();
 
+    void configureEventTiming(boolean horizontal, float interval, float lag, float jitter) {
+        x.eventTrajectory.configureTiming(horizontal ? interval : 0, lag, jitter);
+        y.eventTrajectory.configureTiming(horizontal ? 0 : interval, lag, jitter);
+    }
+
     void reset(float x, float y, long nowMillis) {
         this.x.reset(x, nowMillis);
         this.y.reset(y, nowMillis);

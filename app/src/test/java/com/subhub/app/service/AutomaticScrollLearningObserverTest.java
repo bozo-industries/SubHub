@@ -172,8 +172,78 @@ public final class AutomaticScrollLearningObserverTest {
     }
 
     @Test public void distinctGesturesAcrossBoundedBurstsCanValidateAndPersist() throws Exception {
+        Rig rig = readyRig();
+        assertEquals("READY", rig.stats().getString("state"));
+        assertEquals(1.0, rig.stats().getDouble("candidateScale"), .00001);
+        assertEquals(1, rig.saved);
+        assertFalse(rig.stats().getBoolean("applied"));
+        assertEquals(3, rig.acquisitions);
+        assertNotNull(rig.observer.validatedProfile(SCOPE));
+    }
+
+    @Test public void handoffRejectsDifferentProducerBeforeWorkerDrains() {
+        Rig rig = readyRig();
+        assertNotNull(rig.observer.validatedProfile(SCOPE));
+        rig.offer(scope(99), 20, rig.worker.now);
+        assertNull(rig.observer.validatedProfile(SCOPE));
+        assertNull(rig.observer.validatedProfile(scope(99)));
+    }
+
+    @Test public void invalidationAndCloseRevokeHandoffSynchronously() {
+        Rig rig = readyRig();
+        rig.observer.invalidate();
+        assertNull(rig.observer.validatedProfile(SCOPE));
+        rig.offer(SCOPE, 20, rig.worker.now);
+        assertNull(rig.observer.validatedProfile(SCOPE));
+        Rig closed = readyRig();
+        closed.observer.close();
+        assertNull(closed.observer.validatedProfile(SCOPE));
+    }
+
+    @Test public void inactiveOrUnmonitoredProfileCannotRemainAuthoritative() {
+        Rig rig = readyRig();
+        rig.enabled = false;
+        assertNull(rig.observer.validatedProfile(SCOPE));
+        rig.enabled = true;
+        rig.worker.until(rig.worker.now + 36000);
+        assertNull(rig.observer.validatedProfile(SCOPE));
+    }
+
+    @Test public void trainingEvidenceIsNeverAnApplicationHandoff() {
+        Rig rig = new Rig();
+        for (int i = 0; i < 8; i++) {
+            long time = 100 + i * 100L;
+            rig.worker.until(time); rig.offer(SCOPE, 1, time); rig.worker.until(time);
+            assertNull(rig.observer.validatedProfile(SCOPE));
+        }
+    }
+
+    @Test public void independentGeometryReachesPhysicalIncrementAdapterWithoutFeedback() {
+        Rig rig = readyRig(4);
+        ScrollCalibrationLearner.Profile profile = rig.observer.validatedProfile(SCOPE);
+        assertNotNull(profile);
+        assertEquals(2, profile.pixelsPerEventPixel, .00001);
+        ScrollMotionCalibration calibration = new ScrollMotionCalibration();
+        ScrollMotionCalibration.Motion motion = calibration.apply(SCOPE, profile, 0, 200);
+        assertTrue(motion.scaleChanged);
+        assertEquals(400, motion.dy);
+        // Applying the profile neither edits raw observer evidence nor starts a new baseline.
+        assertSame(profile, rig.observer.validatedProfile(SCOPE));
+        assertEquals(3, rig.acquisitions);
+        rig.observer.invalidate();
+        motion = calibration.apply(SCOPE, rig.observer.validatedProfile(SCOPE), 0, 200);
+        assertTrue(motion.scaleChanged);
+        assertEquals(200, motion.dy);
+    }
+
+    private static Rig readyRig() {
+        return readyRig(2);
+    }
+
+    private static Rig readyRig(int geometryRate) {
         Rig rig = new Rig();
         rig.durable = true;
+        rig.geometryRate = geometryRate;
         for (int burst = 0; burst < 3; burst++) {
             for (int index = 0; index < 14; index++) {
                 long time = 100 + burst * 33000L + index * 100;
@@ -183,11 +253,7 @@ public final class AutomaticScrollLearningObserverTest {
             }
             rig.worker.until(2100 + burst * 33000L);
         }
-        assertEquals("READY", rig.stats().getString("state"));
-        assertEquals(1.0, rig.stats().getDouble("candidateScale"), .00001);
-        assertEquals(1, rig.saved);
-        assertFalse(rig.stats().getBoolean("applied"));
-        assertEquals(3, rig.acquisitions);
+        return rig;
     }
 
     private static AutomaticScrollLearningObserver.Scope scope(long producer) {
@@ -210,6 +276,7 @@ public final class AutomaticScrollLearningObserverTest {
                 () -> worker.now, worker, this, this);
         boolean enabled = true, disableDuringAcquire, emptyAcquire, durable, failActive;
         int acquisitions, closedAnchors, anchorReads, saved, nodeCost;
+        int geometryRate = 2;
         long lastProducer;
         Event offer(AutomaticScrollLearningObserver.Scope scope, long gesture, long time) {
             worker.now = Math.max(worker.now, time);
@@ -235,7 +302,7 @@ public final class AutomaticScrollLearningObserverTest {
                     @Override public ViewportAnchorGeometry.Bounds read() {
                         if (closed) throw new AssertionError("Read after close");
                         anchorReads++; worker.now += nodeCost;
-                        int y = offset + (int) worker.now * 2;
+                        int y = offset + (int) worker.now * geometryRate;
                         return new ViewportAnchorGeometry.Bounds(offset, y, offset + 20, y + 20);
                     }
                     @Override public void close() {

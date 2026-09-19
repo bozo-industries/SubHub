@@ -614,6 +614,10 @@ final class CensorOverlayView extends View {
         scheduleNextFrame(nowMillis);
     }
 
+    void configureEventTiming(boolean horizontal, float interval, float lag, float jitter) {
+        viewportMotion.configureEventTiming(horizontal, interval, lag, jitter);
+    }
+
     void offsetContent(int deltaX, int deltaY) {
         offsetContent(deltaX, deltaY, true);
     }

@@ -243,6 +243,10 @@ public final class OverlayController implements AutoCloseable {
     }
 
     /** Moves the current lightweight overlay immediately while the next inference is pending. */
+    public void configureEventTiming(boolean horizontal, float interval, float lag, float jitter) {
+        view.configureEventTiming(horizontal, interval, lag, jitter);
+    }
+
     public void offsetContent(int deltaX, int deltaY) {
         offsetContent(deltaX, deltaY, true);
     }

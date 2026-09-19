@@ -119,11 +119,45 @@ identity/privacy, ownership, bounded queuing, stale scope, disarming, cooldown,
 invalidation coalescing, source failures and end-to-end synthetic profile validation.
 Both APKs compiled; no Android instrumentation or real-device observer run is claimed.
 
+## Live application checkpoint — implemented, awaiting device evidence
+
+The observer now publishes an immutable, scope-fenced handoff only after holdout
+validation. Different producers, invalidation, shutdown, inactive scope and more than
+35 seconds without an accepted monitoring reference revoke eligibility. Stored priors
+still require fresh validation. Worker and application diagnostics remain separate:
+the service reports actual applied-event counts, scale transitions and last active scale.
+
+`ScrollMotionCalibration` converts only future raw event increments, before direction
+filtering, and preserves fractional pixel residuals. It never rescales accumulated camera
+coordinates. An independently validated mapping supplies authoritative physical deltas
+to the existing tracker, capture timeline and overlay path exactly once. Unsupported
+events and unsafe extrapolation return to the original producer behavior. A rejected
+profile cannot repeatedly oscillate between coordinate systems on the same surface.
+
+Scale activation/revocation advances the rendering document epoch, clears historical
+world-cache/quality work and fences in-flight captures/publications. A second document
+guard under the scene lifecycle lock prevents an old result from entering tracking after
+the transition. Actual surface/document changes still invalidate both learning and
+rendering epochs; a calibration-only change deliberately preserves the learning scope.
+Existing on-screen tracks and camera position are retained, not multiplied or cleared.
+
+The event trajectory uses learned cadence for acquisition and forecast lifetime,
+delivery lag to shorten forecasts for unusually late events, and bounded measured jitter
+for return timing. Actual event intervals still determine measured velocity. Configuration
+does not alter the current displayed position or velocity. This is not a newly learned
+deceleration model: the existing braking/return shape and travel cap remain intact.
+
+Exact staged source tree `114fecc839971577937dda8f9a604293d6f967b7` passed all 736 unit
+tests with no failures or skips, lintDebug, assembleDebug and assembleDebugAndroidTest
+together in an isolated export with immediate quality enabled. The 16 added tests cover
+handoff revocation/expiry, independent geometry through physical increment application,
+fractional distance, invalid mappings, timing continuity and a synthetic fast-producer
+acquisition comparison. These results do not establish Android acquisition success or
+an end-to-end performance improvement.
+
 ## Required next steps — do not call this feature complete
 
-1. Apply learned timing and displacement safely to live presentation and capture/camera
-   accounting without double-applying motion or reinterpreting historical cache data.
-2. Validate Android resource/node acquisition, overhead, storage and alignment on multiple
-   real apps/devices, including stop/reversal behavior, and obtain the user's perceived
-   verdict. No new capture/inference/drop/publication timing population exists for this
-   not-yet-installed observer. Pixel remains on Pass 93; no new APK has been deployed.
+Sign/install this development candidate and validate Android resource/node acquisition,
+overhead, storage and alignment on multiple real apps, including stop/reversal behavior,
+then obtain the user's perceived verdict. No new capture/inference/drop/publication timing
+population exists yet. At this source checkpoint, Pixel remains on Pass 93.

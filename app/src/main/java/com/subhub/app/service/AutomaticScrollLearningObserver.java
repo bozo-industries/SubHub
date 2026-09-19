@@ -95,6 +95,7 @@ final class AutomaticScrollLearningObserver implements AutoCloseable {
     private List<AsyncViewportAnchorSampler.Anchor> anchors = Collections.emptyList();
     private volatile boolean closed;
     private volatile Scope latestScope;
+    private volatile Handoff handoff;
     private volatile long invalidationGeneration;
     private long observedInvalidation;
     private volatile String diagnostics = "{\"schemaVersion\":1,\"state\":\"IDLE\",\"applied\":false}";
@@ -104,6 +105,7 @@ final class AutomaticScrollLearningObserver implements AutoCloseable {
     private long fence, tickGeneration, lastTime = -1, lastGesture, lastReceived;
     private long queueDrops, acquisitions, failedAcquisitions, reads, readFailures, alignmentRejects;
     private long storeFailures, saved, maxReadMs;
+    private long lastValidatedReference = -1;
 
     AutomaticScrollLearningObserver(Clock clock, AsyncViewportAnchorSampler.Worker worker,
             Source source, Store store) {
@@ -272,6 +274,7 @@ final class AutomaticScrollLearningObserver implements AutoCloseable {
             if (alignment.sample == null) { alignmentRejects++; continue; }
             ScrollCalibrationLearner.State before = learner.state();
             ScrollCalibrationLearner.Result result = learner.observe(alignment.sample, clock.now());
+            if (result == ScrollCalibrationLearner.Result.READY) lastValidatedReference = clock.now();
             if (!active()) return;
             try {
                 if (result == ScrollCalibrationLearner.Result.INVALIDATED && durable) store.remove(key);
@@ -297,6 +300,8 @@ final class AutomaticScrollLearningObserver implements AutoCloseable {
 
     private synchronized void publish() {
         ScrollCalibrationLearner.Profile profile = learner.profile();
+        handoff = profile != null && active()
+                ? new Handoff(scope, profile, observedInvalidation, lastValidatedReference) : null;
         diagnostics = "{\"schemaVersion\":1,\"state\":\"" + (closed ? "DISABLED" : learner.state())
                 + "\",\"applied\":false,\"collecting\":" + (!closed && !anchors.isEmpty())
                 + ",\"durable\":" + durable + ",\"queueDrops\":" + queueDrops
@@ -315,6 +320,26 @@ final class AutomaticScrollLearningObserver implements AutoCloseable {
     }
 
     String diagnostics() { return diagnostics; }
+
+    /** Immutable worker publication. A persisted candidate alone never reaches this handoff. */
+    static final class Handoff {
+        final Scope scope;
+        final ScrollCalibrationLearner.Profile profile;
+        final long generation, validatedAt;
+        Handoff(Scope scope, ScrollCalibrationLearner.Profile profile, long generation, long validatedAt) {
+            this.scope = scope; this.profile = profile; this.generation = generation;
+            this.validatedAt = validatedAt;
+        }
+    }
+
+    synchronized ScrollCalibrationLearner.Profile validatedProfile(Scope requested) {
+        Handoff value = handoff;
+        return !closed && value != null && requested != null
+                && value.generation == invalidationGeneration
+                && clock.now() >= value.validatedAt && clock.now() - value.validatedAt <= 35000
+                && requested.equals(latestScope) && requested.equals(value.scope)
+                && sourceActive(requested) ? value.profile : null;
+    }
 
     /** An unpairable producer/event breaks interval lineage even if the next key looks identical. */
     synchronized void invalidate() {
