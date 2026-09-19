@@ -1516,7 +1516,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 ? lateQualitySceneIsCurrent(candidate) : !isOldQualityFrame(candidate);
         QualityBackfillCoordinator.ObservationResult backfill =
                 currentOnly ? null : observeQualityBackfill(
-                        candidate, sourceStamp, coverage, readyAt, visibleLateQuality);
+                        candidate, sourceStamp, coverage, readyAt, visibleLateQuality, qualityTile);
         if (currentOnly && visibleLateQuality
                 && !qualityBackfillCancellationRequested(candidate, sourceStamp)) {
             stageLateQualityPresentation(candidate, currentOnlyRegions(candidate, coverage), readyAt);
@@ -1579,7 +1579,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             QualityBackfillCoordinator.BackfillStamp stamp,
             List<Detection> detections,
             long readyAtUptime,
-            boolean visibleLateQuality) {
+            boolean visibleLateQuality,
+            QualityTilePlanner.Tile inspectedTile) {
         if (candidate == null || stamp == null) {
             return qualityBackfillCoordinator.observe(
                     (QualityBackfillCoordinator.BackfillStamp) null,
@@ -1613,7 +1614,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         boolean acceptedCurrentPresentation = visibleLateQuality
                 && !regions.isEmpty()
                 && qualityObservationAccepted(result.status());
-        if (result.readyRegions().isEmpty() && !acceptedCurrentPresentation) return result;
+        if (!qualityObservationAccepted(result.status())) return result;
 
         ContentSpaceRegionCache.Update update;
         List<QualityBackfillCoordinator.BackfillRegion> presentationRegions =
@@ -1641,6 +1642,18 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 // A one-hit current result can cover one later fast publication below, but must
                 // never inherit qualityConfirmed's long TTL and contradiction grace.
                 if (cacheGenerationAccepted) {
+                    // Even a hit awaiting independent confirmation is evidence against a
+                    // miss of an existing region. It cannot create/refresh durable coverage.
+                    for (QualityBackfillCoordinator.BackfillRegion region : regions) {
+                        BBox screenBox = ContentSpaceRegionCache.worldToScreen(
+                                region.worldBox(), candidate.scrollX, candidate.scrollY,
+                                candidate.sourceWidth, candidate.sourceHeight,
+                                candidate.viewportWidth, candidate.viewportHeight);
+                        observations.add(new ContentSpaceRegionCache.Observation(
+                                -1, region.className(), region.category(), region.confidence(),
+                                screenBox, region.nsfw(), region.exposed(), 0, 0, false,
+                                region.anchorKey(), !commitVisibleLateQuality, candidate.renderReference));
+                    }
                     for (QualityBackfillCoordinator.BackfillRegion region : result.readyRegions()) {
                         BBox screenBox = ContentSpaceRegionCache.worldToScreen(
                                 region.worldBox(), candidate.scrollX, candidate.scrollY,
@@ -1656,7 +1669,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     spatialRegionCache.observeSource(candidate.scene.spatialFrame, readyAtUptime,
                             false, observations);
                 }
-                update = contentSpaceRegionCache.observeCommittedScene(
+                update = cacheGenerationAccepted ? contentSpaceRegionCache.observeCommittedScene(
                         candidate.visualDocumentEpoch,
                         candidate.scrollSurfaceKey,
                         readyAtUptime,
@@ -1666,8 +1679,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         candidate.sourceHeight,
                         candidate.viewportWidth,
                         candidate.viewportHeight,
-                        false,
-                        observations);
+                        ContentSpaceRegionCache.Evidence.quality(candidate.capturedAtUptimeMillis,
+                                new BBox(inspectedTile.left(), inspectedTile.top(),
+                                        inspectedTile.width(), inspectedTile.height())),
+                        observations) : ContentSpaceRegionCache.Update.EMPTY;
                 if (update.viewportReset) qualityBackfillCoordinator.clear();
                 if (update.viewportReset) presentationRegions = Collections.emptyList();
             }
@@ -2579,9 +2594,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         List<Detection> cachedRenderRegions = updateWorldCache(
                 renderTracks, alignment.scrollX, alignment.scrollY,
                 width, height, cacheViewport.width(), cacheViewport.height(),
-                sceneCommit != null && sceneCommit.kind()
-                        != SceneTransactionCoordinator.CommitKind.ACTIVE_FAST
-                        && inferenceMotionGeneration == motionGeneration.get(),
+                worldCacheEvidence(sceneCommit == null ? null : sceneCommit.kind(),
+                        inferenceMotionGeneration == motionGeneration.get(), candidate.capturedAtUptimeMillis),
                 sceneCommit == null ? "legacy-fast" : sceneCommit.kind().name(),
                 candidate.visualDocumentEpoch, candidate.scrollSurfaceKey,
                 inferenceMotionGeneration,
@@ -3284,6 +3298,15 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 currentSurface == null ? "" : currentSurface);
     }
 
+    static ContentSpaceRegionCache.Evidence worldCacheEvidence(
+            SceneTransactionCoordinator.CommitKind kind, boolean motionCurrent, long capturedAtUptime) {
+        int lane = !motionCurrent || kind == null || kind == SceneTransactionCoordinator.CommitKind.ACTIVE_FAST
+                ? ContentSpaceRegionCache.Evidence.NONE
+                : kind == SceneTransactionCoordinator.CommitKind.SETTLED_FUSED
+                        ? ContentSpaceRegionCache.Evidence.COMPLETE : ContentSpaceRegionCache.Evidence.FAST;
+        return ContentSpaceRegionCache.Evidence.full(lane, capturedAtUptime);
+    }
+
     private List<Detection> updateWorldCache(
             List<TrackedObject> liveTracks,
             long cameraX,
@@ -3292,7 +3315,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             int sourceHeight,
             int viewportWidth,
             int viewportHeight,
-            boolean unifiedScene,
+            ContentSpaceRegionCache.Evidence evidence,
             String source,
             long expectedDocument,
             String expectedSurface,
@@ -3329,7 +3352,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 if (!isCurrentVisualDocument(expectedDocument, surface)) return Collections.emptyList();
                 if (spatialFrame == null || spatialFrame.viewportWidth != viewportWidth
                         || spatialFrame.viewportHeight != viewportHeight) return Collections.emptyList();
-                SpatialRegionCache.WriteResult spatialWrite = spatialRegionCache.observeSourceWithStats(spatialFrame, now, unifiedScene,
+                SpatialRegionCache.WriteResult spatialWrite = spatialRegionCache.observeSourceWithStats(spatialFrame, now,
+                        evidence.lane != ContentSpaceRegionCache.Evidence.NONE,
                         SpatialRegionCache.sourceObservations(spatialFrame, cameraX, cameraY, observations));
                 ContentSpaceRegionCache.Update spatialUpdate = spatialWrite.update;
                 CensorLabLog.i(TAG, "SPATIAL_CACHE_WRITE id=" + spatialFrame.id + " known=" + spatialWrite.known
@@ -3359,7 +3383,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             update = cacheWriteAccepted ? contentSpaceRegionCache.observeCommittedScene(
                     expectedDocument, surface, now, cameraX, cameraY,
                     sourceWidth, sourceHeight, viewportWidth, viewportHeight,
-                    unifiedScene, observations) : ContentSpaceRegionCache.Update.EMPTY;
+                    evidence, observations) : ContentSpaceRegionCache.Update.EMPTY;
             if (update.viewportReset) qualityBackfillCoordinator.clear();
             cached = contentSpaceRegionCache.queryNearAsScreenDetections(
                     expectedDocument, surface, now, cameraX, cameraY,

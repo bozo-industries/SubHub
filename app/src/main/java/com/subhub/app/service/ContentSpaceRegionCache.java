@@ -39,7 +39,7 @@ final class ContentSpaceRegionCache {
     private static final int INDEX_NODE_CAPACITY = MAX_ENTRIES * MAX_BUCKETS_PER_ENTRY;
 
     /* Conservative Java-heap estimate for dynamic metadata, not a pixel buffer size. */
-    private static final int ENTRY_FIXED_METADATA_BYTES = 64;
+    private static final int ENTRY_FIXED_METADATA_BYTES = 80;
     private static final int RENDER_SOURCE_REFERENCE_METADATA_BYTES = 128;
     private static final int STRING_OBJECT_BYTES = 24;
     private static final int STRING_CHAR_BYTES = 2;
@@ -60,6 +60,8 @@ final class ContentSpaceRegionCache {
     private final boolean[] nsfw = new boolean[MAX_ENTRIES];
     private final boolean[] exposed = new boolean[MAX_ENTRIES];
     private final boolean[] dormantUntilDeparture = new boolean[MAX_ENTRIES];
+    private final boolean[] qualityConfirmedEntries = new boolean[MAX_ENTRIES];
+    private final long[] lastEvidenceSourceUptime = new long[MAX_ENTRIES];
     private final RenderSourceReference[] renderSourceReferences = new RenderSourceReference[MAX_ENTRIES];
     private final long[] lastSeenUptimeMillis = new long[MAX_ENTRIES];
     private final int[] inViewContradictions = new int[MAX_ENTRIES];
@@ -124,6 +126,22 @@ final class ContentSpaceRegionCache {
             int currentViewportHeight,
             boolean unifiedScene,
             List<Observation> observations) {
+        return observeCommittedScene(documentEpoch, surfaceKey, nowUptimeMillis,
+                cameraX, cameraY, sourceWidth, sourceHeight, currentViewportWidth,
+                currentViewportHeight, Evidence.full(unifiedScene ? Evidence.COMPLETE : Evidence.NONE,
+                        nowUptimeMillis), observations);
+    }
+
+    synchronized Update observeCommittedScene(
+            long documentEpoch, String surfaceKey, long nowUptimeMillis,
+            long cameraX, long cameraY, int sourceWidth, int sourceHeight,
+            int currentViewportWidth, int currentViewportHeight,
+            Evidence evidence, List<Observation> observations) {
+        if (evidence == null || evidence.sourceUptime < 0
+                || evidence.sourceUptime > nowUptimeMillis) return Update.EMPTY;
+        if (evidence.lane == Evidence.QUALITY && (evidence.inspected.getX() < 0
+                || evidence.inspected.getY() < 0 || evidence.inspected.getRight() > sourceWidth
+                || evidence.inspected.getBottom() > sourceHeight)) return Update.EMPTY;
         String safeSurface = safeSurface(surfaceKey);
         if (safeSurface.isEmpty()) return Update.EMPTY;
         if (!ensureGeometry(sourceWidth, sourceHeight,
@@ -140,7 +158,8 @@ final class ContentSpaceRegionCache {
 
         if (observations != null) {
             for (Observation observation : observations) {
-                if (observation == null || !observation.cacheable()) continue;
+                if (observation == null || observation.screenBox == null
+                        || observation.framesMissing != 0) continue;
                 String className = safeMetadataString(observation.className);
                 String category = safeMetadataString(observation.category);
                 String sourceAnchor = safeAnchor(observation.anchorKey);
@@ -156,7 +175,15 @@ final class ContentSpaceRegionCache {
                 int match = findMatch(documentEpoch, safeSurface, observation,
                         category, worldX, worldY, worldWidth, worldHeight);
                 if (match >= 0) {
+                    if (evidence.sourceUptime < lastEvidenceSourceUptime[match]
+                            || evidence.sourceUptime == lastEvidenceSourceUptime[match]
+                            && observedSceneStamp[match] != stamp) continue;
                     observedSceneStamp[match] = stamp;
+                    lastEvidenceSourceUptime[match] = evidence.sourceUptime;
+                    inViewContradictions[match] = 0;
+                    // A fresh unpromoted hit can contradict a miss, but cannot create a
+                    // durable region, move its geometry or renew its positive lifetime.
+                    if (!observation.cacheable()) continue;
                     int newBytes = estimateEntryBytes(className, category,
                             sourceAnchor, renderAnchors[match], observation.renderSourceReference);
                     int delta = newBytes - entryMetadataBytes[match];
@@ -168,6 +195,8 @@ final class ContentSpaceRegionCache {
                     updated++;
                     continue;
                 }
+
+                if (!observation.cacheable()) continue;
 
                 int newBytes = estimateEntryBytes(className, category, sourceAnchor, null, observation.renderSourceReference);
                 int roomEvictions = ensureInsertRoom(newBytes);
@@ -187,20 +216,33 @@ final class ContentSpaceRegionCache {
                 insertEntry(slot, entryId, renderAnchor, observation, className, category,
                         sourceAnchor, worldX, worldY, worldWidth, worldHeight, now, exactBytes);
                 observedSceneStamp[slot] = stamp;
+                qualityConfirmedEntries[slot] = observation.qualityConfirmed;
+                lastEvidenceSourceUptime[slot] = evidence.sourceUptime;
                 inserted++;
             }
         }
 
-        if (unifiedScene) {
+        if (evidence.lane != Evidence.NONE) {
             long viewLeft = cameraX;
             long viewTop = cameraY;
             long viewRight = safeAdd(cameraX, viewportWidth);
             long viewBottom = safeAdd(cameraY, viewportHeight);
+            int[] inspectedWorld = new int[4];
+            BBox inspected = evidence.inspected == null
+                    ? new BBox(0, 0, sourceWidth, sourceHeight) : evidence.inspected;
+            boolean knownCoverage = convertScreenToWorld(inspected, cameraX, cameraY,
+                    this.sourceWidth, this.sourceHeight, viewportWidth, viewportHeight, inspectedWorld);
             for (int slot = 0; slot < MAX_ENTRIES; slot++) {
                 if (!used[slot] || dormantUntilDeparture[slot]
                         || observedSceneStamp[slot] == stamp
+                        || evidence.sourceUptime <= lastEvidenceSourceUptime[slot]
+                        || evidence.lane == Evidence.FAST && qualityConfirmedEntries[slot]
+                        || evidence.lane == Evidence.QUALITY && !qualityConfirmedEntries[slot]
+                        || !knownCoverage
+                        || evidence.lane == Evidence.QUALITY && !fullyCovered(slot, inspectedWorld)
                         || !intersects(worldXs[slot], worldYs[slot], worldWidths[slot],
                         worldHeights[slot], viewLeft, viewTop, viewRight, viewBottom)) continue;
+                lastEvidenceSourceUptime[slot] = evidence.sourceUptime;
                 inViewContradictions[slot]++;
                 if (inViewContradictions[slot] >= REQUIRED_IN_VIEW_CONTRADICTIONS) {
                     removeEntry(slot);
@@ -209,6 +251,38 @@ final class ContentSpaceRegionCache {
             }
         }
         return new Update(inserted, updated, evicted, false);
+    }
+
+    private boolean fullyCovered(int slot, int[] coverage) {
+        return worldXs[slot] >= coverage[0] && worldYs[slot] >= coverage[1]
+                && (long) worldXs[slot] + worldWidths[slot] <= (long) coverage[0] + coverage[2]
+                && (long) worldYs[slot] + worldHeights[slot] <= (long) coverage[1] + coverage[3];
+    }
+
+    /** Negative evidence describes the model and actual inspected crop, not render cadence. */
+    static final class Evidence {
+        static final int NONE = 0, FAST = 1, QUALITY = 2, COMPLETE = 3;
+        final int lane;
+        final long sourceUptime;
+        final BBox inspected;
+
+        private Evidence(int lane, long sourceUptime, BBox inspected) {
+            this.lane = lane; this.sourceUptime = sourceUptime; this.inspected = inspected;
+        }
+
+        static Evidence full(int lane, long sourceUptime) {
+            if (lane != NONE && lane != FAST && lane != COMPLETE) {
+                throw new IllegalArgumentException("Full evidence must name a valid lane");
+            }
+            return new Evidence(lane, sourceUptime, null);
+        }
+
+        static Evidence quality(long sourceUptime, BBox inspected) {
+            if (inspected == null || inspected.getArea() <= 0) {
+                throw new IllegalArgumentException("Quality evidence needs an inspected crop");
+            }
+            return new Evidence(QUALITY, sourceUptime, inspected);
+        }
     }
 
     synchronized List<Detection> queryNearAsScreenDetections(
@@ -575,6 +649,7 @@ final class ContentSpaceRegionCache {
         }
         dormantUntilDeparture[slot] = dormantUntilDeparture[slot]
                 && observation.deferUntilDeparture;
+        qualityConfirmedEntries[slot] |= observation.qualityConfirmed;
         updateEntryValues(slot, observation, worldX, worldY, worldWidth, worldHeight,
                 nowUptimeMillis);
         inViewContradictions[slot] = 0;
