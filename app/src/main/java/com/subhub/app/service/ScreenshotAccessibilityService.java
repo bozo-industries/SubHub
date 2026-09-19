@@ -4841,9 +4841,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                             profile == null ? 0 : (float) profile.deliveryLagMs,
                             profile == null ? 0 : (float) profile.deliveryJitterMs);
                 }
-                ScrollDeltaStabilizer.Result motion = scrollDeltaStabilizer.filter(
+                ScrollDeltaStabilizer.Result filteredMotion = scrollDeltaStabilizer.filter(
                         calibrated.dx, calibrated.dy, sourceTime, viewportWidth, viewportHeight,
                         rawMotion.authoritative() || calibrated.calibrated);
+                // Trace adjustment totals remain relative to Android's original producer delta,
+                // not to the already-scaled stabilizer input. The trace schema is unchanged.
+                ScrollDeltaStabilizer.Result motion = new ScrollDeltaStabilizer.Result(
+                        rawMotion.dx, rawMotion.dy, filteredMotion.dx, filteredMotion.dy,
+                        filteredMotion.rapidReversal, filteredMotion.authoritative);
                 if (BuildConfig.DEBUG && scrollNow - lastScrollDiagnosticUptime >= 250L) {
                     lastScrollDiagnosticUptime = scrollNow;
                     Log.d(TAG, "Scroll event screen motion raw=" + rawMotion.dx + ','
