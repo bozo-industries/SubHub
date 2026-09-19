@@ -96,6 +96,7 @@ final class CensorOverlayView extends View {
     private float renderViewportLeadX;
     private float renderViewportLeadY;
     private final ViewportMotion viewportMotion = new ViewportMotion();
+    private final ScrollMotionDiagnostics scrollMotionDiagnostics = new ScrollMotionDiagnostics();
     private final ContinuousTrackSteering visualSteering = new ContinuousTrackSteering();
     private final ContinuousTrackSteering textSteering = new ContinuousTrackSteering();
     private final StableVisualLayout visualLayout = new StableVisualLayout();
@@ -493,7 +494,8 @@ final class CensorOverlayView extends View {
         try {
             writer.println("SUBHUB_RENDER_LAYOUT " + RenderLayoutDiagnostics.encode(
                     liveTracks, cachedTracks, tracks, visualLayout, captureWidth, captureHeight,
-                    getWidth(), getHeight(), appearance.getSizePadding(), contentOffsetX, contentOffsetY));
+                    getWidth(), getHeight(), appearance.getSizePadding(), contentOffsetX, contentOffsetY)
+                    .put("motion", scrollMotionDiagnostics.encode(SystemClock.uptimeMillis())));
         } catch (org.json.JSONException failure) {
             writer.println("SUBHUB_RENDER_LAYOUT_ERROR invalid-numeric-state");
         }
@@ -718,6 +720,7 @@ final class CensorOverlayView extends View {
         worldSpaceTracks = false;
         worldSpaceText = false;
         viewportMotion.reset(0f, 0f, nowMillis);
+        scrollMotionDiagnostics.clear();
         measuredOrigin = null;
         currentRenderReference = RenderSourceReference.UNKNOWN;
         bitmapReference = RenderSourceReference.UNKNOWN;
@@ -791,6 +794,8 @@ final class CensorOverlayView extends View {
         renderContentOffsetY = viewport.y;
         renderViewportLeadX = viewport.x - contentOffsetX;
         renderViewportLeadY = viewport.y - contentOffsetY;
+        scrollMotionDiagnostics.record(activeRenderTimeMillis, viewport.x, viewport.y,
+                contentOffsetX, contentOffsetY, motionSequence);
         currentRenderReference = measuredOrigin != null
                 && viewportMotion.hasMeasuredPresentation(activeRenderTimeMillis)
                 ? RenderSourceReference.known(measuredOrigin, activeRenderTimeMillis,

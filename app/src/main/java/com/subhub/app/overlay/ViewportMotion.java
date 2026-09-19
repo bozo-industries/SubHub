@@ -5,18 +5,12 @@ package com.subhub.app.overlay;
  *
  * <p>Accessibility scroll deltas describe motion that has already happened, but arrive roughly
  * every 100-120 ms. Rendering every delta as a new offset therefore produces a staircase. This
- * class treats each delta as a measurement of a continuous trajectory: every trustworthy sample
- * is applied immediately, and a bounded Hermite segment carries the observed velocity toward the
- * next sample.
- * If no next sample arrives, the lead returns to the last authoritative position.</p>
+ * class keeps authoritative coordinates separate from a continuous event trajectory. Ordinary
+ * continuing samples preserve displayed position/velocity instead of teleporting on delivery.
+ * First observations remain immediate; prediction is bounded and eventually returns to authority.
+ * Optional measured-anchor presentation remains a separate, freshness-gated path.</p>
  */
 final class ViewportMotion {
-    private static final long MAX_SAMPLE_GAP_MS = 250L;
-    private static final long DEFAULT_SAMPLE_GAP_MS = 114L;
-    private static final long MIN_TRAJECTORY_MS = 72L;
-    private static final long MAX_TRAJECTORY_MS = 180L;
-    private static final long MIN_RETURN_MS = 64L;
-    private static final long MAX_RETURN_MS = 150L;
     private static final long MIN_FALLBACK_MS = 8L;
     private static final long MAX_FALLBACK_MS = 16L;
     private static final long PRESENTATION_DEFAULT_INTERVAL_MS = 16L;
@@ -24,19 +18,6 @@ final class ViewportMotion {
     private static final long PRESENTATION_MAX_HORIZON_MS = 32L;
     private static final long PRESENTATION_MAX_GAP_MS = 56L;
     private static final long PRESENTATION_SETTLE_MS = 16L;
-    private static final long FIRST_SAMPLE_HORIZON_MS = 24L;
-    private static final long REVERSAL_HORIZON_MS = 16L;
-    private static final long CONTINUING_HORIZON_MS = 36L;
-    private static final float MAX_PREDICTION_SAMPLE_FRACTION = 0.36f;
-    private static final float MAX_PREDICTION_VIEWPORT_FRACTION = 0.12f;
-    private static final float MAX_CORRECTION_JUMP_PX = 56f;
-    private static final long MEASUREMENT_RECONCILIATION_MS = 16L;
-    private static final float MAX_REVERSAL_JUMP_PX = 96f;
-    private static final float SAME_DIRECTION_CORRECTION_FRACTION = 1.0f;
-    private static final float REVERSAL_CORRECTION_FRACTION = 0.50f;
-    private static final float MIN_PHASE_ERROR_PX = 96f;
-    private static final float MAX_PHASE_ERROR_VIEWPORT_FRACTION = 0.08f;
-    private static final float MIN_PREDICTABLE_DELTA_PX = 4f;
     private static final float MIN_POLLED_LEAD_PX = 96f;
     private static final float MAX_POLLED_LEAD_VIEWPORT_FRACTION = 0.45f;
     private static final int MIN_PHASE_LOCK_SAMPLES = 2;
@@ -135,21 +116,19 @@ final class ViewportMotion {
     }
 
     long predictionPeakMillis() {
-        return Math.max(x.trajectoryDuration, y.trajectoryDuration);
+        return Math.max(x.predictionPeakMillis(), y.predictionPeakMillis());
     }
 
     private static final class Axis {
+        private final EventScrollTrajectory eventTrajectory = new EventScrollTrajectory();
+        private boolean eventMode;
         private float exact;
         private float segmentStart;
         private float segmentTarget;
         private float startVelocity;
-        private float measurementResidual;
         private long anchorTime;
         private long trajectoryDuration;
-        private long returnDuration;
         private long lastEventTime;
-        private float lastDelta;
-        private boolean authoritativeTrajectory;
         private long lastPresentationSampleTime;
         private float pollMeasured;
         private float pollVelocity;
@@ -166,7 +145,7 @@ final class ViewportMotion {
         }
 
         void measurePresentation(float value, long readStart, long sourceMillis, int horizon) {
-            measurementResidual = 0f;
+            eventMode = false;
             long gap = sourceMillis - absoluteSourceMillis;
             float velocity = absoluteMeasurement && gap > 0L && gap <= 64L
                     ? (value - pollMeasured) / gap : 0f;
@@ -182,15 +161,12 @@ final class ViewportMotion {
             segmentTarget = value + clamp(velocity * horizon, -32f, 32f);
             startVelocity = (segmentTarget - value) / horizon;
             trajectoryDuration = horizon;
-            returnDuration = 0L;
             anchorTime = sourceMillis;
-            authoritativeTrajectory = false;
         }
 
         void clearMeasuredPresentation(long nowMillis) {
             if (!absoluteMeasurement) return;
             float displayed = position(nowMillis);
-            measurementResidual = 0f;
             absoluteMeasurement = false;
             absoluteSourceMillis = -1L;
             lastPresentationSampleTime = 0L;
@@ -201,14 +177,12 @@ final class ViewportMotion {
             startVelocity = 0f;
             anchorTime = nowMillis;
             trajectoryDuration = 16L;
-            returnDuration = 0L;
-            authoritativeTrajectory = false;
         }
 
         void addPresentationDelta(float delta, long nowMillis, int viewportSize) {
             if (absoluteMeasurement) clearMeasuredPresentation(nowMillis);
             if (Math.abs(delta) < 0.5f) return;
-            measurementResidual = 0f;
+            eventMode = false;
             long gap = lastPresentationSampleTime <= 0L
                     ? Long.MAX_VALUE : nowMillis - lastPresentationSampleTime;
             boolean continuing = gap > 0L && gap <= PRESENTATION_MAX_GAP_MS;
@@ -243,8 +217,6 @@ final class ViewportMotion {
                     exact - maximumLead, exact + maximumLead);
             startVelocity = pollVelocity;
             anchorTime = nowMillis;
-            returnDuration = 0L;
-            authoritativeTrajectory = false;
             lastPresentationSampleTime = nowMillis;
             pollMoving = true;
         }
@@ -252,22 +224,20 @@ final class ViewportMotion {
         void settlePresentation(long nowMillis) {
             if (lastPresentationSampleTime <= 0L) return;
             float displayed = position(nowMillis);
-            measurementResidual = 0f;
             segmentStart = displayed;
             segmentTarget = pollMeasured;
             startVelocity = 0f;
             anchorTime = nowMillis;
             trajectoryDuration = Math.abs(segmentTarget - segmentStart) < 0.5f
                     ? 0L : PRESENTATION_SETTLE_MS;
-            returnDuration = 0L;
-            authoritativeTrajectory = false;
             lastPresentationSampleTime = nowMillis;
             pollVelocity = 0f;
             pollMoving = false;
         }
 
         void reset(float value, long nowMillis) {
-            measurementResidual = 0f;
+            eventMode = false;
+            eventTrajectory.reset(value, 0, nowMillis);
             absoluteMeasurement = false;
             absoluteSourceMillis = -1L;
             measurementOriginMillis = nowMillis;
@@ -278,10 +248,7 @@ final class ViewportMotion {
             startVelocity = 0f;
             anchorTime = nowMillis;
             trajectoryDuration = 0L;
-            returnDuration = 0L;
             lastEventTime = 0L;
-            lastDelta = 0f;
-            authoritativeTrajectory = false;
             lastPresentationSampleTime = 0L;
             pollMeasured = value;
             pollVelocity = 0f;
@@ -294,7 +261,8 @@ final class ViewportMotion {
             absoluteSourceMillis = -1L;
             measurementOriginMillis = nowMillis;
             float velocityBefore = velocity(nowMillis);
-            measurementResidual = 0f;
+            eventMode = false;
+            eventTrajectory.reset(value, 0, nowMillis);
             boolean pollingLive = lastPresentationSampleTime > 0L
                     && nowMillis - lastPresentationSampleTime <= PRESENTATION_MAX_GAP_MS;
             exact = value;
@@ -310,9 +278,7 @@ final class ViewportMotion {
                 trajectoryDuration = 0L;
             }
             anchorTime = nowMillis;
-            returnDuration = 0L;
-            authoritativeTrajectory = false;
-            // Keep lastEventTime, lastDelta, and lastPresentationSampleTime. Detector publication
+            // Keep lastEventTime and lastPresentationSampleTime. Detector publication
             // is a coordinate rebase, not the end of the user's scroll gesture.
         }
 
@@ -322,14 +288,12 @@ final class ViewportMotion {
                 int viewportSize,
                 boolean authoritative,
                 long eventSourceMillis) {
-            // Accessibility callbacks can arrive after their event-source timestamp. Replay an
-            // ordered sample at that source time so the next vsync observes the elapsed portion
-            // of its trajectory. Never rewrite history when a producer delivers out of order.
+            // Animation starts at delivery, never retroactively at the source timestamp.
+            // Source time still estimates event velocity and fences stale anchor reads.
             long sampleMillis = lastEventTime > 0L
                     ? Math.max(lastEventTime, nowMillis) : nowMillis;
             float velocityBefore = velocity(sampleMillis);
             float displayedBefore = position(sampleMillis);
-            measurementResidual = 0f;
             exact += delta;
             long sourceTime = Math.max(0L, Math.min(nowMillis, eventSourceMillis));
             lastAuthoritySourceMillis = Math.max(lastAuthoritySourceMillis, sourceTime);
@@ -338,7 +302,6 @@ final class ViewportMotion {
                 // This read already measured the page, including some or all of this event.
                 // Record authority, but do not add its displacement to measured presentation.
                 lastEventTime = sampleMillis;
-                lastDelta = delta;
                 return;
             }
             if (absoluteMeasurement) {
@@ -354,6 +317,7 @@ final class ViewportMotion {
                     ? Long.MAX_VALUE : sampleMillis - lastEventTime;
 
             if (!authoritative || Math.abs(delta) < 0.5f) {
+                eventMode = false;
                 segmentStart = displayedBefore;
                 segmentTarget = exact;
                 startVelocity = 0f;
@@ -362,10 +326,7 @@ final class ViewportMotion {
                         Math.min(MAX_FALLBACK_MS,
                                 gap == Long.MAX_VALUE ? MAX_FALLBACK_MS
                                         : Math.round(gap * 0.15f)));
-                returnDuration = 0L;
-                authoritativeTrajectory = false;
                 lastEventTime = sampleMillis;
-                lastDelta = delta;
                 return;
             }
 
@@ -385,84 +346,20 @@ final class ViewportMotion {
                     anchorTime = sampleMillis;
                     trajectoryDuration = Math.abs(segmentTarget - segmentStart) < 0.5f
                             ? 0L : PRESENTATION_SETTLE_MS;
-                    returnDuration = 0L;
-                    authoritativeTrajectory = false;
                     pollMeasured = exact;
                 }
                 lastEventTime = sampleMillis;
-                lastDelta = delta;
                 return;
             }
 
-            boolean firstSample = lastEventTime <= 0L || gap > MAX_SAMPLE_GAP_MS;
-            boolean reversal = !firstSample && lastDelta != 0f
-                    && Math.signum(lastDelta) != Math.signum(delta);
-            // Accessibility is coordinate authority, but a sparse event can arrive after the
-            // compositor has already moved several display frames. Correct the existing display
-            // trajectory without turning the entire late measurement into a single-frame jump.
-            float measurementError = exact - displayedBefore;
-            float correctionFraction = reversal
-                    ? REVERSAL_CORRECTION_FRACTION
-                    : SAME_DIRECTION_CORRECTION_FRACTION;
-            float correctionLimit = reversal
-                    ? MAX_REVERSAL_JUMP_PX : MAX_CORRECTION_JUMP_PX;
-            segmentStart = firstSample
-                    ? exact
-                    : displayedBefore + clamp(measurementError * correctionFraction,
-                            -correctionLimit, correctionLimit);
-            float maximumPhaseError = Math.max(MIN_PHASE_ERROR_PX,
-                    Math.max(1, viewportSize) * MAX_PHASE_ERROR_VIEWPORT_FRACTION);
-            segmentStart = clamp(segmentStart,
-                    exact - maximumPhaseError, exact + maximumPhaseError);
-
-            long observedGap = firstSample ? DEFAULT_SAMPLE_GAP_MS
-                    : Math.max(1L, Math.min(MAX_SAMPLE_GAP_MS, gap));
-            float predictedDelta = predictedNextDelta(
-                    delta, lastDelta, firstSample, reversal, observedGap, viewportSize);
-            segmentTarget = exact + predictedDelta;
-            if (Math.abs(predictedDelta) < 0.5f) {
-                // A reversal or a sharply decelerating tail is evidence that the old velocity is
-                // finished, not a reason to keep projecting it for another 120-300 ms. Brake to
-                // the measured coordinate in one display frame (two on reversal) with no return
-                // leg; steady streams keep the existing long trajectory below.
-                segmentTarget = exact;
-                trajectoryDuration = Math.abs(segmentTarget - segmentStart) < 0.5f
-                        ? 0L : reversal ? 32L : 16L;
-                returnDuration = 0L;
-            } else {
-                // The bounded immediate correction above remains the initial displayed value.
-                // Finish its remaining measured displacement in one frame, independently of
-                // the slower forecast. Otherwise already-known motion waits 72-180 ms merely
-                // because this sample also has a nonzero prediction.
-                measurementResidual = segmentStart - exact;
-                segmentStart = exact;
-                trajectoryDuration = Math.max(MIN_TRAJECTORY_MS,
-                        Math.min(MAX_TRAJECTORY_MS, Math.round(observedGap * 1.28f)));
-                returnDuration = Math.max(MIN_RETURN_MS,
-                        Math.min(MAX_RETURN_MS, Math.round(observedGap * 0.90f)));
-            }
-
-            float nominalVelocity = predictedDelta / Math.max(1L, trajectoryDuration);
-            if (firstSample) {
-                startVelocity = delta / Math.max(1f, observedGap) * 0.72f;
-            } else if (reversal) {
-                startVelocity = 0f;
-            } else {
-                float maximumVelocity = Math.max(Math.abs(nominalVelocity) * 1.8f, 0.25f);
-                startVelocity = clamp(velocityBefore, -maximumVelocity, maximumVelocity);
-                if (nominalVelocity != 0f
-                        && Math.signum(startVelocity) != Math.signum(nominalVelocity)) {
-                    startVelocity = 0f;
-                }
-            }
-            anchorTime = sampleMillis;
-            authoritativeTrajectory = true;
+            if (!eventMode) eventTrajectory.reset(displayedBefore, velocityBefore, sampleMillis);
+            eventMode = true;
+            eventTrajectory.measure(exact, delta, sourceTime, sampleMillis, viewportSize);
             lastEventTime = sampleMillis;
-            lastDelta = delta;
             // This event, rather than the tentative single poll sample, owned presentation.
             // Re-anchor the poll estimator so later samples cannot continue from the pre-event
             // coordinate space and pull the overlay backward.
-            pollMeasured = segmentStart + measurementResidual;
+            pollMeasured = eventTrajectory.position(sampleMillis);
             pollVelocity = 0f;
             consecutivePollSamples = 0;
             lastPresentationSampleTime = 0L;
@@ -470,6 +367,7 @@ final class ViewportMotion {
         }
 
         float position(long nowMillis) {
+            if (eventMode) return eventTrajectory.position(nowMillis);
             if (absoluteMeasurement && nowMillis - absoluteSourceMillis > 48L) {
                 long expiredAge = nowMillis - absoluteSourceMillis - 48L;
                 if (expiredAge >= 16L) return exact;
@@ -479,84 +377,47 @@ final class ViewportMotion {
             long age = Math.max(0L, nowMillis - anchorTime);
             if (age <= trajectoryDuration) {
                 float progress = age / (float) trajectoryDuration;
-                float endTangent = !authoritativeTrajectory && pollMoving
+                float endTangent = pollMoving
                         ? startVelocity * trajectoryDuration : 0f;
                 float value = hermite(segmentStart, segmentTarget,
                         startVelocity * trajectoryDuration, endTangent, progress);
-                float residual = measurementResidual
-                        * (1f - smootherStep(age / (float) MEASUREMENT_RECONCILIATION_MS));
-                return clampBetween(clampBetween(value, segmentStart, segmentTarget) + residual,
-                        segmentStart + measurementResidual, segmentTarget);
+                return clampBetween(value, segmentStart, segmentTarget);
             }
-            if (!authoritativeTrajectory || returnDuration <= 0L) return segmentTarget;
-            long returnAge = age - trajectoryDuration;
-            if (returnAge >= returnDuration) return exact;
-            float progress = returnAge / (float) returnDuration;
-            float eased = smootherStep(progress);
-            return segmentTarget + (exact - segmentTarget) * eased;
+            return segmentTarget;
         }
 
         float velocity(long nowMillis) {
+            if (eventMode) return eventTrajectory.velocity(nowMillis);
             if (trajectoryDuration <= 0L) return 0f;
             long age = Math.max(0L, nowMillis - anchorTime);
             if (age < trajectoryDuration) {
                 float progress = age / (float) trajectoryDuration;
-                float endTangent = !authoritativeTrajectory && pollMoving
+                float endTangent = pollMoving
                         ? startVelocity * trajectoryDuration : 0f;
                 float tangent = hermiteDerivative(segmentStart, segmentTarget,
                         startVelocity * trajectoryDuration, endTangent, progress);
-                float correctionVelocity = -measurementResidual
-                        * smootherStepDerivative(age / (float) MEASUREMENT_RECONCILIATION_MS)
-                        / MEASUREMENT_RECONCILIATION_MS;
-                return tangent / trajectoryDuration + correctionVelocity;
+                return tangent / trajectoryDuration;
             }
-            if (!authoritativeTrajectory || returnDuration <= 0L
-                    || age >= trajectoryDuration + returnDuration) return 0f;
-            float progress = (age - trajectoryDuration) / (float) returnDuration;
-            float derivative = smootherStepDerivative(progress);
-            return (exact - segmentTarget) * derivative / returnDuration;
+            return 0f;
         }
 
         boolean isAnimating(long nowMillis) {
+            if (eventMode) return eventTrajectory.isAnimating(nowMillis);
             if (absoluteMeasurement) return nowMillis - absoluteSourceMillis < 64L
                     && (Math.abs(segmentTarget - segmentStart) > .01f
                     || Math.abs(segmentTarget - exact) > .01f);
             if (trajectoryDuration <= 0L) return false;
-            long total = trajectoryDuration
-                    + (authoritativeTrajectory ? returnDuration : 0L);
-            return nowMillis - anchorTime < total;
+            return nowMillis - anchorTime < trajectoryDuration;
         }
 
         float predictionAmplitude() {
-            return segmentTarget - exact;
+            return eventMode ? eventTrajectory.predictionAmplitude() : segmentTarget - exact;
         }
 
-    private static float predictedNextDelta(
-            float delta,
-            float previousDelta,
-            boolean firstSample,
-            boolean reversal,
-            long observedGap,
-            int viewportSize) {
-        if (reversal) return 0f;
-        float magnitude = Math.abs(delta);
-        if (magnitude < MIN_PREDICTABLE_DELTA_PX) return 0f;
-        if (!firstSample && previousDelta != 0f) {
-            // Linear two-sample deceleration estimate. When the current displacement has fallen
-            // below half the previous one, its forward continuation reaches zero immediately.
-            magnitude = Math.max(0f, Math.min(magnitude,
-                    2f * magnitude - Math.abs(previousDelta)));
-            if (magnitude < MIN_PREDICTABLE_DELTA_PX) return 0f;
+        long predictionPeakMillis() {
+            return eventMode ? eventTrajectory.predictionPeakMillis() : trajectoryDuration;
         }
-        long horizon = firstSample ? FIRST_SAMPLE_HORIZON_MS
-                : reversal ? REVERSAL_HORIZON_MS : CONTINUING_HORIZON_MS;
-            float predictedMagnitude = magnitude * horizon / Math.max(1f, observedGap);
-            predictedMagnitude = Math.min(predictedMagnitude,
-                    magnitude * MAX_PREDICTION_SAMPLE_FRACTION);
-            float maximum = Math.max(24f,
-                    Math.max(1, viewportSize) * MAX_PREDICTION_VIEWPORT_FRACTION);
-            return Math.signum(delta) * Math.min(predictedMagnitude, maximum);
-        }
+
     }
 
     private static float hermite(
@@ -589,11 +450,6 @@ final class ViewportMotion {
     private static float smootherStep(float value) {
         float t = clamp(value, 0f, 1f);
         return t * t * t * (t * (t * 6f - 15f) + 10f);
-    }
-
-    private static float smootherStepDerivative(float value) {
-        float t = clamp(value, 0f, 1f);
-        return 30f * t * t * (t * (t - 2f) + 1f);
     }
 
     private static float clampBetween(float value, float first, float second) {

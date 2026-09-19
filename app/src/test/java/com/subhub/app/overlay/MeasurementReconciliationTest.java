@@ -5,7 +5,7 @@ import static org.junit.Assert.*;
 
 /** Reported movement must not wait for the speculative continuation horizon. */
 public final class MeasurementReconciliationTest {
-    @Test public void reportedTraceCatchesUpWithin16msOnBothAxesAndDirections() {
+    @Test public void reportedTraceHasNoTeleportAndRemainsCaughtUpOnBothAxesAndDirections() {
         for (boolean horizontal : new boolean[]{false, true}) {
             for (int sign : new int[]{-1, 1}) {
                 for (int step : new int[]{8, 16}) {
@@ -16,12 +16,11 @@ public final class MeasurementReconciliationTest {
                     float before = axis(motion.position(1117), horizontal);
                     motion.addDelta(horizontal ? sign * 324 : 0, horizontal ? 0 : sign * 324,
                             1117, 2992, 2992, true);
-                    assertEquals(before + sign * 56f, axis(motion.position(1117), horizontal), .001f);
-                    assertEquals(150L, motion.predictionPeakMillis());
-                    assertEquals(sign * 95.3846f, axis(motion.predictionAmplitude(), horizontal), .001f);
+                    assertEquals(before, axis(motion.position(1117), horizontal), .001f);
+                    assertTrue(Math.abs(axis(motion.predictionAmplitude(), horizontal)) <= 2992 * .18f);
                     for (int age = step; age <= 32; age += step) {
                         float value = sign * axis(motion.position(1117 + age), horizontal);
-                        assertTrue(value <= 662f + 95.385f);
+                        assertTrue(value <= 662f + 2992 * .18f);
                         if (age >= 16) assertTrue(value >= 662f);
                     }
                     assertEquals(sign * 662f, axis(motion.position(2000), horizontal), .001f);
@@ -37,8 +36,8 @@ public final class MeasurementReconciliationTest {
     private static ViewportMotion pending() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0, 0, 0);
-        motion.addDelta(0, -338, 1000, 1344, 2992, true);
-        motion.addDelta(0, -324, 1117, 1344, 2992, true);
+        motion.addDelta(0, -200, 1000, 1344, 2992, true);
+        motion.addDelta(0, -462, 1117, 1344, 2992, true);
         assertTrue(motion.position(1121).y > -662f);
         return motion;
     }
@@ -65,9 +64,9 @@ public final class MeasurementReconciliationTest {
         assertEquals(-682f, fallback.position(1137).y, .001f);
         for (int delta : new int[]{20, -20}) {
             ViewportMotion motion = pending();
-            motion.addDelta(0, delta, 1121, 1344, 2992, true);
+            motion.addDelta(0, delta, 1234, 1344, 2992, true);
             assertEquals(0f, motion.predictionAmplitude().y, .001f);
-            assertEquals(-662f + delta, motion.position(1153).y, .001f);
+            assertEquals(-662f + delta, motion.position(1266).y, .001f);
         }
     }
 }

@@ -30,7 +30,7 @@ public final class ViewportMotionTest {
         assertFalse(motion.isMeasuredPresentationMode());
     }
 
-    @Test public void hostTraceMeasurementCatchesUpWithinOneFrameWithoutExtendingPrediction() {
+    @Test public void hostTraceStaysContinuousAndCaughtUpWithoutUnboundedPrediction() {
         for (boolean horizontal : new boolean[]{false, true}) {
             for (int direction : new int[]{-1, 1}) {
                 for (int frameStep : new int[]{8, 16}) {
@@ -44,16 +44,14 @@ public final class ViewportMotionTest {
                             horizontal ? 0 : direction * 324,
                             3_761_396L, 2_992, 2_992, true, 3_761_387L);
                     float initial = axis(motion.position(3_761_396L), horizontal);
-                    assertEquals("existing bounded immediate correction",
-                            before + direction * 56f, initial, .001f);
-                    assertEquals(150L, motion.predictionPeakMillis());
+                    assertEquals("no measurement teleport", before, initial, .001f);
                     float amplitude = axis(motion.predictionAmplitude(), horizontal);
-                    assertEquals(direction * 95.3846f, amplitude, .001f);
+                    assertTrue(Math.abs(amplitude) <= 2992f * .18f);
                     float previous = initial;
                     for (int elapsed = frameStep; elapsed <= 32; elapsed += frameStep) {
                         float displayed = axis(motion.position(3_761_396L + elapsed), horizontal);
                         assertTrue("no backward correction", direction * (displayed - previous) >= -.001f);
-                        assertTrue("no extra prediction", direction * displayed <= 662f + Math.abs(amplitude) + .001f);
+                        assertTrue("bounded prediction", direction * displayed <= 662f + Math.abs(amplitude) + .001f);
                         if (elapsed >= 16) {
                             assertTrue("known displacement caught up by " + elapsed,
                                     direction * displayed >= 662f - .001f);
@@ -73,8 +71,8 @@ public final class ViewportMotionTest {
     private static ViewportMotion pendingMeasurementCorrection() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0, 0, 0);
-        motion.addDelta(0, -338, 1000, 1344, 2992, true);
-        motion.addDelta(0, -324, 1117, 1344, 2992, true);
+        motion.addDelta(0, -200, 1000, 1344, 2992, true);
+        motion.addDelta(0, -462, 1117, 1344, 2992, true);
         assertTrue(motion.position(1121).y > -662f);
         return motion;
     }
@@ -113,10 +111,10 @@ public final class ViewportMotionTest {
         assertEquals(-682f, fallback.position(1137).y, .001f);
         for (int delta : new int[]{20, -20}) {
             ViewportMotion motion = pendingMeasurementCorrection();
-            motion.addDelta(0, delta, 1121, 1344, 2992, true);
+            motion.addDelta(0, delta, 1234, 1344, 2992, true);
             assertEquals(0f, motion.predictionAmplitude().y, .001f);
-            assertEquals(-662f + delta, motion.position(1153).y, .001f);
-            assertEquals(-662f + delta, motion.position(1250).y, .001f);
+            assertEquals(-662f + delta, motion.position(1266).y, .001f);
+            assertEquals(-662f + delta, motion.position(1400).y, .001f);
         }
     }
 
@@ -232,7 +230,7 @@ public final class ViewportMotionTest {
     }
 
     @Test
-    public void steadySparseStreamRebasesEveryEventToMeasuredPosition() {
+    public void steadySparseStreamRemainsContinuousAndPromptlyReconcilesMeasurements() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
         long now = 16L;
@@ -252,8 +250,9 @@ public final class ViewportMotionTest {
             motion.addDelta(0f, -400f, nextEvent, 1_344, 2_992, true);
             float afterEvent = motion.position(nextEvent).y;
             float exact = -400f * (event + 1);
-            assertTrue(Math.abs(afterEvent - exact) <= 2_992f * 0.08f + 0.001f);
-            assertTrue(Math.abs(afterEvent - beforeEvent) <= 2_992f * 0.08f + 0.001f);
+            assertTrue(Math.abs(motion.position(nextEvent + 16L).y - exact)
+                    <= 2_992f * 0.08f + 0.001f);
+            assertEquals(beforeEvent, afterEvent, .001f);
             largestDisplayStep = Math.max(largestDisplayStep,
                     Math.abs(afterEvent - previous));
             previous = afterEvent;
@@ -279,7 +278,8 @@ public final class ViewportMotionTest {
             for (int deltaIndex = 0; deltaIndex <= index; deltaIndex++) {
                 expected += deltas[deltaIndex];
             }
-            assertTrue(Math.abs(after - expected) <= 2_992f * 0.08f + 0.001f);
+            assertTrue(Math.abs(motion.position(times[index] + 16L).y - expected)
+                    <= 2_992f * 0.08f + 0.001f);
             assertTrue(after <= previous + 0.001f);
             previous = after;
         }
@@ -297,8 +297,8 @@ public final class ViewportMotionTest {
         float atReverse = motion.position(244L).y;
         float afterReverse = motion.position(284L).y;
 
-        assertTrue(Math.abs(atReverse - -360f) <= 2_992f * 0.08f + 0.001f);
-        assertTrue(Math.abs(atReverse - beforeReverse) <= 96.001f);
+        assertEquals(beforeReverse, atReverse, .001f);
+        assertEquals(-360f, motion.position(276L).y, .001f);
         assertTrue(afterReverse > atReverse);
     }
 
@@ -315,15 +315,15 @@ public final class ViewportMotionTest {
     }
 
     @Test
-    public void sharplyDeceleratingTailBrakesInOneDisplayFrame() {
+    public void sharplyDeceleratingTailBrakesContinuouslyWithin32ms() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
         motion.addDelta(0f, -240f, 16L, 1_344, 2_992, true);
         motion.addDelta(0f, -30f, 130L, 1_344, 2_992, true);
 
         assertEquals(0f, motion.predictionAmplitude().y, 0.001f);
-        assertEquals(-270f, motion.position(146L).y, 0.001f);
-        assertFalse(motion.isAnimating(147L));
+        assertEquals(-270f, motion.position(162L).y, 0.001f);
+        assertFalse(motion.isAnimating(163L));
     }
 
     @Test
