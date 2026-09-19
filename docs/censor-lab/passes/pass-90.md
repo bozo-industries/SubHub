@@ -51,3 +51,24 @@ artifact. Do not publish or move a release tag. Once the Pixel is available, com
 matched control/candidate traces and obtain the user's verdict on first coverage,
 quality arrival, lag/trailing, scroll reversals, grouping, text stability and flashes.
 Accessibility acceptance and subsequent MediaProjection work are still outstanding.
+
+## Signed candidate and installation
+
+Artifact-only Actions run `35443194763` succeeded from source/workflow commit
+`63ee58032b0f6832d1f0a51b0ad000a51f20b852`, immediate-quality flag **true**.
+Public release/tag steps were skipped. The ARM64 APK SHA-256 is
+`e2a6138b2038ea9edc843a6636e7d841683524c05ed6e96f6a82b466790f8138`.
+Its signing certificate SHA-256 is
+`3ad7c66a3b50ddc0d71b8907f7f91926e39287f2c4f1def67831a30d439260dd`.
+
+The user explicitly requested a wireless Pixel update. After discovering that same
+Pixel through ADB mDNS, its previous APK was backed up and its certificate matched.
+The update used replace-install without uninstalling or clearing data. Installed APK
+hash read back exactly as above; version remains 0.6.3/code 19. The Accessibility
+service was observed running after installation. Previous APK backup SHA-256:
+`82781925205bbab63f4fd635d696de56e0d3bb13d3dc3129c621726ad0346918`.
+
+The matched flag-off Actions run `35443365698` also succeeded from the same source;
+local control-artifact download/verification is pending at this checkpoint. The
+enabled candidate is installed, not the control. User testing has been requested;
+no post-update perceived verdict or measured performance improvement is claimed.
