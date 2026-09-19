@@ -63,6 +63,15 @@ This removes one admission blocker, not proof that X can supply trustworthy
 independent geometry. Unknown producer identities still fail closed and require device
 diagnostics before changing that boundary.
 
+Private signing run `35469182897` succeeded for exact source
+`bbe4b52aa973cf7a0a1108e1b64698a197692a28`. Compact artifact `10592680880` has
+immediate-quality enabled and `publishedRelease=false`; source/workflow provenance,
+the APK checksum, and the installed-compatible signing certificate were verified.
+APK SHA-256: `3d662eee7657de3e7d82cd65cf2a5053b77cbfbbf3fa226d21ec678d1bfbd6a9`.
+Certificate SHA-256: `3ad7c66a3b50ddc0d71b8907f7f91926e39287f2c4f1def67831a30d439260dd`.
+No release/tag was published, and the phone remains on Pass 94. The user was offered
+installation now versus waiting for the avatar fix; no reply has been received yet.
+
 No new candidate is installed. Capture age, queue drops, preprocessing/inference/
 postprocessing time, publication latency, on-device layout cost, size-change rate,
 group split rate, and avatar presence continuity have NOT been measured on this
