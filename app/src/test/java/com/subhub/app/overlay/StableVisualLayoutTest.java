@@ -8,6 +8,29 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public final class StableVisualLayoutTest {
+    @Test public void contradictoryFaceAndChestLabelsDoNotSplitStaticOverlappingBody() {
+        StableVisualLayout layout = new StableVisualLayout();
+        List<RenderTrackSnapshot> input = List.of(
+                cached(40, "face", 239, 49, 195, 172),
+                box(1, "face", 201, 404, 282, 260),
+                box(2, "breasts_covered", -3, 324, 268, 275),
+                box(3, "belly", -7, 641, 337, 202),
+                box(4, "genitals_covered", -18, 895, 203, 146),
+                cached(41, "breasts_covered", 206, 405, 272, 258),
+                cached(42, "belly", -28, 611, 360, 262),
+                cached(43, "genitals_covered", -38, 867, 190, 182));
+        List<RenderTrackSnapshot> result = layout.update(input, .14f, 100);
+        assertEquals("One separate head and one connected body, not overlapping labels: "
+                + result.stream().map(item -> layout.memberIds(item.id()).toString()).collect(java.util.stream.Collectors.joining(";")),
+                2, result.size());
+        RenderTrackSnapshot body = result.stream().filter(item -> layout.memberIds(item.id()).contains(2)).findFirst().get();
+        assertTrue(layout.memberIds(body.id()).containsAll(List.of(1, 2, 3, 4)));
+    }
+
+    private static RenderTrackSnapshot cached(int id, String category, int x, int y, int w, int h) {
+        return new RenderTrackSnapshot(id, category, new BBox(x, y, w, h), 0, 0, true);
+    }
+
     @Test public void touchingPaddedTorsoFootprintsMergeEvenWhenRawBoxesAreSeparate() {
         StableVisualLayout layout = new StableVisualLayout();
         List<RenderTrackSnapshot> result = layout.update(List.of(
@@ -57,6 +80,62 @@ public final class StableVisualLayoutTest {
         assertEquals(1, layout.heldGroups());
         assertEquals(1, layout.update(split, 0f, 600).size());
         assertEquals(2, layout.update(split, 0f, 701).size());
+    }
+
+    @Test public void movingMaskKeepsSettledSizeWhileFollowingNewCenter() {
+        StableVisualLayout layout = new StableVisualLayout();
+        RenderTrackSnapshot initial = layout.update(List.of(box(1, "face", 100, 100, 100, 100)), .2f, 100).get(0);
+        for (int step = 1; step <= 20; step++) {
+            int x = 100 + step * 30, y = 100 - step * 20;
+            RenderTrackSnapshot next = layout.update(List.of(box(1, "face", x, y,
+                    100 + step % 3 - 1, 100)), .2f, 100 + step * 100).get(0);
+            assertEquals(initial.id(), next.id());
+            assertEquals(140, next.box().getWidth());
+            assertEquals(140, next.box().getHeight());
+            assertTrue(Math.abs(next.box().getCenterX() - (x + 50)) <= 1);
+            assertEquals(y + 50, next.box().getCenterY(), 0f);
+        }
+    }
+
+    @Test public void movingMaskImmediatelyExpandsForRawCoverageAndAcceptsMeaningfulResize() {
+        StableVisualLayout layout = new StableVisualLayout();
+        layout.update(List.of(box(1, "face", 100, 100, 100, 100)), 0f, 100);
+        BBox expanded = layout.update(List.of(box(1, "face", 200, 200, 103, 102)), 0f, 200).get(0).box();
+        assertTrue(expanded.getX() <= 200 && expanded.getY() <= 200);
+        assertTrue(expanded.getRight() >= 303 && expanded.getBottom() >= 302);
+        assertEquals(new BBox(300, 300, 60, 70),
+                layout.update(List.of(box(1, "face", 300, 300, 60, 70)), 0f, 300).get(0).box());
+    }
+
+    @Test public void movingBodyUnionKeepsSizeAndStillCoversEveryRawMember() {
+        StableVisualLayout layout = new StableVisualLayout();
+        RenderTrackSnapshot initial = null;
+        for (int step = 0; step < 12; step++) {
+            int shift = step * 40;
+            List<RenderTrackSnapshot> input = List.of(
+                    box(1, "breasts", shift, shift, 100 + step % 2, 100),
+                    box(2, "belly", shift, shift + 65, 100, 100 + step % 2));
+            List<RenderTrackSnapshot> output = layout.update(input, .2f, 100 + step * 100);
+            assertEquals(1, output.size());
+            RenderTrackSnapshot body = output.get(0);
+            if (initial == null) initial = body;
+            assertEquals(initial.id(), body.id());
+            assertEquals(initial.box().getWidth(), body.box().getWidth());
+            assertEquals(initial.box().getHeight(), body.box().getHeight());
+            for (RenderTrackSnapshot member : input) {
+                assertTrue(body.box().getX() <= member.box().getX());
+                assertTrue(body.box().getY() <= member.box().getY());
+                assertTrue(body.box().getRight() >= member.box().getRight());
+                assertTrue(body.box().getBottom() >= member.box().getBottom());
+            }
+        }
+    }
+
+    @Test public void textDoesNotUseVisualSizeHysteresis() {
+        StableVisualLayout layout = new StableVisualLayout();
+        layout.update(List.of(box(1, "text_smut", 100, 100, 100, 100)), 0f, 100);
+        assertEquals(new BBox(130, 140, 102, 101), layout.update(
+                List.of(box(1, "text_smut", 130, 140, 102, 101)), 0f, 200).get(0).box());
     }
 
     @Test public void realGapIsNeverBridgedByHysteresis() {

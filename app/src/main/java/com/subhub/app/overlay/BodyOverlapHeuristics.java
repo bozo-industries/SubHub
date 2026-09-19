@@ -23,6 +23,10 @@ final class BodyOverlapHeuristics {
         // growing unions: a chain of face boxes must not collapse three distinct heads.
         for (RenderTrackSnapshot item : ordered) {
             if (!isHead(item.category())) continue;
+            // Conflicting labels on essentially the same raw region are not independent
+            // person evidence. Keep both masks, but do not let an ambiguous face hint
+            // veto torso consolidation. Padded overlap alone must never trigger this.
+            if (hasContradictoryBodyLabel(item, ordered)) continue;
             int owner = -1;
             for (int index = 0; index < heads.size(); index++) {
                 RenderTrackSnapshot head = heads.get(index);
@@ -41,6 +45,17 @@ final class BodyOverlapHeuristics {
         for (RenderTrackSnapshot item : ordered) {
             if (!isHead(item.category())) owners.put(item, nearestHead(item));
         }
+    }
+
+    private static boolean hasContradictoryBodyLabel(RenderTrackSnapshot head,
+            List<RenderTrackSnapshot> items) {
+        for (RenderTrackSnapshot item : items) {
+            if (isBody(item.category()) && head.reference().sameBasis(item.reference())
+                    && head.associationBox().intersectionOverUnion(item.associationBox()) >= .85f) {
+                return true;
+            }
+        }
+        return false;
     }
 
     boolean oneBody(List<RenderTrackSnapshot> first, List<RenderTrackSnapshot> second) {

@@ -47,10 +47,10 @@ final class StableVisualLayout {
                     ? Math.min(.025f, padding) : padding);
             String key = key(raw);
             Footprint old = footprints.get(key);
-            if (bounded && !isText(raw) && old != null && old.reference.sameBasis(raw.reference())
-                    && near(old.box, item.box()) && contains(old.box, raw.associationBox())) {
-                item = item.withRenderBox(old.box, item.id());
-                frozenGeometry++;
+            if (bounded && !isText(raw) && old != null && old.reference.sameBasis(raw.reference())) {
+                BBox settled = settleSize(old.box, item.box(), raw.associationBox());
+                if (!settled.equals(item.box()) || settled.equals(old.box)) frozenGeometry++;
+                item = item.withRenderBox(settled, item.id());
             }
             padded.add(item);
             if (bounded) {
@@ -76,10 +76,14 @@ final class StableVisualLayout {
             }
             Group old = bounded ? bestPrevious(component, used) : null;
             BBox box = component.snapshot.box();
-            if (old != null && near(old.snapshot.box(), box)
-                    && containsRawMembers(old.snapshot.box(), component.sources)) {
-                box = old.snapshot.box();
-                frozenGeometry++;
+            if (old != null) {
+                BBox rawCoverage = component.sources.get(0).associationBox();
+                for (RenderTrackSnapshot source : component.sources) {
+                    rawCoverage = union(rawCoverage, source.associationBox());
+                }
+                BBox settled = settleSize(old.snapshot.box(), box, rawCoverage);
+                if (!settled.equals(box) || settled.equals(old.snapshot.box())) frozenGeometry++;
+                box = settled;
             }
             int id = old == null ? nextVisualId++ : old.snapshot.id();
             // Layout owns geometry changes (including singletons). Do not reintroduce per-vsync
@@ -186,9 +190,20 @@ final class StableVisualLayout {
                 && Math.abs(first.getBottom() - second.getBottom()) <= tolerance;
     }
 
-    private static boolean containsRawMembers(BBox outer, List<RenderTrackSnapshot> sources) {
-        for (RenderTrackSnapshot item : sources) if (!contains(outer, item.associationBox())) return false;
-        return true;
+    private static BBox settleSize(BBox previous, BBox proposed, BBox raw) {
+        // Stationary noise still uses the position deadband. Real translation must not
+        // disable size hysteresis: follow the new center using the settled dimensions.
+        if (near(previous, proposed) && contains(previous, raw)) return previous;
+        int tolerance = Math.max(3, Math.min(12,
+                Math.round(Math.min(previous.getWidth(), previous.getHeight()) * .04f)));
+        int width = Math.abs(previous.getWidth() - proposed.getWidth()) <= tolerance
+                ? previous.getWidth() : proposed.getWidth();
+        int height = Math.abs(previous.getHeight() - proposed.getHeight()) <= tolerance
+                ? previous.getHeight() : proposed.getHeight();
+        BBox translated = new BBox(proposed.getX() + Math.round((proposed.getWidth() - width) / 2f),
+                proposed.getY() + Math.round((proposed.getHeight() - height) / 2f), width, height);
+        // Padding can absorb detector noise, but detected pixels must never be clipped.
+        return union(translated, raw);
     }
 
     private static boolean contains(BBox outer, BBox inner) {

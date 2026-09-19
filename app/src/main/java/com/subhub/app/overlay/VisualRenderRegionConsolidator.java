@@ -110,7 +110,9 @@ final class VisualRenderRegionConsolidator {
                 largestHeight = Math.max(largestHeight, source.box().getHeight());
             }
         }
-        float maximumSpan = bodyPass ? 2.25f : 1.9f;
+        // A connected chest/abdomen/pelvis chain can span three part heights.
+        // Head separation and pairwise overlap still gate every body merge.
+        float maximumSpan = bodyPass ? 3f : 1.9f;
         if (merged.getWidth() > largestWidth * maximumSpan
                 || merged.getHeight() > largestHeight * maximumSpan) return false;
         long unionArea = merged.getArea();
@@ -120,7 +122,7 @@ final class VisualRenderRegionConsolidator {
         float expansion = largestArea <= 0L ? Float.MAX_VALUE
                 : unionArea / (float) largestArea;
         return fill >= MIN_UNION_FILL
-                && expansion <= (bodyPass ? 3f : MAX_UNION_TO_LARGEST_MEMBER);
+                && expansion <= MAX_UNION_TO_LARGEST_MEMBER;
     }
 
     private static float bodyAffinity(Cluster first, Cluster second, BodyOverlapHeuristics bodies) {
