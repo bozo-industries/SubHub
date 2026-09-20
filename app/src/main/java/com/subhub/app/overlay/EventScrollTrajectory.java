@@ -13,6 +13,8 @@ final class EventScrollTrajectory {
     private long anchoredAt, lastSourceTime = -1;
     private boolean sampled;
     private boolean braking;
+    private boolean holdingOvershoot;
+    private float heldPosition, heldDirection;
     private float lastObservedSpeed;
     private int samplesReceived;
     private float correctionRate = CORRECTION_RATE;
@@ -36,6 +38,8 @@ final class EventScrollTrajectory {
         lastSourceTime = -1;
         sampled = false;
         braking = false;
+        holdingOvershoot = false;
+        heldPosition = heldDirection = 0;
         lastObservedSpeed = 0;
         samplesReceived = 0;
     }
@@ -52,6 +56,8 @@ final class EventScrollTrajectory {
         float interval = gap > 0 && gap <= 250 ? gap : fallbackInterval;
         float nextSpeed = ordered ? delta / interval : 0;
         float observedSpeed = nextSpeed;
+        boolean sameDirection = sampled && gap > 0 && gap <= 250 && delta != 0
+                && Math.signum(observedSpeed) == Math.signum(lastObservedSpeed);
         if (sampled && gap > 0 && gap <= 250 && lastObservedSpeed != 0) {
             if (Math.signum(nextSpeed) != Math.signum(lastObservedSpeed)) nextSpeed = 0;
             else if (Math.abs(nextSpeed) < Math.abs(lastObservedSpeed)) {
@@ -99,6 +105,14 @@ final class EventScrollTrajectory {
         returnStartMs = Math.max(coastMs + BRAKE_MS, returnDelay);
         error = displayed - exact;
         errorVelocity = displayedVelocity - speed;
+        // Slower forward input is not reverse input. An old forecast can already be
+        // ahead of the newest measured coordinate. Pulling that error back immediately
+        // makes masks reverse while the page continues forward. Hold that display-only
+        // lead until the bounded forecast catches it, or until fresh input expires.
+        // A real stop/reversal, reset, or discontinuity still corrects to authority.
+        holdingOvershoot = sameDirection && error * delta > 0;
+        heldPosition = displayed;
+        heldDirection = Math.signum(delta);
         braking = Math.abs(speed) < .001f;
         if (braking) {
             // Stop/reversal measurements supersede the old velocity. A monotone,
@@ -116,12 +130,25 @@ final class EventScrollTrajectory {
     float position(long now) {
         if (!sampled) return initialPosition;
         float age = Math.max(0L, now - anchoredAt);
+        if (holdingOvershoot) {
+            if (age <= returnStartMs) return furthest(heldPosition, exact + forecast(age));
+            float t = Math.min(1, (age - returnStartMs) / RETURN_MS);
+            return exact + heldPeakOffset() * (1 - smooth(t));
+        }
         return exact + forecast(age) + correction(age);
     }
 
     float velocity(long now) {
         if (!sampled) return initialVelocity;
         float age = Math.max(0L, now - anchoredAt);
+        if (holdingOvershoot) {
+            if (age <= returnStartMs) {
+                return heldDirection * (exact + forecast(age) - heldPosition) > 0
+                        ? forecastVelocity(age) : 0;
+            }
+            float t = Math.min(1, (age - returnStartMs) / RETURN_MS);
+            return -heldPeakOffset() * (30 * t * t * (t * (t - 2) + 1)) / RETURN_MS;
+        }
         if (braking) return brakeVelocity(age);
         float correction = age >= CORRECTION_END_MS ? 0
                 : (float) ((errorVelocity - correctionRate
@@ -161,14 +188,21 @@ final class EventScrollTrajectory {
 
     boolean isAnimating(long now) {
         if (!sampled) return false;
+        if (holdingOvershoot) return now - anchoredAt < returnStartMs + RETURN_MS;
         if (braking) return Math.abs(error) > .001f && now - anchoredAt < MEASURED_BRAKE_MS;
         return now - anchoredAt < Math.max(CORRECTION_END_MS, returnStartMs + RETURN_MS)
                 && (Math.abs(error) > .001f || Math.abs(errorVelocity) > .001f
                 || Math.abs(peak) > .001f);
     }
 
-    float predictionAmplitude() { return peak; }
-    long predictionPeakMillis() { return Math.round(coastMs + BRAKE_MS); }
+    float predictionAmplitude() { return holdingOvershoot ? heldPeakOffset() : peak; }
+    long predictionPeakMillis() {
+        return holdingOvershoot && heldDirection * (heldPosition - exact - peak) >= 0
+                ? 0 : Math.round(coastMs + BRAKE_MS);
+    }
+
+    private float furthest(float a, float b) { return heldDirection > 0 ? Math.max(a, b) : Math.min(a, b); }
+    private float heldPeakOffset() { return furthest(heldPosition, exact + peak) - exact; }
 
     private float brakeVelocity(float age) {
         float t = Math.min(1, age / MEASURED_BRAKE_MS);

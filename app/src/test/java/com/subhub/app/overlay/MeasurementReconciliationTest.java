@@ -56,7 +56,7 @@ public final class MeasurementReconciliationTest {
         }
     }
 
-    @Test public void fallbackReversalAndDecelerationStillBrake() {
+    @Test public void fallbackAndReversalBrakeButContinuedDirectionDoesNotPullBackward() {
         ViewportMotion fallback = pending();
         float start = fallback.position(1121).y;
         fallback.addDelta(0, -20, 1121, 1344, 2992, false);
@@ -64,9 +64,19 @@ public final class MeasurementReconciliationTest {
         assertEquals(-682f, fallback.position(1137).y, .001f);
         for (int delta : new int[]{20, -20}) {
             ViewportMotion motion = pending();
+            float before = motion.position(1234).y;
             motion.addDelta(0, delta, 1234, 1344, 2992, true);
-            assertEquals(0f, motion.predictionAmplitude().y, .001f);
-            assertEquals(-662f + delta, motion.position(1266).y, .001f);
+            assertEquals(before, motion.position(1234).y, .001f);
+            if (delta > 0) {
+                assertEquals(0f, motion.predictionAmplitude().y, .001f);
+                assertEquals(-662f + delta, motion.position(1266).y, .001f);
+            } else {
+                // Same-direction deceleration is not an observed stop or reversal.
+                assertEquals(before, motion.position(1266).y, .001f);
+                assertTrue(Math.abs(motion.predictionAmplitude().y) <= 2992 * .18f);
+            }
+            assertEquals(-662f + delta, motion.position(1500).y, .001f);
+            assertFalse(motion.isAnimating(1500));
         }
     }
 }

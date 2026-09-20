@@ -103,7 +103,7 @@ public final class ViewportMotionTest {
         assertEquals(-662f, measured.position(1200).y, .001f);
     }
 
-    @Test public void fallbackReversalAndDecelerationReplacePendingCorrection() {
+    @Test public void fallbackAndReversalCorrectButContinuingSlowdownHoldsOvershoot() {
         ViewportMotion fallback = pendingMeasurementCorrection();
         float displayed = fallback.position(1121).y;
         fallback.addDelta(0, -20, 1121, 1344, 2992, false);
@@ -111,10 +111,18 @@ public final class ViewportMotionTest {
         assertEquals(-682f, fallback.position(1137).y, .001f);
         for (int delta : new int[]{20, -20}) {
             ViewportMotion motion = pendingMeasurementCorrection();
+            float before = motion.position(1234).y;
             motion.addDelta(0, delta, 1234, 1344, 2992, true);
-            assertEquals(0f, motion.predictionAmplitude().y, .001f);
-            assertEquals(-662f + delta, motion.position(1266).y, .001f);
-            assertEquals(-662f + delta, motion.position(1400).y, .001f);
+            assertEquals(before, motion.position(1234).y, .001f);
+            if (delta > 0) {
+                assertEquals(0f, motion.predictionAmplitude().y, .001f);
+                assertEquals(-662f + delta, motion.position(1266).y, .001f);
+            } else {
+                assertEquals(before, motion.position(1266).y, .001f);
+                assertTrue(Math.abs(motion.predictionAmplitude().y) <= 2992 * .18f);
+            }
+            assertEquals(-662f + delta, motion.position(1500).y, .001f);
+            assertFalse(motion.isAnimating(1500));
         }
     }
 
@@ -315,15 +323,21 @@ public final class ViewportMotionTest {
     }
 
     @Test
-    public void sharplyDeceleratingTailBrakesContinuouslyWithin32ms() {
+    public void sharplyDeceleratingTailHoldsWithoutAddingLeadThenExpiresToAuthority() {
         ViewportMotion motion = new ViewportMotion();
         motion.reset(0f, 0f, 0L);
         motion.addDelta(0f, -240f, 16L, 1_344, 2_992, true);
+        float before = motion.position(130L).y;
         motion.addDelta(0f, -30f, 130L, 1_344, 2_992, true);
 
-        assertEquals(0f, motion.predictionAmplitude().y, 0.001f);
-        assertEquals(-270f, motion.position(162L).y, 0.001f);
-        assertFalse(motion.isAnimating(163L));
+        assertEquals(before, motion.position(130L).y, .001f);
+        for (long now = 138; now <= 258; now += 8) {
+            assertEquals("hold, not extra forward lead or reverse correction", before,
+                    motion.position(now).y, .001f);
+        }
+        assertEquals(-30f, motion.predictionAmplitude().y, .001f);
+        assertEquals(-270f, motion.position(400L).y, .001f);
+        assertFalse(motion.isAnimating(400L));
     }
 
     @Test
