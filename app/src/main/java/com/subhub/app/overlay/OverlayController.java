@@ -44,6 +44,23 @@ public final class OverlayController implements AutoCloseable {
         view.dumpRenderLayout(writer);
     }
 
+    /** Render-only optional coverage; publish raw tracks first. Main-thread calls only. */
+    public long beginPersonCoverage(List<Detection> selected, List<Detection> support,
+            long capturedAt, long cameraX, long cameraY, int viewportWidth, int viewportHeight,
+            RenderSourceReference reference) {
+        return view.beginPersonCoverage(selected, support, capturedAt, cameraX, cameraY,
+                viewportWidth, viewportHeight, reference);
+    }
+
+    public boolean refinePersonCoverage(long token,
+            List<com.subhub.app.detection.PersonBoxDecoder.Person> people) {
+        return view.refinePersonCoverage(token, people);
+    }
+
+    public void clearPersonCoverage() {
+        view.clearPersonCoverage();
+    }
+
     /**
      * Re-attaches a window Android removed behind the controller's back.
      *

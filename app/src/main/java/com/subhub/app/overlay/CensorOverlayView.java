@@ -100,6 +100,12 @@ final class CensorOverlayView extends View {
     private final ContinuousTrackSteering visualSteering = new ContinuousTrackSteering();
     private final ContinuousTrackSteering textSteering = new ContinuousTrackSteering();
     private final StableVisualLayout visualLayout = new StableVisualLayout();
+    private final PersonCoveragePresentation personCoverage = new PersonCoveragePresentation();
+    private final Runnable expirePersonCoverage = () -> {
+        latestMutationUptime = SystemClock.uptimeMillis();
+        personCoverage.clear();
+        postInvalidateOnAnimation();
+    };
     private float sourceFrameOffsetX;
     private float sourceFrameOffsetY;
     private RenderSourceReference bitmapReference = RenderSourceReference.UNKNOWN;
@@ -230,6 +236,7 @@ final class CensorOverlayView extends View {
             visualLayout.clear();
         }
         worldSpaceTracks = false;
+        clearPersonCoverage();
         List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
         for (TrackedObject track : value) snapshots.add(RenderTrackSnapshot.from(track));
         tracksPublishedAtMillis = SystemClock.uptimeMillis();
@@ -324,6 +331,7 @@ final class CensorOverlayView extends View {
             long trackCameraX, long trackCameraY, long sourceCameraX, long sourceCameraY,
             int viewportWidth, int viewportHeight, Runnable latestFrameRelease,
             RenderSourceReference sourceReference) {
+        clearPersonCoverage();
         if (!worldSpaceTracks) {
             visualSteering.clear();
             visualLayout.clear();
@@ -683,6 +691,7 @@ final class CensorOverlayView extends View {
         boolean accepted = viewportMotion.measurePresentation(x, y, readStart, sourceMillis, now,
                 Math.max(1, getWidth()), Math.max(1, getHeight()), interval);
         if (accepted) {
+            if (!java.util.Objects.equals(measuredOrigin, origin)) clearPersonCoverage();
             measuredOrigin = origin;
             if (Math.abs(x - previous.x) > .5f || Math.abs(y - previous.y) > .5f
                     || viewportMotion.isAnimating(now)) {
@@ -696,6 +705,7 @@ final class CensorOverlayView extends View {
     }
 
     void clearMeasuredViewport() {
+        clearPersonCoverage();
         measuredOrigin = null;
         currentRenderReference = RenderSourceReference.UNKNOWN;
         long now = SystemClock.uptimeMillis();
@@ -706,6 +716,7 @@ final class CensorOverlayView extends View {
 
     /** Hide all censor pixels without treating an empty track list as reverse-mode content. */
     void clearContent() {
+        clearPersonCoverage();
         long nowMillis = SystemClock.uptimeMillis();
         latestMutationUptime = nowMillis;
         // Renderer snapshots may be immutable or shared by a consolidation result.
@@ -853,9 +864,11 @@ final class CensorOverlayView extends View {
         float ageMs = renderAgeMillis();
         for (RenderTrackSnapshot track : tracks) {
             boolean textRegion = "text_smut".equals(track.category());
-            BBox predicted = visualBox(track, ageMs);
-            activePredictionX = (predicted.getX() - track.box().getX()) * scaleX;
-            activePredictionY = (predicted.getY() - track.box().getY()) * scaleY;
+            BBox base = baseVisualBox(track, ageMs);
+            BBox predicted = expandVisualBox(track, base);
+            // Coverage expansion is not object motion: keep effect sampling aligned to pixels.
+            activePredictionX = (base.getX() - track.box().getX()) * scaleX;
+            activePredictionY = (base.getY() - track.box().getY()) * scaleY;
             setTrackRect(track, predicted, scaleX, scaleY, textRegion,
                     renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
             drawEffect(canvas, drawRect, track.id(), effectTypeFor(track),
@@ -1586,7 +1599,50 @@ final class CensorOverlayView extends View {
         return Math.max(0f, renderTimeMillis() - tracksPublishedAtMillis);
     }
 
+    /** Called immediately after publishing the matching raw frame, on the main thread. */
+    long beginPersonCoverage(List<Detection> selected, List<Detection> support,
+            long capturedAt, long cameraX, long cameraY, int viewportWidth, int viewportHeight,
+            RenderSourceReference reference) {
+        removeCallbacks(expirePersonCoverage);
+        long now = SystemClock.uptimeMillis();
+        long token = personCoverage.begin(liveTracks, selected, support, captureWidth, captureHeight,
+                capturedAt, now, worldSpaceTracks, cameraX, cameraY,
+                viewportWidth, viewportHeight, reference);
+        latestMutationUptime = now;
+        postDelayed(expirePersonCoverage, Math.max(1L,
+                PersonCoveragePresentation.MAX_AGE_MS - Math.max(0L, now - capturedAt)));
+        postInvalidateOnAnimation();
+        return token;
+    }
+
+    boolean refinePersonCoverage(long token,
+            List<com.subhub.app.detection.PersonBoxDecoder.Person> people) {
+        boolean applied = personCoverage.refine(token, people, SystemClock.uptimeMillis());
+        if (applied) {
+            latestMutationUptime = SystemClock.uptimeMillis();
+            postInvalidateOnAnimation();
+        }
+        return applied;
+    }
+
+    void clearPersonCoverage() {
+        removeCallbacks(expirePersonCoverage);
+        personCoverage.clear();
+        latestMutationUptime = SystemClock.uptimeMillis();
+        postInvalidateOnAnimation();
+    }
+
     private BBox visualBox(RenderTrackSnapshot track, float ageMs) {
+        return expandVisualBox(track, baseVisualBox(track, ageMs));
+    }
+
+    private BBox expandVisualBox(RenderTrackSnapshot track, BBox current) {
+        return personCoverage.expand(track, current,
+                worldSpaceTracks ? visualLayout.memberIds(track.id()) : Collections.emptyList(),
+                activeRenderTimeMillis);
+    }
+
+    private BBox baseVisualBox(RenderTrackSnapshot track, float ageMs) {
         if (usesContinuousSteering()) {
             BBox steered = visualSteering.position(
                     track.id(), captureWidth, captureHeight, activeRenderTimeMillis);
@@ -1711,6 +1767,7 @@ final class CensorOverlayView extends View {
     }
 
     void release() {
+        clearPersonCoverage();
         stopFrameCallback();
         releaseFrame();
         if (effectScratch != null && !effectScratch.isRecycled()) effectScratch.recycle();
