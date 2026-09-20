@@ -23,3 +23,17 @@ Observe the current Android screen through this script, select the actual return
 For the authorized emulator, an existing FFmpeg `gdigrab` input targeting its exact observed window title and `h264_nvenc` output can record motion without this Windows.Graphics.Capture call. Record only that window, not the desktop. Launch hidden, retain the exact process handle, set a finite `-t`, and verify process exit, video decoding, timestamps and changing content—not just the nominal frame count. Do not use captured pixels as fabricated Computer Use screenshot handles.
 
 On 8 September, a 24-second/30fps window recording produced719 frames with245 content-changing pairs and decoded PTS gaps p9533.3ms/max66.7ms. The small388x864 window limits spatial precision. In contrast, simultaneous Android `screenrecord` raised fast capture-age p95 from249ms in a short recorder-free replay to571ms; do not interpret its recorded jank as an uncontaminated app benchmark. Keep recorder-free controls and label workload/device differences. A constant box offset also cannot be disproved by frame-to-frame motion agreement alone.
+
+## Instrumentation taps and floating navigation
+
+When reducing emulator resolution for bounded-memory UI testing, verify both `adb shell wm size`
+and `adb shell wm density`. Retaining 480 dpi at 720 pixels creates a 240-dp-wide surface, not a
+normal phone layout. Use a deliberate test density and record it; do not change the user's device.
+
+Espresso's standard `scrollTo()` can consider a control visible while SubHub's floating navigation
+still covers its tap position. Before injecting a tap, scroll the control into the usable viewport
+(for example, its upper third), wait for layout, and assert that its global rectangle ends above
+the navigation rectangle. Do not substitute `performClick()` or disable navigation to make the
+test pass: that bypasses the touch-routing failure. If a later matcher reports the wrong screen,
+check the actual foreground activity and the preceding tap's geometry before blaming the missing
+control or weakening its assertion. Retain failed-run results separately from a corrected run.
