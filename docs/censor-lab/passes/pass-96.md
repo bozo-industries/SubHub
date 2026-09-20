@@ -68,3 +68,40 @@ query counts, render-layout duration and membership. Capture age, preprocessing,
 inference, postprocessing, publication latency, avatar continuity, group changes,
 and false-positive duration must be measured on-device after signing. No performance
 or user-acceptance conclusion follows from the unit tests.
+
+## First post-install historical diagnostics
+
+A bounded read of existing PID 17607 `ScreenshotA11y` logs (not a recording, replay,
+or live collector) retained 25.792 seconds of ordinary usage. Raw counts exactly match
+the parser: 42 fast publications, seven quality completions, and one immediate-quality
+publication; no unparsed overlay/quality records. This unscoped population is not a
+controlled before/after benchmark and mixes activity/scroll/initialization conditions.
+
+| Metric | Median | p95 |
+| --- | ---: | ---: |
+| Fast capture-to-overlay | 191.5 ms | 395.35 ms |
+| Fast preprocessing | 3 ms | 7 ms |
+| Fast inference runtime | 60.5 ms | 137.45 ms |
+| Fast postprocessing | 1 ms | 4.85 ms |
+| Fast publication interval | 424 ms | 846 ms |
+| Quality capture-to-ready | 455 ms | 1425.2 ms |
+| Quality bitmap preparation | 68 ms | 91.8 ms |
+| Quality preprocessing | 10 ms | 22.8 ms |
+| Quality inference runtime | 261 ms | 461 ms |
+| Quality postprocessing | 4 ms | 4 ms |
+| Accessibility event age | 23 ms | 100.8 ms |
+
+Fast publications reported a dropped counter of zero. Quality's cumulative dropped
+counter ranged from 17 to 24; the history also contains 12 coalesced offers and four
+cancelled runs. These counters have different meanings and must not be added together.
+The single immediate-quality update was 14 ms ready-to-present and 441 ms capture-to-
+present; its ordinary later-fast handoff was 364 ms after readiness. There is no
+distribution claim from that single update.
+
+Renderer/text layout stability, avatar continuity, perceived smoothness, false-positive
+flashes and sustained throughput remain unverified. The tag-scoped read has no renderer
+draw/consolidation records or known render-source references: missing evidence is not
+zero instability. Twenty-one fast records report changed detector geometry, but that
+does not measure the settled overlay geometry introduced by Pass 95. The latest service
+check was bound with learning disabled and the device awake; it does not prove an active
+protected-app test. No new build or installation is warranted from this history alone.
