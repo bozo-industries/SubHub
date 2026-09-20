@@ -236,6 +236,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final CaptureEpoch captureEpoch = new CaptureEpoch();
     private final AccessibilityScrollMotionResolver scrollMotionResolver =
             new AccessibilityScrollMotionResolver();
+    private final ScrollCompanionDeduplicator scrollCompanionDeduplicator =
+            new ScrollCompanionDeduplicator();
     private final AccessibilitySurfaceIdentityResolver scrollSurfaceIdentityResolver =
             new AccessibilitySurfaceIdentityResolver();
     private final ScrollDeltaStabilizer scrollDeltaStabilizer = new ScrollDeltaStabilizer();
@@ -4957,6 +4959,23 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 long sourceTime = event.getEventTime();
                 if (sourceTime <= 0L || sourceTime > scrollNow) sourceTime = scrollNow;
                 long eventAgeMs = Math.max(0L, scrollNow - sourceTime);
+                boolean companionDuplicate = scrollCompanionDeduplicator.observe(
+                        visualDocumentEpoch.get(), surfaceTelemetryToken, observedMotionToken,
+                        viewportWidth, viewportHeight,
+                        surfaceCacheable && surfaceDecision == ScrollSurfaceHysteresis.Decision.USE_OBSERVED,
+                        surfaceDecision == ScrollSurfaceHysteresis.Decision.REUSE_ACTIVE,
+                        rawMotion.evidence, rawMotion.dx, rawMotion.dy, sourceTime, scrollNow);
+                if (companionDuplicate) {
+                    // The trusted absolute event already applied this exact displacement.
+                    // Do not teach a duplicate interval to calibration, mutate the camera,
+                    // restart prediction, or trigger screenshot fallback for rejected motion.
+                    traceScrollEvent(scrollNow, sourceTime, eventAgeMs,
+                            rawMotion.dx, rawMotion.dy, 0, 0, "companion-duplicate",
+                            rawMotion.evidence.name(), Math.abs(rawMotion.dx) + Math.abs(rawMotion.dy),
+                            false, surfaceTelemetryToken, surfaceConfidence, surfaceCacheable,
+                            surfaceIdentity.confidence, surfaceDecision, observedMotionToken);
+                    return;
+                }
                 AutomaticScrollLearningObserver.Scope learningScope = null;
                 try {
                     learningScope = observeScrollLearning(event, rawMotion, surfaceIdentity, sourceTime, scrollNow);
@@ -5910,6 +5929,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         lastOcrCompletionUptime = 0L;
         if (motionEstimator != null) motionEstimator.reset();
         scrollMotionResolver.reset();
+        scrollCompanionDeduplicator.reset();
         scrollDeltaStabilizer.reset();
         main.removeCallbacks(settledScrollTrace);
         lastScrollTraceEventUptime = 0L;
