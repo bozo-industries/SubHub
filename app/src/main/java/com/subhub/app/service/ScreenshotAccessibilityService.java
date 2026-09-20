@@ -30,7 +30,6 @@ import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.DetectionEngine;
 import com.subhub.app.detection.DetectorConfig;
 import com.subhub.app.detection.CensorCoverage;
-import com.subhub.app.detection.SharedModelImage;
 import com.subhub.app.detection.FastVisualGate;
 import com.subhub.app.detection.ObjectTracker;
 import com.subhub.app.detection.TrackedObject;
@@ -213,8 +212,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     // Person work shares the fast executor; this lock additionally excludes NNAPI quality.
     private final java.util.concurrent.locks.ReentrantLock optionalInferenceLock =
             new java.util.concurrent.locks.ReentrantLock();
-    private PersonInferenceBackend personBackend;
-    private PersonInferenceWorker personWorker;
     private final QualityConcurrencyGovernor qualityConcurrencyGovernor =
             new QualityConcurrencyGovernor();
     private final AtomicBoolean rectangularFastInputDisabled = new AtomicBoolean();
@@ -475,11 +472,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 "SubHub-fast-inference", Process.THREAD_PRIORITY_DISPLAY);
         qualityInferenceWorker = newScheduledWorker(
                 "SubHub-quality-inference", Process.THREAD_PRIORITY_DEFAULT);
-        personBackend = new PersonInferenceBackend(this);
-        personWorker = new PersonInferenceWorker(inferenceWorker, personBackend, () -> {
-            if (pendingInference.get() != null || !optionalInferenceLock.tryLock()) return null;
-            return optionalInferenceLock::unlock;
-        }, failure -> Log.w(TAG, "Optional person inference disabled until settings reload", failure));
         textWorker = newScheduledWorker("SubHub-text", Process.THREAD_PRIORITY_BACKGROUND);
         ocrWorker = newScheduledWorker("SubHub-ocr", Process.THREAD_PRIORITY_BACKGROUND);
         worker.execute(this::initializePipeline);
@@ -999,7 +991,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private long enqueueInference(InferenceFrame candidate) {
-        if (personWorker != null) personWorker.preempt();
         if (!running || inferenceWorker == null || inferenceWorker.isShutdown()) {
             invalidateScene(candidate.scene, "fast-worker-unavailable");
             candidate.recycle();
@@ -1318,15 +1309,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
 
     private void releaseOptionalInferenceResource() {
         optionalInferenceLock.unlock();
-        if (personWorker != null) personWorker.resourceAvailable();
     }
 
     private AutoCloseable tryAcquireQualityBackfillPermit() {
-        if (personWorker != null && personWorker.hasPending()) return null;
         if (!optionalInferenceLock.tryLock()) return null;
         AutoCloseable permit;
         try {
-            permit = tryAcquireQualityBackfillPermitWithoutPerson();
+            permit = tryAcquireQualityBackfillGatePermit();
         } catch (RuntimeException failure) {
             releaseOptionalInferenceResource();
             throw failure;
@@ -1341,7 +1330,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         };
     }
 
-    private AutoCloseable tryAcquireQualityBackfillPermitWithoutPerson() {
+    private AutoCloseable tryAcquireQualityBackfillGatePermit() {
         long now = SystemClock.uptimeMillis();
         DetectionEngine fast = fastDetector;
         DetectionEngine quality = detector;
@@ -2255,9 +2244,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         () -> qualityCancellationRequested(candidate));
             }
         }
-        SharedModelImage personImage = fastPass ? engine.takePreparedPersonImage() : null;
-        List<Detection> personCues = personImage == null ? Collections.emptyList()
-                : new ArrayList<>(engine.getPersonSupportCues());
         boolean concurrentQualityOverlap = fastPass
                 && concurrentQualityConfigured()
                 && (qualityActiveAtFastStart || qualityInferenceExecuting.get());
@@ -2563,7 +2549,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 && inferenceMotionGeneration != motionGeneration.get())) return;
         ScrollAlignment alignment;
         List<TrackedObject> tracks;
-        List<Detection> matchedPersonTriggers;
         synchronized (sceneLifecycleLock) {
             // A capture can pass its entry guard immediately before a calibration fence.
             // Recheck under the same lock as that fence, including non-transactional scenes.
@@ -2594,16 +2579,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         ? detection.withRenderSourceReference(frameRenderReference) : detection);
             }
             tracks = tracker.update(referenced);
-            List<Detection> selectedForPerson = new ArrayList<>();
-            if (personImage != null) for (Detection observed : referenced) {
-                if (observed.getSource() == Detection.ObservationSource.VISUAL
-                        && observed.getTrackId() >= 0) selectedForPerson.add(observed);
-            }
-            matchedPersonTriggers = candidate.continuousMotionInference
-                    ? InferenceScrollReprojector.toCurrentViewport(selectedForPerson, width, height,
-                            referenceViewport.width(), referenceViewport.height(),
-                            alignment.scrollX, alignment.scrollY, requestedScrollX, requestedScrollY)
-                    : selectedForPerson;
             if (spatialTrackingExperiment) {
                 sourceTrackContinuity.record(candidate.scene == null ? null : candidate.scene.spatialFrame,
                         requestedScrollX, requestedScrollY);
@@ -2732,7 +2707,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         String faceSourcePose = faceGeometry == null ? "-" : FaceGeometryTrace.sourcePose(
                 candidate.scene == null ? null : candidate.scene.spatialFrame);
         Rect publicationViewport = cacheViewport;
-        List<Detection> personTriggers = matchedPersonTriggers;
         traceCaptureStage(candidate.capturedAtUptimeMillis, "publication-post");
         main.post(() -> {
             traceCaptureStage(candidate.capturedAtUptimeMillis, "publication-main");
@@ -2774,34 +2748,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         alignment.scrollX, alignment.scrollY,
                         requestedScrollX, requestedScrollY,
                         publicationViewport.width(), publicationViewport.height(), frameRenderReference);
-                if (personImage != null && !capturePhaseUncertain
-                        && wholePersonEnabled() && personWorker != null) {
-                    OverlayController targetOverlay = overlay;
-                    long personToken = targetOverlay.beginPersonCoverage(personTriggers, personCues,
-                            candidate.screenshotUptimeMillis, requestedScrollX, requestedScrollY,
-                            publicationViewport.width(), publicationViewport.height(), frameRenderReference);
-                    CensorLabLog.i(TAG, "PERSON_PROVISIONAL v=1 source=" + candidate.screenshotUptimeMillis
-                            + " captureAgeMs=" + Math.max(0L, SystemClock.uptimeMillis() - candidate.screenshotUptimeMillis));
-                    java.util.function.BooleanSupplier personValid = () -> wholePersonEnabled()
-                            && isCurrentCapture(requestedEpoch)
-                            && isCurrentVisualDocument(candidate.visualDocumentEpoch, candidate.scrollSurfaceKey)
-                            && candidate.fastSubmissionSequence == fastSubmissionSequence.get()
-                            && inferenceMotionGeneration == motionGeneration.get()
-                            && SystemClock.uptimeMillis() - candidate.screenshotUptimeMillis < 750L;
-                    personWorker.submit(personImage, width, height, personValid, people -> {
-                        long modelRun = personBackend.lastRunId();
-                        String counters = personWorker.counters();
-                        main.post(() -> {
-                                if (personValid.getAsBoolean() && overlay == targetOverlay) {
-                                    boolean applied = targetOverlay.refinePersonCoverage(personToken, people);
-                                    CensorLabLog.i(TAG, "PERSON_PUBLISH v=1 run=" + modelRun
-                                            + " source=" + candidate.screenshotUptimeMillis
-                                            + " captureAgeMs=" + Math.max(0L, SystemClock.uptimeMillis() - candidate.screenshotUptimeMillis)
-                                            + " applied=" + applied + counters);
-                                }
-                            });
-                    });
-                }
                 if (BuildConfig.IMMEDIATE_QUALITY_EXPERIMENT && fastPass) {
                     displayedQualityBasis = new DisplayedQualityBasis(
                             new LateQualityPresentationGate.Stamp(candidate.fastSubmissionSequence,
@@ -3332,7 +3278,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private void invalidateWorldCache(String reason) {
-        if (personWorker != null) personWorker.preempt();
         main.post(() -> { if (overlay != null) overlay.clearPersonCoverage(); });
         int removed;
         long document;
@@ -4786,14 +4731,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return captureEpoch.accepts(requestedEpoch, running, recognitionActive);
     }
 
-    private boolean wholePersonEnabled() {
-        DetectorConfig config = detectorConfig;
-        return running && config != null && config.getCensorCoverage() == CensorCoverage.WHOLE_PERSON;
-    }
-
     private void reloadSettings() {
         if (settings == null) return;
-        if (personWorker != null) personWorker.reset();
         main.post(() -> {
             if (overlay != null) {
                 CensorAppearance appearance = settings.loadAppearance();
@@ -6502,11 +6441,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             worker.shutdown();
         }
         discardPendingInference();
-        if (personWorker != null) personWorker.close();
         if (inferenceWorker != null) inferenceWorker.shutdownNow();
         qualityBackfillRunner.close();
         if (qualityInferenceWorker != null) qualityInferenceWorker.shutdownNow();
-        if (personBackend != null) personBackend.release();
         if (screenshotText != null) screenshotText.close();
         screenshotText = null;
         releaseOcrBitmap(activeOcrBitmap.get());

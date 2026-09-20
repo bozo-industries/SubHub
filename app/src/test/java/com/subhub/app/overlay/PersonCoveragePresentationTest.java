@@ -2,7 +2,7 @@ package com.subhub.app.overlay;
 
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.Detection;
-import com.subhub.app.detection.PersonBoxDecoder;
+import com.subhub.app.detection.PersonBox;
 import com.subhub.app.detection.RenderSourceReference;
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,7 +33,7 @@ public final class PersonCoveragePresentationTest {
     @Test public void provisionalRefinesWithoutChangingRawOrDroppingOriginalCoverage() {
         long token = begin(100);
         assertEquals(new BBox(57, 12, 86, 121), box(100));
-        assertTrue(state.refine(token, Collections.singletonList(new PersonBoxDecoder.Person(
+        assertTrue(state.refine(token, Collections.singletonList(new PersonBox(
                 new BBox(60, 10, 90, 190), .9f)), 120));
         assertEquals(new BBox(60, 10, 90, 190), box(120));
         assertEquals(new BBox(65, 80, 70, 45), raw.box());
@@ -157,7 +157,7 @@ public final class PersonCoveragePresentationTest {
         long token = begin(100);
         BBox refined = new BBox(60, 10, 90, 190);
         assertTrue(state.refine(token, Collections.singletonList(
-                new PersonBoxDecoder.Person(refined, .9f)), 120));
+                new PersonBox(refined, .9f)), 120));
         state.advanceFrame();
         begin(300);
         assertEquals(refined, box(300));
@@ -177,7 +177,7 @@ public final class PersonCoveragePresentationTest {
                 0, 0, 200, 300, RenderSourceReference.UNKNOWN);
         BBox person = new BBox(60, 10, 90, 190);
         assertTrue(state.refine(first, Collections.singletonList(
-                new PersonBoxDecoder.Person(person, .9f)), 307));
+                new PersonBox(person, .9f)), 307));
         long second = state.begin(Collections.singletonList(raw), Collections.singletonList(chest),
                 Collections.emptyList(), 200, 300, 434, 555, false,
                 0, 0, 200, 300, RenderSourceReference.UNKNOWN);
@@ -186,7 +186,7 @@ public final class PersonCoveragePresentationTest {
         assertEquals(person, box(600));
         assertEquals(person, box(640));
         assertTrue(state.refine(second, Collections.singletonList(
-                new PersonBoxDecoder.Person(person, .9f)), 641));
+                new PersonBox(person, .9f)), 641));
         assertEquals(person, box(641));
     }
 }

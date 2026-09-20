@@ -12,7 +12,7 @@ import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.DetectorConfig;
 import com.subhub.app.detection.ObjectTracker;
-import com.subhub.app.detection.PersonBoxDecoder;
+import com.subhub.app.detection.PersonBox;
 import com.subhub.app.detection.RenderSourceReference;
 import com.subhub.app.detection.TrackedObject;
 import com.subhub.app.settings.CensorAppearance;
@@ -42,7 +42,7 @@ public final class PersonCoverageRendererAndroidTest {
                 view.layout(0, 0, 200, 300);
                 long token = view.beginPersonCoverage(List.of(head, chest), List.of(head, chest),
                         SystemClock.uptimeMillis(), 0, 0, 200, 300, RenderSourceReference.UNKNOWN);
-                assertTrue(view.refinePersonCoverage(token, List.of(new PersonBoxDecoder.Person(
+                assertTrue(view.refinePersonCoverage(token, List.of(new PersonBox(
                         new BBox(40, 10, 120, 240), .9f))));
                 view.draw(new Canvas(image));
                 java.lang.reflect.Field field = CensorOverlayView.class.getDeclaredField("labelPlacements");
@@ -85,7 +85,7 @@ public final class PersonCoverageRendererAndroidTest {
                 assertEquals(Color.BLACK, image.getPixel(100, 30));
                 assertEquals(Color.TRANSPARENT, image.getPixel(100, 250));
                 assertEquals(Color.BLACK, image.getPixel(100, 100));
-                assertTrue(view.refinePersonCoverage(token, List.of(new PersonBoxDecoder.Person(
+                assertTrue(view.refinePersonCoverage(token, List.of(new PersonBox(
                         new BBox(60, 10, 90, 190), .9f))));
                 image.eraseColor(Color.TRANSPARENT);
                 view.draw(new Canvas(image));

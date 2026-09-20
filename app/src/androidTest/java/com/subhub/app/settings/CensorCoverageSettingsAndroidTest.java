@@ -29,7 +29,7 @@ public final class CensorCoverageSettingsAndroidTest {
                 assertFalse(areas.isEnabled());
                 assertFalse(person.isEnabled());
                 assertTrue(areas.isChecked());
-                assertEquals("Whole person", person.getText().toString());
+                assertEquals("Whole person (requires body-capable model)", person.getText().toString());
                 person.setChecked(true);
                 assertEquals(CensorCoverage.DETECTED_AREAS, settings.loadCensorCoverage());
             });

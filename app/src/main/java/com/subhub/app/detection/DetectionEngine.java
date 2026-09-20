@@ -80,8 +80,6 @@ public final class DetectionEngine implements AutoCloseable {
     private volatile boolean lastRunCancelled;
     private volatile long lastCancellationMs;
     private final AtomicReference<InferenceRun> activeInference = new AtomicReference<>();
-    private SharedModelImage preparedPersonImage;
-    private List<Detection> personSupportCues = Collections.emptyList();
 
     public DetectionEngine(Context context, DetectorConfig config) {
         this(context, config, true);
@@ -288,8 +286,6 @@ public final class DetectionEngine implements AutoCloseable {
             int inputHeight,
             BooleanSupplier cancellationProbe,
             boolean rectangularInput) throws OrtException {
-        preparedPersonImage = null;
-        personSupportCues = Collections.emptyList();
         if (session == null || frame == null || frame.getWidth() <= 0 || frame.getHeight() <= 0) {
             return Collections.emptyList();
         }
@@ -388,7 +384,7 @@ public final class DetectionEngine implements AutoCloseable {
                 TensorInfo info = output.getInfo();
                 long[] shape = info.getShape();
                 if (shape.length != 3 || shape[0] != 1L
-                        || shape[1] < DetectionPostProcessor.OUTPUT_FEATURES
+                        || shape[1] != DetectionPostProcessor.OUTPUT_FEATURES
                         || shape[1] > Integer.MAX_VALUE || shape[2] <= 0L
                         || shape[2] > Integer.MAX_VALUE) {
                     Log.e(TAG, "Unexpected model output shape: "
@@ -414,21 +410,6 @@ public final class DetectionEngine implements AutoCloseable {
                                 sourceHeight,
                                 inputWidth,
                                 config);
-                if (config.getCensorCoverage() == CensorCoverage.WHOLE_PERSON && !detections.isEmpty()) {
-                    java.util.Set<String> categories = new java.util.LinkedHashSet<>();
-                    for (int i = 0; i < NudeNetClassCatalog.CLASS_COUNT; i++) {
-                        categories.addAll(NudeNetClassCatalog.byIndex(i).getCategories());
-                    }
-                    DetectorConfig supportConfig = config.toBuilder().enabledCategories(categories).build();
-                    // Reuse the existing network output; support cues never enter tracker/statistics.
-                    personSupportCues = postProcessor.decode(outputBuffer, (int) shape[1],
-                            (int) shape[2], sourceWidth, sourceHeight, inputWidth, inputHeight,
-                            supportConfig);
-                    // The fast lane already performed pixel readback. Detach its real content once,
-                    // not another Bitmap/readback/normalization pipeline for the optional model.
-                    preparedPersonImage = SharedModelImage.copyContent(pixels, inputWidth,
-                            Math.min(inputWidth, expectedWidth), Math.min(inputHeight, expectedHeight));
-                }
                 long finished = SystemClock.elapsedRealtimeNanos();
                 // Close the cancellation window before making decoded output observable. A fast
                 // frame and this commit race on the same monitor: whichever wins determines
@@ -451,15 +432,6 @@ public final class DetectionEngine implements AutoCloseable {
             }
         }
     }
-
-    /** Transfers one detached image to optional refinement; no screenshot/Bitmap is retained. */
-    public synchronized SharedModelImage takePreparedPersonImage() {
-        SharedModelImage result = preparedPersonImage;
-        preparedPersonImage = null;
-        return result;
-    }
-
-    public synchronized List<Detection> getPersonSupportCues() { return personSupportCues; }
 
     /** Best-effort cancellation used only to give newly arrived real-time work priority. */
     public boolean cancelActiveInference() {
@@ -485,8 +457,6 @@ public final class DetectionEngine implements AutoCloseable {
     }
 
     private List<Detection> recordCancelledRun(long startedNanos) {
-        preparedPersonImage = null;
-        personSupportCues = Collections.emptyList();
         long elapsed = SystemClock.elapsedRealtimeNanos() - startedNanos;
         lastRunCancelled = true;
         lastCancellationMs = nanosToMillis(elapsed);
@@ -498,8 +468,6 @@ public final class DetectionEngine implements AutoCloseable {
     }
 
     public synchronized void setConfig(DetectorConfig value) {
-        preparedPersonImage = null;
-        personSupportCues = Collections.emptyList();
         boolean resize = value.getInferenceResolution() != config.getInferenceResolution();
         config = value;
         if (resize) allocateBuffers(value.getInferenceResolution());
@@ -782,8 +750,6 @@ public final class DetectionEngine implements AutoCloseable {
 
     @Override
     public synchronized void close() {
-        preparedPersonImage = null;
-        personSupportCues = Collections.emptyList();
         performanceHints.close();
         closeSession();
         inputValues = null;

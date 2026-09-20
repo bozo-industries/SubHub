@@ -1628,7 +1628,7 @@ final class CensorOverlayView extends View {
     }
 
     boolean refinePersonCoverage(long token,
-            List<com.subhub.app.detection.PersonBoxDecoder.Person> people) {
+            List<com.subhub.app.detection.PersonBox> people) {
         boolean applied = personCoverage.refine(token, people, SystemClock.uptimeMillis());
         if (applied) {
             latestMutationUptime = SystemClock.uptimeMillis();

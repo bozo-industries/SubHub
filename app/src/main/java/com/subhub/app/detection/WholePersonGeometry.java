@@ -22,7 +22,7 @@ public final class WholePersonGeometry {
     }
 
     public List<Coverage> resolve(List<Detection> triggers, List<Detection> cues,
-            List<PersonBoxDecoder.Person> people, int width, int height) {
+            List<PersonBox> people, int width, int height) {
         if (width <= 0 || height <= 0 || triggers == null) return Collections.emptyList();
         List<Coverage> result = new ArrayList<>();
         for (Detection trigger : triggers) {
@@ -38,23 +38,23 @@ public final class WholePersonGeometry {
         return Collections.unmodifiableList(result);
     }
 
-    private static BBox matchPerson(BBox trigger, List<PersonBoxDecoder.Person> people) {
+    private static BBox matchPerson(BBox trigger, List<PersonBox> people) {
         if (countMatches(trigger, people) != 1) return null;
-        for (PersonBoxDecoder.Person person : people) {
+        for (PersonBox person : people) {
             if (matches(trigger, person)) return person.box;
         }
         return null;
     }
 
-    private static int countMatches(BBox trigger, List<PersonBoxDecoder.Person> people) {
+    private static int countMatches(BBox trigger, List<PersonBox> people) {
         int count = 0;
-        if (people != null) for (PersonBoxDecoder.Person person : people) {
+        if (people != null) for (PersonBox person : people) {
             if (matches(trigger, person)) count++;
         }
         return count;
     }
 
-    private static boolean matches(BBox trigger, PersonBoxDecoder.Person person) {
+    private static boolean matches(BBox trigger, PersonBox person) {
         return person != null && Float.isFinite(person.confidence) && person.confidence >= .35f
                 && intersection(trigger, person.box) >= trigger.getArea() * .8
                 && person.box.getArea() >= trigger.getArea();

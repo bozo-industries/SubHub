@@ -27,7 +27,7 @@ public final class WholePersonGeometryTest {
         Detection chest = part("breasts", 65, 80, 70, 45);
         WholePersonGeometry.Coverage coverage = geometry.resolve(Collections.singletonList(chest),
                 Collections.emptyList(), Collections.singletonList(
-                        new PersonBoxDecoder.Person(new BBox(60, 10, 90, 190), .9f)), 200, 300).get(0);
+                        new PersonBox(new BBox(60, 10, 90, 190), .9f)), 200, 300).get(0);
         assertTrue(coverage.refined);
         assertEquals(new BBox(60, 10, 90, 190), coverage.person);
     }
@@ -41,7 +41,7 @@ public final class WholePersonGeometryTest {
         assertTrue(coverage.person.getBottom() <= 320);
         // Full-body evidence, when available, is not constrained to the provisional envelope.
         WholePersonGeometry.Coverage confirmed = geometry.resolve(Collections.singletonList(head),
-                Arrays.asList(head, chest), Collections.singletonList(new PersonBoxDecoder.Person(
+                Arrays.asList(head, chest), Collections.singletonList(new PersonBox(
                         new BBox(60, 80, 170, 600), .9f)), 400, 900).get(0);
         assertTrue(confirmed.refined);
         assertEquals(680, confirmed.person.getBottom());
@@ -51,8 +51,8 @@ public final class WholePersonGeometryTest {
         Detection chest = part("breasts", 65, 80, 70, 45);
         WholePersonGeometry.Coverage coverage = geometry.resolve(Collections.singletonList(chest),
                 Arrays.asList(part("face", 80, 20, 40, 40), chest), Arrays.asList(
-                        new PersonBoxDecoder.Person(new BBox(50, 10, 100, 200), .9f),
-                        new PersonBoxDecoder.Person(new BBox(55, 10, 100, 200), .8f)), 200, 300).get(0);
+                        new PersonBox(new BBox(50, 10, 100, 200), .9f),
+                        new PersonBox(new BBox(55, 10, 100, 200), .8f)), 200, 300).get(0);
         assertEquals(chest.getBox(), coverage.person);
         assertFalse(coverage.refined);
     }
@@ -69,7 +69,7 @@ public final class WholePersonGeometryTest {
 
     @Test public void untriggeredPeopleAreNotCovered() {
         assertTrue(geometry.resolve(Collections.emptyList(), Collections.emptyList(),
-                Collections.singletonList(new PersonBoxDecoder.Person(new BBox(0, 0, 200, 300), .9f)),
+                Collections.singletonList(new PersonBox(new BBox(0, 0, 200, 300), .9f)),
                 200, 300).isEmpty());
     }
 }

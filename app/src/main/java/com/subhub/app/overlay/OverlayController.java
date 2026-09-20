@@ -53,7 +53,7 @@ public final class OverlayController implements AutoCloseable {
     }
 
     public boolean refinePersonCoverage(long token,
-            List<com.subhub.app.detection.PersonBoxDecoder.Person> people) {
+            List<com.subhub.app.detection.PersonBox> people) {
         return view.refinePersonCoverage(token, people);
     }
 

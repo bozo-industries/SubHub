@@ -2,7 +2,7 @@ package com.subhub.app.overlay;
 
 import com.subhub.app.detection.BBox;
 import com.subhub.app.detection.Detection;
-import com.subhub.app.detection.PersonBoxDecoder;
+import com.subhub.app.detection.PersonBox;
 import com.subhub.app.detection.RenderSourceReference;
 import com.subhub.app.detection.WholePersonGeometry;
 
@@ -58,14 +58,14 @@ final class PersonCoveragePresentation {
         return generation;
     }
 
-    boolean refine(long token, List<PersonBoxDecoder.Person> people, long now) {
+    boolean refine(long token, List<PersonBox> people, long now) {
         if (token != generation || triggers.isEmpty() || !fresh(now) || people == null
                 || people.size() > 128) return false;
         resolve(people, now);
         return true;
     }
 
-    private void resolve(List<PersonBoxDecoder.Person> people, long now) {
+    private void resolve(List<PersonBox> people, long now) {
         boxes.clear();
         refined.entrySet().removeIf(entry -> now < entry.getValue().capturedAt
                 || now - entry.getValue().capturedAt >= MAX_AGE_MS);
