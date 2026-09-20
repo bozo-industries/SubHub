@@ -73,3 +73,19 @@ for this candidate. Cold session initialization and cancellation latency on Pixe
 specific performance risks to measure. The existing pipeline trace remains necessary
 alongside the person records. Prepare a private signed artifact, then obtain Pixel
 evaluation and user feedback before calling the feature or overall goal accepted.
+
+## Signed Pixel installation
+
+Private signing run `35505866423` succeeded for exact source commit
+`c72ec14c5a26f738b62dc3efba396a65f18e58f7`, with immediate quality enabled and public
+release publication disabled. The ARM64 artifact's manifest, package/version, model
+checksum/license, APK checksum, and existing release signing certificate were verified.
+
+After explicit user authorization, the candidate was replace-installed on the Pixel
+8 Pro without uninstalling or clearing app data. Installed version is 0.6.3/code 19,
+last update 2026-09-20 13:01:50 device time. Independent installed-APK readback matched
+SHA-256 `7fea5410108aba2ad6fbce9d01e244594ac62e21bfa11a8ab9dfa17c81f07096`.
+The app process restarted and SubHub Accessibility remained enabled. No settings were
+changed automatically; whole-person coverage remains opt-in. Installation metadata
+is not performance evidence: live timings, real-image accuracy and user acceptance
+remain pending.
