@@ -260,6 +260,28 @@ public final class AccessibilitySurfaceIdentityResolverTest {
         assertEquals(1, broken.closeCount);
     }
 
+    @Test public void outcomeCountsDistinguishMissingSourceFromMissingOwnerAndFailure() {
+        AccessibilitySurfaceIdentityResolver resolver = new AccessibilitySurfaceIdentityResolver();
+        AccessibilitySurfaceIdentityResolver.Identity missing = resolver.resolveForNode(1, "com.example.app", null);
+        assertFalse(missing.sourcePresent);
+        assertEquals(0, missing.nodeCount);
+        assertEquals(-1, missing.ownerDepth);
+        FakeNode leaf = new FakeNode(false, "android.view.View", null, null);
+        AccessibilitySurfaceIdentityResolver.Identity noOwner = resolver.resolveForNode(1, "com.example.app", leaf);
+        assertTrue(noOwner.sourcePresent);
+        assertEquals(1, noOwner.nodeCount);
+        assertEquals(-1, noOwner.ownerDepth);
+        assertFalse(noOwner.traversalFailed);
+        AccessibilitySurfaceIdentityResolver.Identity failed = resolver.resolveForNode(1,
+                "com.example.app", nativeOwner("one", "feed"), name -> { throw new IllegalStateException(); });
+        assertTrue(failed.sourcePresent);
+        assertTrue(failed.traversalFailed);
+        assertFalse(failed.isCacheable());
+        AccessibilitySurfaceIdentityResolver.Identity owner = resolver.resolveForNode(1, "com.example.app", sourceWithoutInnerOwner());
+        assertEquals(2, owner.nodeCount);
+        assertEquals(1, owner.ownerDepth);
+    }
+
     private static FakeNode nativeOwner(String unique, String resource) {
         return new FakeNode(true, "android.widget.ScrollView", unique,
                 "com.example.app:id/" + resource);

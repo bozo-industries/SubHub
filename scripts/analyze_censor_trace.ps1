@@ -144,6 +144,8 @@ foreach ($requestedPath in $Path) {
     $worldCacheReentries = [Collections.Generic.List[object]]::new()
     $capturePhases = [Collections.Generic.List[object]]::new()
     $scrolls = [Collections.Generic.List[object]]::new()
+    $scrollMetadata = [Collections.Generic.List[object]]::new()
+    $rawScrollMetadata = 0
     $textScans = [Collections.Generic.List[object]]::new()
     $textPublishes = [Collections.Generic.List[object]]::new()
     $textConfirms = [Collections.Generic.List[object]]::new()
@@ -739,6 +741,22 @@ foreach ($requestedPath in $Path) {
             })
             continue
         }
+        if ($line.Contains('SCROLL_METADATA ')) {
+            $rawScrollMetadata++
+            if ($line -match 'SCROLL_METADATA schema=1 sourceUptimeMs=(\d+) motionToken=([0-9a-f]+) classKind=([0-6]) offset=(-?\d+),(-?\d+) max=(-?\d+),(-?\d+) indices=(-?\d+),(-?\d+),(-?\d+) explicit=(-?\d+),(-?\d+) sourcePresent=(true|false) nodes=(\d+) ownerDepth=(-?\d+) ownerKind=([0-3]) traversalFailed=(true|false)$') {
+                $scrollMetadata.Add([pscustomobject]@{
+                    sourceUptimeMs = [long] $Matches[1]; motionToken = $Matches[2]; classKind = [int] $Matches[3]
+                    offsetX = [int] $Matches[4]; offsetY = [int] $Matches[5]
+                    maxX = [int] $Matches[6]; maxY = [int] $Matches[7]
+                    fromIndex = [int] $Matches[8]; toIndex = [int] $Matches[9]; itemCount = [int] $Matches[10]
+                    explicitX = [int] $Matches[11]; explicitY = [int] $Matches[12]
+                    sourcePresent = $Matches[13] -eq 'true'; nodes = [int] $Matches[14]
+                    ownerDepth = [int] $Matches[15]; ownerKind = [int] $Matches[16]
+                    traversalFailed = $Matches[17] -eq 'true'
+                })
+            }
+            continue
+        }
         if ($line -match 'SCROLL_EVENT id=(\d+) source=(\S+) gapMs=(\d+)(?: eventAgeMs=(\d+))? rawDx=(-?\d+) rawDy=(-?\d+) dx=(-?\d+) dy=(-?\d+)(?: evidence=(\S+) adjustedPx=(\d+) amplified=(true|false))?') {
             $rawX = [int] $Matches[5]
             $rawY = [int] $Matches[6]
@@ -919,8 +937,12 @@ foreach ($requestedPath in $Path) {
             qualityRecords = $rawQualityRecords
             parsedQualityRecords = $quality.Count + $streamingQuality.Count
             unparsedQualityRecords = $rawQualityRecords - $quality.Count - $streamingQuality.Count
+            scrollMetadataRecords = $rawScrollMetadata
+            parsedScrollMetadataRecords = $scrollMetadata.Count
+            unparsedScrollMetadataRecords = $rawScrollMetadata - $scrollMetadata.Count
             complete = ($rawOverlayRecords -eq $publishes.Count) -and
-                ($rawQualityRecords -eq $quality.Count + $streamingQuality.Count)
+                ($rawQualityRecords -eq $quality.Count + $streamingQuality.Count) -and
+                ($rawScrollMetadata -eq $scrollMetadata.Count)
         }
         bytes = (Get-Item -LiteralPath $resolved).Length
         selection = $selection
@@ -1141,6 +1163,12 @@ foreach ($requestedPath in $Path) {
             requestToCaptureScrollDeltaAbsPx = Get-Distribution @($capturePhases.scrollDeltaAbs)
             generationChangedSamples = @($capturePhases | Where-Object generationDelta -ne 0).Count
             timelineResolvedSamples = @($capturePhases | Where-Object timelineResolved).Count
+        }
+        scrollMetadata = [ordered]@{
+            records = $scrollMetadata.ToArray()
+            classKinds = Get-GroupCounts @($scrollMetadata) 'classKind'
+            missingSources = @($scrollMetadata | Where-Object { -not $_.sourcePresent }).Count
+            failedTraversals = @($scrollMetadata | Where-Object traversalFailed).Count
         }
         scroll = [ordered]@{
             sessions = @($scrolls.id | Sort-Object -Unique).Count

@@ -89,7 +89,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         if (args != null && args.length == 1 && "scroll-learning".equals(args[0])) {
             AutomaticScrollLearningObserver current = scrollLearningObserver;
             writer.println("SUBHUB_SCROLL_LEARNING " + (current == null
-                    ? "{\"schemaVersion\":1,\"state\":\"DISABLED\",\"applied\":false}"
+                    ? disabledLearningSnapshot(lastScrollLearningDiagnostics)
                     : current.diagnostics().replace("\"applied\":false", scrollCalibrationDiagnostics
                             + ",\"admission\":" + learningAdmissionDiagnostics)));
             return;
@@ -111,6 +111,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private volatile String scrollCalibrationDiagnostics = "\"applied\":false";
     private final ScrollLearningEpisodes learningEpisodes = new ScrollLearningEpisodes();
     private volatile String learningAdmissionDiagnostics = "{}";
+    private volatile String lastScrollLearningDiagnostics = "null";
     private long learningOffered, learningUnknownOwner, learningCompanionRecords;
     private long learningInvalidMotion, learningInvalidTime, learningNoTouchEvents;
     private static final long MIN_TEXT_REFRESH_MS = 120L;
@@ -4836,6 +4837,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 // to the actually observed producer so an explicit-delta callback cannot overwrite
                 // another node's absolute-position baseline and manufacture multi-viewport jumps.
                 long observedMotionToken = surfaceIdentity.telemetryToken();
+                CensorLabLog.i(TAG, ScrollMetadataTrace.encode(event.getEventTime(), observedMotionToken,
+                        ScrollMetadataTrace.classKind(event.getClassName()), event.getScrollX(), event.getScrollY(),
+                        event.getMaxScrollX(), event.getMaxScrollY(), event.getFromIndex(), event.getToIndex(),
+                        event.getItemCount(), Build.VERSION.SDK_INT >= 28 ? event.getScrollDeltaX() : -1,
+                        Build.VERSION.SDK_INT >= 28 ? event.getScrollDeltaY() : -1, surfaceIdentity));
                 String motionSurface = observedMotionToken == 0L
                         ? AccessibilityScrollMotionResolver.surfaceKey(event)
                         : "event:" + Long.toUnsignedString(observedMotionToken, 16);
@@ -5533,10 +5539,24 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 });
     }
 
+    static String disabledLearningSnapshot(String lastSession) {
+        return "{\"schemaVersion\":1,\"state\":\"DISABLED\",\"applied\":false,\"lastSession\":"
+                + lastSession + "}";
+    }
+
+    static String retainedLearningSnapshot(String observer, String calibration, String admission) {
+        return "{\"observer\":" + observer + ",\"calibration\":{" + calibration
+                + "},\"admission\":" + admission + "}";
+    }
+
     private void stopScrollLearningObserver() {
         AutomaticScrollLearningObserver observer = scrollLearningObserver;
         scrollLearningObserver = null;
-        if (observer != null) observer.close();
+        if (observer != null) {
+            lastScrollLearningDiagnostics = retainedLearningSnapshot(observer.diagnostics(),
+                    scrollCalibrationDiagnostics, learningAdmissionDiagnostics);
+            observer.close();
+        }
         learningEpisodes.breakInterval();
         ScrollMotionCalibration.Motion reset = scrollMotionCalibration.apply(null, null, 0, 0);
         if (reset.scaleChanged && running && recognitionActive) fenceCalibrationCoordinates();

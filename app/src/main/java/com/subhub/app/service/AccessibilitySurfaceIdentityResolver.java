@@ -142,7 +142,8 @@ final class AccessibilitySurfaceIdentityResolver {
             long fallbackLo = mix(packageLo ^ windowId, classHashesLo[0]);
             long fallbackHi = mix(packageHi ^ windowId, classHashesHi[0]);
             return new Identity(windowId, fallbackHi, fallbackLo,
-                    0L, 0L, OWNER_NONE, CONFIDENCE_LOW, false);
+                    0L, 0L, OWNER_NONE, CONFIDENCE_LOW, false, null,
+                    source != null, count, -1, traversalFailed);
         }
 
         byte ownerKind = stableIdKinds[ownerDepth];
@@ -177,7 +178,7 @@ final class AccessibilitySurfaceIdentityResolver {
         }
         return new Identity(windowId, tokenHi, tokenLo, ownerHi, ownerLo,
                 ownerKind == OWNER_NONE ? OWNER_STRUCTURAL : ownerKind,
-                confidence, cacheable, durableDigest);
+                confidence, cacheable, durableDigest, source != null, count, ownerDepth, traversalFailed);
     }
 
     interface ResourceVerifier { boolean isCompiledResource(String resourceName); }
@@ -294,6 +295,8 @@ final class AccessibilitySurfaceIdentityResolver {
         final boolean cacheable;
         // A prior-candidate key only. Every runtime producer still needs independent validation.
         final String durableDigest;
+        final boolean sourcePresent, traversalFailed;
+        final int nodeCount, ownerDepth;
 
         private Identity(
                 int windowId,
@@ -309,6 +312,13 @@ final class AccessibilitySurfaceIdentityResolver {
 
         private Identity(int windowId, long tokenHi, long tokenLo, long ownerHi, long ownerLo,
                 byte ownerKind, byte confidence, boolean cacheable, String durableDigest) {
+            this(windowId, tokenHi, tokenLo, ownerHi, ownerLo, ownerKind, confidence,
+                    cacheable, durableDigest, false, 0, -1, false);
+        }
+
+        private Identity(int windowId, long tokenHi, long tokenLo, long ownerHi, long ownerLo,
+                byte ownerKind, byte confidence, boolean cacheable, String durableDigest,
+                boolean sourcePresent, int nodeCount, int ownerDepth, boolean traversalFailed) {
             this.windowId = windowId;
             this.tokenHi = tokenHi;
             this.tokenLo = tokenLo;
@@ -318,6 +328,10 @@ final class AccessibilitySurfaceIdentityResolver {
             this.confidence = confidence;
             this.cacheable = cacheable;
             this.durableDigest = durableDigest;
+            this.sourcePresent = sourcePresent;
+            this.nodeCount = nodeCount;
+            this.ownerDepth = ownerDepth;
+            this.traversalFailed = traversalFailed;
         }
 
         static Identity empty() { return EMPTY; }
