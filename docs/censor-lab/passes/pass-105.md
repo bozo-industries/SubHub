@@ -101,5 +101,7 @@ extend stale evidence lifetimes. Include partial-overlap label ownership and app
 cleanup in the next regression set.
 
 This pass is analysis, not a code fix. No Android rebuild was necessary. The installed
-candidate remains Pass 104; user-perceived acceptance is still outstanding and the
-visible failures above prevent declaring the overall objective complete.
+candidate remains Pass 104. After reviewing the findings, the user explicitly agreed
+with the assessment. **Pass 104 is not accepted.** Prioritize opposite-direction scroll
+jumps, then stationary coverage changes and duplicate labels. This recording is enough
+to continue diagnosis and implementation; another user recording is not a prerequisite.
