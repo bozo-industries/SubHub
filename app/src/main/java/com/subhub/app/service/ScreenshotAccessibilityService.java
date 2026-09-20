@@ -612,9 +612,12 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         } catch (Exception error) {
             Log.w(TAG, "Quality refinement will remain unavailable", error);
         } finally {
-            if (candidate != null) candidate.close();
-            qualityInitializing.set(false);
-            optionalInferenceLock.unlock();
+            try {
+                if (candidate != null) candidate.close();
+            } finally {
+                qualityInitializing.set(false);
+                releaseOptionalInferenceResource();
+            }
         }
     }
 
@@ -1311,22 +1314,28 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         }
     }
 
+    private void releaseOptionalInferenceResource() {
+        optionalInferenceLock.unlock();
+        if (personWorker != null) personWorker.resourceAvailable();
+    }
+
     private AutoCloseable tryAcquireQualityBackfillPermit() {
+        if (personWorker != null && personWorker.hasPending()) return null;
         if (!optionalInferenceLock.tryLock()) return null;
         AutoCloseable permit;
         try {
             permit = tryAcquireQualityBackfillPermitWithoutPerson();
         } catch (RuntimeException failure) {
-            optionalInferenceLock.unlock();
+            releaseOptionalInferenceResource();
             throw failure;
         }
         if (permit == null) {
-            optionalInferenceLock.unlock();
+            releaseOptionalInferenceResource();
             return null;
         }
         return () -> {
             try { permit.close(); }
-            finally { optionalInferenceLock.unlock(); }
+            finally { releaseOptionalInferenceResource(); }
         };
     }
 

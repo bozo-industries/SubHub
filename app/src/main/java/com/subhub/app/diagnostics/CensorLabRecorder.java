@@ -316,6 +316,7 @@ public final class CensorLabRecorder {
                             .put("provider", runtime.getProvider())
                             .put("model", runtime.getModel())
                             .put("preset", settings.loadDetectionPreset().preferenceValue())
+                            .put("censorCoverage", config.getCensorCoverage().preferenceValue())
                             .put("inferenceResolution", config.getInferenceResolution())
                             .put("captureScale", config.getCaptureScale())
                             .put("detectionIntervalMs", config.getDetectionIntervalMs())

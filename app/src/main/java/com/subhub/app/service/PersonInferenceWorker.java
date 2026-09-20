@@ -26,6 +26,7 @@ final class PersonInferenceWorker implements AutoCloseable {
     private boolean queued, releaseRequested, closed;
     private volatile boolean failed;
     private long submitted, dropped, preempted, denied;
+    private long resourceWake;
 
     PersonInferenceWorker(Executor executor, Backend backend, Admission admission) {
         this(executor, backend, admission, failure -> {});
@@ -86,21 +87,39 @@ final class PersonInferenceWorker implements AutoCloseable {
                 + " preemptions=" + preempted + " denied=" + denied;
     }
 
+    synchronized boolean hasPending() { return pending != null && !closed && !failed; }
+
+    /** Resource owner calls after unlocking. No polling, blocking, or unbounded retry queue. */
+    synchronized void resourceAvailable() {
+        resourceWake++;
+        if (hasPending()) schedule();
+    }
+
     private void drainOne() {
         Request request;
         boolean release;
+        long observedWake;
+        boolean deferred = false;
         synchronized (this) {
             request = pending;
             pending = null;
             release = releaseRequested;
             releaseRequested = false;
+            observedWake = resourceWake;
         }
         try {
             if (release) backend.release();
             if (request == null || cancelled(request)) return;
             try (AutoCloseable permit = admission.tryAcquire()) {
                 if (permit == null) {
-                    synchronized (this) { denied++; }
+                    boolean valid = !cancelled(request);
+                    synchronized (this) {
+                        denied++;
+                        if (valid && !closed && request.generation == generation && pending == null) {
+                            pending = request;
+                            deferred = true;
+                        }
+                    }
                     return;
                 }
                 if (cancelled(request)) return;
@@ -117,7 +136,7 @@ final class PersonInferenceWorker implements AutoCloseable {
         } finally {
             synchronized (this) {
                 queued = false;
-                if (pending != null || releaseRequested) schedule();
+                if (releaseRequested || pending != null && (!deferred || observedWake != resourceWake)) schedule();
             }
         }
     }

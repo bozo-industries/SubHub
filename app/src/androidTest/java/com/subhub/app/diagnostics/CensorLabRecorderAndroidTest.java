@@ -37,6 +37,9 @@ public final class CensorLabRecorderAndroidTest {
         assertNotNull(started.id);
         CensorLabLog.i("ScreenshotA11y", "SCROLL_EVENT id=9 source=absolute dy=120");
         CensorLabLog.i("CensorMotion", "DRAW seq=3 inputToDrawMs=8 viewportLead=0,2");
+        CensorLabLog.i("PersonInference", "PERSON_MODEL v=1 run=1 totalMs=87 prepMs=12 runtimeMs=73 postMs=2 cancelled=false success=true");
+        CensorLabLog.i("ScreenshotA11y", "PERSON_PROVISIONAL v=1 source=100 captureAgeMs=121");
+        CensorLabLog.i("ScreenshotA11y", "PERSON_PUBLISH v=1 run=1 source=100 captureAgeMs=207 applied=true submitted=1 dropped=0 preemptions=0 denied=0");
         CensorLabLog.i("ScreenshotA11y",
                 "Recognition activated for foreground package com.example.private");
         CensorLabRecorder.mark("UI\nMARKER");
@@ -49,11 +52,16 @@ public final class CensorLabRecorderAndroidTest {
         String trace = read(completed.trace);
         assertTrue(trace.contains("SCROLL_EVENT"));
         assertTrue(trace.contains("CensorMotion"));
+        assertTrue(trace.contains("PERSON_MODEL v=1"));
+        assertTrue(trace.contains("PERSON_PROVISIONAL v=1"));
+        assertTrue(trace.contains("PERSON_PUBLISH v=1"));
         assertTrue(trace.contains("UI MARKER"));
         assertFalse(trace.contains("com.example.private"));
 
         JSONObject manifest = new JSONObject(read(completed.manifest));
         assertEquals(1, manifest.getInt("schemaVersion"));
+        assertEquals(new com.subhub.app.settings.SettingsRepository(context).loadCensorCoverage().preferenceValue(),
+                manifest.getJSONObject("capture").getString("censorCoverage"));
         assertFalse(manifest.getJSONObject("privacy").getBoolean("pixelCapture"));
         assertFalse(manifest.getJSONObject("privacy").getBoolean("ocrTextStored"));
         assertFalse(manifest.getJSONObject("privacy").getBoolean("foregroundPackageStored"));

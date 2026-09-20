@@ -68,7 +68,7 @@ final class PersonCoveragePresentation {
     private void resolve(List<PersonBoxDecoder.Person> people, long now) {
         boxes.clear();
         refined.entrySet().removeIf(entry -> now < entry.getValue().capturedAt
-                || now - entry.getValue().capturedAt >= 500L);
+                || now - entry.getValue().capturedAt >= MAX_AGE_MS);
         List<WholePersonGeometry.Coverage> coverage = new WholePersonGeometry().resolve(
                 triggers, cues, people, width, height);
         for (RenderTrackSnapshot raw : originals) {
@@ -104,7 +104,10 @@ final class PersonCoveragePresentation {
                 } else if (people.isEmpty()) {
                     Refined old = refined.get(raw.sourceId());
                     if (old != null && old.matches(raw.category(), trigger, reference, width, height, world)) {
-                        proofExpiry = old.capturedAt + 500L;
+                        // Use the same hard evidence lifetime as a freshly displayed result.
+                        // A shorter reuse-only deadline falls between raw and refined updates
+                        // at the ~334 ms capture cadence, producing a visible shrink/grow pulse.
+                        proofExpiry = old.capturedAt + MAX_AGE_MS;
                         chosen = new BBox(old.person.getX() + trigger.getX() - old.trigger.getX(),
                                 old.person.getY() + trigger.getY() - old.trigger.getY(),
                                 old.person.getWidth(), old.person.getHeight());

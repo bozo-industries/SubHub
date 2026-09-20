@@ -18,6 +18,18 @@ def parse(text):
     records = []
     invalid = []
     for line_number, line in enumerate(text.splitlines(), 1):
+        raw_line = line;
+        if line.lstrip().startswith("{"):
+            try:
+                event = json.loads(line)
+                line = event["message"]
+                if not isinstance(line, str):
+                    raise ValueError("invalid event message")
+            except (ValueError, KeyError, TypeError):
+                if "PERSON_" in raw_line:
+                    raw += 1
+                    invalid.append(line_number)
+                continue
         match = re.search(r"\bPERSON_([A-Z_]+)\s+(.*)$", line)
         if not match:
             if "PERSON_" in line:

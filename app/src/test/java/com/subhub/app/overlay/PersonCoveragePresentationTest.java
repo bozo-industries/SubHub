@@ -161,13 +161,32 @@ public final class PersonCoveragePresentationTest {
         state.advanceFrame();
         begin(300);
         assertEquals(refined, box(300));
-        assertEquals(300L, state.nextRefreshDelay(300));
+        assertEquals(550L, state.nextRefreshDelay(300));
         assertFalse(state.refine(token, Collections.emptyList(), 310));
         // Reusing on another frame cannot turn an old model observation into fresh evidence.
-        assertEquals(new BBox(36, 12, 128, 288), box(600));
-        assertEquals(450L, state.nextRefreshDelay(600));
+        assertEquals(new BBox(36, 12, 128, 288), box(850));
+        assertEquals(200L, state.nextRefreshDelay(850));
         state.clear();
         begin(400);
         assertEquals(new BBox(36, 12, 128, 288), box(400));
+    }
+
+    @Test public void recordedCadenceDoesNotShrinkBetweenRawPublicationAndNextRefinement() {
+        long first = state.begin(Collections.singletonList(raw), Collections.singletonList(chest),
+                Collections.emptyList(), 200, 300, 100, 221, false,
+                0, 0, 200, 300, RenderSourceReference.UNKNOWN);
+        BBox person = new BBox(60, 10, 90, 190);
+        assertTrue(state.refine(first, Collections.singletonList(
+                new PersonBoxDecoder.Person(person, .9f)), 307));
+        long second = state.begin(Collections.singletonList(raw), Collections.singletonList(chest),
+                Collections.emptyList(), 200, 300, 434, 555, false,
+                0, 0, 200, 300, RenderSourceReference.UNKNOWN);
+        // 334 ms capture cadence, 121 ms raw publication and 207 ms refinement age:
+        // a 500 ms reuse expiry introduces a ~41 ms pulse even with every model run admitted.
+        assertEquals(person, box(600));
+        assertEquals(person, box(640));
+        assertTrue(state.refine(second, Collections.singletonList(
+                new PersonBoxDecoder.Person(person, .9f)), 641));
+        assertEquals(person, box(641));
     }
 }

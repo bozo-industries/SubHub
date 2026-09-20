@@ -22,8 +22,14 @@ public final class CensorLabLog {
     }
 
     static boolean allowed(String tag, String message) {
+        if (message == null) return false;
+        if ("PersonInference".equals(tag)) return message.startsWith("PERSON_MODEL ");
+        if ("ScreenshotA11y".equals(tag) || "ScreenCaptureService".equals(tag)) {
+            if (message.startsWith("PERSON_PROVISIONAL ")
+                    || message.startsWith("PERSON_PUBLISH ")) return true;
+        }
         if ("CensorMotion".equals(tag)) return true;
-        if (!"ScreenshotA11y".equals(tag) || message == null) return false;
+        if (!"ScreenshotA11y".equals(tag)) return false;
         for (String prefix : ALLOWED_PREFIXES) {
             if (message.startsWith(prefix)) return true;
         }

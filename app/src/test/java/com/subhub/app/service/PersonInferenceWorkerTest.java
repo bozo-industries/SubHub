@@ -67,6 +67,65 @@ public final class PersonInferenceWorkerTest {
         assertEquals(0, backend.runs);
         assertEquals(0, published.get());
         assertEquals(0, queue.size());
+        assertTrue(denied.hasPending());
+    }
+
+    @Test public void resourceReleaseRunsLatestDeferredRequestWithoutPolling() {
+        java.util.concurrent.atomic.AtomicBoolean busy = new java.util.concurrent.atomic.AtomicBoolean(true);
+        PersonInferenceWorker deferred = new PersonInferenceWorker(executor, backend,
+                () -> busy.get() ? null : () -> releases.incrementAndGet());
+        submit(deferred, 1, () -> true);
+        drain();
+        assertEquals(0, queue.size());
+        submit(deferred, 2, () -> true);
+        drain();
+        busy.set(false);
+        deferred.resourceAvailable();
+        deferred.resourceAvailable();
+        assertEquals(1, queue.size());
+        drain();
+        assertEquals(1, backend.runs);
+        assertEquals(2, backend.width);
+        assertEquals(1, published.get());
+    }
+
+    @Test public void wakeDuringAdmissionDoesNotGetLost() {
+        PersonInferenceWorker[] holder = new PersonInferenceWorker[1];
+        AtomicInteger attempts = new AtomicInteger();
+        holder[0] = new PersonInferenceWorker(executor, backend, () -> {
+            if (attempts.incrementAndGet() == 1) {
+                holder[0].resourceAvailable();
+                return null;
+            }
+            return () -> releases.incrementAndGet();
+        });
+        submit(holder[0], 1, () -> true);
+        drain();
+        assertEquals(2, attempts.get());
+        assertEquals(1, backend.runs);
+    }
+
+    @Test public void fastPreemptionAndExpiredScopePreventDeferredPublication() {
+        java.util.concurrent.atomic.AtomicBoolean busy = new java.util.concurrent.atomic.AtomicBoolean(true);
+        java.util.concurrent.atomic.AtomicBoolean valid = new java.util.concurrent.atomic.AtomicBoolean(true);
+        PersonInferenceWorker deferred = new PersonInferenceWorker(executor, backend,
+                () -> busy.get() ? null : () -> {});
+        submit(deferred, 1, valid::get);
+        drain();
+        deferred.preempt();
+        busy.set(false);
+        deferred.resourceAvailable();
+        drain();
+        assertEquals(0, backend.runs);
+        busy.set(true);
+        submit(deferred, 2, valid::get);
+        drain();
+        valid.set(false);
+        busy.set(false);
+        deferred.resourceAvailable();
+        drain();
+        assertEquals(0, backend.runs);
+        assertFalse(deferred.hasPending());
     }
 
     @Test public void modeOffReleasesOnWorkerAndInvalidatesQueuedImage() {
