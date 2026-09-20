@@ -42,12 +42,28 @@ declared `SubHubTestRunner` was checked; terminal result was **OK (6 tests)**:
 
 The hardware RenderNode path compiled and shares the tested ownership/order logic; a
 separate hardware pixel capture was not performed. The emulator was stopped after testing.
-No phone installation or new Pixel recording occurred.
+No phone installation or new Pixel recording occurred during that test phase.
+
+## Authorized Pixel installation
+
+After the user requested installation, private signing run `35508892994` passed for
+source `b92f124df819c9a43b2a448d48dcb247ce34c52d`. Artifact provenance confirms the
+immediate-quality flag enabled and public release disabled. No release or tag was created.
+The ARM64 APK checksum and compatible release certificate were verified; the bundled
+static person model retained SHA-256
+`d891b8c939ce062b13fc7440195d427eeecbec307c2417564d6908309b263e19`.
+
+Replace-install on the Pixel 8 Pro succeeded, preserving app data. Independent installed
+APK readback matched SHA-256
+`55431cc3840c1321178acf701c2515db953d9041717f3e088c10174b2f461942`.
+Android reported version `0.6.3` / code `19`, last update `2026-09-20 13:54:48`,
+a running app process, and SubHub still listed among enabled Accessibility services.
+This verifies deployment, not visual acceptance. No new recording was started.
 
 ## Remaining acceptance
 
 There are no new live capture-age, queue, model-time, publication-latency, or scroll-error
 measurements for these changes. Pass 102's negative user verdict remains authoritative.
 Scroll displacement and browser-header transitions still need measured reproduction and
-repair. The combined candidate then needs signing, dense Pixel video/trace evaluation,
+repair. The installed candidate now needs dense Pixel video/trace evaluation,
 and explicit user acceptance. Do not claim the visual experience fixed from these tests.
