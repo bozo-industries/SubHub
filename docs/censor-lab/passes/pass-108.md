@@ -66,6 +66,21 @@ native checks were completed against the immediately preceding Pass 107 cleanup;
 this pass changes only the platform-independent trajectory and its tests.
 
 No new live capture-age, queue, preprocessing/inference/postprocessing, publication or
-Pixel stability metrics are claimed. The Pixel is unchanged on Pass 104. Combine the
-verified single-model cleanup and scroll fixes in the next private signed candidate,
-then obtain a fresh dense recording and the user's perceived verdict before acceptance.
+Pixel stability metrics are claimed. Pass 105 remains the latest measured evidence.
+A fresh dense recording and the user's perceived verdict are required before acceptance.
+
+## Authorized installation and requested break
+
+The user explicitly requested installation followed by a break. Private signing run
+`35514598178` completed successfully for source
+`45179ccd0bbb601b6b1f1be7f0b04e5866b55512`, with immediate quality enabled and public
+release disabled. No release or tag was created. The compact Pixel artifact's provenance,
+checksum and compatible release certificate were checked. Its only ONNX asset is the
+unchanged original `320n_fp16.onnx`; the independent person network is absent.
+
+Replace-install on the Pixel 8 Pro succeeded without clearing data. Independent installed
+APK pull/readback matches SHA-256
+`58f14a4785a5e1f7f541aabd30938f379b575ffe077d57836c0385a59a371b50`.
+Android reports version `0.6.3` / code `19`, last update `2026-09-20 15:53:35`, a running
+SubHub process, and the Accessibility service still enabled. This proves installation,
+not smoother behavior. No recording or further tuning was started before the requested pause.
