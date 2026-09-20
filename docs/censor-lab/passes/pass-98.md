@@ -43,6 +43,14 @@ invocation with `-PimmediateQualityExperiment=true`. Metadata parser, existing t
 parser and motion-clock fixtures also passed in that export. Only this verification
 prose changed afterward. Unrelated dirty cache experiments remain excluded.
 
+Private signing run `35482589382` succeeded for exact source
+`e55feb4e10ee0bee668c22ffd35d49653084867c`. Compact artifact `10596810526` was
+downloaded and verified: exact source, immediate-quality flag enabled, no published
+release, matching checksum and installed-compatible signer.
+APK SHA-256: `cda084365ac6a069d8d88385a9f495ba2b246d6ce342570a373902fe81bae1e6`.
+Signer SHA-256: `3ad7c66a3b50ddc0d71b8907f7f91926e39287f2c4f1def67831a30d439260dd`.
+No installation was performed; the phone remains on Pass 96.
+
 This checkpoint does not fix X's motion. One short X scroll is needed with the new
 metadata to determine whether the large impulse coincides with scrollbar-range or
 item-index changes and whether ownership failed because the source is absent, no
