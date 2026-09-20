@@ -8,11 +8,13 @@ import java.util.List;
 public final class WholePersonGeometry {
     public static final class Coverage {
         public final String category;
+        public final int trackId;
         public final BBox trigger, person;
         public final boolean refined;
 
         Coverage(Detection detection, BBox person, boolean refined) {
             category = detection.getCategory();
+            trackId = detection.getTrackId();
             trigger = detection.getBox();
             this.person = union(trigger, person);
             this.refined = refined;

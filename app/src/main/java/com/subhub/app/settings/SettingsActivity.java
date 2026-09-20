@@ -84,6 +84,9 @@ public final class SettingsActivity extends AppCompatActivity {
         CensorAppearance appearance = repository.loadAppearance();
         binding.captureMethodGroup.check(repository.loadCaptureMethod() == CaptureMethod.APP_MODE
                 ? R.id.radio_capture_app_mode : R.id.radio_capture_recording);
+        binding.coverageGroup.check(repository.loadDetectorConfig().getCensorCoverage()
+                == com.subhub.app.detection.CensorCoverage.WHOLE_PERSON
+                ? R.id.radio_coverage_person : R.id.radio_coverage_areas);
         setCheckedStyle(radioFor(appearance.getType()));
         binding.intensitySeek.setProgress(appearance.getIntensity());
         binding.intensityValue.setText(percent(appearance.getIntensity()));
@@ -149,6 +152,7 @@ public final class SettingsActivity extends AppCompatActivity {
 
     private void attachListeners() {
         binding.captureMethodGroup.setOnCheckedChangeListener((group, checkedId) -> saveAll());
+        binding.coverageGroup.setOnCheckedChangeListener((group, checkedId) -> saveAll());
         for (int id : styleRadioIds()) {
             RadioButton radio = findViewById(id);
             radio.setOnCheckedChangeListener((button, checked) -> {
@@ -264,6 +268,8 @@ public final class SettingsActivity extends AppCompatActivity {
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE));
         setEnabledRecursive(binding.captureMethodGroup,
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_CAPTURE_METHOD));
+        setEnabledRecursive(binding.coverageGroup,
+                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_COVERAGE));
         binding.intensitySeek.setEnabled(
                 editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_INTENSITY));
         binding.paddingSeek.setEnabled(
@@ -514,6 +520,12 @@ public final class SettingsActivity extends AppCompatActivity {
 
     private void saveAll() {
         if (bindingValues) return;
+        if (ControllerPinManager.isSessionUnlocked()
+                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.CENSOR)
+                && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_COVERAGE)) {
+            repository.preferences().edit().putString(SettingsRepository.KEY_CENSOR_COVERAGE,
+                    binding.radioCoveragePerson.isChecked() ? "whole_person" : "detected_areas").apply();
+        }
         repository.saveCaptureMethod(binding.radioCaptureAppMode.isChecked()
                 ? CaptureMethod.APP_MODE : CaptureMethod.SCREEN_RECORDING);
         String previousStyle = repository.preferences().getString(

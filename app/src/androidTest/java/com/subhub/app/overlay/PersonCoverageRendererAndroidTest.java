@@ -60,6 +60,12 @@ public final class PersonCoverageRendererAndroidTest {
                 view.draw(new Canvas(image));
                 assertEquals(Color.TRANSPARENT, image.getPixel(100, 170));
                 assertEquals(Color.BLACK, image.getPixel(100, 100));
+                view.beginPersonCoverage(List.of(chest), List.of(head, chest),
+                        SystemClock.uptimeMillis(), 0, 0, 200, 300, RenderSourceReference.UNKNOWN);
+                image.eraseColor(Color.TRANSPARENT);
+                view.draw(new Canvas(image));
+                assertEquals(Color.BLACK, image.getPixel(100, 170));
+                assertEquals(Color.TRANSPARENT, image.getPixel(100, 250));
                 assertEquals(chest.getBox(), tracks.get(0).getBox());
             } finally {
                 view.release();

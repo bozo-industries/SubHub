@@ -83,6 +83,32 @@
             android:background="@drawable/bg_card"
             android:orientation="vertical"
             android:padding="14dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/censor_coverage_title" android:textColor="@color/text_primary"
+                android:textSize="14sp" android:textStyle="bold" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" android:text="@string/censor_coverage_help"
+                android:textColor="@color/text_secondary" android:textSize="11sp" />
+            <RadioGroup android:id="@+id/coverage_group" android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <RadioButton android:id="@+id/radio_coverage_areas" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:minHeight="48dp"
+                    android:buttonTint="@color/accent" android:text="@string/censor_coverage_areas"
+                    android:textColor="@color/text_primary" />
+                <RadioButton android:id="@+id/radio_coverage_person" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:minHeight="48dp"
+                    android:buttonTint="@color/accent" android:text="@string/censor_coverage_person"
+                    android:textColor="@color/text_primary" />
+            </RadioGroup>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="14dp">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="@string/settings_quick_tools" android:textColor="@color/text_primary"
                 android:textSize="14sp" android:textStyle="bold" />

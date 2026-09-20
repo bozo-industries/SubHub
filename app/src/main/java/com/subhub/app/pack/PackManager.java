@@ -45,6 +45,7 @@ public final class PackManager {
                     SettingsRepository.KEY_TEXT_SMUT_CATEGORIES,
                     SettingsRepository.KEY_CONFIDENCE,
                     SettingsRepository.KEY_CENSOR_TYPE,
+                    SettingsRepository.KEY_CENSOR_COVERAGE,
                     SettingsRepository.KEY_CENSOR_INTENSITY,
                     SettingsRepository.KEY_SHOW_BORDER,
                     SettingsRepository.KEY_SHOW_TEXT,

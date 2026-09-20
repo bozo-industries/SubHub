@@ -102,8 +102,9 @@ final class CensorOverlayView extends View {
     private final StableVisualLayout visualLayout = new StableVisualLayout();
     private final PersonCoveragePresentation personCoverage = new PersonCoveragePresentation();
     private final Runnable expirePersonCoverage = () -> {
-        latestMutationUptime = SystemClock.uptimeMillis();
-        personCoverage.clear();
+        long now = SystemClock.uptimeMillis();
+        latestMutationUptime = now;
+        schedulePersonCoverageExpiry(now);
         postInvalidateOnAnimation();
     };
     private float sourceFrameOffsetX;
@@ -236,7 +237,7 @@ final class CensorOverlayView extends View {
             visualLayout.clear();
         }
         worldSpaceTracks = false;
-        clearPersonCoverage();
+        advancePersonFrame();
         List<RenderTrackSnapshot> snapshots = new ArrayList<>(value.size());
         for (TrackedObject track : value) snapshots.add(RenderTrackSnapshot.from(track));
         tracksPublishedAtMillis = SystemClock.uptimeMillis();
@@ -331,7 +332,7 @@ final class CensorOverlayView extends View {
             long trackCameraX, long trackCameraY, long sourceCameraX, long sourceCameraY,
             int viewportWidth, int viewportHeight, Runnable latestFrameRelease,
             RenderSourceReference sourceReference) {
-        clearPersonCoverage();
+        advancePersonFrame();
         if (!worldSpaceTracks) {
             visualSteering.clear();
             visualLayout.clear();
@@ -1609,8 +1610,7 @@ final class CensorOverlayView extends View {
                 capturedAt, now, worldSpaceTracks, cameraX, cameraY,
                 viewportWidth, viewportHeight, reference);
         latestMutationUptime = now;
-        postDelayed(expirePersonCoverage, Math.max(1L,
-                PersonCoveragePresentation.MAX_AGE_MS - Math.max(0L, now - capturedAt)));
+        schedulePersonCoverageExpiry(now);
         postInvalidateOnAnimation();
         return token;
     }
@@ -1620,6 +1620,7 @@ final class CensorOverlayView extends View {
         boolean applied = personCoverage.refine(token, people, SystemClock.uptimeMillis());
         if (applied) {
             latestMutationUptime = SystemClock.uptimeMillis();
+            schedulePersonCoverageExpiry(latestMutationUptime);
             postInvalidateOnAnimation();
         }
         return applied;
@@ -1630,6 +1631,17 @@ final class CensorOverlayView extends View {
         personCoverage.clear();
         latestMutationUptime = SystemClock.uptimeMillis();
         postInvalidateOnAnimation();
+    }
+
+    private void schedulePersonCoverageExpiry(long now) {
+        removeCallbacks(expirePersonCoverage);
+        long delay = personCoverage.nextRefreshDelay(now);
+        if (delay > 0L) postDelayed(expirePersonCoverage, delay);
+    }
+
+    private void advancePersonFrame() {
+        removeCallbacks(expirePersonCoverage);
+        personCoverage.advanceFrame();
     }
 
     private BBox visualBox(RenderTrackSnapshot track, float ageMs) {

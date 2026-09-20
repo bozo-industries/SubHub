@@ -139,4 +139,35 @@ public final class PersonCoveragePresentationTest {
             assertEquals(worldRaw.box(), state.expand(worldRaw, worldRaw.box(), Collections.emptyList(), 110));
         }
     }
+
+    @Test public void unanchoredWorldRequiresMatchingCurrentTrackerAssignment() {
+        chest.setTrackId(7);
+        state.begin(Collections.singletonList(raw), Collections.singletonList(chest),
+                Arrays.asList(head, chest), 200, 300, 100, 110, true,
+                0, 0, 200, 300, RenderSourceReference.UNKNOWN);
+        chest.setTrackId(99); // Caller mutation cannot change the retained proof.
+        assertEquals(new BBox(36, 12, 128, 288), box(110));
+        state.begin(Collections.singletonList(raw), Collections.singletonList(chest),
+                Arrays.asList(head, chest), 200, 300, 100, 110, true,
+                0, 0, 200, 300, RenderSourceReference.UNKNOWN);
+        assertEquals(raw.box(), box(110));
+    }
+
+    @Test public void briefRefinedShapeReuseAvoidsProvisionalPulsingWithoutRenewingProof() {
+        long token = begin(100);
+        BBox refined = new BBox(60, 10, 90, 190);
+        assertTrue(state.refine(token, Collections.singletonList(
+                new PersonBoxDecoder.Person(refined, .9f)), 120));
+        state.advanceFrame();
+        begin(300);
+        assertEquals(refined, box(300));
+        assertEquals(300L, state.nextRefreshDelay(300));
+        assertFalse(state.refine(token, Collections.emptyList(), 310));
+        // Reusing on another frame cannot turn an old model observation into fresh evidence.
+        assertEquals(new BBox(36, 12, 128, 288), box(600));
+        assertEquals(450L, state.nextRefreshDelay(600));
+        state.clear();
+        begin(400);
+        assertEquals(new BBox(36, 12, 128, 288), box(400));
+    }
 }

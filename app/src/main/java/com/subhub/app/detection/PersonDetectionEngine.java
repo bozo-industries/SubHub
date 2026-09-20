@@ -39,8 +39,8 @@ public final class PersonDetectionEngine implements AutoCloseable {
 
     public synchronized List<PersonBoxDecoder.Person> detect(SharedModelImage image,
             int sourceWidth, int sourceHeight, BooleanSupplier cancelled) throws IOException, OrtException {
-        if (closed || cancelled.getAsBoolean()) return Collections.emptyList();
         preprocessMs = runtimeMs = postprocessMs = 0;
+        if (closed || cancelled.getAsBoolean()) return Collections.emptyList();
         try (Run run = new Run()) {
             active.set(run);
             try {

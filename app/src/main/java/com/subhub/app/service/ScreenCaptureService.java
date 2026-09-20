@@ -34,6 +34,9 @@ import com.subhub.app.capture.MediaProjectionLeaseRegistry;
 import com.subhub.app.detection.Detection;
 import com.subhub.app.detection.DetectionEngine;
 import com.subhub.app.detection.DetectorConfig;
+import com.subhub.app.detection.CensorCoverage;
+import com.subhub.app.detection.SharedModelImage;
+import com.subhub.app.detection.RenderSourceReference;
 import com.subhub.app.detection.ObjectTracker;
 import com.subhub.app.detection.TrackedObject;
 import com.subhub.app.diagnostics.DiagnosticsRepository;
@@ -77,6 +80,10 @@ public final class ScreenCaptureService extends Service {
             (preferences, key) -> reloadSettings();
     private ScheduledExecutorService executor;
     private ExecutorService inferenceExecutor;
+    private PersonInferenceBackend personBackend;
+    private PersonInferenceWorker personWorker;
+    private final java.util.concurrent.atomic.AtomicLong personSourceSequence =
+            new java.util.concurrent.atomic.AtomicLong();
     private LatestFrameBroker<ProjectionFrame> frameBroker;
     private CaptureLoadGovernor loadGovernor;
     private MediaProjection projection;
@@ -113,6 +120,9 @@ public final class ScreenCaptureService extends Service {
         createNotificationChannel();
         executor = Executors.newSingleThreadScheduledExecutor();
         inferenceExecutor = Executors.newSingleThreadExecutor();
+        personBackend = new PersonInferenceBackend(this);
+        personWorker = new PersonInferenceWorker(inferenceExecutor, personBackend, () -> () -> {},
+                failure -> Log.w(TAG, "Optional person inference disabled until settings reload", failure));
         loadGovernor = new CaptureLoadGovernor(this);
         settings = new SettingsRepository(this);
         stats = new StatsRepository(this);
@@ -219,6 +229,9 @@ public final class ScreenCaptureService extends Service {
     }
 
     private void reloadSettings() {
+        personSourceSequence.incrementAndGet();
+        if (personWorker != null) personWorker.reset();
+        if (overlay != null) overlay.clearPersonCoverage();
         CensorAppearance appearance = settings.loadAppearance();
         overlayNeedsSourceFrame = appearance.requiresSourceFrame();
         if (overlay != null) overlay.setAppearance(appearance);
@@ -242,8 +255,11 @@ public final class ScreenCaptureService extends Service {
             LatestFrameBroker<ProjectionFrame> broker = frameBroker;
             if (frame == null) return;
             if (broker == null) frame.recycle();
-            else broker.submit(new ProjectionFrame(
-                    frame, capture, SystemClock.uptimeMillis()));
+            else {
+                if (personWorker != null) personWorker.preempt();
+                broker.submit(new ProjectionFrame(frame, capture, SystemClock.uptimeMillis(),
+                        personSourceSequence.incrementAndGet()));
+            }
         } catch (Exception error) {
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, error);
             Log.w(TAG, "Frame capture failed", error);
@@ -255,6 +271,9 @@ public final class ScreenCaptureService extends Service {
         try {
             if (!running || frame == null || frame.isRecycled()) return;
             List<Detection> detections = detector.detect(frame);
+            SharedModelImage personImage = detector.takePreparedPersonImage();
+            List<Detection> personCues = personImage == null ? java.util.Collections.emptyList()
+                    : new java.util.ArrayList<>(detector.getPersonSupportCues());
             List<TrackedObject> tracks = tracker.update(detections);
             DetectorConfig currentConfig = detectorConfig;
             int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
@@ -308,6 +327,36 @@ public final class ScreenCaptureService extends Service {
                     } else {
                         overlay.updatePooledFrame(
                                 tracks, width, height, overlayFrame, overlayFrameRelease);
+                    }
+                    DetectorConfig coverageConfig = detectorConfig;
+                    if (personImage != null && personWorker != null && running
+                            && coverageConfig != null
+                            && coverageConfig.getCensorCoverage() == CensorCoverage.WHOLE_PERSON
+                            && candidate.sourceSequence == personSourceSequence.get()) {
+                        OverlayController targetOverlay = overlay;
+                        long token = targetOverlay.beginPersonCoverage(detections, personCues,
+                                candidate.capturedAtUptimeMillis, 0, 0, width, height,
+                                RenderSourceReference.UNKNOWN);
+                        com.subhub.app.diagnostics.CensorLabLog.i(TAG,
+                                "PERSON_PROVISIONAL v=1 source=" + candidate.capturedAtUptimeMillis
+                                + " captureAgeMs=" + Math.max(0L, SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis));
+                        java.util.function.BooleanSupplier valid = () -> running
+                                && candidate.sourceSequence == personSourceSequence.get()
+                                && SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis < 750L;
+                        personWorker.submit(personImage, width, height, valid, people -> {
+                            long modelRun = personBackend.lastRunId();
+                            String counters = personWorker.counters();
+                            mainHandler.post(() -> {
+                                    if (valid.getAsBoolean() && overlay == targetOverlay) {
+                                        boolean applied = targetOverlay.refinePersonCoverage(token, people);
+                                        com.subhub.app.diagnostics.CensorLabLog.i(TAG,
+                                                "PERSON_PUBLISH v=1 run=" + modelRun
+                                                + " source=" + candidate.capturedAtUptimeMillis
+                                                + " captureAgeMs=" + Math.max(0L, SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis)
+                                                + " applied=" + applied + counters);
+                                    }
+                                });
+                        });
                     }
                     DiagnosticsRepository.recordPublishDelay(DIAGNOSTICS_MODE,
                             SystemClock.uptimeMillis() - candidate.capturedAtUptimeMillis);
@@ -394,6 +443,7 @@ public final class ScreenCaptureService extends Service {
         if (executor != null) executor.shutdownNow();
         if (frameBroker != null) frameBroker.close();
         frameBroker = null;
+        if (personWorker != null) personWorker.close();
         if (inferenceExecutor != null) {
             inferenceExecutor.shutdownNow();
             try {
@@ -402,6 +452,7 @@ public final class ScreenCaptureService extends Service {
                 Thread.currentThread().interrupt();
             }
         }
+        if (personBackend != null) personBackend.release();
         if (capture != null) capture.close();
         if (loadGovernor != null) loadGovernor.close();
         loadGovernor = null;
@@ -441,14 +492,16 @@ public final class ScreenCaptureService extends Service {
         private Bitmap bitmap;
         private final ScreenCaptureManager owner;
         private final long capturedAtUptimeMillis;
+        private final long sourceSequence;
 
         private ProjectionFrame(
                 Bitmap bitmap,
                 ScreenCaptureManager owner,
-                long capturedAtUptimeMillis) {
+                long capturedAtUptimeMillis, long sourceSequence) {
             this.bitmap = bitmap;
             this.owner = owner;
             this.capturedAtUptimeMillis = capturedAtUptimeMillis;
+            this.sourceSequence = sourceSequence;
         }
 
         private Bitmap bitmap() { return bitmap; }

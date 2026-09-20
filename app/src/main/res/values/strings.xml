@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="censor_coverage_title">Censor coverage</string>
+    <string name="censor_coverage_areas">Detected areas (default)</string>
+    <string name="censor_coverage_person">Whole person</string>
+    <string name="censor_coverage_help">Whole person expands selected visual detections into an estimated person rectangle, then refines it when possible. Uncertain matches keep the detected areas covered. Text is unchanged. Uses additional on-device processing.</string>
     <string name="app_name">SubHub</string>
     <string name="nav_home">Home</string>
     <string name="nav_censor">Censor</string>

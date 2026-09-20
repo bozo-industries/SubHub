@@ -43,6 +43,7 @@ public final class SubHubPackSchema {
                 SettingsRepository.KEY_ENABLED_CATEGORIES,
                 SettingsRepository.KEY_CONFIDENCE,
                 SettingsRepository.KEY_CENSOR_TYPE,
+                SettingsRepository.KEY_CENSOR_COVERAGE,
                 SettingsRepository.KEY_CENSOR_INTENSITY,
                 SettingsRepository.KEY_SHOW_BORDER,
                 SettingsRepository.KEY_SHOW_TEXT,
