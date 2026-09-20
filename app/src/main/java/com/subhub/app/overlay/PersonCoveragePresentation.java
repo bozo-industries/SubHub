@@ -149,6 +149,8 @@ final class PersonCoveragePresentation {
         return now >= capturedAt && now - capturedAt < MAX_AGE_MS;
     }
 
+    boolean hasActiveCoverage(long now) { return !boxes.isEmpty() && fresh(now); }
+
     long nextRefreshDelay(long now) {
         if (triggers.isEmpty()) return 0L;
         if (!fresh(now)) {

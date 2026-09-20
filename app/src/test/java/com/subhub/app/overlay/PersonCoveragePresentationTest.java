@@ -32,7 +32,7 @@ public final class PersonCoveragePresentationTest {
 
     @Test public void provisionalRefinesWithoutChangingRawOrDroppingOriginalCoverage() {
         long token = begin(100);
-        assertEquals(new BBox(36, 12, 128, 288), box(100));
+        assertEquals(new BBox(57, 12, 86, 121), box(100));
         assertTrue(state.refine(token, Collections.singletonList(new PersonBoxDecoder.Person(
                 new BBox(60, 10, 90, 190), .9f)), 120));
         assertEquals(new BBox(60, 10, 90, 190), box(120));
@@ -81,13 +81,13 @@ public final class PersonCoveragePresentationTest {
         begin(100);
         RenderTrackSnapshot group = raw.withGroupBox(new BBox(20, 50, 160, 100))
                 .withRenderBox(new BBox(20, 50, 160, 100), -1500000000);
-        assertEquals(new BBox(20, 12, 160, 288), state.expand(group, group.box(),
+        assertEquals(new BBox(20, 12, 160, 138), state.expand(group, group.box(),
                 Arrays.asList(7, 8), 100));
     }
 
     @Test public void projectionPredictionMovesPersonAndPartTogether() {
         begin(100);
-        assertEquals(new BBox(46, 32, 128, 288), state.expand(raw,
+        assertEquals(new BBox(67, 32, 86, 121), state.expand(raw,
                 new BBox(75, 100, 70, 45), Collections.emptyList(), 120));
     }
 
@@ -117,7 +117,7 @@ public final class PersonCoveragePresentationTest {
         state.begin(Collections.singletonList(worldRaw), Collections.singletonList(chest),
                 Arrays.asList(head, chest), 200, 300, 100, 110, true,
                 100, 200, 400, 600, reference);
-        assertEquals(new BBox(86, 112, 128, 288), state.expand(worldRaw,
+        assertEquals(new BBox(107, 112, 86, 121), state.expand(worldRaw,
                 worldRaw.box(), Collections.emptyList(), 110));
         // Same geometry, different frame must not reuse this expansion.
         RenderSourceReference other = RenderSourceReference.known(origin, 101, 0, 0);
@@ -146,7 +146,7 @@ public final class PersonCoveragePresentationTest {
                 Arrays.asList(head, chest), 200, 300, 100, 110, true,
                 0, 0, 200, 300, RenderSourceReference.UNKNOWN);
         chest.setTrackId(99); // Caller mutation cannot change the retained proof.
-        assertEquals(new BBox(36, 12, 128, 288), box(110));
+        assertEquals(new BBox(57, 12, 86, 121), box(110));
         state.begin(Collections.singletonList(raw), Collections.singletonList(chest),
                 Arrays.asList(head, chest), 200, 300, 100, 110, true,
                 0, 0, 200, 300, RenderSourceReference.UNKNOWN);
@@ -164,11 +164,11 @@ public final class PersonCoveragePresentationTest {
         assertEquals(550L, state.nextRefreshDelay(300));
         assertFalse(state.refine(token, Collections.emptyList(), 310));
         // Reusing on another frame cannot turn an old model observation into fresh evidence.
-        assertEquals(new BBox(36, 12, 128, 288), box(850));
+        assertEquals(new BBox(57, 12, 86, 121), box(850));
         assertEquals(200L, state.nextRefreshDelay(850));
         state.clear();
         begin(400);
-        assertEquals(new BBox(36, 12, 128, 288), box(400));
+        assertEquals(new BBox(57, 12, 86, 121), box(400));
     }
 
     @Test public void recordedCadenceDoesNotShrinkBetweenRawPublicationAndNextRefinement() {

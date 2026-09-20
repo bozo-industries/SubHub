@@ -101,6 +101,7 @@ final class CensorOverlayView extends View {
     private final ContinuousTrackSteering textSteering = new ContinuousTrackSteering();
     private final StableVisualLayout visualLayout = new StableVisualLayout();
     private final PersonCoveragePresentation personCoverage = new PersonCoveragePresentation();
+    private Set<Integer> suppressedPersonDecorations = Collections.emptySet();
     private final Runnable expirePersonCoverage = () -> {
         long now = SystemClock.uptimeMillis();
         latestMutationUptime = now;
@@ -820,6 +821,7 @@ final class CensorOverlayView extends View {
         activeEffectReference = RenderSourceReference.UNKNOWN;
         activeEffectOffsetX = renderContentOffsetX;
         activeEffectOffsetY = renderContentOffsetY;
+        updatePersonDecorations();
         if (appearance.isReverseMode()) drawReverse(canvas);
         else drawNormal(canvas);
         drawDiagnostics(canvas);
@@ -863,7 +865,7 @@ final class CensorOverlayView extends View {
         float scaleX = (float) getWidth() / captureWidth;
         float scaleY = (float) getHeight() / captureHeight;
         float ageMs = renderAgeMillis();
-        for (RenderTrackSnapshot track : tracks) {
+        for (RenderTrackSnapshot track : visualPaintOrder()) {
             boolean textRegion = "text_smut".equals(track.category());
             BBox base = baseVisualBox(track, ageMs);
             BBox predicted = expandVisualBox(track, base);
@@ -874,7 +876,9 @@ final class CensorOverlayView extends View {
                     renderContentOffsetX, renderContentOffsetY, worldSpaceTracks);
             drawEffect(canvas, drawRect, track.id(), effectTypeFor(track),
                     appearance.getIntensity());
-            if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
+            if (appearance.isShowBorder() && !suppressedPersonDecorations.contains(track.id())) {
+                drawBorder(canvas, drawRect);
+            }
         }
         activePredictionX = 0f;
         activePredictionY = 0f;
@@ -919,7 +923,7 @@ final class CensorOverlayView extends View {
         float scaleX = (float) getWidth() / captureWidth;
         float scaleY = (float) getHeight() / captureHeight;
         float ageMs = renderAgeMillis();
-        for (RenderTrackSnapshot track : tracks) {
+        for (RenderTrackSnapshot track : visualPaintOrder()) {
             BBox predicted = visualBox(track, ageMs);
             setTrackRect(track, predicted, scaleX, scaleY,
                     "text_smut".equals(track.category()),
@@ -927,9 +931,11 @@ final class CensorOverlayView extends View {
             if (drawRect.isEmpty()) continue;
             int width = Math.max(1, Math.round(drawRect.width()));
             int height = Math.max(1, Math.round(drawRect.height()));
+            boolean decorate = !suppressedPersonDecorations.contains(track.id());
             SolidRenderLayer layer = solidRenderLayers.get(track.id());
-            if (layer == null || layer.width != width || layer.height != height) {
-                layer = recordSolidLayer(track.id(), width, height);
+            if (layer == null || layer.width != width || layer.height != height
+                    || layer.decorations != decorate) {
+                layer = recordSolidLayer(track.id(), width, height, decorate);
                 solidRenderLayers.put(track.id(), layer);
             }
             int left = Math.round(drawRect.left);
@@ -972,14 +978,19 @@ final class CensorOverlayView extends View {
 
     @SuppressLint("NewApi") // Called only from the guarded RenderNode path.
     private SolidRenderLayer recordSolidLayer(int stableId, int width, int height) {
+        return recordSolidLayer(stableId, width, height, true);
+    }
+
+    @SuppressLint("NewApi")
+    private SolidRenderLayer recordSolidLayer(int stableId, int width, int height, boolean decorate) {
         RenderNode node = new RenderNode("censor-" + stableId);
         node.setPosition(0, 0, width, height);
         Canvas recording = node.beginRecording(width, height);
         RectF local = new RectF(0f, 0f, width, height);
         drawSolid(recording, local, appearance.getIntensity());
-        if (appearance.isShowBorder()) drawBorder(recording, local);
+        if (appearance.isShowBorder() && decorate) drawBorder(recording, local);
         node.endRecording();
-        return new SolidRenderLayer(node, width, height);
+        return new SolidRenderLayer(node, width, height, decorate);
     }
 
     private boolean canUseSolidRenderLayers(Canvas canvas) {
@@ -1481,6 +1492,7 @@ final class CensorOverlayView extends View {
         float scaleY = (float) getHeight() / captureHeight;
         float ageMs = renderAgeMillis();
         for (RenderTrackSnapshot track : tracks) {
+            if (suppressedPersonDecorations.contains(track.id())) continue;
             BBox predicted = visualBox(track, ageMs);
             setTrackRect(track, predicted, scaleX, scaleY,
                     "text_smut".equals(track.category()),
@@ -1642,6 +1654,33 @@ final class CensorOverlayView extends View {
     private void advancePersonFrame() {
         removeCallbacks(expirePersonCoverage);
         personCoverage.advanceFrame();
+    }
+
+    private List<RenderTrackSnapshot> visualPaintOrder() {
+        if (suppressedPersonDecorations.isEmpty()) return tracks;
+        // Paint the enclosing owner last so a duplicate fill cannot erase its border.
+        List<RenderTrackSnapshot> ordered = new ArrayList<>(tracks.size());
+        for (RenderTrackSnapshot track : tracks) {
+            if (suppressedPersonDecorations.contains(track.id())) ordered.add(track);
+        }
+        for (RenderTrackSnapshot track : tracks) {
+            if (!suppressedPersonDecorations.contains(track.id())) ordered.add(track);
+        }
+        return ordered;
+    }
+
+    private void updatePersonDecorations() {
+        suppressedPersonDecorations = Collections.emptySet();
+        if (appearance.isReverseMode() || !personCoverage.hasActiveCoverage(activeRenderTimeMillis)) return;
+        List<BBox> base = new ArrayList<>(tracks.size());
+        List<BBox> expanded = new ArrayList<>(tracks.size());
+        float age = renderAgeMillis();
+        for (RenderTrackSnapshot track : tracks) {
+            BBox box = baseVisualBox(track, age);
+            base.add(box);
+            expanded.add(expandVisualBox(track, box));
+        }
+        suppressedPersonDecorations = PersonDecorationLayout.suppressed(tracks, base, expanded);
     }
 
     private BBox visualBox(RenderTrackSnapshot track, float ageMs) {
@@ -1831,10 +1870,13 @@ final class CensorOverlayView extends View {
         private final int width;
         private final int height;
 
-        private SolidRenderLayer(RenderNode node, int width, int height) {
+        private final boolean decorations;
+
+        private SolidRenderLayer(RenderNode node, int width, int height, boolean decorations) {
             this.node = node;
             this.width = width;
             this.height = height;
+            this.decorations = decorations;
         }
     }
 

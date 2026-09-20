@@ -99,12 +99,14 @@ public final class WholePersonGeometry {
 
     private static BBox estimate(BBox head, BBox torso, int width, int height) {
         BBox body = union(head, torso);
-        int halfWidth = Math.max(Math.round(head.getWidth() * 1.6f),
-                Math.max(head.getCenterX() - torso.getX(), torso.getRight() - head.getCenterX()));
-        int left = Math.max(0, head.getCenterX() - halfWidth);
-        int right = Math.min(width, head.getCenterX() + halfWidth);
+        // A head/chest pair does not establish that legs exist below a cropped portrait.
+        // Unconditional eight-head extrapolation crosses independent tiles in image feeds.
+        // Cover the observed body envelope while the person model establishes its full extent.
+        int horizontalMargin = Math.round(head.getWidth() * .2f);
+        int left = Math.max(0, body.getX() - horizontalMargin);
+        int right = Math.min(width, body.getRight() + horizontalMargin);
         int top = Math.max(0, head.getY() - Math.round(head.getHeight() * .2f));
-        int bottom = Math.min(height, Math.max(body.getBottom(), head.getY() + head.getHeight() * 8));
+        int bottom = Math.min(height, body.getBottom() + Math.round(head.getHeight() * .2f));
         return new BBox(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
     }
 
