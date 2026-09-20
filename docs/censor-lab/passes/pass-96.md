@@ -51,8 +51,16 @@ downloaded and verified: source provenance, immediate-quality enabled, no publis
 release, APK checksum, and compatible signer all match.
 APK SHA-256: `de095c236661277e96bdb3bc4259ef9ea8a696c7aadac43b1787c520fe571896`.
 Signer SHA-256: `3ad7c66a3b50ddc0d71b8907f7f91926e39287f2c4f1def67831a30d439260dd`.
-The phone remains on Pass 94; no device commands or installation were performed
-while the user was free to use it. Installation readiness and user feedback are pending.
+On September 20 the user explicitly requested installation. Wireless mDNS identified
+the same Pixel 8 Pro at its new endpoint; `adb install -r --no-streaming` succeeded.
+An independent installed `base.apk` SHA-256 readback exactly matched the verified
+artifact above. The Accessibility service rebound in PID 17607. No data was cleared.
+
+Initial learning diagnostics show two offers, one failed acquisition (36 ms), zero
+anchor reads/samples and no applied calibration; unknown-owner rejection is still
+present. This proves admission progressed beyond the previous zero-attempt state,
+not successful learning or scroll improvement. User acceptance and controlled timing/
+stability measurements remain pending. No screen recording or collector was started.
 
 Existing diagnostics
 report fast/quality timing and drops, `QUALITY_BACKFILL_COMMIT.cacheEvicted`, cache
