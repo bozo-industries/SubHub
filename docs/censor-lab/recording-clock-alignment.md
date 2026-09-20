@@ -33,3 +33,9 @@ When validating decode through FFmpeg's null output, preserve a sufficiently fin
 output timebase can emit duplicate/non-monotonic DTS warnings for otherwise distinct decoded
 frames. Check source timing metadata and decoded count independently before treating a null-sink
 timestamp warning as source corruption; never repair it by silently dropping source frames.
+
+OpenCV `CAP_PROP_POS_MSEC` can return an invalid timestamp for the first decoded frame even
+when later values agree with the media timestamps. Validate the first timestamp and critical
+transition indexes independently with FFmpeg `-copyts`, `select`, and `showinfo`. Do not shift
+every frame to compensate for a first-frame anomaly, or infer transition duration from average
+FPS. Record the discrepancy and use independently verified timestamps for reported events.
