@@ -1,6 +1,6 @@
 # Pass 110: bounded current-viewport quality handoff
 
-Status: local candidate verified; not installed or accepted on Pixel.
+Status: privately signed candidate verified; not installed or accepted on Pixel.
 
 ## Recorded cause
 
@@ -49,6 +49,16 @@ in guarded Gradle invocations with immediate quality both enabled and disabled. 
 including raw/parsed retained counts, incomplete records, and unsupported fields. The build
 uses two workers and an 8 GiB process-tree limit. No native instrumentation or new Pixel run
 has been performed for this pass.
+
+Private signing run [35815392354](https://github.com/bozo-industries/SubHub/actions/runs/35815392354)
+succeeded for exact source `5d7ff5da6f3a78ffda858af9bd3b59c521b26fc9`, with immediate quality
+enabled and public release disabled. Compact Pixel artifact `10731516593` was downloaded and
+independently checked against its provenance and checksum. ARM64 APK SHA-256:
+`799a5c898c8bb80d00ca2c01630a90e41733f1864786cf5c7a70d33d216e43d2`.
+`apksigner verify` passed and the signer matches the installed-development lineage:
+`3ad7c66a3b50ddc0d71b8907f7f91926e39287f2c4f1def67831a30d439260dd`.
+No tag or public release was created. The phone was offline at handoff; installation and
+real-device validation remain pending.
 
 No new device performance result yet. Lab109 baseline remains: fast capture-to-publication
 median/p95/max 158/212/240 ms; preprocessing 2/5/8 ms, runtime 49/90/113 ms,
