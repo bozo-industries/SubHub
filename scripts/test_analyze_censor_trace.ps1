@@ -71,6 +71,24 @@ try {
     )
     Assert-Throws { & $analyzer $immediate } 'Incomplete QUALITY_IMMEDIATE_PRESENT record*'
 
+    $retained = Join-Path $temporaryRoot 'retained.log'
+    Write-Fixture $retained @(
+        ' 1788590001.000 1 1 I ScreenshotA11y: QUALITY_RETAINED_PRESENT sourceFastSequence=10 consumerFastSequence=12 regions=2 captureAgeMs=900'
+    )
+    $retainedResult = & $analyzer $retained | ConvertFrom-Json
+    Assert-Equal 1 $retainedResult.parsing.rawQualityRetainedRecords 'raw retained count'
+    Assert-Equal 1 $retainedResult.parsing.parsedQualityRetainedRecords 'parsed retained count'
+    Assert-Equal 1 $retainedResult.quality.retainedPresents 'retained event count'
+    Assert-Equal 0 $retainedResult.quality.latePresents 'reuse is not first delivery'
+    Assert-Equal 900 $retainedResult.quality.retainedCaptureAgeMs.p50 'retained age'
+    foreach ($broken in @(
+        'QUALITY_RETAINED_PRESENT sourceFastSequence=10 regions=2',
+        'QUALITY_RETAINED_PRESENT sourceFastSequence=10 consumerFastSequence=12 regions=2 captureAgeMs=900 unknown=1'
+    )) {
+        Write-Fixture $retained @(' 1788590001.000 1 1 I ScreenshotA11y: ' + $broken)
+        Assert-Throws { & $analyzer $retained } 'Incomplete QUALITY_RETAINED_PRESENT record*'
+    }
+
     $candidate = Join-Path $temporaryRoot 'candidate.log'
     $qualityRecord = ' 1788590001.000 1 1 I ScreenshotA11y: QUALITY_READY id=fixture scrollId=1 captureAgeMs=200 bitmapPrepareMs=10 inferenceMs=130 preprocessMs=10 runtimeMs=115 postprocessMs=5 afterMotionMs=100 rawVisual=2 acceptedVisual=2 tile=1/2 tileBounds=0,0,100,180 renderAuthority=none backfillStatus=ACCEPTED backfillMatched=0 backfillInserted=2 backfillPromoted=0 backfillRefined=0 oldFrame=false sourceGeneration=1 sourceFastSequence=1 currentFastSequence=1 dropped=0 staleDropped=0 preemptions=0 cancelledRuns=0'
     Write-Fixture $candidate @(

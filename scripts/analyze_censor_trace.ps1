@@ -122,6 +122,8 @@ foreach ($requestedPath in $Path) {
     $qualityGateSkips = [Collections.Generic.List[object]]::new()
     $qualityLateStages = [Collections.Generic.List[object]]::new()
     $qualityLatePresents = [Collections.Generic.List[object]]::new()
+    $qualityRetainedPresents = [Collections.Generic.List[object]]::new()
+    $rawQualityRetainedPresents = 0
     $qualityImmediatePresents = [Collections.Generic.List[object]]::new()
     $qualityLateDrops = [Collections.Generic.List[object]]::new()
     $qualityConcurrency = [Collections.Generic.List[object]]::new()
@@ -338,6 +340,20 @@ foreach ($requestedPath in $Path) {
                 generation = [long] $Matches[3]
                 regions = [int] $Matches[4]
                 readyToPresent = [int] $Matches[5]
+            })
+            continue
+        }
+        if ($line -match 'QUALITY_RETAINED_PRESENT\b') {
+            $rawQualityRetainedPresents++
+            if ($null -eq $time -or $line -notmatch 'QUALITY_RETAINED_PRESENT sourceFastSequence=(\d+) consumerFastSequence=(\d+) regions=(\d+) captureAgeMs=(\d+)\s*$') {
+                throw 'Incomplete QUALITY_RETAINED_PRESENT record; cannot report valid reuse metrics.'
+            }
+            $qualityRetainedPresents.Add([pscustomobject]@{
+                time = $time
+                sourceSequence = [long] $Matches[1]
+                consumerSequence = [long] $Matches[2]
+                regions = [int] $Matches[3]
+                captureAge = [long] $Matches[4]
             })
             continue
         }
@@ -936,6 +952,8 @@ foreach ($requestedPath in $Path) {
             knownRenderSourceRecords = $knownRenderSourceRecords
             qualityRecords = $rawQualityRecords
             parsedQualityRecords = $quality.Count + $streamingQuality.Count
+            rawQualityRetainedRecords = $rawQualityRetainedPresents
+            parsedQualityRetainedRecords = $qualityRetainedPresents.Count
             unparsedQualityRecords = $rawQualityRecords - $quality.Count - $streamingQuality.Count
             scrollMetadataRecords = $rawScrollMetadata
             parsedScrollMetadataRecords = $scrollMetadata.Count
@@ -1123,6 +1141,8 @@ foreach ($requestedPath in $Path) {
             lateStages = $qualityLateStages.Count
             lateStageCaptureAgeMs = Get-Distribution @($qualityLateStages.captureAge)
             latePresents = $qualityLatePresents.Count
+            retainedPresents = $qualityRetainedPresents.Count
+            retainedCaptureAgeMs = Get-Distribution @($qualityRetainedPresents.captureAge)
             immediatePresents = $qualityImmediatePresents.Count
             immediateReadyToPresentMs = Get-Distribution @($qualityImmediatePresents.readyToPresent)
             immediateCaptureAgeMs = Get-Distribution @($qualityImmediatePresents.captureAge)

@@ -6,6 +6,15 @@ import java.util.Objects;
 final class LateQualityPresentationGate {
     private LateQualityPresentationGate() {}
 
+    static Decision decide(Stamp source, Stamp consumer, boolean phaseCertain,
+            long capturedAt, long now, long maxAgeMillis) {
+        if (source != null && source.currentOnly && (!phaseCertain || capturedAt <= 0
+                || now < capturedAt || maxAgeMillis <= 0 || now - capturedAt > maxAgeMillis)) {
+            return Decision.STALE;
+        }
+        return decide(source, consumer);
+    }
+
     static Decision decide(Stamp source, Stamp consumer) {
         if (source == null || consumer == null) return Decision.STALE;
         boolean matches = consumer.captureEpoch == source.captureEpoch

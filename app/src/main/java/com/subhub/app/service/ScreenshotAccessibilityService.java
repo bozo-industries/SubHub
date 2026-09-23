@@ -183,8 +183,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private final AtomicLong qualityInferenceCancelledRuns = new AtomicLong();
     private final AtomicLong qualityCircuitOpenUntilUptime = new AtomicLong();
     private final AtomicLong qualityReservationUntilUptime = new AtomicLong();
-    private final AtomicReference<LateQualityPresentation> pendingLateQualityPresentation =
-            new AtomicReference<>();
+    private final QualityPresentationSlot<LateQualityPresentation> pendingLateQualityPresentation =
+            new QualityPresentationSlot<>();
     private final AtomicBoolean immediateQualityScheduled = new AtomicBoolean();
     private volatile DisplayedQualityBasis displayedQualityBasis;
     private final AtomicLong fastSubmissionSequence = new AtomicLong();
@@ -1674,7 +1674,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         candidate.motionGeneration, motionGeneration.get());
                 List<ContentSpaceRegionCache.Observation> observations = new ArrayList<>();
                 // Only the coordinator's two-capture ready set may enter the long-lived cache.
-                // A one-hit current result can cover one later fast publication below, but must
+                // A one-hit current result can cover compatible fast publications below, but must
                 // never inherit qualityConfirmed's long TTL and contradiction grace.
                 if (cacheGenerationAccepted) {
                     // Even a hit awaiting independent confirmation is evidence against a
@@ -1788,7 +1788,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             QualityInferenceFrame candidate,
             List<QualityBackfillCoordinator.BackfillRegion> worldRegions,
             long readyAtUptime) {
-        if (candidate == null || worldRegions == null || worldRegions.isEmpty()) return;
+        if (candidate == null || worldRegions == null) return;
         if (!lateQualitySceneIsCurrent(candidate)) {
             CensorLabLog.i(TAG, "QUALITY_LATE_DROP reason=stale-before-stage"
                     + " sourceFastSequence=" + candidate.fastSubmissionSequence
@@ -1806,6 +1806,37 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 + " captureAgeMs=" + Math.max(0L,
                         readyAtUptime - candidate.capturedAtUptimeMillis));
         scheduleImmediateQualityRefresh();
+        if (staged.surfaceKey.isEmpty()) {
+            // Expiry is anchored to capture, never renewed by a fast read. Remove even if the
+            // capture pipeline stops delivering frames. Pending and displayed ownership differ.
+            main.postDelayed(() -> expireCurrentQualityPresentation(staged), Math.max(1L,
+                    staged.capturedAtUptime + QualityBackfillCoordinator.DEFAULT_MAX_AGE_MS + 1L
+                            - SystemClock.uptimeMillis()));
+        }
+    }
+
+    private void expireCurrentQualityPresentation(LateQualityPresentation source) {
+        synchronized (pendingLateQualityPresentation) {
+            pendingLateQualityPresentation.compareAndSet(source, null);
+            if (!pendingLateQualityPresentation.clearDisplayed(source)) return;
+            DisplayedQualityBasis displayed = displayedQualityBasis;
+            Rect viewport = screenBounds();
+            LateQualityPresentationGate.Stamp current = new LateQualityPresentationGate.Stamp(
+                    fastSubmissionSequence.get(), captureEpoch.token(), visualDocumentEpoch.get(),
+                    activeScrollSurfaceKey, activeScrollTelemetryToken, motionGeneration.get(),
+                    cumulativeScrollX.get(), cumulativeScrollY.get(), latestCaptureWidth,
+                    latestCaptureHeight, viewport.width(), viewport.height(),
+                    activeApplicationWindowId.get(), activeScrollSurfaceKey.isEmpty());
+            if (running && recognitionActive && overlay != null && displayed != null
+                    && (source.fastPresented.get() || source.immediatelyPresented.get())
+                    && LateQualityPresentationGate.decide(source.stamp(), displayed.stamp)
+                            != LateQualityPresentationGate.Decision.STALE
+                    && LateQualityPresentationGate.decide(source.stamp(), current)
+                            != LateQualityPresentationGate.Decision.STALE) {
+                overlay.updateWorldCache(displayed.baseRegions, source.sourceWidth, source.sourceHeight,
+                        source.scrollX, source.scrollY, source.viewportWidth, source.viewportHeight);
+            }
+        }
     }
 
     /** Experiment: refine only the currently displayed capture, never inventing scroll alignment. */
@@ -1838,6 +1869,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                     source.scrollY, source.sourceWidth, source.sourceHeight,
                                     source.viewportWidth, source.viewportHeight), displayed.tracks),
                             source.sourceWidth, source.sourceHeight);
+                    synchronized (pendingLateQualityPresentation) {
                     if (pendingLateQualityPresentation.get() != source
                             || !source.immediatelyPresented.compareAndSet(false, true)) return;
                     // Retain the normal handoff: consuming the slot here would make a one-hit
@@ -1848,18 +1880,20 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     // bitmap, detector statistics and durable confirmation state are untouched.
                     overlay.updateWorldCache(combined, source.sourceWidth, source.sourceHeight,
                             source.scrollX, source.scrollY, source.viewportWidth, source.viewportHeight);
+                    pendingLateQualityPresentation.markDisplayed(source);
                     CensorLabLog.i(TAG, "QUALITY_IMMEDIATE_PRESENT sourceFastSequence="
                             + source.fastSubmissionSequence + " regions=" + additions.size()
                             + " readyToPresentMs=" + Math.max(0L, now - source.readyAtUptime)
                             + " captureAgeMs=" + Math.max(0L, now - source.capturedAtUptime));
+                    }
                 }
             }
         }));
     }
 
     /**
-     * Takes quality only for a later fast publication. Fast never waits for this slot, and quality
-     * never owns a standalone render tick. Current-only sources require unchanged phase and are
+     * Takes quality only for a later fast publication, without waiting for quality inference.
+     * Current-only sources require unchanged phase and are
      * bounded by age rather than tick count.
      */
     private LateQualityPresentation takeLateQualityForFast(
@@ -1893,8 +1927,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     viewportHeight,
                     consumerWindowId);
             if (match == LateQualityPresentation.Match.WAIT_FOR_NEXT_FAST) return null;
-            if (!pendingLateQualityPresentation.compareAndSet(staged, null)) continue;
             if (match != LateQualityPresentation.Match.MATCH) {
+                if (!pendingLateQualityPresentation.compareAndSet(staged, null)) continue;
                 CensorLabLog.i(TAG, "QUALITY_LATE_DROP reason="
                         + "fast-fence"
                         + " sourceFastSequence=" + staged.fastSubmissionSequence
@@ -1903,12 +1937,14 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         + " consumerGeneration=" + consumerMotionGeneration);
                 return null;
             }
+            if (!pendingLateQualityPresentation.acquire(staged, staged.surfaceKey.isEmpty())) continue;
             return staged;
         }
     }
 
     private void clearLateQualityPresentation(String reason) {
         displayedQualityBasis = null;
+        pendingLateQualityPresentation.markDisplayed(null);
         LateQualityPresentation removed = pendingLateQualityPresentation.getAndSet(null);
         if (removed != null) {
             CensorLabLog.i(TAG, "QUALITY_LATE_DROP reason=" + reason
@@ -2738,17 +2774,37 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                             + " tracks=" + renderTracks.size()
                             + " cached=" + cachedRenderRegions.size());
                 }
-                List<Detection> regionsForView = spatialCacheExperiment
+                List<Detection> regionsForView;
+                boolean lateQualityPublished;
+                // Recheck on the actual UI publication, not only on the inference worker.
+                // Slot replacement/expiry cannot race between this fence and the overlay write.
+                synchronized (pendingLateQualityPresentation) {
+                Rect liveViewport = screenBounds();
+                lateQualityPublished = lateQualityForScene != null
+                        && (!lateQualityForScene.surfaceKey.isEmpty()
+                        || (pendingLateQualityPresentation.get() == lateQualityForScene
+                        && !capturePhaseUncertain
+                        && lateQualityForScene.matchFast(candidate.fastSubmissionSequence,
+                                captureEpoch.token(), visualDocumentEpoch.get(), activeScrollSurfaceKey,
+                                activeScrollTelemetryToken, motionGeneration.get(),
+                                current.scrollX, current.scrollY, latestCaptureWidth, latestCaptureHeight,
+                                liveViewport.width(), liveViewport.height(), activeApplicationWindowId.get())
+                                == LateQualityPresentation.Match.MATCH));
+                List<Detection> eligiblePresentationRegions = lateQualityPublished
+                        ? presentationRenderRegions : cachedRenderRegions;
+                regionsForView = spatialCacheExperiment
                         ? spatialRegionCache.revalidatePresentation(
                                 candidate.scene == null ? null : candidate.scene.spatialFrame,
-                                publishedAt, cachedRenderRegions, presentationRenderRegions)
-                        : presentationRenderRegions;
+                                publishedAt, cachedRenderRegions, eligiblePresentationRegions)
+                        : eligiblePresentationRegions;
                 overlay.updateWorldWithCache(
                         renderTracks, regionsForView, width, height, overlayFrame,
                         alignment.scrollX, alignment.scrollY,
                         requestedScrollX, requestedScrollY,
                         publicationViewport.width(), publicationViewport.height(), frameRenderReference);
-                if (BuildConfig.IMMEDIATE_QUALITY_EXPERIMENT && fastPass) {
+                pendingLateQualityPresentation.markDisplayed(lateQualityPublished ? lateQualityForScene : null);
+                if (fastPass && (BuildConfig.IMMEDIATE_QUALITY_EXPERIMENT
+                        || candidate.scrollSurfaceKey.isEmpty())) {
                     displayedQualityBasis = new DisplayedQualityBasis(
                             new LateQualityPresentationGate.Stamp(candidate.fastSubmissionSequence,
                                     requestedEpoch, candidate.visualDocumentEpoch, candidate.scrollSurfaceKey,
@@ -2756,8 +2812,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                     alignment.scrollX, alignment.scrollY, width, height,
                                     publicationViewport.width(), publicationViewport.height(),
                                     candidate.captureWindowId, candidate.scrollSurfaceKey.isEmpty()),
-                            !capturePhaseUncertain, renderTracks, regionsForView, frameRenderReference);
+                            !capturePhaseUncertain, renderTracks, cachedRenderRegions, frameRenderReference);
                     scheduleImmediateQualityRefresh();
+                }
                 }
                 if (spatialCacheExperiment) {
                     int admitted = overlay.admittedCachedRegionCount(cachedRenderRegions);
@@ -2772,7 +2829,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         renderTracks, regionsForView,
                         width, height, alignment.scrollX, alignment.scrollY,
                         current.scrollX, current.scrollY);
-                if (lateQualityForScene != null) {
+                if (lateQualityPublished && lateQualityForScene.fastPresented.compareAndSet(false, true)) {
                     CensorLabLog.i(TAG, "QUALITY_LATE_PRESENT sourceFastSequence="
                             + lateQualityForScene.fastSubmissionSequence
                             + " consumerFastSequence=" + candidate.fastSubmissionSequence
@@ -2780,6 +2837,13 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                             + " regions=" + lateQualityRegions.size()
                             + " readyToPresentMs=" + Math.max(0L,
                                     publishedAt - lateQualityForScene.readyAtUptime));
+                } else if (lateQualityPublished) {
+                    CensorLabLog.i(TAG, "QUALITY_RETAINED_PRESENT sourceFastSequence="
+                            + lateQualityForScene.fastSubmissionSequence
+                            + " consumerFastSequence=" + candidate.fastSubmissionSequence
+                            + " regions=" + lateQualityRegions.size()
+                            + " captureAgeMs=" + Math.max(0L,
+                                    publishedAt - lateQualityForScene.capturedAtUptime));
                 }
                 lastFastOverlayGeneration = motionGeneration.get();
                 long publishDelay = publishedAt - candidate.capturedAtUptimeMillis;
@@ -6174,6 +6238,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     /** Immutable world-space quality evidence waiting for any compatible later fast publication. */
     private static final class LateQualityPresentation {
         private final AtomicBoolean immediatelyPresented = new AtomicBoolean();
+        private final AtomicBoolean fastPresented = new AtomicBoolean();
         private final List<QualityBackfillCoordinator.BackfillRegion> worldRegions;
         private final long captureEpoch;
         private final long documentEpoch;
@@ -6266,9 +6331,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 int consumerViewportWidth,
                 int consumerViewportHeight,
                 int consumerWindowId) {
-            if (surfaceKey.isEmpty() && (SystemClock.uptimeMillis() < capturedAtUptime
-                    || SystemClock.uptimeMillis() - capturedAtUptime
-                        > QualityBackfillCoordinator.DEFAULT_MAX_AGE_MS)) return Match.STALE;
             LateQualityPresentationGate.Decision decision =
                     LateQualityPresentationGate.decide(
                             new LateQualityPresentationGate.Stamp(
@@ -6283,7 +6345,9 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                                     consumerMotionGeneration, consumerCameraX, consumerCameraY,
                                     consumerSourceWidth, consumerSourceHeight,
                                     consumerViewportWidth, consumerViewportHeight, consumerWindowId,
-                                    consumerSurfaceKey == null || consumerSurfaceKey.isEmpty()));
+                                    consumerSurfaceKey == null || consumerSurfaceKey.isEmpty()),
+                            phaseCertain, capturedAtUptime, SystemClock.uptimeMillis(),
+                            QualityBackfillCoordinator.DEFAULT_MAX_AGE_MS);
             if (decision == LateQualityPresentationGate.Decision.MATCH) return Match.MATCH;
             if (decision == LateQualityPresentationGate.Decision.WAIT_FOR_NEXT_FAST) {
                 return Match.WAIT_FOR_NEXT_FAST;
