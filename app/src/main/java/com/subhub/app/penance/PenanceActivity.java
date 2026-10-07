@@ -295,6 +295,7 @@ public final class PenanceActivity extends AppCompatActivity {
 
     private void renderRuleMathPreview() {
         if (binding == null) return;
+        binding.ruleMathPreview.setVisibility(View.VISIBLE);
         long now = System.currentTimeMillis();
         if (manager.isEnabled() && manager.isInfractionEnabled(PenanceInfraction.NEW_DETECTION)) {
             if (manager.getDailyRemainingCents(now) == 0) {
@@ -319,13 +320,8 @@ public final class PenanceActivity extends AppCompatActivity {
             binding.ruleMathPreview.setText(R.string.penance_rule_math_invalid);
             return;
         }
-        int exampleRegions = batch * 5;
-        int progress = batch == manager.getDetectionBatch()
-                ? manager.getDetectionRemainder() : 0;
-        binding.ruleMathPreview.setText(getString(R.string.penance_rule_math_preview,
-                batch, exampleRegions, manager.money(cents),
-                manager.money(cents * 5), manager.money(daily),
-                manager.money(weekly), progress));
+        binding.ruleMathPreview.setText("");
+        binding.ruleMathPreview.setVisibility(View.GONE);
     }
 
     private boolean saveRules(boolean showInvalid) {

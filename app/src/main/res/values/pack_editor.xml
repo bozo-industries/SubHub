@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="pack_editor_tribute_amount">Amount</string>
     <string name="achievement_notice_single">%1$s unlocked</string>
     <string name="achievement_notice_view">View</string>
     <plurals name="achievement_notice_count"><item quantity="one">%1$d achievement unlocked</item><item quantity="other">%1$d achievements unlocked</item></plurals>
@@ -45,7 +46,7 @@
     <string name="pack_apply_invalid">The pack contains incompatible setting values. Review its section settings before applying.</string>
     <string name="pack_apply_payment">Finish pending checkout and turn off automatic payments before changing the merchant. Encrypted merchant details must be unlocked and confirmed.</string>
     <string name="pack_apply_storage">The pack could not be saved or installed. Check available storage and try again. Recovery information is retained if needed.</string>
-    <string name="pack_field_app_mode_kind">Censor app scope</string>
+    <string name="pack_field_app_mode_kind">App coverage</string>
     <string name="pack_editor_title">Configure %1$s</string>
     <string name="pack_editor_settings">Configure settings</string>
     <string name="pack_editor_save">Save section</string>

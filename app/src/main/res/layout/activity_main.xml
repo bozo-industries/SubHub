@@ -165,14 +165,6 @@
                                 android:textSize="11sp"
                                 android:textStyle="bold" />
 
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="3dp"
-                                android:includeFontPadding="false"
-                                android:text="@string/commitment_timer_help"
-                                android:textColor="@color/text_secondary"
-                                android:textSize="9sp" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -651,6 +643,16 @@
                     android:layout_marginTop="8dp"
                     android:text="@string/statistics_view" />
 
+                <LinearLayout android:id="@+id/home_lifetime_stats" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="11dp" android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:includeFontPadding="false" android:text="@string/home_lifetime_title" android:textColor="@color/text_secondary" android:textSize="10sp" android:textStyle="bold" />
+                    <LinearLayout
+                        android:id="@+id/home_lifetime_metrics"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="7dp"
+                        android:orientation="vertical" />
+                </LinearLayout>
+
                 <LinearLayout android:id="@+id/achievements_home_card" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:background="@drawable/bg_home_module" android:clickable="true" android:focusable="true" android:foreground="?attr/selectableItemBackground" android:orientation="vertical" android:padding="12dp">
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
                         <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:letterSpacing="0.12" android:text="@string/achievements_home_title" android:textColor="@color/text_primary" android:textSize="11sp" android:textStyle="bold" />
@@ -666,16 +668,6 @@
                     <ProgressBar android:id="@+id/achievements_home_progress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="6dp" android:layout_marginTop="7dp" android:max="100" android:progressBackgroundTint="@color/outline_subtle" android:progressTint="@color/accent_hot" />
                     <TextView android:id="@+id/button_achievements" android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:minHeight="48dp" android:layout_marginTop="7dp" android:gravity="center_vertical" android:text="@string/achievements_home_action" android:textColor="@color/accent_mid" android:textSize="10sp" android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout android:id="@+id/home_lifetime_stats" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="11dp" android:orientation="vertical">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:includeFontPadding="false" android:text="@string/home_lifetime_title" android:textColor="@color/text_secondary" android:textSize="10sp" android:textStyle="bold" />
-                    <LinearLayout
-                        android:id="@+id/home_lifetime_metrics"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="7dp"
-                        android:orientation="vertical" />
                 </LinearLayout>
 
             </LinearLayout>

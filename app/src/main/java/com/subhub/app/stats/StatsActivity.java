@@ -2,7 +2,6 @@ package com.subhub.app.stats;
 
 import com.subhub.app.util.PrimaryHeader;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -21,7 +20,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-/** Full local statistics, trends, milestones, and achievement entry point. */
+/** Full local statistics, trends, and milestones. */
 public final class StatsActivity extends AppCompatActivity {
     private ActivityStatsBinding binding;
 
@@ -31,8 +30,6 @@ public final class StatsActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
         PrimaryHeader.bindSecondary(binding.getRoot(), R.string.statistics_title, false);
         PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
-        binding.buttonAchievements.setOnClickListener(view ->
-                startActivity(new Intent(this, AchievementsActivity.class)));
     }
 
     @Override protected void onResume() {

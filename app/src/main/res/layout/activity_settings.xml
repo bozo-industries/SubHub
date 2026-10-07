@@ -41,13 +41,6 @@
                 android:orientation="vertical"
                 android:padding="0dp">
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="3dp"
-                    android:text="@string/appearance_help"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11sp" />
 
                 <GridLayout
                     android:id="@+id/style_group"
@@ -257,13 +250,6 @@
                     </FrameLayout>
                 </GridLayout>
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="5dp"
-                    android:text="@string/style_preview_help"
-                    android:textColor="@color/text_muted"
-                    android:textSize="10sp" />
 
                 <LinearLayout
                     android:id="@+id/effect_palette_group"
@@ -277,8 +263,6 @@
                     <TextView style="@style/Widget.SubHub.FieldLabel"
                         android:layout_marginTop="0dp"
                         android:text="@string/effect_colors_title" />
-                    <TextView style="@style/Widget.SubHub.FieldHelp"
-                        android:text="@string/effect_colors_help" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -609,8 +593,6 @@
 
                 <TextView android:labelFor="@id/custom_phrases" style="@style/Widget.SubHub.FieldLabel"
                     android:text="@string/custom_phrases_label" />
-                <TextView style="@style/Widget.SubHub.FieldHelp"
-                    android:text="@string/custom_phrases_help" />
                 <EditText
                     android:id="@+id/custom_phrases"
                     android:layout_width="match_parent"
@@ -851,13 +833,6 @@
                         android:text="@string/category_covered" />
                 </GridLayout>
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="@string/category_covered_help"
-                    android:textColor="@color/text_muted"
-                    android:textSize="10sp" />
             </LinearLayout>
 
             <LinearLayout android:id="@+id/censor_coverage_section"
@@ -1000,13 +975,6 @@
                         android:text="@string/text_smut_solicitation" />
                 </GridLayout>
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/text_smut_stability_note"
-                    android:textColor="@color/text_muted"
-                    android:textSize="10sp" />
             </LinearLayout>
         </LinearLayout>
 
@@ -1019,14 +987,6 @@
                 android:layout_marginTop="@dimen/settings_card_gap"
                 android:text="@string/censor_gallery_photos" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:gravity="center"
-            android:text="@string/settings_saved"
-            android:textColor="@color/text_muted"
-            android:textSize="12sp" />
     </LinearLayout>
 
 

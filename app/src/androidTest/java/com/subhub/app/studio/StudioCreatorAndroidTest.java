@@ -46,6 +46,31 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Own native draft/editor/export/import/apply flow; never calls a payment provider. */
 @RunWith(AndroidJUnit4.class)
 public final class StudioCreatorAndroidTest {
+    @Test public void tributeToggleAndAmountShareACompactDraftOnlyRow() {
+        AtomicReference<JSONObject> saved = new AtomicReference<>();
+        Map<String, ?> before = walletPrefs().getAll();
+        try (ActivityScenario<StudioActivity> scenario = ActivityScenario.launch(StudioActivity.class)) {
+            scenario.onActivity(activity -> PackSectionEditor.show(activity, "wallet", "Tribute rules",
+                    PackSettingCatalog.defaults("wallet"), saved::set));
+            onView(withTagValue(is((Object) "rule_new_detection_cents")))
+                    .inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog())
+                    .check((view, missing) -> {
+                        if (missing != null) throw missing;
+                        View checkbox = view.getRootView().findViewWithTag("rule_new_detection_enabled");
+                        View amountRow = (View) view.getParent();
+                        View toggleRow = (View) checkbox.getParent();
+                        assertEquals(toggleRow.getParent(), amountRow.getParent());
+                        assertTrue(amountRow.getParent() instanceof com.subhub.app.util.CompactFieldLayout);
+                        assertEquals(toggleRow.getTop(), amountRow.getTop());
+                        assertTrue(toggleRow.getRight() <= amountRow.getLeft());
+                    })
+                    .perform(scrollTo(), replaceText("2.25"), closeSoftKeyboard());
+            onView(withId(android.R.id.button1)).inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(click());
+            assertNotNull(saved.get());
+            assertEquals(225, saved.get().optInt("rule_new_detection_cents"));
+            assertEquals(before, walletPrefs().getAll());
+        }
+    }
     private Context context;
     private SubHubPackManager manager;
     private Map<String, ?> mainBefore;

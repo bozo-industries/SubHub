@@ -37,6 +37,15 @@
                 android:textColor="@color/text_primary" />
             <TextView style="@style/Widget.SubHub.FieldHelp"
                 android:text="@string/app_timer_per_app_allowances_help" />
+            <LinearLayout android:id="@+id/default_allowance_group"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical">
+                <TextView android:labelFor="@id/default_limit_minutes"
+                    style="@style/Widget.SubHub.FieldLabel" android:text="@string/app_timer_default_minutes" />
+                <EditText android:id="@+id/default_limit_minutes" style="@style/Widget.SubHub.Input"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:minHeight="48dp" android:inputType="number" android:maxLength="4" />
+            </LinearLayout>
             <LinearLayout android:id="@+id/per_app_allowances_list"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="4dp" android:orientation="vertical" />

@@ -5332,7 +5332,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 || !appTimerRuntimeActive(nowMillis)) return;
         AppModeManager mode = new AppModeManager(this);
         timers.recordUsage(foregroundPackage, nowMillis - started,
-                mode.getTimerPackages(), nowMillis);
+                mode.timerScopeForForeground(foregroundPackage), nowMillis);
     }
 
     /** Returns true when the current foreground app was dismissed for a spent budget. */
@@ -5344,7 +5344,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             return false;
         }
         AppModeManager mode = new AppModeManager(this);
-        Set<String> selected = mode.getTimerPackages();
+        Set<String> selected = mode.timerScopeForForeground(foregroundPackage);
         AppTimerManager.LimitStatus status = timers.limitStatus(
                 foregroundPackage, selected, nowMillis);
         if (status == AppTimerManager.LimitStatus.NONE) return false;

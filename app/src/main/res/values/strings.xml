@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="atmosphere_whispers_all_apps">%1$s · All apps</string>
     <string name="popup_preset_gentle">Gentle</string>
     <string name="popup_preset_medium">Medium</string>
     <string name="popup_preset_intense">Intense</string>
@@ -126,7 +127,6 @@
     <string name="settings_quick_tools_desc">Images, photo export, and additional censor options.</string>
     <string name="back">Back</string>
     <string name="appearance_title">Appearance</string>
-    <string name="appearance_help">Choose a censor style. Changes apply immediately to active service.</string>
     <string name="style_box">Blackout</string>
     <string name="style_pixelate">Pixelate</string>
     <string name="style_blur">Blur</string>
@@ -135,9 +135,7 @@
     <string name="style_glitch">Glitch</string>
     <string name="style_tape">Privacy Tape</string>
     <string name="style_error">Error Popup</string>
-    <string name="style_preview_help">Preview samples show the style; live censors fit each detected region.</string>
     <string name="effect_colors_title">Effect Colors</string>
-    <string name="effect_colors_help">Available colors depend on the selected style.</string>
     <string name="effect_color_fill">Fill Color</string>
     <string name="effect_color_dark">Dark Color</string>
     <string name="effect_color_light">Light Color</string>
@@ -188,7 +186,6 @@
     <string name="category_feet">Feet</string>
     <string name="category_armpits">Armpits</string>
     <string name="category_covered">Clothed Matches</string>
-    <string name="category_covered_help">Also hide model matches where a selected body area is covered by clothing or underwear.</string>
     <string name="text_smut_title">Text filter</string>
     <string name="text_smut_description">Hide sexual posts and captions. Medium and High add context recognition; High can also read text inside images.</string>
     <string name="text_smut_enable">Hide sexual text</string>
@@ -201,7 +198,6 @@
     <string name="text_smut_explicit">Sexual Words</string>
     <string name="text_smut_fetish">Kink / Fetish Talk</string>
     <string name="text_smut_solicitation">Sexual Invitations</string>
-    <string name="text_smut_stability_note">Supported apps hide matching text in place. The same post counts only once.</string>
     <string name="phrases_title">Censor Phrases</string>
     <string name="phrase_short">Plain</string>
     <string name="phrase_denial">Denial</string>
@@ -212,7 +208,6 @@
     <string name="phrase_gooner">Gooner</string>
     <string name="custom_phrases_hint">One custom phrase per line</string>
     <string name="custom_phrases_label">Custom Phrases</string>
-    <string name="custom_phrases_help">One phrase per line. Phrase-enabled censor styles choose from this list.</string>
     <string name="save_phrases">Save Phrases</string>
     <string name="custom_images_title">Censor images</string>
     <string name="custom_images_subtitle">Choose images to place over detected content.</string>
@@ -222,7 +217,7 @@
     <string name="custom_images_importing">Adding images…</string>
     <string name="custom_images_enabled">Use image</string>
     <string name="delete">Delete</string>
-    <string name="settings_saved">Saved. Active protection updates immediately.</string>
+    <string name="settings_saved">Saved.</string>
     <string name="configuration_title">Additional settings</string>
     <string name="diagnostics_title">Diagnostics</string>
     <string name="diagnostics_desc">Live service, model, and performance status. Nothing is uploaded automatically.</string>
@@ -334,7 +329,6 @@
 
     <string name="achievements_title">Achievements</string>
     <string name="achievements_subtitle">Milestones earned by keeping your rules.</string>
-    <string name="achievements_view_all">View All Achievements</string>
     <string name="achievements_progress_fmt">%1$d / %2$d Unlocked</string>
     <string name="achievements_progress_compact">%1$d / %2$d</string>
     <string name="achievements_home_title">Achievements</string>
@@ -594,14 +588,14 @@
     <string name="help_censored_downloads">Export &amp; Downloads</string>
     <string name="help_customisation">Censor Customisation</string>
     <string name="help_popup_storm">Popup Storm Safety</string>
-    <string name="help_body_started">1. Unlock Dom mode and configure the features you want.\n2. In Settings → Apps, choose Censor coverage and assign Censor, Limits, and Subliminal separately.\n3. Complete any required Android permission setup.\n4. Return Home, choose the service duration, and tap Enter Service.\n5. Use Sub mode for the configured controls. The Dom PIN is required to edit settings or release a service lock.</string>
+    <string name="help_body_started">1. Unlock Dom mode and configure the features you want.\n2. In Settings → Apps, choose App coverage and assign Censor, Limits, and Subliminal separately when using Assigned apps only.\n3. Complete any required Android permission setup.\n4. Return Home, choose the service duration, and tap Enter Service.\n5. Use Sub mode for the configured controls. The Dom PIN is required to edit settings or release a service lock.</string>
     <string name="help_body_perms">Display over other apps lets SubHub draw censors and safety controls. Accessibility powers App Mode, foreground-app assignment, visible-text geometry, taps, scrolling, and daily limits. Android 13+ notification access keeps protection status visible. Screen Capture is optional and Android asks for MediaProjection approval every session. Hardcore requests Device Admin separately; ordinary censoring never needs it.</string>
     <string name="help_body_dom_sub">Dom mode controls features, rules, app assignments, service duration, PayPal, arrangements, and safety release. Sub mode shows configured rules, Wallet balances, and the actions allowed by Dom mode. Enter Service and Leave Service control the whole service; feature switches configure participation. Keep the Dom PIN private. Changing modes does not erase settings or stop an active service.</string>
     <string name="help_body_service_timers">Enter Service starts the service and its session. Choose 1 hour, 24 hours, 7 days, 30 days, or Permanent before entering. The duration defines when Leave Service is allowed; Dom mode can release the lock earlier. After reboot, an active lock can resume App Mode when Android allows it. Screen Capture always needs fresh Android approval.</string>
-    <string name="help_body_app_assignment">In Settings → Apps, choose All apps or Assigned apps only for Censor. Assign Censor, Limits, and Subliminal independently for each installed app. All apps affects Censor only; Limits and Subliminal still run only in their assigned apps. Feature switches and app assignments configure service, while Enter Service and Leave Service control whether it runs. Review assignments after apps are installed, removed, or renamed.</string>
+    <string name="help_body_app_assignment">In Settings → Apps, All apps covers enabled Censor, Limits, and Subliminal features. Assigned apps only uses each feature’s independent selections. Existing selections are retained when switching scope. Feature switches and app assignments configure service, while Enter Service and Leave Service control whether it runs. Review assignments after apps are installed, removed, or renamed.</string>
     <string name="help_body_subliminal">Subliminal Messaging displays brief messages on this device. Configure it in Atmosphere, then assign Subliminal to apps in Settings → Apps. During service, Accessibility shows one faint, touch-through message at a random safe position and removes it smoothly. Messages do not appear in SubHub, the keyboard, Android Settings, or unassigned apps. Only aggregate impression counts are stored; message history and screen content are not.</string>
     <string name="help_body_censoring">Censor settings select body areas, clothed matches, text categories, censor phrases, replacement images, and appearance. Higher detection levels can use more battery. Medium and High add context recognition for text; High also supports reading text inside images. Censor photos from gallery creates copies on this device. Deleting originals always requires a separate confirmation.</string>
-    <string name="help_body_limits">Limits count foreground time only for apps marked Limit. Use a separate daily allowance for each app, one shared allowance across all limited apps, or both. Usage resets at local midnight. When either applicable allowance is exhausted, SubHub returns the limited app to Home. Limits require App Mode and Accessibility; Screen Capture alone cannot enforce foreground-app time.</string>
+    <string name="help_body_limits">Limits follow App coverage. All apps uses the default per-app allowance, with any app-specific overrides; Assigned apps only uses apps marked Limit. You can also use one shared allowance, or both. Usage resets at local midnight. When either applicable allowance is exhausted, SubHub returns the limited app to Home. SubHub, keyboards and essential Android surfaces are excluded. Limits require Accessibility; Screen Capture alone cannot enforce foreground-app time.</string>
     <string name="help_body_wallet">Wallet is optional and local until checkout. Dom mode chooses the enabled events, prices, batching, grace/correction time, and daily and weekly caps. Manual checkout is payer-present. Saved-wallet auto-pay is separate, explicit, and runs only while Wallet, Hardcore Mode, an active service lock, and a verified saved PayPal wallet are all active. PayPal can still decline or require the payer to authorize again.</string>
     <string name="help_body_paypal_setup">Use a PayPal Business account and create or select a REST app in the PayPal Developer Dashboard. Start with Sandbox credentials and a sandbox personal buyer; Live credentials are separate and move real money. Enable Save payment methods/Vault for the same app and complete PayPal’s business-profile eligibility step under Account Settings › Payment Preferences. In Dom Settings, choose the matching environment, connect its Client ID and secret, then Link Payer Wallet and approve the billing agreement in PayPal. Linking itself creates no charge. PayPal’s dashboard may label the eligible wallet capability “PayPal and Venmo”; Venmo is US-only and is not a German/EUR payment option.</string>
     <string name="help_body_hardcore">Hardcore Mode is optional platform-supported friction. It asks for Device Admin, adds a deliberate Dom release before protected uninstall/data-clear paths, and can guard Android settings while service is active. It does not wipe data, set passwords, use the camera, force-lock the device, or make Android unbreakable. Confirm the Dom PIN and recovery path before handing over control.</string>
@@ -628,7 +622,6 @@
     <string name="commitment_view_pact">View Service Lock</string>
     <string name="commitment_stop_requires_dom">Service is locked — release comes when the countdown ends.</string>
     <string name="commitment_timer_title">Service Duration</string>
-    <string name="commitment_timer_help">Choose when service may end. One release rule is always required.</string>
     <string name="commitment_timer_1h">1 h</string>
     <string name="commitment_timer_24h">24 h</string>
     <string name="commitment_timer_7d">7 d</string>
@@ -647,7 +640,6 @@
     <string name="penance_paid_label">Sent</string>
     <string name="penance_rules_title">Tribute rules</string>
     <string name="penance_rules_body">Choose which events add Tributes and set a price for each.</string>
-    <string name="penance_rule_math_preview">New censors: %3$s tribute every %1$d censor(s) · next due %7$d/%1$d. Earlier detections do not count.</string>
     <string name="penance_rule_math_invalid">Set a tribute, an every-N count, and limits that cover it.</string>
     <string name="penance_daily_cap_reached">Daily cap reached · detections still count, but add no more tribute today.</string>
     <string name="penance_weekly_cap_reached">Weekly cap reached · detections still count, but add no more tribute this week.</string>
@@ -724,16 +716,16 @@
     <string name="app_mode_title">Limits</string>
     <string name="app_mode_subtitle">App assignments, automatic protection, and daily allowances.</string>
     <string name="app_mode_service_title">Accessibility</string>
-    <string name="app_mode_service_body">Required for Censor, Limits, and Subliminal in assigned apps.</string>
+    <string name="app_mode_service_body">Required for Censor, Limits, and Subliminal app features.</string>
     <string name="app_mode_open_accessibility">Open Android Accessibility settings</string>
-    <string name="app_mode_rules_title">Censor coverage</string>
+    <string name="app_mode_rules_title">App coverage</string>
     <string name="app_mode_armed">Arm automatic protection</string>
     <string name="app_mode_always">All apps</string>
     <string name="app_mode_selected">Assigned apps only</string>
     <string name="app_mode_save">Save App Scope</string>
     <string name="app_mode_save_limits">Save Limits</string>
     <string name="app_selection_title">App assignments</string>
-    <string name="app_selection_help">Choose Censor, Limits, and Subliminal for each app. All apps affects Censor only.</string>
+    <string name="app_selection_help">All apps runs enabled Censor, Limits, and Subliminal features everywhere. Assigned apps only uses each feature’s selections below.</string>
     <string name="app_selection_censor">Censor</string>
     <string name="app_selection_limit">Limit</string>
     <string name="app_selection_count">%1$d censored · %2$d limited</string>
@@ -794,13 +786,13 @@
     <string name="paypal_order_item_name">%1$s × %2$d</string>
     <string name="paypal_order_item_when">Recorded %1$s</string>
     <string name="paypal_auto_payment_processing">Automatic Wallet payment is processing.</string>
-    <string name="paypal_link_help">Used for manual checkout when the merchant API is disconnected.</string>
     <string name="paypal_link_label">Manual PayPal link</string>
     <string name="paypal_link_hint">https://paypal.me/yourname</string>
     <string name="paypal_settings_save">Save PayPal Link</string>
     <string name="paypal_settings_saved">PayPal link saved.</string>
     <string name="paypal_settings_invalid">Enter an HTTPS paypal.com or paypal.me link.</string>
-    <string name="app_timer_per_app_allowances_help">Each app marked Limit in Settings has its own daily allowance.</string>
+    <string name="app_timer_per_app_allowances_help">Each covered app has its own daily allowance. App-specific values override the default.</string>
+    <string name="app_timer_default_minutes">Default daily minutes per app</string>
     <string name="app_timer_no_limited_apps">No apps are marked Limit. Choose them in Settings.</string>
     <string name="app_timer_allowance_minutes">Daily minutes</string>
     <string name="app_mode_select_one">Choose at least one app for selected-app recognition or daily limits.</string>
@@ -810,14 +802,14 @@
     <string name="app_mode_status_waiting">Armed • waiting for an assigned app</string>
     <string name="app_mode_status_reconnecting">Enabled • Android is reconnecting the service</string>
     <string name="app_timer_title">Daily App Limits</string>
-    <string name="app_timer_body">Limits count only while an assigned app is on screen. Time resets at local midnight. When allowance runs out, SubHub returns to Home.</string>
+    <string name="app_timer_body">Limits follow App coverage in Settings and count foreground time. Time resets at local midnight. When allowance runs out, SubHub returns to Home.</string>
     <string name="app_timer_per_app">Give each limited app its own allowance</string>
     <string name="app_timer_combined">Share one allowance across all limited apps</string>
     <string name="app_timer_minutes_hint">Minutes per day (1–1440)</string>
     <string name="app_timer_total_minutes_label">Daily Minutes Shared by All Apps</string>
-    <string name="app_timer_total_minutes_help">All apps marked Limit spend from this one allowance.</string>
-    <string name="app_timer_usage_none">Today: no selected-app time recorded</string>
-    <string name="app_timer_usage_total">Today: %1$s across selected apps</string>
+    <string name="app_timer_total_minutes_help">Covered apps spend from this one allowance.</string>
+    <string name="app_timer_usage_none">Today: no covered-app time recorded</string>
+    <string name="app_timer_usage_total">Today: %1$s across covered apps</string>
     <string name="app_timer_invalid_minutes">Enter a daily limit from 1 to 1440 minutes.</string>
     <string name="app_timer_blocked_app">Daily limit reached for this app.</string>
     <string name="app_timer_blocked_total">Combined daily app limit reached.</string>
@@ -997,7 +989,6 @@
     <string name="subliminal_preview">Preview message</string>
     <string name="subliminal_preview_empty">Choose a phrase pack first.</string>
     <string name="subliminal_packs_title">Message packs</string>
-    <string name="subliminal_packs_help">Mix any packs. A message is chosen locally at random; nothing is uploaded or remembered.</string>
     <string name="subliminal_pack_obedience">Obedience &amp; service</string>
     <string name="subliminal_pack_focus">Focus &amp; posture</string>
     <string name="subliminal_pack_beta">Beta &amp; cuck teasing</string>
@@ -1006,7 +997,6 @@
     <string name="subliminal_custom_title">Custom messages</string>
     <string name="subliminal_custom_help">One short message per line. Up to 200 messages, 120 characters each.</string>
     <string name="subliminal_custom_hint">One message per line</string>
-    <string name="subliminal_autosave">Changes apply automatically while service is active.</string>
     <string name="app_selection_subliminal">Subliminal</string>
     <string name="app_selection_count_three">Assigned: %1$d Censor · %2$d Limits · %3$d Subliminal</string>
     <string name="sub_subliminal_title">Subliminal Messaging</string>

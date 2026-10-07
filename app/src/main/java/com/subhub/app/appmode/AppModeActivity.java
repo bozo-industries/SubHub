@@ -65,6 +65,7 @@ public final class AppModeActivity extends AppCompatActivity {
         binding.perAppLimitEnabled.setChecked(timerSettings.perAppEnabled);
         binding.totalLimitEnabled.setChecked(timerSettings.totalEnabled);
         binding.totalLimitMinutes.setText(String.valueOf(timerSettings.totalMinutes));
+        binding.defaultLimitMinutes.setText(String.valueOf(timerSettings.perAppMinutes));
         binding.perAppLimitEnabled.setOnCheckedChangeListener((button, checked) -> {
             renderTimerControls();
             scheduleAutoSave();
@@ -76,6 +77,10 @@ public final class AppModeActivity extends AppCompatActivity {
             if (checked) promptForAccessibility();
         });
         binding.totalLimitMinutes.addTextChangedListener(autoSaveWatcher);
+        binding.defaultLimitMinutes.addTextChangedListener(autoSaveWatcher);
+        binding.defaultLimitMinutes.setOnFocusChangeListener((view, focused) -> {
+            if (!focused) commitTimers(true);
+        });
         binding.totalLimitMinutes.setOnFocusChangeListener((view, focused) -> {
             if (!focused) commitTimers(true);
         });
@@ -118,13 +123,22 @@ public final class AppModeActivity extends AppCompatActivity {
     private boolean save(boolean showInvalid) {
         boolean watchedAppsRequired = binding.perAppLimitEnabled.isChecked()
                 || binding.totalLimitEnabled.isChecked();
-        if (watchedAppsRequired && manager.getTimerPackages().isEmpty()) {
+        if (watchedAppsRequired && manager.getMode() == AppModePolicy.Mode.SELECTED_APPS
+                && manager.getTimerPackages().isEmpty()) {
             if (showInvalid) Toast.makeText(this, R.string.app_mode_select_one,
                     Toast.LENGTH_SHORT).show();
             return false;
         }
         Integer totalMinutes = readMinutes(binding.totalLimitMinutes,
                 binding.totalLimitEnabled.isChecked());
+        AppTimerManager.Settings existing = timers.loadSettings();
+        Integer defaultMinutes = manager.getMode() == AppModePolicy.Mode.ALWAYS
+                ? readMinutes(binding.defaultLimitMinutes, binding.perAppLimitEnabled.isChecked())
+                : existing.perAppMinutes;
+        if (defaultMinutes == null) {
+            if (showInvalid) Toast.makeText(this, R.string.app_timer_invalid_minutes, Toast.LENGTH_SHORT).show();
+            return false;
+        }
         Map<String, Integer> allowances = new LinkedHashMap<>();
         if (binding.perAppLimitEnabled.isChecked()) {
             for (Map.Entry<String, EditText> entry : allowanceInputs.entrySet()) {
@@ -142,10 +156,11 @@ public final class AppModeActivity extends AppCompatActivity {
                     Toast.LENGTH_SHORT).show();
             return false;
         }
-        AppTimerManager.Settings existing = timers.loadSettings();
-        timers.saveSettings(binding.perAppLimitEnabled.isChecked(), existing.perAppMinutes,
+        timers.saveSettings(binding.perAppLimitEnabled.isChecked(), defaultMinutes,
                 binding.totalLimitEnabled.isChecked(), totalMinutes);
-        timers.saveAllowances(manager.getTimerPackages(), allowances);
+        if (binding.perAppLimitEnabled.isChecked()) {
+            timers.saveAllowances(manager.getTimerPackages(), allowances);
+        }
         return true;
     }
 
@@ -167,6 +182,7 @@ public final class AppModeActivity extends AppCompatActivity {
         binding.perAppLimitEnabled.setChecked(saved.perAppEnabled);
         binding.totalLimitEnabled.setChecked(saved.totalEnabled);
         binding.totalLimitMinutes.setText(String.valueOf(saved.totalMinutes));
+        binding.defaultLimitMinutes.setText(String.valueOf(saved.perAppMinutes));
         renderPerAppAllowances();
         populatingTimers = false;
         renderTimerControls();
@@ -180,6 +196,9 @@ public final class AppModeActivity extends AppCompatActivity {
 
     private void renderTimerControls() {
         boolean perAppEnabled = binding.perAppLimitEnabled.isChecked();
+        boolean allApps = manager.getMode() == AppModePolicy.Mode.ALWAYS;
+        binding.defaultAllowanceGroup.setVisibility(allApps ? View.VISIBLE : View.GONE);
+        binding.defaultLimitMinutes.setEnabled(editingUnlocked && perAppEnabled && allApps);
         for (EditText input : allowanceInputs.values()) {
             input.setEnabled(editingUnlocked && perAppEnabled);
             input.setAlpha(perAppEnabled ? 1f : 0.5f);
@@ -199,6 +218,7 @@ public final class AppModeActivity extends AppCompatActivity {
         binding.perAppAllowancesList.removeAllViews();
         allowanceInputs.clear();
         if (ordered.isEmpty()) {
+            if (manager.getMode() == AppModePolicy.Mode.ALWAYS) return;
             TextView empty = new TextView(this);
             empty.setText(R.string.app_timer_no_limited_apps);
             empty.setTextColor(getColor(R.color.text_muted));

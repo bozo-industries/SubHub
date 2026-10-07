@@ -87,10 +87,6 @@
             <TextView android:id="@+id/achievement_progress" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:textColor="@color/accent"
                 android:textStyle="bold" />
-            <Button android:id="@+id/button_achievements"
-                style="@style/Widget.SubHub.PrimaryButton"
-                android:layout_marginTop="8dp"
-                android:text="@string/achievements_view_all" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

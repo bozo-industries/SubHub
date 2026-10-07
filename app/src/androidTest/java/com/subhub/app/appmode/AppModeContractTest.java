@@ -37,6 +37,82 @@ import java.util.Set;
 
 @RunWith(AndroidJUnit4.class)
 public final class AppModeContractTest {
+    @Test public void allAppsCoversEachEnabledFeatureAndSelectedModeRetainsIndependentChoices() {
+        com.subhub.app.settings.FeatureModuleManager modules = new com.subhub.app.settings.FeatureModuleManager(context);
+        modules.save(true, true, true, true);
+        new SettingsRepository(context).saveCaptureMethod(com.subhub.app.settings.CaptureMethod.APP_MODE);
+        AppModeManager manager = new AppModeManager(context);
+        manager.saveAppSelections(Set.of("com.example.censor"), Set.of("com.example.timer"), Set.of("com.example.messages"));
+        manager.save(true, AppModePolicy.Mode.ALWAYS, Set.of("com.example.censor"));
+        assertTrue(manager.shouldRecognize("com.example.unassigned"));
+        assertTrue(manager.shouldShowSubliminal("com.example.unassigned"));
+        assertEquals(Set.of("com.example.unassigned"), manager.timerScopeForForeground("com.example.unassigned"));
+        assertTrue(manager.timerScopeForForeground(context.getPackageName()).isEmpty());
+        assertTrue(manager.timerScopeForForeground("com.android.settings").isEmpty());
+        assertFalse(manager.shouldShowSubliminal(context.getPackageName()));
+        String keyboard = manager.inputMethodPackage();
+        if (!keyboard.isEmpty()) {
+            assertTrue(manager.timerScopeForForeground(keyboard).isEmpty());
+            assertFalse(manager.shouldShowSubliminal(keyboard));
+        }
+        manager.save(true, AppModePolicy.Mode.SELECTED_APPS, manager.getSelectedPackages());
+        assertEquals(Set.of("com.example.timer"), manager.getTimerPackages());
+        assertEquals(Set.of("com.example.messages"), manager.getSubliminalPackages());
+        assertTrue(manager.timerScopeForForeground("com.example.unassigned").isEmpty());
+        assertFalse(manager.shouldShowSubliminal("com.example.unassigned"));
+        assertTrue(manager.shouldShowSubliminal("com.example.messages"));
+        assertFalse(manager.shouldShowSubliminal("com.example.timer"));
+        assertEquals(Set.of("com.example.timer"), manager.timerScopeForForeground("com.example.timer"));
+        modules.save(true, false, true, false);
+        assertTrue(manager.timerScopeForForeground("com.example.timer").isEmpty());
+        assertFalse(manager.shouldShowSubliminal("com.example.messages"));
+        modules.save(true, true, true, true);
+        manager.setArmed(false);
+        assertTrue(manager.timerScopeForForeground("com.example.timer").isEmpty());
+        assertFalse(manager.shouldShowSubliminal("com.example.messages"));
+    }
+
+    @Test public void allAppsDefaultAllowanceIsEditableWithoutAnyAppAssignments() {
+        ControllerPinManager.enterDomMode();
+        new com.subhub.app.settings.FeatureModuleManager(context).save(true, true, true, false);
+        AppModeManager manager = new AppModeManager(context);
+        manager.saveAppSelections(Set.of(), Set.of(), Set.of());
+        manager.save(false, AppModePolicy.Mode.ALWAYS, Set.of());
+        AppTimerManager timer = new AppTimerManager(context);
+        timer.saveSettings(true, 30, false, 120);
+        try (ActivityScenario<AppModeActivity> scenario = ActivityScenario.launch(AppModeActivity.class)) {
+            scenario.onActivity(activity -> {
+                assertEquals(View.VISIBLE, activity.findViewById(R.id.default_allowance_group).getVisibility());
+                assertTrue(activity.findViewById(R.id.default_limit_minutes).isEnabled());
+            });
+            androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withId(R.id.default_limit_minutes))
+                    .perform(com.subhub.app.NativeUiActions.revealAboveNavigation(),
+                            androidx.test.espresso.action.ViewActions.replaceText("45"),
+                            androidx.test.espresso.action.ViewActions.closeSoftKeyboard());
+        }
+        assertEquals(45, timer.loadSettings().perAppMinutes);
+        assertTrue(timer.loadSettings().perAppEnabled);
+        assertTrue(manager.getTimerPackages().isEmpty());
+        assertFalse(manager.isArmed());
+    }
+
+    @Test public void allAppsCountsAndEnforcesAnUnassignedAppsExistingDefaultAllowance() {
+        new com.subhub.app.settings.FeatureModuleManager(context).save(true, true, true, true);
+        AppModeManager manager = new AppModeManager(context);
+        manager.saveAppSelections(Set.of(), Set.of(), Set.of());
+        manager.save(true, AppModePolicy.Mode.ALWAYS, Set.of());
+        AppTimerManager timer = new AppTimerManager(context);
+        timer.clearUsageForTesting();
+        timer.saveSettings(true, 1, false, 120);
+        long now = System.currentTimeMillis();
+        Set<String> scope = manager.timerScopeForForeground("com.example.unassigned");
+        timer.recordUsage("com.example.unassigned", 60_000L, scope, now);
+        assertEquals(60_000L, timer.snapshot("com.example.unassigned", now).appUsedMillis);
+        assertEquals(AppTimerManager.LimitStatus.PER_APP, timer.limitStatus("com.example.unassigned", scope, now));
+        assertEquals(AppTimerManager.LimitStatus.NONE,
+                timer.limitStatus(context.getPackageName(), manager.timerScopeForForeground(context.getPackageName()), now));
+        timer.clearUsageForTesting();
+    }
     private Context context;
     private SharedPreferences preferences;
 

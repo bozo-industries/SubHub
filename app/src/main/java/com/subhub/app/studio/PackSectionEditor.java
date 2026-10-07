@@ -21,6 +21,7 @@ import androidx.core.view.ViewCompat;
 import com.subhub.app.R;
 import com.subhub.app.pack.PackSettingCatalog;
 import com.subhub.app.pack.SubHubPackSchema;
+import com.subhub.app.util.CompactFieldLayout;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.math.BigDecimal;
@@ -40,7 +41,7 @@ final class PackSectionEditor {
     private final Consumer<JSONObject> saved;
     private final Map<String, View> rows = new LinkedHashMap<>();
     private final Map<String, View> controls = new LinkedHashMap<>();
-    private final Map<Integer, LinearLayout> groups = new LinkedHashMap<>();
+    private final Map<Integer, CompactFieldLayout> groups = new LinkedHashMap<>();
     private final Set<String> invalidInputs = new LinkedHashSet<>();
     private boolean updating;
 
@@ -69,14 +70,16 @@ final class PackSectionEditor {
             content.addView(label(activity.getString(R.string.pack_editor_popup_note), false));
         }
         for (PackSettingCatalog.Field field : PackSettingCatalog.fields(section)) {
-            LinearLayout group = groups.get(field.group);
+            CompactFieldLayout group = groups.get(field.group);
             if (group == null) {
-                group = column();
+                group = new CompactFieldLayout(activity);
+                group.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
                 group.setPadding(dp(8), 0, dp(8), dp(10));
                 Button heading = action(activity.getString(field.group) + " ▸");
                 heading.setTag("pack_group:" + section + ":" + field.group);
                 ViewCompat.setAccessibilityHeading(heading, true);
-                LinearLayout expanded = group;
+                CompactFieldLayout expanded = group;
                 heading.setOnClickListener(view -> {
                     boolean open = expanded.getVisibility() != View.VISIBLE;
                     expanded.setVisibility(open ? View.VISIBLE : View.GONE);
@@ -92,7 +95,7 @@ final class PackSectionEditor {
                 content.addView(group);
                 groups.put(field.group, group);
                 if (field.group == R.string.pack_group_timing) {
-                    group.addView(label(activity.getString(R.string.pack_editor_timing_help), false));
+                    group.addField(label(activity.getString(R.string.pack_editor_timing_help), false), true);
                 }
             }
             LinearLayout row = column();
@@ -110,11 +113,15 @@ final class PackSectionEditor {
                 controls.put(field.key, check);
                 row.addView(check);
             } else {
-                TextView name = label(activity.getString(field.label), true);
+                boolean tributeAmount = SubHubPackSchema.WALLET.equals(section)
+                        && field.key.startsWith("rule_") && field.key.endsWith("_cents");
+                TextView name = label(activity.getString(tributeAmount
+                        ? R.string.pack_editor_tribute_amount : field.label), true);
                 row.addView(name);
                 View control = makeControl(field);
                 control.setId(View.generateViewId());
                 control.setTag(field.key);
+                control.setContentDescription(activity.getString(field.label));
                 name.setLabelFor(control.getId());
                 controls.put(field.key, control);
                 row.addView(control);
@@ -122,7 +129,11 @@ final class PackSectionEditor {
             if ("censor_coverage".equals(field.key)) {
                 row.addView(label(activity.getString(R.string.pack_editor_image_coverage_help), false));
             }
-            group.addView(row);
+            boolean fullWidth = field.kind == PackSettingCatalog.Kind.TEXT
+                    || field.kind == PackSettingCatalog.Kind.SELECTION
+                    || (SubHubPackSchema.WALLET.equals(section) && "enabled".equals(field.key))
+                    || "error_popup_text".equals(field.key);
+            group.addField(row, fullWidth);
         }
         refreshApplicability();
         AlertDialog dialog = new AlertDialog.Builder(activity)

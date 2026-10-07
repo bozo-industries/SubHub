@@ -24,6 +24,22 @@ import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
 public final class UiComponentContractTest {
+    @Test public void statsHasNoAchievementButtonAndHomePlacesAchievementsAfterLifetimeStats() {
+        try (ActivityScenario<com.subhub.app.stats.StatsActivity> scenario =
+                     ActivityScenario.launch(com.subhub.app.stats.StatsActivity.class)) {
+            scenario.onActivity(activity -> org.junit.Assert.assertNull(activity.findViewById(R.id.button_achievements)));
+        }
+        ControllerPinManager.enterSubMode();
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(activity -> {
+                View lifetime = activity.findViewById(R.id.home_lifetime_stats);
+                View achievements = activity.findViewById(R.id.achievements_home_card);
+                assertEquals(lifetime.getParent(), achievements.getParent());
+                ViewGroup parent = (ViewGroup) lifetime.getParent();
+                assertTrue(parent.indexOfChild(lifetime) < parent.indexOfChild(achievements));
+            });
+        } finally { ControllerPinManager.enterDomMode(); }
+    }
     @Test public void subliminalChoicesAndDialogCloseHaveFullTouchTargets() {
         android.content.Context context = new android.view.ContextThemeWrapper(
                 ApplicationProvider.getApplicationContext(), R.style.Theme_SubHub);

@@ -47,6 +47,7 @@ import com.subhub.app.permissions.HomePermissionPolicy;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.subhub.app.appmode.AppModeManager;
+import com.subhub.app.appmode.AppModePolicy;
 import com.subhub.app.appmode.AppTimerManager;
 import com.subhub.app.detection.DetectorConfig;
 import com.subhub.app.detection.DetectionPreset;
@@ -594,9 +595,10 @@ public final class MainActivity extends AppCompatActivity {
             Set<String> timerPackages = appMode.getTimerPackages();
             AppTimerManager.AllowanceSummary allowances =
                     timerManager.summarizeAllowances(timerPackages);
-            int limitCount = allowances.isEmpty() ? 0
+            boolean allApps = appMode.getMode() == AppModePolicy.Mode.ALWAYS;
+            int limitCount = !allApps && allowances.isEmpty() ? 0
                     : (timer.totalEnabled ? 1 : 0)
-                            + (timer.perAppEnabled ? allowances.appCount : 0);
+                            + (timer.perAppEnabled ? (allApps ? 1 : allowances.appCount) : 0);
             binding.subLimitsSummary.setText(getResources().getQuantityString(
                     R.plurals.sub_limits_selected, limitCount, limitCount));
         }
@@ -715,6 +717,11 @@ public final class MainActivity extends AppCompatActivity {
                         ? getString(R.string.arrangement_minutes, settings.totalMinutes)
                         : getString(R.string.popup_off)));
         Set<String> packages = appMode.getTimerPackages();
+        if (appMode.getMode() == AppModePolicy.Mode.ALWAYS) {
+            lines.add(detailLine(R.string.arrangement_apps, getString(R.string.arrangement_all_apps)));
+            if (settings.perAppEnabled) lines.add(detailLine(R.string.app_timer_default_minutes,
+                    getString(R.string.arrangement_minutes, settings.perAppMinutes)));
+        }
         if (settings.perAppEnabled && !packages.isEmpty()) {
             List<String> allowances = new ArrayList<>();
             for (String packageName : packages) {
@@ -776,7 +783,8 @@ public final class MainActivity extends AppCompatActivity {
         lines.add(detailLine(R.string.arrangement_subliminal_intensity,
                 friendlyPreset(settings.getPreset())));
         lines.add(detailLine(R.string.arrangement_apps,
-                appLabels(appMode.getSubliminalPackages())));
+                appMode.getMode() == AppModePolicy.Mode.ALWAYS
+                        ? getString(R.string.arrangement_all_apps) : appLabels(appMode.getSubliminalPackages())));
         return joinDetails(lines);
     }
 
@@ -794,7 +802,9 @@ public final class MainActivity extends AppCompatActivity {
                 popup.isEnabled() ? getString(R.string.atmosphere_state_on)
                         : getString(R.string.popup_off)));
         lines.add(detailLine(R.string.arrangement_apps,
-                appLabels(new AppModeManager(this).getSubliminalPackages())));
+                new AppModeManager(this).getMode() == AppModePolicy.Mode.ALWAYS
+                        ? getString(R.string.arrangement_all_apps)
+                        : appLabels(new AppModeManager(this).getSubliminalPackages())));
         return joinDetails(lines);
     }
 

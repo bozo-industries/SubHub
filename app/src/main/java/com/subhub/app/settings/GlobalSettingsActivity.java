@@ -323,7 +323,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         if (!editingUnlocked) return;
         AppModePolicy.Mode mode = binding.modeSelected.isChecked()
                 ? AppModePolicy.Mode.SELECTED_APPS : AppModePolicy.Mode.ALWAYS;
-        // This card configures where recognition runs. Only Home starts or stops protection.
+        // Shared feature scope only; Home starts or stops protection.
         boolean armed = appMode.isArmed();
         appMode.save(armed, mode, censorPackages);
         if (armed) ResumeNotificationManager.show(this);
@@ -337,8 +337,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                 ? AppModePolicy.Mode.SELECTED_APPS : AppModePolicy.Mode.ALWAYS;
         boolean armed = appMode.isArmed();
         appMode.saveAppSelections(censorPackages, timerPackages, subliminalPackages);
-        // Keep the explicit Censor scope; assignments never toggle the service or
-        // change the independent Limits and Subliminal app selections.
+        // Keep the explicit shared scope; changing assignments never toggles the service.
         appMode.save(armed, mode, censorPackages);
         renderSelectedCount();
     }
