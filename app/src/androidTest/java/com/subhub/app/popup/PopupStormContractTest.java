@@ -33,6 +33,26 @@ import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
 public final class PopupStormContractTest {
+    @Test public void intensitySliderPersistsAllFourPresetsFromKeyboardInput() {
+        ControllerPinManager.enterDomMode();
+        android.content.Context context = androidx.test.core.app.ApplicationProvider.getApplicationContext();
+        IntensityPresets.GENTLE.apply(context);
+        try (ActivityScenario<PopupStormActivity> scenario = ActivityScenario.launch(PopupStormActivity.class)) {
+            scenario.onActivity(activity -> {
+                com.google.android.material.slider.Slider slider = activity.findViewById(R.id.preset_slider);
+                assertEquals(0f, slider.getValueFrom(), 0f);
+                assertEquals(3f, slider.getValueTo(), 0f);
+                assertEquals(1f, slider.getStepSize(), 0f);
+                assertTrue(slider.requestFocus());
+            });
+            for (int step = 1; step < 4; step++) {
+                androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withId(R.id.preset_slider))
+                        .perform(androidx.test.espresso.action.ViewActions.pressKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT));
+                assertEquals(IntensityPresets.values()[step].name(),
+                        PopupStormSettings.preferences(context).getString(PopupStormSettings.K_PRESET, ""));
+            }
+        }
+    }
     private Context context;
     private SharedPreferences preferences;
 
@@ -113,7 +133,7 @@ public final class PopupStormContractTest {
                 assertEquals(page, advanced.getParent());
                 assertTrue(page.indexOfChild(configuration) < page.indexOfChild(images));
                 assertTrue(page.indexOfChild(images) < page.indexOfChild(advanced));
-                assertInside(configuration, activity.findViewById(R.id.preset_container));
+                assertInside(configuration, activity.findViewById(R.id.preset_slider));
                 assertInside(configuration, activity.findViewById(R.id.button_preview));
                 assertInside(images, activity.findViewById(R.id.button_add_folder));
                 assertInside(advanced, activity.findViewById(R.id.dynamic_settings));

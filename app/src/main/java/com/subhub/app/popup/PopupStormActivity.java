@@ -91,7 +91,20 @@ public final class PopupStormActivity extends AppCompatActivity {
                 refreshStatus();
             }
         });
-        buildPresetButtons();
+        binding.presetSlider.setLabelFormatter(value -> IntensityPresets.values()[Math.round(value)].getDisplayName());
+        binding.presetSlider.addOnChangeListener((slider, value, fromUser) -> {
+            if (fromUser) applyPreset(Math.round(value));
+        });
+        binding.presetSlider.addOnSliderTouchListener(new com.google.android.material.slider.Slider.OnSliderTouchListener() {
+            @Override public void onStartTrackingTouch(com.google.android.material.slider.Slider slider) { }
+            @Override public void onStopTrackingTouch(com.google.android.material.slider.Slider slider) {
+                int step = Math.round(slider.getValue());
+                if (!IntensityPresets.values()[step].name().equals(preferences.getString(PopupStormSettings.K_PRESET, "CUSTOM"))) {
+                    applyPreset(step);
+                }
+            }
+        });
+        renderPreset();
         rebuildSettings();
         editMode = ControllerEditMode.bind(
                 this, PrimaryHeader.editLockButton(binding.getRoot()), editing -> applyEditState());
@@ -159,37 +172,23 @@ public final class PopupStormActivity extends AppCompatActivity {
         refreshStatus();
     }
 
-    private void buildPresetButtons() {
-        binding.presetContainer.removeAllViews();
-        int columns = getResources().getConfiguration().screenWidthDp >= 480
-                && getResources().getConfiguration().fontScale < 1.3f ? 4 : 2;
-        binding.presetContainer.setColumnCount(columns);
-        String selectedPreset = preferences.getString(
-                PopupStormSettings.K_PRESET, IntensityPresets.MEDIUM.name());
-        for (IntensityPresets preset : IntensityPresets.values()) {
-            Button button = new Button(this, null, 0, R.style.Widget_SubHub_SegmentedButton);
-            button.setText(preset.getDisplayName());
-            button.setMinHeight(dp(48));
-            button.setMinimumHeight(dp(48));
-            int index = binding.presetContainer.getChildCount();
-            GridLayout.LayoutParams params = new GridLayout.LayoutParams(
-                    GridLayout.spec(index / columns), GridLayout.spec(index % columns, 1f));
-            params.width = 0;
-            params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-            params.setMargins(dp(3), dp(3), dp(3), dp(3));
-            button.setLayoutParams(params);
-            boolean selected = preset.name().equals(selectedPreset);
-            button.setSelected(selected);
-            button.setEnabled(ControllerPinManager.isSessionUnlocked());
-            button.setOnClickListener(view -> {
-                preset.apply(this);
-                buildPresetButtons();
-                rebuildSettings();
-                PopupStormManager.get().reloadSettings(this);
-                Toast.makeText(this, preset.getDisplayName(), Toast.LENGTH_SHORT).show();
-            });
-            binding.presetContainer.addView(button);
+    private void renderPreset() {
+        String selected = preferences.getString(PopupStormSettings.K_PRESET, "CUSTOM");
+        IntensityPresets preset = null;
+        for (IntensityPresets candidate : IntensityPresets.values()) {
+            if (candidate.name().equals(selected)) preset = candidate;
         }
+        binding.presetSlider.setValue(preset == null ? 1 : preset.ordinal());
+        binding.presetValue.setText(preset == null
+                ? getString(R.string.popup_custom_intensity) : preset.getDisplayName());
+    }
+
+    private void applyPreset(int step) {
+        if (!ControllerPinManager.isSessionUnlocked()) return;
+        IntensityPresets.values()[step].apply(this);
+        renderPreset();
+        rebuildSettings();
+        PopupStormManager.get().reloadSettings(this);
     }
 
     private void rebuildSettings() {
@@ -256,7 +255,7 @@ public final class PopupStormActivity extends AppCompatActivity {
         binding.switchEnabled.setEnabled(editing);
         binding.buttonPreview.setEnabled(editing);
         binding.buttonAddFolder.setEnabled(editing);
-        setEnabledRecursive(binding.presetContainer, editing);
+        binding.presetSlider.setEnabled(editing);
         setEnabledRecursive(binding.dynamicSettings, editing);
         rebuildFolders();
         // Stop remains available as an unconditional safety action.
@@ -427,7 +426,7 @@ public final class PopupStormActivity extends AppCompatActivity {
 
     private void settingsChanged() {
         preferences.edit().remove(PopupStormSettings.K_PRESET).apply();
-        buildPresetButtons();
+        renderPreset();
         PopupStormManager.get().reloadSettings(this);
         refreshStatus();
     }

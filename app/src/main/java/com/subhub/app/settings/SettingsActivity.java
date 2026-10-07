@@ -61,6 +61,7 @@ public final class SettingsActivity extends AppCompatActivity {
         images = new CensorImageEditor(this, binding.buttonAddCensorImages,
                 binding.censorImagesStatus, binding.censorImagesList);
         adaptBorderChoices();
+        renderDetectionLabels();
         bindValues();
         attachListeners();
         applyLockState();
@@ -75,6 +76,23 @@ public final class SettingsActivity extends AppCompatActivity {
             ControllerEditMode.enterSubMode(this);
         } else {
             ControllerPinGate.require(this, this::applyLockState, false);
+        }
+    }
+
+    private void renderDetectionLabels() {
+        RadioButton[] choices = {binding.radioPresetLow, binding.radioPresetMedium, binding.radioPresetHigh};
+        int[] labels = {R.string.detection_level_low, R.string.detection_level_medium, R.string.detection_level_high};
+        int[] explanations = {R.string.detection_low_help, R.string.detection_medium_help, R.string.detection_high_help};
+        for (int index = 0; index < choices.length; index++) {
+            String label = getString(labels[index]);
+            android.text.SpannableString text = new android.text.SpannableString(label + "\n" + getString(explanations[index]));
+            int flags = android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE;
+            text.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, label.length(), flags);
+            text.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.ITALIC), label.length() + 1, text.length(), flags);
+            text.setSpan(new android.text.style.RelativeSizeSpan(.8f), label.length() + 1, text.length(), flags);
+            text.setSpan(new android.text.style.ForegroundColorSpan(getColor(R.color.text_secondary)), label.length() + 1, text.length(), flags);
+            choices[index].setTextSize(14f);
+            choices[index].setText(text);
         }
     }
 

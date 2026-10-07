@@ -31,6 +31,27 @@ import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
 public final class CensorEditorStructureContractTest {
+    @Test public void detectionLabelsHaveSmallerItalicSubtextOnANewLine() {
+        try (ActivityScenario<SettingsActivity> scenario = ActivityScenario.launch(SettingsActivity.class)) {
+            scenario.onActivity(activity -> {
+                int[] ids = {R.id.radio_preset_low, R.id.radio_preset_medium, R.id.radio_preset_high};
+                String[] labels = {"Low", "Medium", "High"};
+                for (int i = 0; i < ids.length; i++) {
+                    android.text.Spanned text = (android.text.Spanned) ((android.widget.TextView) activity.findViewById(ids[i])).getText();
+                    int subtext = labels[i].length() + 1;
+                    assertTrue(text.toString().startsWith(labels[i] + "\n"));
+                    android.text.style.StyleSpan[] style = text.getSpans(subtext, text.length(), android.text.style.StyleSpan.class);
+                    assertEquals(1, style.length);
+                    assertEquals(android.graphics.Typeface.ITALIC, style[0].getStyle());
+                    android.text.style.RelativeSizeSpan[] size = text.getSpans(subtext, text.length(), android.text.style.RelativeSizeSpan.class);
+                    assertEquals(1, size.length);
+                    assertTrue(size[0].getSizeChange() < 1f);
+                }
+                assertEquals("Medium\nMore small-region coverage",
+                        ((android.widget.TextView) activity.findViewById(R.id.radio_preset_medium)).getText().toString());
+            });
+        }
+    }
     private android.content.SharedPreferences preferences;
     private boolean originallyPresent;
     private boolean originallyEnabled;
