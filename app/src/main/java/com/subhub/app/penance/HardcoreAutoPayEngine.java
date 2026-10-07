@@ -18,6 +18,10 @@ final class HardcoreAutoPayEngine {
     private HardcoreAutoPayEngine() {}
 
     static void run(Context context, Runnable finished) {
+        run(context, false, finished);
+    }
+
+    static void run(Context context, boolean manualCashout, Runnable finished) {
         Context app = context.getApplicationContext();
         if (!RUNNING.compareAndSet(false, true)) {
             finished.run();
@@ -39,8 +43,9 @@ final class HardcoreAutoPayEngine {
             done(finished);
             return;
         }
-        PenanceManager.Settlement settlement = penance.beginSettlement(
-                System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        PenanceManager.Settlement settlement = manualCashout ? penance.beginSettlement(now)
+                : penance.beginAutomaticSettlement(now);
         if (settlement == null) {
             HardcoreAutoPayManager.schedule(app);
             done(finished);

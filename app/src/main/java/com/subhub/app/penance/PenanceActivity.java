@@ -421,7 +421,7 @@ public final class PenanceActivity extends AppCompatActivity {
         if (checkoutRoute == PayPalRequestPolicy.CheckoutRoute.STORED_WALLET) {
             checkoutBusy = true;
             render();
-            HardcoreAutoPayEngine.run(this, () -> {
+            HardcoreAutoPayEngine.run(this, true, () -> {
                 checkoutBusy = false;
                 if (binding != null) render();
             });

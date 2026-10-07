@@ -65,6 +65,11 @@ settlement, and enabling automatic settlement clears any stale interactive check
 background attempt. The app never falls back from configured auto-pay to an unnoticed interactive
 approval page.
 
+New background automatic cashouts have an internal EUR 15.00 minimum. Smaller balances remain
+open and accumulate; scheduling waits until enough entries have passed their mercy windows.
+Explicit manual cashouts (including the existing saved-wallet button route) have no minimum.
+Already-submitted automatic settlements retain their original ID and can reconcile below the floor.
+
 For payment-link fallback, PayPal.Me links receive the exact EUR amount using PayPal's documented
 `paypal.me/name/10.00EUR` form. The payer returns to SubHub and marks only the local ledger paid; the
 app does not represent that fallback as PayPal-side verification.

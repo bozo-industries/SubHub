@@ -362,6 +362,14 @@ public final class PenanceManager {
     }
 
     public Settlement beginSettlement(long nowMillis) {
+        return beginSettlement(nowMillis, 0);
+    }
+
+    Settlement beginAutomaticSettlement(long nowMillis) {
+        return beginSettlement(nowMillis, AutoCashoutPolicy.MINIMUM_CENTS);
+    }
+
+    private Settlement beginSettlement(long nowMillis, int minimumCents) {
         synchronized (LOCK) {
             List<PenanceEvent> events = loadEvents();
             String existingId = "";
@@ -370,19 +378,28 @@ public final class PenanceManager {
                     existingId = event.getSettlementId();
                 }
             }
-            if (!existingId.isEmpty()) return settlement(events, existingId);
+            if (!existingId.isEmpty()) {
+                Settlement existing = settlement(events, existingId);
+                // An already-submitted automatic payment must reconcile with the same ID,
+                // even if it predates this minimum. Never cancel/recreate an ambiguous charge.
+                if (existing != null && existing.getAmountCents() < minimumCents
+                        && getActiveCheckoutMode() != CheckoutMode.HARDCORE_AUTO) return null;
+                return existing;
+            }
 
-            String settlementId = UUID.randomUUID().toString();
             int amount = 0;
+            for (PenanceEvent event : events) {
+                if (event.isDue(nowMillis)) amount += event.getAmountCents();
+            }
+            if (amount <= 0 || amount < minimumCents) return null;
+            String settlementId = UUID.randomUUID().toString();
             for (int index = 0; index < events.size(); index++) {
                 PenanceEvent event = events.get(index);
                 if (event.isDue(nowMillis)) {
-                    amount += event.getAmountCents();
                     events.set(index, event.withStatus(
                             PenanceEvent.Status.CHECKOUT, settlementId));
                 }
             }
-            if (amount <= 0) return null;
             saveEvents(events);
             clearOrderState();
             return settlement(events, settlementId);
@@ -575,6 +592,12 @@ public final class PenanceManager {
                 }
             }
             return next == Long.MAX_VALUE ? 0L : next;
+        }
+    }
+
+    long nextAutomaticDueAtMillis(long nowMillis) {
+        synchronized (LOCK) {
+            return AutoCashoutPolicy.nextEligibleAt(loadEvents(), nowMillis);
         }
     }
 
