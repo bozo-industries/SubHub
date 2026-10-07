@@ -49,6 +49,22 @@ public final class CensorEditorStructureContractTest {
                 }
                 assertEquals("Medium\nMore small-region coverage",
                         ((android.widget.TextView) activity.findViewById(R.id.radio_preset_medium)).getText().toString());
+                assertEquals("Low\nBalanced coverage",
+                        ((android.widget.TextView) activity.findViewById(R.id.radio_preset_low)).getText().toString());
+                assertEquals("High\nMaximum coverage",
+                        ((android.widget.TextView) activity.findViewById(R.id.radio_preset_high)).getText().toString());
+                float density = activity.getResources().getDisplayMetrics().density;
+                for (int id : ids) {
+                    android.widget.TextView card = activity.findViewById(id);
+                    android.widget.RadioGroup.LayoutParams params =
+                            (android.widget.RadioGroup.LayoutParams) card.getLayoutParams();
+                    assertTrue(params.leftMargin >= Math.round(4 * density));
+                    assertTrue(params.rightMargin >= Math.round(4 * density));
+                    assertTrue(card.getPaddingTop() >= Math.round(10 * density));
+                    assertTrue(card.getPaddingBottom() >= Math.round(10 * density));
+                    assertNotNull(card.getCompoundDrawables()[1]);
+                    assertTrue(card.getCompoundDrawablesRelative()[0] == null);
+                }
             });
         }
     }
