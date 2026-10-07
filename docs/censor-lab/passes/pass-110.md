@@ -1,6 +1,6 @@
 # Pass 110: bounded current-viewport quality handoff
 
-Status: privately signed candidate verified; not installed or accepted on Pixel.
+Status: privately signed candidate installed and independently verified on Pixel; user acceptance pending.
 
 ## Recorded cause
 
@@ -59,6 +59,17 @@ independently checked against its provenance and checksum. ARM64 APK SHA-256:
 `3ad7c66a3b50ddc0d71b8907f7f91926e39287f2c4f1def67831a30d439260dd`.
 No tag or public release was created. The phone was offline at handoff; installation and
 real-device validation remain pending.
+
+### October 7 installation
+
+Wireless discovery identified Pixel serial `38121FDJG00GCN`. The prior installed APK was backed
+up locally (SHA-256 `58f14a4785a5e1f7f541aabd30938f379b575ffe077d57836c0385a59a371b50`).
+Replace-install succeeded without clearing app data. The installed `base.apk` was pulled back
+and independently matched the candidate hash above. Version remains 0.6.3/code19; package
+last-update time is October 7, 09:05:12 device local time. Accessibility service rebound in
+process 9686. The phone was awake, with render diagnostics `active:false`: installation is
+verified, but this idle state provides no live performance or quality evidence. A browsing
+test and the user's verdict remain required.
 
 No new device performance result yet. Lab109 baseline remains: fast capture-to-publication
 median/p95/max 158/212/240 ms; preprocessing 2/5/8 ms, runtime 49/90/113 ms,
