@@ -9,6 +9,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public final class GitHubReleaseRepositoryTest {
+    @Test public void updaterTargetsTheMovedCanonicalRepository() {
+        assertEquals("https://api.github.com/repos/confiteor48/SubHub/releases?per_page=30",
+                GitHubReleaseRepository.RELEASES_URL);
+    }
     @Test public void ignoresDraftsButKeepsPublishedPrereleases() throws Exception {
         JSONArray releases = new JSONArray("["
                 + release("v0.6.0", true, false, true) + ","

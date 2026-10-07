@@ -19,7 +19,7 @@ import java.util.List;
 
 /** Read-only client for SubHub's public GitHub Releases feed. */
 public final class GitHubReleaseRepository {
-    static final String RELEASES_URL = "https://api.github.com/repos/bozo-industries/SubHub/releases?per_page=30";
+    static final String RELEASES_URL = "https://api.github.com/repos/confiteor48/SubHub/releases?per_page=30";
     private static final int MAX_RESPONSE = 2 * 1024 * 1024;
     private final Context context;
     private final UpdateStateStore state;
