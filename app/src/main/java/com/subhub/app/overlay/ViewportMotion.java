@@ -25,9 +25,9 @@ final class ViewportMotion {
     private final Axis x = new Axis();
     private final Axis y = new Axis();
 
-    void configureEventTiming(boolean horizontal, float interval, float lag, float jitter) {
-        x.eventTrajectory.configureTiming(horizontal ? interval : 0, lag, jitter);
-        y.eventTrajectory.configureTiming(horizontal ? 0 : interval, lag, jitter);
+    void setNativeSpline(boolean enabled, float density, float friction, long now) {
+        x.setNativeSpline(enabled, density, friction, now);
+        y.setNativeSpline(enabled, density, friction, now);
     }
 
     void reset(float x, float y, long nowMillis) {
@@ -126,6 +126,7 @@ final class ViewportMotion {
 
     private static final class Axis {
         private final EventScrollTrajectory eventTrajectory = new EventScrollTrajectory();
+        private NativeScrollTrajectory nativeTrajectory;
         private boolean eventMode;
         private float exact;
         private float segmentStart;
@@ -142,6 +143,15 @@ final class ViewportMotion {
         private boolean absoluteMeasurement;
         private long absoluteSourceMillis = -1L;
         private long absoluteReadStartMillis, measurementOriginMillis, lastAuthoritySourceMillis;
+
+        void setNativeSpline(boolean enabled, float density, float friction, long now) {
+            if (enabled == (nativeTrajectory != null)) return;
+            float displayed = position(now);
+            eventTrajectory.reset(displayed, 0, now);
+            nativeTrajectory = enabled ? new NativeScrollTrajectory(density, friction) : null;
+            if (nativeTrajectory != null) nativeTrajectory.reset(displayed, now);
+            // Keep authoritative camera and current displayed position intact on a mode switch.
+        }
 
         boolean acceptsMeasurement(float value, long readStart, long sourceMillis, int viewportSize) {
             return sourceMillis > absoluteSourceMillis
@@ -243,6 +253,7 @@ final class ViewportMotion {
         void reset(float value, long nowMillis) {
             eventMode = false;
             eventTrajectory.reset(value, 0, nowMillis);
+            if (nativeTrajectory != null) nativeTrajectory.reset(value, nowMillis);
             absoluteMeasurement = false;
             absoluteSourceMillis = -1L;
             measurementOriginMillis = nowMillis;
@@ -268,6 +279,7 @@ final class ViewportMotion {
             float velocityBefore = velocity(nowMillis);
             eventMode = false;
             eventTrajectory.reset(value, 0, nowMillis);
+            if (nativeTrajectory != null) nativeTrajectory.reset(value, nowMillis);
             boolean pollingLive = lastPresentationSampleTime > 0L
                     && nowMillis - lastPresentationSampleTime <= PRESENTATION_MAX_GAP_MS;
             exact = value;
@@ -357,14 +369,19 @@ final class ViewportMotion {
                 return;
             }
 
-            if (!eventMode) eventTrajectory.reset(displayedBefore, velocityBefore, sampleMillis);
+            if (!eventMode) {
+                eventTrajectory.reset(displayedBefore, velocityBefore, sampleMillis);
+                if (nativeTrajectory != null) nativeTrajectory.reset(displayedBefore, sampleMillis);
+            }
             eventMode = true;
-            eventTrajectory.measure(exact, delta, sourceTime, sampleMillis, viewportSize);
+            if (nativeTrajectory != null) nativeTrajectory.measure(exact, delta, sourceTime, sampleMillis, viewportSize);
+            else eventTrajectory.measure(exact, delta, sourceTime, sampleMillis, viewportSize);
             lastEventTime = sampleMillis;
             // This event, rather than the tentative single poll sample, owned presentation.
             // Re-anchor the poll estimator so later samples cannot continue from the pre-event
             // coordinate space and pull the overlay backward.
-            pollMeasured = eventTrajectory.position(sampleMillis);
+            pollMeasured = nativeTrajectory != null ? nativeTrajectory.position(sampleMillis)
+                    : eventTrajectory.position(sampleMillis);
             pollVelocity = 0f;
             consecutivePollSamples = 0;
             lastPresentationSampleTime = 0L;
@@ -372,7 +389,8 @@ final class ViewportMotion {
         }
 
         float position(long nowMillis) {
-            if (eventMode) return eventTrajectory.position(nowMillis);
+            if (eventMode) return nativeTrajectory != null ? nativeTrajectory.position(nowMillis)
+                    : eventTrajectory.position(nowMillis);
             if (absoluteMeasurement && nowMillis - absoluteSourceMillis > 48L) {
                 long expiredAge = nowMillis - absoluteSourceMillis - 48L;
                 if (expiredAge >= 16L) return exact;
@@ -392,7 +410,8 @@ final class ViewportMotion {
         }
 
         float velocity(long nowMillis) {
-            if (eventMode) return eventTrajectory.velocity(nowMillis);
+            if (eventMode) return nativeTrajectory != null ? nativeTrajectory.velocity(nowMillis)
+                    : eventTrajectory.velocity(nowMillis);
             if (trajectoryDuration <= 0L) return 0f;
             long age = Math.max(0L, nowMillis - anchorTime);
             if (age < trajectoryDuration) {
@@ -407,7 +426,8 @@ final class ViewportMotion {
         }
 
         boolean isAnimating(long nowMillis) {
-            if (eventMode) return eventTrajectory.isAnimating(nowMillis);
+            if (eventMode) return nativeTrajectory != null ? nativeTrajectory.isAnimating(nowMillis)
+                    : eventTrajectory.isAnimating(nowMillis);
             if (absoluteMeasurement) return nowMillis - absoluteSourceMillis < 64L
                     && (Math.abs(segmentTarget - segmentStart) > .01f
                     || Math.abs(segmentTarget - exact) > .01f);
@@ -416,11 +436,13 @@ final class ViewportMotion {
         }
 
         float predictionAmplitude() {
-            return eventMode ? eventTrajectory.predictionAmplitude() : segmentTarget - exact;
+            return eventMode ? nativeTrajectory != null ? nativeTrajectory.predictionAmplitude()
+                    : eventTrajectory.predictionAmplitude() : segmentTarget - exact;
         }
 
         long predictionPeakMillis() {
-            return eventMode ? eventTrajectory.predictionPeakMillis() : trajectoryDuration;
+            return eventMode ? nativeTrajectory != null ? nativeTrajectory.predictionPeakMillis()
+                    : eventTrajectory.predictionPeakMillis() : trajectoryDuration;
         }
 
     }

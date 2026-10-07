@@ -20,13 +20,4 @@ public final class ScrollMetadataTraceTest {
         assertEquals(4, ScrollMetadataTrace.classKind("androidx.recyclerview.widget.RecyclerView"));
     }
 
-    @Test public void stoppedSessionIsRetainedWithoutClaimingCalibrationStillApplies() {
-        String last = ScreenshotAccessibilityService.retainedLearningSnapshot(
-                "{\"reads\":3}", "\"applied\":true,\"activeScale\":2", "{\"unknownOwner\":5}");
-        assertEquals("{\"observer\":{\"reads\":3},\"calibration\":{\"applied\":true,\"activeScale\":2},"
-                + "\"admission\":{\"unknownOwner\":5}}", last);
-        assertEquals("{\"schemaVersion\":1,\"state\":\"DISABLED\",\"applied\":false,\"lastSession\":"
-                + last + "}", ScreenshotAccessibilityService.disabledLearningSnapshot(last));
-        assertTrue(ScreenshotAccessibilityService.disabledLearningSnapshot("null").endsWith("\"lastSession\":null}"));
-    }
 }

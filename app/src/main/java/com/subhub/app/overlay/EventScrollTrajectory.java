@@ -18,17 +18,6 @@ final class EventScrollTrajectory {
     private float lastObservedSpeed;
     private int samplesReceived;
     private float correctionRate = CORRECTION_RATE;
-    private float learnedInterval, learnedLag, learnedJitter;
-
-    /** Only subsequent measurements use new timing; changing settings cannot move a frame. */
-    void configureTiming(float interval, float lag, float jitter) {
-        boolean valid = Float.isFinite(interval) && interval >= 1 && interval <= 300
-                && Float.isFinite(lag) && lag >= 0 && lag <= 500
-                && Float.isFinite(jitter) && jitter >= 0 && jitter <= 500;
-        learnedInterval = valid ? interval : 0;
-        learnedLag = valid ? lag : 0;
-        learnedJitter = valid ? jitter : 0;
-    }
 
     void reset(float position, float velocity, long now) {
         exact = initialPosition = position;
@@ -47,7 +36,7 @@ final class EventScrollTrajectory {
     void measure(float measured, float delta, long sourceTime, long now, int viewportSize) {
         float displayed = position(now);
         float displayedVelocity = velocity(now);
-        float fallbackInterval = learnedInterval > 0 ? learnedInterval : 114;
+        float fallbackInterval = 114;
         long gap = lastSourceTime < 0 ? Math.round(fallbackInterval) : sourceTime - lastSourceTime;
         if (gap > 250) samplesReceived = 0;
         boolean firstObservation = samplesReceived == 0;
@@ -84,16 +73,6 @@ final class EventScrollTrajectory {
                 Math.max(24f, Math.max(1, viewportSize) * .18f));
         float requestedCoast = Math.max(40f, Math.min(180f, interval * 1.15f));
         float returnDelay = interval + 24;
-        if (learnedInterval > 0) {
-            // Physical velocity still uses the actual event interval. Learned cadence only
-            // sets the forecast lifetime. Extra delivery delay consumes that lifetime rather
-            // than turning a historical event into a fresh full-length fling.
-            float cadence = firstObservation ? learnedInterval : .75f * interval + .25f * learnedInterval;
-            float extraDelay = Math.max(0, now - sourceTime - learnedLag);
-            float slack = Math.max(8, Math.min(48, 2 * learnedJitter));
-            requestedCoast = Math.max(0, Math.min(180, cadence * 1.15f - extraDelay));
-            returnDelay = Math.max(0, cadence + slack - extraDelay);
-        }
         float travelTime = Math.abs(speed) < .001f ? 0 : budget / Math.abs(speed);
         coastMs = Math.max(0, Math.min(requestedCoast, travelTime - BRAKE_MS / 2));
         if (Math.abs(speed) > .001f && travelTime < BRAKE_MS / 2) {

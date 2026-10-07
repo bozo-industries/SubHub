@@ -92,7 +92,6 @@ public final class ScrollSlowdownRegressionTest {
         float position = trajectory.position(1230);
         float velocity = trajectory.velocity(1230);
         trajectory.position(1400);
-        trajectory.configureTiming(114, 10, 6);
         assertEquals(position, trajectory.position(1230), 0);
         assertEquals(velocity, trajectory.velocity(1230), 0);
         assertTrue(trajectory.isAnimating(1230));

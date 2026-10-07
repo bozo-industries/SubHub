@@ -34,21 +34,12 @@ final class AndroidViewportAnchors {
             int viewportWidth,
             int viewportHeight) {
         return collect(ownedRoot, expectedPackage, windowId, viewportWidth, viewportHeight,
-                SystemClock.uptimeMillis() + COLLECTION_DEADLINE_MS, MAX_FETCHES, false);
-    }
-
-    /** Production learning starts at the producer's scroll owner, not the whole window. */
-    static List<AsyncViewportAnchorSampler.Anchor> collectForLearning(
-            AccessibilityNodeInfo ownedOwner, String expectedPackage, int windowId,
-            int viewportWidth, int viewportHeight, long deadline) {
-        return collect(ownedOwner, expectedPackage, windowId, viewportWidth, viewportHeight,
-                deadline, 32, true);
+                SystemClock.uptimeMillis() + COLLECTION_DEADLINE_MS, MAX_FETCHES);
     }
 
     private static List<AsyncViewportAnchorSampler.Anchor> collect(
             AccessibilityNodeInfo ownedRoot, String expectedPackage, int windowId,
-            int viewportWidth, int viewportHeight, long deadline, int fetchLimit,
-            boolean excludeNestedScrollers) {
+            int viewportWidth, int viewportHeight, long deadline, int fetchLimit) {
         if (ownedRoot == null) throw new NullPointerException("ownedRoot");
         ArrayDeque<NodeAtDepth> pending = new ArrayDeque<>();
         List<Candidate> candidates = new ArrayList<>(MAX_CANDIDATES);
@@ -70,7 +61,6 @@ final class AndroidViewportAnchors {
                 boolean retained = false;
                 visits++;
                 try {
-                    if (excludeNestedScrollers && entry.depth > 0 && node.isScrollable()) continue;
                     int childCount = node.getChildCount();
                     Rect bounds = new Rect();
                     node.getBoundsInScreen(bounds);

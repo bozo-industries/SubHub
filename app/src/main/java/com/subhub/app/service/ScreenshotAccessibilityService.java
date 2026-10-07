@@ -87,14 +87,6 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class ScreenshotAccessibilityService extends AccessibilityService {
     /** Android's existing DUMP permission protects this explicit, read-only shell diagnostic. */
     @Override protected void dump(java.io.FileDescriptor fd, java.io.PrintWriter writer, String[] args) {
-        if (args != null && args.length == 1 && "scroll-learning".equals(args[0])) {
-            AutomaticScrollLearningObserver current = scrollLearningObserver;
-            writer.println("SUBHUB_SCROLL_LEARNING " + (current == null
-                    ? disabledLearningSnapshot(lastScrollLearningDiagnostics)
-                    : current.diagnostics().replace("\"applied\":false", scrollCalibrationDiagnostics
-                            + ",\"admission\":" + learningAdmissionDiagnostics)));
-            return;
-        }
         if (args != null && args.length == 1 && "render-layout".equals(args[0])) {
             OverlayController current = overlay;
             if (current == null) writer.println("SUBHUB_RENDER_LAYOUT {\"schemaVersion\":1,\"active\":false}");
@@ -107,14 +99,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private static final String DIAGNOSTICS_MODE = "Accessibility screenshot";
     private static volatile boolean running;
     private static volatile boolean recognitionActive;
-    private volatile AutomaticScrollLearningObserver scrollLearningObserver;
-    private final ScrollMotionCalibration scrollMotionCalibration = new ScrollMotionCalibration();
-    private volatile String scrollCalibrationDiagnostics = "\"applied\":false";
-    private final ScrollLearningEpisodes learningEpisodes = new ScrollLearningEpisodes();
-    private volatile String learningAdmissionDiagnostics = "{}";
-    private volatile String lastScrollLearningDiagnostics = "null";
-    private long learningOffered, learningUnknownOwner, learningCompanionRecords;
-    private long learningInvalidMotion, learningInvalidTime, learningNoTouchEvents;
     private static final long MIN_TEXT_REFRESH_MS = 120L;
     private static final long TEXT_CANDIDATE_CONFIRM_MS = 48L;
     private static final long CONTENT_TEXT_REFRESH_MS = 80L;
@@ -251,8 +235,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                     qualityBackfillCoordinator, QualityBackfillRunner.Policy.defaults());
     private final Object worldCacheLock = new Object();
     private final AtomicLong visualDocumentEpoch = new AtomicLong(1L);
-    // Real document changes fence the learner. A calibration-only render epoch change does not.
-    private final AtomicLong learningDocumentEpoch = new AtomicLong(1L);
     private final AtomicInteger activeApplicationWindowId = new AtomicInteger(-1);
     private volatile String activeScrollSurfaceKey = "";
     private volatile int activeScrollSurfaceWindowId = -1;
@@ -3370,31 +3352,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     }
 
     private long advanceVisualDocument() {
-        learningDocumentEpoch.incrementAndGet();
         return visualDocumentEpoch.incrementAndGet();
-    }
-
-    /** Fence old captures/cache entries without changing the live camera or learning lineage. */
-    private void fenceCalibrationCoordinates() {
-        synchronized (sceneLifecycleLock) {
-            synchronized (worldCacheLock) {
-                visualDocumentEpoch.incrementAndGet();
-                contentSpaceRegionCache.clear();
-                qualityBackfillCoordinator.clear();
-                resetWorldCacheQueryLocked();
-            }
-            invalidateCurrentScene("scroll-calibration");
-        }
-        discardPendingInference();
-        discardPendingQualityInference();
-        cancelQualityRetrySchedule();
-        qualityBackfillRunner.resetPolicyState();
-        clearLateQualityPresentation("scroll-calibration");
-        cachedQualityVisual = VisualDetectionSnapshot.EMPTY;
-        qualityVisualStabilizer.clear();
-        // Existing on-screen tracks remain at their current position. New physical increments
-        // offset those tracks normally; no absolute camera rescale or overlay clearing occurs.
-        settledInferenceNeeded.set(true);
     }
 
     private boolean isCurrentVisualDocument(long documentEpoch, String surfaceKey) {
@@ -4970,8 +4928,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         rawMotion.evidence, rawMotion.dx, rawMotion.dy, sourceTime, scrollNow);
                 if (companionDuplicate) {
                     // The trusted absolute event already applied this exact displacement.
-                    // Do not teach a duplicate interval to calibration, mutate the camera,
-                    // restart prediction, or trigger screenshot fallback for rejected motion.
+                    // Do not mutate the camera, restart prediction, or trigger screenshot
+                    // fallback for rejected motion.
                     traceScrollEvent(scrollNow, sourceTime, eventAgeMs,
                             rawMotion.dx, rawMotion.dy, 0, 0, "companion-duplicate",
                             rawMotion.evidence.name(), Math.abs(rawMotion.dx) + Math.abs(rawMotion.dy),
@@ -4979,30 +4937,11 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                             surfaceIdentity.confidence, surfaceDecision, observedMotionToken);
                     return;
                 }
-                AutomaticScrollLearningObserver.Scope learningScope = null;
-                try {
-                    learningScope = observeScrollLearning(event, rawMotion, surfaceIdentity, sourceTime, scrollNow);
-                } catch (RuntimeException learningFailure) {
-                    stopScrollLearningObserver();
-                    Log.w(TAG, "SCROLL_LEARNING_DISABLED callbackFailure=true");
-                }
-                AutomaticScrollLearningObserver observer = scrollLearningObserver;
-                ScrollMotionCalibration.Motion calibrated = scrollMotionCalibration.apply(learningScope,
-                        observer == null ? null : observer.validatedProfile(learningScope), rawMotion.dx, rawMotion.dy);
-                if (calibrated.scaleChanged) fenceCalibrationCoordinates();
-                scrollCalibrationDiagnostics = scrollMotionCalibration.diagnostics();
-                if (overlay != null) {
-                    ScrollCalibrationLearner.Profile profile = calibrated.profile;
-                    overlay.configureEventTiming(profile != null && profile.key.axis == ScrollLearningKey.Axis.X,
-                            profile == null ? 0 : (float) profile.eventIntervalMs,
-                            profile == null ? 0 : (float) profile.deliveryLagMs,
-                            profile == null ? 0 : (float) profile.deliveryJitterMs);
-                }
                 ScrollDeltaStabilizer.Result filteredMotion = scrollDeltaStabilizer.filter(
-                        calibrated.dx, calibrated.dy, sourceTime, viewportWidth, viewportHeight,
-                        rawMotion.authoritative() || calibrated.calibrated);
+                        rawMotion.dx, rawMotion.dy, sourceTime, viewportWidth, viewportHeight,
+                        rawMotion.authoritative());
                 // Trace adjustment totals remain relative to Android's original producer delta,
-                // not to the already-scaled stabilizer input. The trace schema is unchanged.
+                // not to the stabilizer output. The trace schema is unchanged.
                 ScrollDeltaStabilizer.Result motion = new ScrollDeltaStabilizer.Result(
                         rawMotion.dx, rawMotion.dy, filteredMotion.dx, filteredMotion.dy,
                         filteredMotion.rapidReversal, filteredMotion.authoritative);
@@ -5022,6 +4961,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                         surfaceTelemetryToken, surfaceConfidence, surfaceCacheable,
                         surfaceIdentity.confidence, surfaceDecision, observedMotionToken);
                 if (motion.moved()) {
+                    if (overlay != null) overlay.setNativeScrollSpline(
+                            NativeScrollCurvePolicy.supports(packageName, event.getClassName()));
                     if (rowMotionShadow) {
                         visualCameraShadow.event(new RowMotionObserver.Scope(captureEpoch.token(),
                                         visualDocumentEpoch.get(), activeApplicationWindowId.get(),
@@ -5532,161 +5473,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         return renderSourceTimeline.resolve(origin, sourceTime, cameraX, cameraY);
     }
 
-    private AutomaticScrollLearningObserver.Scope observeScrollLearning(AccessibilityEvent event,
-            AccessibilityScrollMotionResolver.Motion motion,
-            AccessibilitySurfaceIdentityResolver.Identity identity, long sourceTime, long received) {
-        AutomaticScrollLearningObserver observer = scrollLearningObserver;
-        // Companion records may describe a different node than event.getSource(). Never pair
-        // that displacement with the event owner's geometry. Clamped/diagonal deltas are also
-        // unsuitable for identifying a single-axis physical mapping.
-        if (observer == null) return null;
-        if (touchTraceId <= 0) learningNoTouchEvents++;
-        boolean unknownOwner = !identity.isCacheable();
-        boolean companions = event.getRecordCount() != 0;
-        boolean invalidMotion = !motion.moved() || motion.dx != 0 && motion.dy != 0;
-        boolean invalidTime = sourceTime <= 0 || event.getEventTime() != sourceTime;
-        if (unknownOwner) learningUnknownOwner++;
-        if (companions) learningCompanionRecords++;
-        if (invalidMotion) learningInvalidMotion++;
-        if (invalidTime) learningInvalidTime++;
-        updateLearningAdmissionDiagnostics(identity.ownerKind);
-        if (!recognitionActive || unknownOwner || companions || invalidMotion || invalidTime) {
-            learningEpisodes.breakInterval(); observer.invalidate(); return null;
-        }
-        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
-        WindowManager manager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        Display display = manager == null ? null : manager.getDefaultDisplay();
-        if (display == null || Math.abs((long) motion.dx) >= metrics.widthPixels * 2L
-                || Math.abs((long) motion.dy) >= metrics.heightPixels * 2L) {
-            learningEpisodes.breakInterval(); observer.invalidate(); return null;
-        }
-        ScrollLearningKey.Axis axis = motion.dx != 0 ? ScrollLearningKey.Axis.X : ScrollLearningKey.Axis.Y;
-        ScrollLearningKey.Evidence evidence;
-        try { evidence = ScrollLearningKey.Evidence.valueOf(motion.evidence.name()); }
-        catch (IllegalArgumentException unsupported) {
-            learningEpisodes.breakInterval(); observer.invalidate(); return null;
-        }
-        AutomaticScrollLearningObserver.Scope scope = new AutomaticScrollLearningObserver.Scope(
-                foregroundPackage, captureEpoch.token(), learningDocumentEpoch.get(), identity.telemetryToken(),
-                identity.windowId, metrics.widthPixels, metrics.heightPixels, metrics.densityDpi,
-                display.getRotation(), Math.round(display.getRefreshRate() * 1000), axis, evidence);
-        long episode = learningEpisodes.observe(scope, sourceTime, touchTraceId);
-        if (episode <= 0) { observer.invalidate(); return null; }
-        learningOffered++;
-        updateLearningAdmissionDiagnostics(identity.ownerKind);
-        observer.offer(new LearningEvent(scope, episode, sourceTime, received,
-                axis == ScrollLearningKey.Axis.X ? motion.dx : motion.dy, event));
-        return scope;
-    }
-
-    private void updateLearningAdmissionDiagnostics(int ownerKind) {
-        learningAdmissionDiagnostics = "{\"offered\":" + learningOffered
-                + ",\"unknownOwner\":" + learningUnknownOwner + ",\"companionRecords\":" + learningCompanionRecords
-                + ",\"invalidMotion\":" + learningInvalidMotion + ",\"invalidTime\":" + learningInvalidTime
-                + ",\"withoutTouchEvents\":" + learningNoTouchEvents + ",\"lastOwnerKind\":" + ownerKind + "}";
-    }
-
-    @SuppressWarnings("deprecation")
-    private static final class LearningEvent extends AutomaticScrollLearningObserver.Event {
-        private final AccessibilityEvent event;
-        LearningEvent(AutomaticScrollLearningObserver.Scope scope, long gesture, long time,
-                long received, double delta, AccessibilityEvent event) {
-            super(scope, gesture, time, received, delta);
-            this.event = AccessibilityEvent.obtain(event);
-        }
-        @Override public void close() { event.recycle(); }
-    }
-
-    private boolean learningScopeActive(AutomaticScrollLearningObserver.Scope scope) {
-        if (!recognitionActive || !running || scope == null
-                || !Objects.equals(foregroundPackage, scope.packageName)
-                || captureEpoch.token() != scope.captureEpoch
-                || learningDocumentEpoch.get() != scope.documentEpoch
-                || activeApplicationWindowId.get() != scope.windowId) return false;
-        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
-        WindowManager manager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        Display display = manager == null ? null : manager.getDefaultDisplay();
-        return display != null && metrics.widthPixels == scope.width && metrics.heightPixels == scope.height
-                && metrics.densityDpi == scope.densityDpi && display.getRotation() == scope.rotation
-                && Math.round(display.getRefreshRate() * 1000) == scope.refreshMilliHz;
-    }
-
-    private void startScrollLearningObserver() {
-        stopScrollLearningObserver();
-        ScheduledExecutorService executor = newScheduledWorker("SubHub-scroll-learning",
-                Process.THREAD_PRIORITY_BACKGROUND);
-        scrollLearningObserver = new AutomaticScrollLearningObserver(SystemClock::uptimeMillis,
-                new AsyncViewportAnchorSampler.Worker() {
-                    @Override public void execute(Runnable task) { executor.execute(task); }
-                    @Override public void schedule(Runnable task, long delayMs) {
-                        executor.schedule(task, delayMs, TimeUnit.MILLISECONDS);
-                    }
-                    @Override public void shutdown() { executor.shutdown(); }
-                }, new AutomaticScrollLearningObserver.Source() {
-                    @Override public boolean active(AutomaticScrollLearningObserver.Scope scope) {
-                        return learningScopeActive(scope);
-                    }
-                    @Override public AutomaticScrollLearningObserver.Acquired acquire(
-                            AutomaticScrollLearningObserver.Event value, long deadline) {
-                        if (!learningScopeActive(value.scope) || inferenceDraining.get()
-                                || textRefreshRunning.get()) return null;
-                        AutomaticScrollLearningObserver.Scope scope = value.scope;
-                        try (AndroidScrollLearningSurface.Surface surface = AndroidScrollLearningSurface.acquire(
-                                ScreenshotAccessibilityService.this, ((LearningEvent) value).event,
-                                scope.packageName, scope.windowId, scope.producer, scope.width, scope.height,
-                                scope.densityDpi, scope.rotation, scope.refreshMilliHz, scope.axis,
-                                scope.evidence, deadline)) {
-                            if (surface == null) return null;
-                            List<AsyncViewportAnchorSampler.Anchor> anchors = AndroidViewportAnchors.collectForLearning(
-                                    surface.takeOwner(), scope.packageName, scope.windowId,
-                                    scope.width, scope.height, deadline);
-                            return new AutomaticScrollLearningObserver.Acquired(surface.key, surface.durable, anchors);
-                        }
-                    }
-                }, new AutomaticScrollLearningObserver.Store() {
-                    private ScrollProfileRepository repository;
-                    private ScrollProfileRepository repository() {
-                        if (repository == null) repository = new ScrollProfileRepository(ScreenshotAccessibilityService.this);
-                        return repository;
-                    }
-                    @Override public ScrollCalibrationLearner.Profile candidate(ScrollLearningKey key) {
-                        return repository().candidate(key, System.currentTimeMillis());
-                    }
-                    @Override public boolean save(ScrollCalibrationLearner.Profile profile, boolean durable) {
-                        return repository().save(profile, durable, System.currentTimeMillis());
-                    }
-                    @Override public void remove(ScrollLearningKey key) {
-                        repository().remove(key, System.currentTimeMillis());
-                    }
-                });
-    }
-
-    static String disabledLearningSnapshot(String lastSession) {
-        return "{\"schemaVersion\":1,\"state\":\"DISABLED\",\"applied\":false,\"lastSession\":"
-                + lastSession + "}";
-    }
-
-    static String retainedLearningSnapshot(String observer, String calibration, String admission) {
-        return "{\"observer\":" + observer + ",\"calibration\":{" + calibration
-                + "},\"admission\":" + admission + "}";
-    }
-
-    private void stopScrollLearningObserver() {
-        AutomaticScrollLearningObserver observer = scrollLearningObserver;
-        scrollLearningObserver = null;
-        if (observer != null) {
-            lastScrollLearningDiagnostics = retainedLearningSnapshot(observer.diagnostics(),
-                    scrollCalibrationDiagnostics, learningAdmissionDiagnostics);
-            observer.close();
-        }
-        learningEpisodes.breakInterval();
-        ScrollMotionCalibration.Motion reset = scrollMotionCalibration.apply(null, null, 0, 0);
-        if (reset.scaleChanged && running && recognitionActive) fenceCalibrationCoordinates();
-        scrollMotionCalibration.reset();
-        scrollCalibrationDiagnostics = "\"applied\":false";
-        if (overlay != null) overlay.configureEventTiming(false, 0, 0, 0);
-    }
-
     private AsyncViewportAnchorSampler.State anchorState() {
         android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
         ScrollPosition camera = currentScrollPosition();
@@ -5831,11 +5617,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             // Publish active only after every synchronous authority surface exists. A failed
             // overlay/window setup must remain retryable on the next foreground window event.
             recognitionActive = true;
-            try { startScrollLearningObserver(); }
-            catch (RuntimeException learningFailure) {
-                stopScrollLearningObserver();
-                Log.w(TAG, "SCROLL_LEARNING_DISABLED startupFailure=true");
-            }
             Log.i(TAG, "Recognition activated for foreground package " + foregroundPackage);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 worker.execute(this::initializePipeline);
@@ -5848,7 +5629,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             }
         } catch (RuntimeException failure) {
             recognitionActive = false;
-            stopScrollLearningObserver();
             captureEpoch.invalidate();
             LatestFrameBroker<PendingScenePresentation> presenter = scenePresenter;
             scenePresenter = null;
@@ -5864,7 +5644,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
     private void deactivateRecognition() {
         if (!recognitionActive && overlay == null) return;
         recognitionActive = false;
-        stopScrollLearningObserver();
         stopExperimentalAnchorSampler();
         captureEpoch.invalidate();
         invalidateCurrentScene("recognition-deactivated");

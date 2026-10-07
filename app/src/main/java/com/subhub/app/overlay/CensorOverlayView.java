@@ -624,8 +624,9 @@ final class CensorOverlayView extends View {
         scheduleNextFrame(nowMillis);
     }
 
-    void configureEventTiming(boolean horizontal, float interval, float lag, float jitter) {
-        viewportMotion.configureEventTiming(horizontal, interval, lag, jitter);
+    void setNativeScrollSpline(boolean enabled) {
+        viewportMotion.setNativeSpline(enabled, getResources().getDisplayMetrics().density,
+                android.view.ViewConfiguration.getScrollFriction(), SystemClock.uptimeMillis());
     }
 
     void offsetContent(int deltaX, int deltaY) {
