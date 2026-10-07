@@ -114,13 +114,13 @@ public final class HomeSettingsStructureContractTest {
                 assertTrue(details.contains("Blackout · Classic Border"));
                 assertTrue(details.contains("High · Maximum Coverage"));
                 assertTrue(details.contains(
-                        "Vulva / Vagina, Penis / Balls, Breasts / Nipples, Butt / Cheeks, Anal, "
-                                + "Male Chest / Pecs, Stomach / Midriff"));
+                        "Vulva, Penis / Testicles, Breasts / Nipples, Buttocks, Anus, "
+                                + "Male Chest, Abdomen"));
                 assertTrue(details.contains(
                         "Context · Sexual Words, Kink / Fetish Talk, Sexual Invitations"));
                 assertTrue(details.contains("Beta / Cuck, Denial, Findom, Plain"));
                 assertFalse(details.contains(", Ass,"));
-                assertFalse(details.contains(", Anus,"));
+                assertFalse(details.contains(", Anal,"));
                 assertFalse(details.contains("BLACKOUT"));
                 assertFalse(details.contains("ULTRA · MAXIMUM COVERAGE"));
                 assertFalse(details.contains("Balanced"));
@@ -131,7 +131,7 @@ public final class HomeSettingsStructureContractTest {
         }
     }
 
-    @Test public void paypalPrecedesAppSettingsAndHelpDiagnosticsLiveInSettings() {
+    @Test public void toolsPrecedePaymentsAndHelpDiagnosticsLiveInSettings() {
         try (ActivityScenario<GlobalSettingsActivity> scenario =
                      ActivityScenario.launch(GlobalSettingsActivity.class)) {
             scenario.onActivity(activity -> {
@@ -139,8 +139,8 @@ public final class HomeSettingsStructureContractTest {
                 View paypal = activity.findViewById(R.id.paypal_card);
                 View appSettings = activity.findViewById(R.id.app_settings_card);
                 assertNotNull(paypal);
-                assertEquals(sections.getChildCount() - 2, sections.indexOfChild(paypal));
-                assertEquals(sections.getChildCount() - 1, sections.indexOfChild(appSettings));
+                assertEquals(sections.getChildCount() - 1, sections.indexOfChild(paypal));
+                assertEquals(sections.getChildCount() - 2, sections.indexOfChild(appSettings));
                 assertNotNull(activity.findViewById(R.id.button_help));
                 assertNotNull(activity.findViewById(R.id.button_diagnostics));
             });

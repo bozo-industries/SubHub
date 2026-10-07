@@ -67,6 +67,7 @@ public final class PenanceActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityPenanceBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        arrangeWalletSections();
         PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_nav_money,
                 R.string.penance_title, R.string.penance_subtitle);
         if (!Intent.ACTION_VIEW.equals(getIntent().getAction())
@@ -118,8 +119,20 @@ public final class PenanceActivity extends AppCompatActivity {
         timer.post(tick);
     }
 
+    private void arrangeWalletSections() {
+        android.view.ViewGroup sections = (android.view.ViewGroup) binding.balanceCard.getParent();
+        View historyCard = (View) binding.history.getParent();
+        View[] order = {binding.balanceCard, binding.checkoutCard, binding.safetyConfigCard,
+                binding.ruleConfigCard, binding.paidPauseConfigCard, historyCard,
+                binding.correctionsCard};
+        for (View section : order) ((android.view.ViewGroup) section.getParent()).removeView(section);
+        for (View section : order) sections.addView(section);
+    }
+
     private void toggleEditSession() {
         if (ControllerPinManager.isSessionUnlocked()) {
+            // Flush the last edit before leaving the role that is allowed to save it.
+            commitRules(true);
             ControllerEditMode.enterSubMode(this);
         } else ControllerPinGate.require(this, this::applyEditState, false);
     }

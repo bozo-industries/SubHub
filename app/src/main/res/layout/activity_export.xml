@@ -79,7 +79,7 @@
                     android:textSize="11sp" />
             </LinearLayout>
 
-            <com.google.android.material.switchmaterial.SwitchMaterial
+            <com.subhub.app.util.StateToggle
                 android:id="@+id/switch_delete_originals"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

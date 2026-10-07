@@ -62,6 +62,8 @@ public final class SettingsActivity extends AppCompatActivity {
                 binding.censorImagesStatus, binding.censorImagesList);
         adaptBorderChoices();
         renderDetectionLabels();
+        arrangeCensorSections();
+        bindDisclosures();
         bindValues();
         attachListeners();
         applyLockState();
@@ -73,10 +75,60 @@ public final class SettingsActivity extends AppCompatActivity {
 
     private void toggleEditSession() {
         if (ControllerPinManager.isSessionUnlocked()) {
+            saveCustomPhrases();
             ControllerEditMode.enterSubMode(this);
         } else {
             ControllerPinGate.require(this, this::applyLockState, false);
         }
+    }
+
+    private void arrangeCensorSections() {
+        LinearLayout page = (LinearLayout) binding.censorAppearance.getParent();
+        page.removeView(binding.censorFilterRules);
+        page.addView(binding.censorFilterRules, page.indexOfChild(binding.censorAppearance));
+        binding.censorFilterRules.removeView(binding.censorCaptureSection);
+        binding.censorFilterRules.addView(binding.censorCaptureSection);
+    }
+
+    private void bindDisclosures() {
+        bindDisclosure(binding.buttonAppearanceDetails, binding.appearanceContent);
+        bindDisclosure(binding.buttonCaptureDetails, binding.captureOptionsContent);
+        binding.buttonOtherAreas.setOnClickListener(view -> {
+            binding.otherAreaGrid.setVisibility(binding.otherAreaGrid.getVisibility() == View.VISIBLE
+                    ? View.GONE : View.VISIBLE);
+            refreshSectionSummaries();
+        });
+    }
+
+    private void bindDisclosure(TextView header, View content) {
+        CharSequence title = header.getText();
+        content.setVisibility(View.GONE);
+        header.setText(title + "  +");
+        header.setFocusable(true);
+        header.setOnClickListener(view -> {
+            boolean expanded = content.getVisibility() != View.VISIBLE;
+            content.setVisibility(expanded ? View.VISIBLE : View.GONE);
+            header.setText(title + (expanded ? "  −" : "  +"));
+            androidx.core.view.ViewCompat.setStateDescription(header,
+                    getString(expanded ? R.string.section_expanded : R.string.section_collapsed));
+        });
+        androidx.core.view.ViewCompat.setStateDescription(header, getString(R.string.section_collapsed));
+    }
+
+    private void refreshSectionSummaries() {
+        int selected = 0;
+        for (CompoundButton area : new CompoundButton[] {binding.switchFaces,
+                binding.switchMaleChest, binding.switchBelly, binding.switchFeet, binding.switchArmpits}) {
+            if (area.isChecked()) selected++;
+        }
+        boolean expanded = binding.otherAreaGrid.getVisibility() == View.VISIBLE;
+        binding.buttonOtherAreas.setText(getString(R.string.censor_other_areas) + " · "
+                + (selected == 0 ? getString(R.string.censor_no_areas_selected)
+                    : getString(R.string.censor_areas_selected, selected)) + (expanded ? "  −" : "  +"));
+        androidx.core.view.ViewCompat.setStateDescription(binding.buttonOtherAreas,
+                getString(expanded ? R.string.section_expanded : R.string.section_collapsed));
+        RadioButton chosen = binding.getRoot().findViewById(checkedStyleId());
+        binding.appearanceSummary.setText(chosen == null ? "" : chosen.getText());
     }
 
     private void renderDetectionLabels() {
@@ -281,6 +333,13 @@ public final class SettingsActivity extends AppCompatActivity {
             saveAll();
             Toast.makeText(this, R.string.settings_saved, Toast.LENGTH_SHORT).show();
         });
+        binding.customPhrases.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) { }
+            @Override public void afterTextChanged(android.text.Editable value) {
+                if (!bindingValues && ControllerPinManager.isSessionUnlocked()) saveCustomPhrases();
+            }
+        });
         binding.buttonExport.setOnClickListener(view -> ControllerPinGate.require(this,
                 () -> startActivity(new Intent(this, ExportActivity.class)), false));
         binding.paletteColorOne.setOnClickListener(view -> pickEffectColor(1));
@@ -341,6 +400,7 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.switchSmutText.setEnabled(
                 editing);
         boolean smutDetailsEnabled = editing && binding.switchSmutText.isChecked();
+        binding.textMatchingDetails.setVisibility(binding.switchSmutText.isChecked() ? View.VISIBLE : View.GONE);
         setEnabledRecursive(binding.smutSensitivityGroup, smutDetailsEnabled);
         boolean smutCategoriesEnabled = smutDetailsEnabled;
         binding.switchSmutExplicit.setEnabled(smutCategoriesEnabled);
@@ -357,6 +417,7 @@ public final class SettingsActivity extends AppCompatActivity {
                 editing;
         binding.customPhrases.setEnabled(customPhrasesEnabled);
         binding.buttonSavePhrases.setEnabled(customPhrasesEnabled && phrasesEnabled);
+        refreshSectionSummaries();
     }
 
     private void syncBorderControlState() {
@@ -571,6 +632,7 @@ public final class SettingsActivity extends AppCompatActivity {
         stats.recordBorderEffectTried(selectedBorder);
         if (!selectedStyle.equals(previousStyle)) stats.incrementCensorStyleChanges();
         refreshBorderPreview();
+        refreshSectionSummaries();
     }
 
     private void saveCustomPhrases() {

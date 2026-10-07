@@ -104,7 +104,12 @@ public final class StudioActivity extends AppCompatActivity {
         retained = new ViewModelProvider(this).get(StudioState.class);
         storage = retained.storage;
         PrimaryHeader.bindSecondary(binding.getRoot(), R.string.studio_title, false);
-        PrimaryHeader.backButton(binding.getRoot()).setVisibility(View.GONE);
+        PrimaryHeader.backButton(binding.getRoot()).setVisibility(View.VISIBLE);
+        PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> {
+            startActivity(new Intent(this, com.subhub.app.settings.GlobalSettingsActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+            finish();
+        });
         manager = new SubHubPackManager(this);
         payPalTransfer = new StudioPayPalTransfer(this, manager);
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.SETTINGS);

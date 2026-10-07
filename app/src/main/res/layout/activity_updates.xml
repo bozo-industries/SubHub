@@ -89,7 +89,7 @@
             android:padding="14dp">
             <TextView style="@style/Widget.SubHub.SectionHeader"
                 android:text="@string/update_automatic_title" />
-            <com.google.android.material.switchmaterial.SwitchMaterial
+            <com.subhub.app.util.StateToggle
                 android:id="@+id/automatic_checks"
                 style="@style/Widget.SubHub.SettingsToggle"
                 android:layout_width="match_parent"

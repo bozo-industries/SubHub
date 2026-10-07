@@ -106,6 +106,16 @@ public final class PopupStormActivity extends AppCompatActivity {
         });
         renderPreset();
         rebuildSettings();
+        binding.buttonAdvancedDetails.setFocusable(true);
+        binding.buttonAdvancedDetails.setText(getString(R.string.popup_advanced) + "  +");
+        androidx.core.view.ViewCompat.setStateDescription(binding.buttonAdvancedDetails, getString(R.string.section_collapsed));
+        binding.buttonAdvancedDetails.setOnClickListener(view -> {
+            boolean expanded = binding.dynamicSettings.getVisibility() != View.VISIBLE;
+            binding.dynamicSettings.setVisibility(expanded ? View.VISIBLE : View.GONE);
+            binding.buttonAdvancedDetails.setText(getString(R.string.popup_advanced) + (expanded ? "  −" : "  +"));
+            androidx.core.view.ViewCompat.setStateDescription(binding.buttonAdvancedDetails,
+                    getString(expanded ? R.string.section_expanded : R.string.section_collapsed));
+        });
         editMode = ControllerEditMode.bind(
                 this, PrimaryHeader.editLockButton(binding.getRoot()), editing -> applyEditState());
     }
@@ -181,6 +191,7 @@ public final class PopupStormActivity extends AppCompatActivity {
         binding.presetSlider.setValue(preset == null ? 1 : preset.ordinal());
         binding.presetValue.setText(preset == null
                 ? getString(R.string.popup_custom_intensity) : preset.getDisplayName());
+        binding.presetHint.setVisibility(preset == null ? View.VISIBLE : View.GONE);
     }
 
     private void applyPreset(int step) {
@@ -285,7 +296,7 @@ public final class PopupStormActivity extends AppCompatActivity {
     }
 
     private void addToggle(LinearLayout parent, int title, String key, boolean defaultValue) {
-        SwitchMaterial toggle = new SwitchMaterial(this);
+        SwitchMaterial toggle = new com.subhub.app.util.StateToggle(this);
         toggle.setText(title);
         toggle.setTextColor(getColor(R.color.text_primary));
         toggle.setMinHeight(dp(50));

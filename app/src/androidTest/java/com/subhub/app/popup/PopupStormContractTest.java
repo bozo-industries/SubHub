@@ -189,6 +189,8 @@ public final class PopupStormContractTest {
         ControllerPinManager.enterDomMode();
         try (ActivityScenario<PopupStormActivity> scenario =
                      ActivityScenario.launch(PopupStormActivity.class)) {
+            androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withId(R.id.button_advanced_details))
+                    .perform(com.subhub.app.NativeUiActions.revealAboveNavigation(), androidx.test.espresso.action.ViewActions.click());
             scenario.onActivity(activity -> {
                 ViewGroup settings = activity.findViewById(R.id.dynamic_settings);
                 int groups = 0;

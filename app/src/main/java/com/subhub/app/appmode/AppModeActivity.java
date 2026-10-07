@@ -67,11 +67,13 @@ public final class AppModeActivity extends AppCompatActivity {
         binding.totalLimitMinutes.setText(String.valueOf(timerSettings.totalMinutes));
         binding.defaultLimitMinutes.setText(String.valueOf(timerSettings.perAppMinutes));
         binding.perAppLimitEnabled.setOnCheckedChangeListener((button, checked) -> {
+            if (checked && rejectUnassignedLimit()) return;
             renderTimerControls();
             scheduleAutoSave();
             if (checked) promptForAccessibility();
         });
         binding.totalLimitEnabled.setOnCheckedChangeListener((button, checked) -> {
+            if (checked && rejectUnassignedLimit()) return;
             renderTimerControls();
             scheduleAutoSave();
             if (checked) promptForAccessibility();
@@ -118,6 +120,14 @@ public final class AppModeActivity extends AppCompatActivity {
         View[] editable = {binding.perAppLimitEnabled, binding.totalLimitEnabled};
         for (View view : editable) view.setEnabled(editingUnlocked);
         renderTimerControls();
+    }
+
+    private boolean rejectUnassignedLimit() {
+        if (populatingTimers || !editingUnlocked
+                || manager.getMode() != AppModePolicy.Mode.SELECTED_APPS
+                || !manager.getTimerPackages().isEmpty()) return false;
+        restoreTimerValues();
+        return true;
     }
 
     private boolean save(boolean showInvalid) {
@@ -225,6 +235,19 @@ public final class AppModeActivity extends AppCompatActivity {
             empty.setTextSize(11f);
             empty.setPadding(0, dp(8), 0, dp(5));
             binding.perAppAllowancesList.addView(empty);
+            TextView chooseApps = new TextView(this, null, 0,
+                    R.style.Widget_SubHub_OutlineAction);
+            chooseApps.setText(R.string.app_timer_choose_apps);
+            chooseApps.setTag("limits_choose_apps");
+            chooseApps.setMinHeight(dp(48));
+            chooseApps.setGravity(Gravity.CENTER);
+            chooseApps.setOnClickListener(view -> startActivity(new Intent(this,
+                    com.subhub.app.settings.GlobalSettingsActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                    .putExtra("show_app_assignments", true)));
+            binding.perAppAllowancesList.addView(chooseApps,
+                    new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT));
             return;
         }
         for (String packageName : ordered) {
@@ -240,6 +263,10 @@ public final class AppModeActivity extends AppCompatActivity {
             row.addView(label, new LinearLayout.LayoutParams(0,
                     LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
             EditText input = new EditText(this);
+            input.setId(View.generateViewId());
+            label.setLabelFor(input.getId());
+            input.setContentDescription(getString(R.string.app_timer_allowance_accessibility,
+                    appLabel(packageName)));
             input.setHint(R.string.app_timer_allowance_minutes);
             input.setText(String.valueOf(saved.get(packageName)));
             input.setInputType(InputType.TYPE_CLASS_NUMBER);

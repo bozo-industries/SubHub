@@ -46,6 +46,9 @@ public final class SubliminalSettingsActivity extends AppCompatActivity {
         PrimaryHeader.bindSecondary(binding.getRoot(), R.string.subliminal_title, false);
         repository = new SubliminalSettingsRepository(this);
         PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
+        android.widget.LinearLayout page = (android.widget.LinearLayout) binding.intensityCard.getParent();
+        page.removeView(binding.messagePacksCard);
+        page.addView(binding.messagePacksCard, page.indexOfChild(binding.intensityCard));
         bindListeners();
         render(repository.load());
     }
@@ -54,11 +57,15 @@ public final class SubliminalSettingsActivity extends AppCompatActivity {
         binding.presetSlider.setLabelFormatter(value -> presetLabel(Math.round(value)));
         binding.presetSlider.addOnChangeListener((slider, value, fromUser) -> {
             if (loading || !fromUser) return;
+            main.removeCallbacks(saveCustom);
+            saveCustom.run();
             repository.savePreset(SubliminalSettings.Preset.values()[Math.round(value)]);
             render(repository.load());
         });
         binding.advancedEnabled.setOnCheckedChangeListener((button, checked) -> {
             if (loading) return;
+            main.removeCallbacks(saveCustom);
+            saveCustom.run();
             saveAdvanced(checked);
             render(repository.load());
         });
@@ -79,12 +86,16 @@ public final class SubliminalSettingsActivity extends AppCompatActivity {
         binding.textSize.setOnSeekBarChangeListener(advancedListener);
         for (CheckBox check : packChecks()) {
             check.setOnCheckedChangeListener((button, checked) -> {
-                if (!loading) repository.savePacks(selectedPacks());
+                if (!loading) {
+                    repository.savePacks(selectedPacks());
+                    binding.customPhrasesSection.setVisibility(binding.packCustom.isChecked() ? View.VISIBLE : View.GONE);
+                }
             });
         }
         binding.customPhrases.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
+                if (loading) return;
                 main.removeCallbacks(saveCustom);
                 main.postDelayed(saveCustom, 400L);
             }
@@ -111,6 +122,7 @@ public final class SubliminalSettingsActivity extends AppCompatActivity {
         binding.packBeta.setChecked(packs.contains(SubliminalSettingsRepository.PACK_BETA));
         binding.packFindom.setChecked(packs.contains(SubliminalSettingsRepository.PACK_FINDOM));
         binding.packCustom.setChecked(packs.contains(SubliminalSettingsRepository.PACK_CUSTOM));
+        binding.customPhrasesSection.setVisibility(binding.packCustom.isChecked() ? View.VISIBLE : View.GONE);
         if (!binding.customPhrases.getText().toString().equals(settings.getCustomPhrases())) {
             binding.customPhrases.setText(settings.getCustomPhrases());
         }
@@ -142,6 +154,7 @@ public final class SubliminalSettingsActivity extends AppCompatActivity {
     }
 
     private void preview() {
+        binding.previewStage.setVisibility(View.VISIBLE);
         main.removeCallbacks(saveCustom);
         saveCustom.run();
         SubliminalSettings settings = repository.load();
@@ -156,7 +169,9 @@ public final class SubliminalSettingsActivity extends AppCompatActivity {
         binding.previewText.animate().alpha(alpha).setDuration(300L)
                 .withEndAction(() -> binding.previewText.animate().alpha(0f)
                         .setStartDelay(Math.max(0L, settings.getVisibleMillis() - 600L))
-                        .setDuration(300L).start()).start();
+                        .setDuration(300L).withEndAction(() -> {
+                            if (binding != null) binding.previewStage.setVisibility(View.GONE);
+                        }).start()).start();
     }
 
     private Set<String> selectedPacks() {

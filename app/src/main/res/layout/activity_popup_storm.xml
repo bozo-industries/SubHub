@@ -30,7 +30,7 @@
                 android:accessibilityHeading="true"
                 android:text="@string/popup_configuration" />
 
-            <com.google.android.material.switchmaterial.SwitchMaterial
+            <com.subhub.app.util.StateToggle
                 android:id="@+id/switch_enabled"
                 style="@style/Widget.SubHub.Switch"
                 android:layout_width="match_parent"
@@ -50,6 +50,8 @@
                 android:text="@string/popup_presets" />
             <TextView android:id="@+id/preset_value" style="@style/Widget.SubHub.FieldLabel"
                 android:accessibilityLiveRegion="polite" />
+            <TextView android:id="@+id/preset_hint" style="@style/Widget.SubHub.FieldHelp"
+                android:text="@string/popup_custom_intensity_help" />
             <com.google.android.material.slider.Slider android:id="@+id/preset_slider"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:minHeight="@dimen/control_min_height"
@@ -131,14 +133,15 @@
             android:background="@drawable/bg_card"
             android:orientation="vertical"
             android:padding="12dp">
-            <TextView style="@style/Widget.SubHub.SectionHeader"
+            <TextView android:id="@+id/button_advanced_details" style="@style/Widget.SubHub.SectionHeader"
                 android:accessibilityHeading="true"
+                android:minHeight="48dp" android:gravity="center_vertical"
                 android:text="@string/popup_advanced" />
             <LinearLayout
                 android:id="@+id/dynamic_settings"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical" />
+                android:orientation="vertical" android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

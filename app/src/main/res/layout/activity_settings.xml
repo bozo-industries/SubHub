@@ -31,9 +31,14 @@
             android:background="@drawable/bg_card"
             android:orientation="vertical"
             android:padding="12dp">
-            <TextView style="@style/Widget.SubHub.SectionHeader"
+            <TextView android:id="@+id/button_appearance_details" style="@style/Widget.SubHub.SectionHeader"
                 android:accessibilityHeading="true"
+                android:minHeight="48dp" android:gravity="center_vertical"
                 android:text="@string/appearance_title" />
+            <TextView android:id="@+id/appearance_summary" style="@style/Widget.SubHub.FieldHelp" />
+            <LinearLayout android:id="@+id/appearance_content"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical">
             <LinearLayout android:id="@+id/censor_style_section"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -372,7 +377,7 @@
                     android:orientation="vertical"
                     android:padding="10dp">
 
-                    <com.google.android.material.switchmaterial.SwitchMaterial
+                    <com.subhub.app.util.StateToggle
                         android:id="@+id/switch_border"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -503,7 +508,7 @@
                         <TextView style="@style/Widget.SubHub.FieldLabel" android:text="@string/gradient_end" />
                         <TextView android:id="@+id/gradient_end" style="@style/Widget.SubHub.ColorButton" />
                     </LinearLayout>
-                    <com.google.android.material.switchmaterial.SwitchMaterial
+                    <com.subhub.app.util.StateToggle
                         android:id="@+id/switch_animate_border"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -513,7 +518,7 @@
                         android:textColor="@color/text_primary" />
                 </LinearLayout>
 
-                <com.google.android.material.switchmaterial.SwitchMaterial
+                <com.subhub.app.util.StateToggle
                     android:id="@+id/switch_text"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -521,7 +526,7 @@
                     android:text="@string/show_text"
                     android:textColor="@color/text_primary" />
 
-                <com.google.android.material.switchmaterial.SwitchMaterial
+                <com.subhub.app.util.StateToggle
                     android:id="@+id/switch_reverse"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -568,26 +573,19 @@
 
                 <GridLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="5dp" android:columnCount="2">
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_phrase_short" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_phrase_short" style="@style/Widget.SubHub.GridSelectionTile"
                         android:text="@string/phrase_short" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_phrase_denial" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_phrase_denial" style="@style/Widget.SubHub.GridSelectionTile"
                         android:text="@string/phrase_denial" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_phrase_humiliation" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_phrase_humiliation" style="@style/Widget.SubHub.GridSelectionTile"
                         android:text="@string/phrase_humiliation" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_phrase_edge" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_phrase_edge" style="@style/Widget.SubHub.GridSelectionTile"
                         android:text="@string/phrase_edge" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_phrase_findom" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_phrase_findom" style="@style/Widget.SubHub.GridSelectionTile"
                         android:text="@string/phrase_findom" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_phrase_ntr" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_phrase_ntr" style="@style/Widget.SubHub.GridSelectionTile"
                         android:text="@string/phrase_ntr" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_phrase_gooner" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_phrase_gooner" style="@style/Widget.SubHub.GridSelectionTile"
                         android:text="@string/phrase_gooner" />
                 </GridLayout>
 
@@ -611,7 +609,9 @@
                     android:id="@+id/button_save_phrases"
                     style="@style/Widget.SubHub.PrimaryButton"
                     android:layout_marginTop="10dp"
-                    android:text="@string/save_phrases" />
+                    android:text="@string/save_phrases" android:visibility="gone" />
+                <TextView style="@style/Widget.SubHub.FieldHelp" android:text="@string/changes_saved_automatically" />
+            </LinearLayout>
             </LinearLayout>
         </LinearLayout>
 
@@ -633,9 +633,13 @@
                 android:orientation="vertical"
                 android:padding="0dp">
 
-                <TextView style="@style/Widget.SubHub.FieldLabel"
+                <TextView android:id="@+id/button_capture_details" style="@style/Widget.SubHub.FieldLabel"
                     android:layout_marginTop="0dp"
-                    android:text="@string/capture_method_title" />
+                    android:minHeight="48dp" android:gravity="center_vertical"
+                    android:text="@string/censor_capture_options" />
+                <LinearLayout android:id="@+id/capture_options_content"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical">
 
                 <TextView
                     android:layout_width="match_parent"
@@ -671,6 +675,7 @@
                         android:text="@string/capture_method_recording"
                         android:textColor="@color/text_primary" />
                 </com.subhub.app.util.CompactChoiceGroup>
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout android:id="@+id/censor_detection_section"
@@ -793,45 +798,47 @@
                     android:textColor="@color/text_secondary"
                     android:textStyle="bold" />
 
-                <GridLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="5dp"
-                    android:columnCount="2">
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_genitals_female" style="@style/Widget.SubHub.SettingsToggle"
+                <TextView style="@style/Widget.SubHub.FieldLabel"
+                    android:text="@string/censor_intimate_areas" />
+                <com.subhub.app.util.SelectionGrid android:id="@+id/intimate_area_grid"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp">
+                    <CheckBox android:id="@+id/switch_genitals_female" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_genitals_female" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_genitals_male" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_genitals_male" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_genitals_male" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_breasts" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_breasts" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_breasts" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_buttocks" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_buttocks" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_buttocks" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_anus" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_anus" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_anus" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_faces" style="@style/Widget.SubHub.SettingsToggle"
+                </com.subhub.app.util.SelectionGrid>
+                <TextView style="@style/Widget.SubHub.FieldHelp"
+                    android:text="@string/censor_area_labels_help" />
+                <TextView android:id="@+id/button_other_areas"
+                    style="@style/Widget.SubHub.OutlineAction"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:text="@string/censor_other_areas" />
+                <com.subhub.app.util.SelectionGrid android:id="@+id/other_area_grid"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:visibility="gone">
+                    <CheckBox android:id="@+id/switch_faces" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_faces" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_male_chest" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_male_chest" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_male_chest" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_belly" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_belly" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_belly" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_feet" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_feet" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_feet" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_armpits" style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_armpits" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_armpits" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_covered" style="@style/Widget.SubHub.SettingsToggle"
-                        android:text="@string/category_covered" />
-                </GridLayout>
+                </com.subhub.app.util.SelectionGrid>
+                <com.subhub.app.util.StateToggle
+                    android:id="@+id/switch_covered" style="@style/Widget.SubHub.SettingsToggle"
+                    android:layout_width="match_parent" android:layout_marginTop="8dp"
+                    android:text="@string/category_covered" />
+                <TextView style="@style/Widget.SubHub.FieldHelp" android:text="@string/censor_covered_help" />
 
             </LinearLayout>
 
@@ -884,13 +891,16 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="7dp"
                     android:columnCount="2">
-                    <com.google.android.material.switchmaterial.SwitchMaterial
+                    <com.subhub.app.util.StateToggle
                         android:id="@+id/switch_smut_text"
                         style="@style/Widget.SubHub.SettingsToggle"
                         android:layout_columnSpan="2"
                         android:text="@string/text_smut_enable" />
                 </GridLayout>
 
+                <LinearLayout android:id="@+id/text_matching_details"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical">
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -961,19 +971,17 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
                     android:columnCount="2">
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_smut_explicit"
-                        style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_smut_explicit"
+                        style="@style/Widget.SubHub.GridSelectionTile"
                         android:text="@string/text_smut_explicit" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_smut_fetish"
-                        style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_smut_fetish"
+                        style="@style/Widget.SubHub.GridSelectionTile"
                         android:text="@string/text_smut_fetish" />
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_smut_solicitation"
-                        style="@style/Widget.SubHub.SettingsToggle"
+                    <CheckBox android:id="@+id/switch_smut_solicitation"
+                        style="@style/Widget.SubHub.GridSelectionTile"
                         android:text="@string/text_smut_solicitation" />
                 </GridLayout>
+                </LinearLayout>
 
             </LinearLayout>
         </LinearLayout>

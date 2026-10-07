@@ -533,6 +533,29 @@
         <item name="android:textSize">13sp</item>
     </style>
 
+    <style name="Widget.SubHub.SelectionTile" parent="Widget.AppCompat.CompoundButton.CheckBox">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginHorizontal">4dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:padding">12dp</item>
+        <item name="android:button">@null</item>
+        <item name="buttonCompat">@null</item>
+        <item name="android:background">@drawable/bg_selection_tile</item>
+        <item name="android:drawableEnd">@drawable/selection_indicator</item>
+        <item name="android:drawablePadding">8dp</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <style name="Widget.SubHub.GridSelectionTile" parent="Widget.SubHub.SelectionTile">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_columnWeight">1</item>
+        <item name="android:layout_gravity">fill_horizontal</item>
+    </style>
+
     <style name="Widget.SubHub.SettingsToggle" parent="Widget.SubHub.Switch">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>

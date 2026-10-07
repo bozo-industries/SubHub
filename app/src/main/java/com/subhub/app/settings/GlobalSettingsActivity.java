@@ -203,17 +203,35 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         applyEditState();
     }
 
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        showRequestedAppAssignments();
+    }
+
+    private void showRequestedAppAssignments() {
+        if (binding == null || !getIntent().getBooleanExtra("show_app_assignments", false)) return;
+        getIntent().removeExtra("show_app_assignments");
+        binding.appListContent.setVisibility(View.VISIBLE);
+        binding.buttonToggleApps.setText(R.string.app_selection_collapse);
+        binding.appsCard.post(() -> {
+            if (binding != null) binding.appsCard.requestRectangleOnScreen(
+                    new android.graphics.Rect(0, 0, binding.appsCard.getWidth(),
+                            Math.min(binding.appsCard.getHeight(), dp(220))), false);
+        });
+    }
+
     private void arrangeSettingsSections() {
         LinearLayout container = binding.settingsSections;
         View[] order = {
-                binding.settingsGroupProtection,
-                binding.hardcoreCard,
                 binding.featureAreasCard,
                 binding.settingsGroupCoverage,
                 binding.appsCard,
+                binding.settingsGroupProtection,
+                binding.hardcoreCard,
                 binding.settingsGroupServices,
-                binding.paypalCard,
-                binding.appSettingsCard
+                binding.appSettingsCard,
+                binding.paypalCard
         };
         for (View card : order) container.removeView(card);
         for (int index = 0; index < order.length; index++) {
@@ -246,6 +264,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
 
     @Override protected void onResume() {
         super.onResume();
+        showRequestedAppAssignments();
         boolean returnedFromPayPal = paypalApprovalLaunched;
         paypalApprovalLaunched = false;
         applyEditState();

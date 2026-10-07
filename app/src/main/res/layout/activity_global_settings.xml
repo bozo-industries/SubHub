@@ -46,7 +46,7 @@
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:layout_marginTop="4dp"
                     android:text="@string/hardcore_body" />
-                <com.google.android.material.switchmaterial.SwitchMaterial
+                <com.subhub.app.util.StateToggle
                     android:id="@+id/switch_hardcore_mode"
                     style="@style/Widget.SubHub.SettingsToggle"
                     android:layout_width="match_parent"
@@ -91,21 +91,21 @@
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:layout_marginTop="3dp"
                     android:text="@string/global_features_help" />
-                <com.google.android.material.switchmaterial.SwitchMaterial
+                <com.subhub.app.util.StateToggle
                     android:id="@+id/switch_module_censor"
                     style="@style/Widget.SubHub.SettingsToggle"
                     android:layout_width="match_parent"
                     android:text="@string/global_feature_censor" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:text="@string/global_feature_censor_help" />
-                <com.google.android.material.switchmaterial.SwitchMaterial
+                <com.subhub.app.util.StateToggle
                     android:id="@+id/switch_module_limits"
                     style="@style/Widget.SubHub.SettingsToggle"
                     android:layout_width="match_parent"
                     android:text="@string/global_feature_limits" />
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:text="@string/global_feature_limits_help" />
-                <com.google.android.material.switchmaterial.SwitchMaterial
+                <com.subhub.app.util.StateToggle
                     android:id="@+id/switch_module_wallet"
                     style="@style/Widget.SubHub.SettingsToggle"
                     android:layout_width="match_parent"

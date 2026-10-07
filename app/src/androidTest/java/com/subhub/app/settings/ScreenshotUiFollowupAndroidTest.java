@@ -59,6 +59,7 @@ public final class ScreenshotUiFollowupAndroidTest {
 
     @Test public void imageThreeSelectorsAreThreeAcrossAndExclusive() {
         try (ActivityScenario<PopupStormActivity> scenario = ActivityScenario.launch(PopupStormActivity.class)) {
+            onView(withId(R.id.button_advanced_details)).perform(revealAboveNavigation(), click());
             scenario.onActivity(activity -> {
                 for (String key : new String[] {PopupStormSettings.K_DENIAL_STYLE, PopupStormSettings.K_DETECTION_MODE}) {
                     GridLayout choices = activity.findViewById(R.id.dynamic_settings).findViewWithTag("popup-choice:" + key);
@@ -113,6 +114,7 @@ public final class ScreenshotUiFollowupAndroidTest {
         String id = manager.listEntries().stream().filter(entry -> !before.contains(entry.getId()))
                 .findFirst().orElseThrow().getId();
         try (ActivityScenario<SettingsActivity> scenario = ActivityScenario.launch(SettingsActivity.class)) {
+            onView(withId(R.id.button_appearance_details)).perform(revealAboveNavigation(), click());
             scenario.onActivity(activity -> {
                 ViewGroup row = activity.findViewById(R.id.censor_images_list).findViewWithTag("censor-image:" + id);
                 row.getChildAt(1).setTag("inline-toggle");

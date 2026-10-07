@@ -91,6 +91,7 @@ public final class CensorEditorStructureContractTest {
     @Test public void imageManagementIsInsideAppearanceWithoutASeparateToolsCard() {
         try (ActivityScenario<SettingsActivity> scenario =
                      ActivityScenario.launch(SettingsActivity.class)) {
+            onView(withId(R.id.button_appearance_details)).perform(revealAboveNavigation(), click());
             scenario.onActivity(activity -> {
                 View rules = activity.findViewById(R.id.censor_filter_rules);
                 View appearance = activity.findViewById(R.id.censor_appearance);
@@ -98,7 +99,7 @@ public final class CensorEditorStructureContractTest {
                 ViewGroup page = (ViewGroup) rules.getParent();
                 assertEquals(page, appearance.getParent());
                 assertEquals(page, photos.getParent());
-                assertTrue(page.indexOfChild(appearance) < page.indexOfChild(rules));
+                assertTrue(page.indexOfChild(rules) < page.indexOfChild(appearance));
                 assertTrue(page.indexOfChild(appearance) < page.indexOfChild(photos));
                 assertTrue(activity.findViewById(R.id.button_packs) == null);
                 assertEquals(activity.getString(R.string.censor_gallery_photos),

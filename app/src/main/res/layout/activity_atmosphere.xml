@@ -77,7 +77,7 @@
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <com.google.android.material.switchmaterial.SwitchMaterial
+                <com.subhub.app.util.StateToggle
                     android:id="@+id/switch_whispers"
                     style="@style/Widget.SubHub.Switch"
                     android:layout_width="wrap_content"
@@ -159,7 +159,7 @@
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <com.google.android.material.switchmaterial.SwitchMaterial
+                <com.subhub.app.util.StateToggle
                     android:id="@+id/switch_popup_storm"
                     style="@style/Widget.SubHub.Switch"
                     android:layout_width="wrap_content"
