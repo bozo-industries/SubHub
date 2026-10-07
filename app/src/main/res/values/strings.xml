@@ -232,6 +232,9 @@ Maximum coverage · flagship devices</string>
     <string name="diagnostics_lab_attach">Share Latest Capture</string>
     <string name="diagnostics_lab_share_capture">Share Screen + Telemetry ZIP</string>
     <string name="diagnostics_lab_share_bundle">Share Latest ZIP</string>
+    <string name="diagnostics_lab_save">Save ZIP to Downloads</string>
+    <string name="diagnostics_lab_saved_downloads">Saved to Downloads: %1$s</string>
+    <string name="diagnostics_lab_saved">Saved: %1$s</string>
     <string name="diagnostics_lab_share_trace">Share Telemetry Only</string>
     <string name="diagnostics_lab_sync_start">LAB START\n%1$s</string>
     <string name="diagnostics_lab_sync_stop">LAB STOP\n%1$s</string>

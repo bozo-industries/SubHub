@@ -64,6 +64,23 @@ public final class DiagnosticsActivity extends AppCompatActivity {
     private boolean shareWhenReady;
     private String startMarkerSession;
     private String renderedLabFailure;
+    private File pendingSaveBundle;
+    private final ActivityResultLauncher<String> saveLabDocument = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("application/zip"), uri -> {
+                File bundle = pendingSaveBundle;
+                pendingSaveBundle = null;
+                if (uri == null || bundle == null) {
+                    labBusy = false;
+                    renderLabState();
+                    return;
+                }
+                labIo.execute(() -> {
+                    try {
+                        CensorLabDownloads.copy(getApplicationContext(), bundle, uri);
+                        finishLabSave(bundle, null);
+                    } catch (Exception error) { finishLabSave(bundle, error); }
+                });
+            });
     private final ActivityResultLauncher<Intent> recordingPermission = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
@@ -98,6 +115,16 @@ public final class DiagnosticsActivity extends AppCompatActivity {
         binding.buttonCensorLabStop.setOnClickListener(view -> stopLabSession());
         binding.buttonCensorLabAttach.setOnClickListener(view -> exportAndShare(true));
         binding.buttonCensorLabShareTrace.setOnClickListener(view -> exportAndShare(false));
+        binding.buttonCensorLabSave.setOnClickListener(view -> saveLabBundle());
+        if (savedInstanceState != null) {
+            String pending = savedInstanceState.getString("pendingLabSave");
+            if (pending != null) {
+                try {
+                    pendingSaveBundle = CensorLabDownloads.requireBundle(this, new File(pending));
+                    labBusy = true;
+                } catch (java.io.IOException ignored) { pendingSaveBundle = null; }
+            }
+        }
         binding.switchDiagnosticsOverlay.setChecked(settings.preferences().getBoolean(
                 DiagnosticsRepository.PREF_OVERLAY, false));
         binding.switchDiagnosticsOverlay.setOnCheckedChangeListener((button, checked) ->
@@ -123,6 +150,11 @@ public final class DiagnosticsActivity extends AppCompatActivity {
     @Override protected void onPause() {
         refreshHandler.removeCallbacks(refresh);
         super.onPause();
+    }
+
+    @Override protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        if (pendingSaveBundle != null) state.putString("pendingLabSave", pendingSaveBundle.getPath());
     }
 
     @Override protected void onDestroy() {
@@ -285,6 +317,42 @@ public final class DiagnosticsActivity extends AppCompatActivity {
         });
     }
 
+    private void saveLabBundle() {
+        if (labBusy || CensorLabRecorder.isActive()) return;
+        CensorLabRecorder.CompletedSession session = CensorLabRecorder.latest(this);
+        if (session == null) return;
+        labBusy = true;
+        renderLabState();
+        Toast.makeText(this, R.string.diagnostics_lab_exporting, Toast.LENGTH_SHORT).show();
+        labIo.execute(() -> {
+            try {
+                File bundle = CensorLabBundleExporter.export(getApplicationContext(), session, true);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    CensorLabDownloads.save(getApplicationContext(), bundle);
+                    finishLabSave(bundle, null);
+                } else {
+                    runOnUiThread(() -> {
+                        if (binding == null) return;
+                        pendingSaveBundle = bundle;
+                        saveLabDocument.launch(bundle.getName());
+                    });
+                }
+            } catch (Exception error) { finishLabSave(null, error); }
+        });
+    }
+
+    private void finishLabSave(File bundle, Exception error) {
+        runOnUiThread(() -> {
+            if (binding == null) return;
+            labBusy = false;
+            if (error != null) showLabFailure(error);
+            else Toast.makeText(this, getString(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    ? R.string.diagnostics_lab_saved_downloads : R.string.diagnostics_lab_saved,
+                    bundle.getName()), Toast.LENGTH_LONG).show();
+            renderLabState();
+        });
+    }
+
     private void shareBundle(File bundle) {
         if (binding == null || bundle == null || !bundle.isFile()) return;
         android.net.Uri uri = FileProvider.getUriForFile(getApplicationContext(),
@@ -367,6 +435,7 @@ public final class DiagnosticsActivity extends AppCompatActivity {
                 ? R.string.diagnostics_lab_share_capture
                 : R.string.diagnostics_lab_share_bundle);
         binding.buttonCensorLabShareTrace.setEnabled(canShare);
+        binding.buttonCensorLabSave.setEnabled(canShare);
         if (recording.phase == CensorLabRecordingService.Phase.READY
                 && shareWhenReady && recording.bundle != null) {
             shareWhenReady = false;
