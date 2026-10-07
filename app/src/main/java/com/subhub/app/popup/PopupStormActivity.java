@@ -139,7 +139,7 @@ public final class PopupStormActivity extends AppCompatActivity {
             bindingEnabled = true;
             binding.switchEnabled.setChecked(false);
             bindingEnabled = false;
-            new AlertDialog.Builder(this)
+            com.subhub.app.util.ThemedDialogs.builder(this)
                     .setTitle(R.string.popup_photosensitivity_title)
                     .setMessage(R.string.popup_photosensitivity_body)
                     .setNegativeButton(android.R.string.cancel, null)

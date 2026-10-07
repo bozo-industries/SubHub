@@ -140,7 +140,7 @@ public final class AtmosphereActivity extends AppCompatActivity {
             rendering = true;
             binding.switchPopupStorm.setChecked(false);
             rendering = false;
-            new AlertDialog.Builder(this)
+            com.subhub.app.util.ThemedDialogs.builder(this)
                     .setTitle(R.string.popup_photosensitivity_title)
                     .setMessage(R.string.popup_photosensitivity_body)
                     .setNegativeButton(android.R.string.cancel, (dialog, which) -> render())

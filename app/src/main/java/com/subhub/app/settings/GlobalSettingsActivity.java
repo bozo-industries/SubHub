@@ -174,7 +174,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
             String currency = checkedId == R.id.wallet_currency_usd ? "USD" : "EUR";
             PenanceManager wallet = new PenanceManager(this);
             if (currency.equals(wallet.getCurrency())) return;
-            new AlertDialog.Builder(this).setTitle(R.string.wallet_currency_label)
+            com.subhub.app.util.ThemedDialogs.builder(this).setTitle(R.string.wallet_currency_label)
                     .setMessage(R.string.wallet_currency_help)
                     .setNegativeButton(android.R.string.cancel, (dialog, which) -> refreshWalletCurrency())
                     .setOnCancelListener(dialog -> refreshWalletCurrency())
@@ -711,7 +711,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                     Toast.LENGTH_SHORT).show();
             return;
         }
-        new AlertDialog.Builder(this)
+        com.subhub.app.util.ThemedDialogs.builder(this)
                 .setTitle(R.string.paypal_auto_pay_allow_title)
                 .setMessage(R.string.paypal_auto_pay_allow_body)
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> {
@@ -769,7 +769,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
             return;
         }
         if (enabled) {
-            new AlertDialog.Builder(this)
+            com.subhub.app.util.ThemedDialogs.builder(this)
                     .setTitle(R.string.hardcore_consent_title)
                     .setMessage(R.string.hardcore_consent_body)
                     .setNegativeButton(android.R.string.cancel,
@@ -786,7 +786,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                     })
                     .show();
         } else {
-            new AlertDialog.Builder(this)
+            com.subhub.app.util.ThemedDialogs.builder(this)
                     .setTitle(R.string.hardcore_release_title)
                     .setMessage(R.string.hardcore_release_body)
                     .setNegativeButton(android.R.string.cancel,

@@ -328,7 +328,7 @@ public final class StudioActivity extends AppCompatActivity {
                 remove.setTag("pack_remove_paypal");
                 remove.setOnClickListener(view -> {
                     if (draft == null || !ControllerPinManager.isDomModeActive()) return;
-                    new AlertDialog.Builder(this).setTitle(R.string.pack_editor_remove_paypal)
+                    com.subhub.app.util.ThemedDialogs.builder(this).setTitle(R.string.pack_editor_remove_paypal)
                             .setMessage(R.string.pack_editor_remove_paypal_body)
                             .setNegativeButton(android.R.string.cancel, null)
                             .setPositiveButton(R.string.pack_editor_remove_paypal, (dialog, which) -> {
@@ -344,7 +344,7 @@ public final class StudioActivity extends AppCompatActivity {
             include.setOnCheckedChangeListener((button, checked) -> {
                 if (suppressEvents || draft == null) return;
                 if (!checked && SubHubPackSchema.WALLET.equals(section) && draft.hasEncryptedPayPal()) {
-                    new AlertDialog.Builder(this).setTitle(R.string.pack_editor_remove_paypal)
+                    com.subhub.app.util.ThemedDialogs.builder(this).setTitle(R.string.pack_editor_remove_paypal)
                             .setMessage(R.string.pack_editor_remove_paypal_body)
                             .setNegativeButton(android.R.string.cancel, (dialog, which) -> restoreIncludedWallet())
                             .setOnCancelListener(dialog -> restoreIncludedWallet())
@@ -397,7 +397,7 @@ public final class StudioActivity extends AppCompatActivity {
 
     private void confirmReplaceSection(String section, boolean defaults) {
         if (draft == null) return;
-        new AlertDialog.Builder(this).setTitle(R.string.pack_editor_reset_title)
+        com.subhub.app.util.ThemedDialogs.builder(this).setTitle(R.string.pack_editor_reset_title)
                 .setMessage(R.string.pack_editor_reset_body)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(defaults ? R.string.pack_editor_defaults : R.string.pack_editor_current,
@@ -658,7 +658,7 @@ public final class StudioActivity extends AppCompatActivity {
             if (!ControllerPinManager.isDomModeActive()) {
                 toast(getString(R.string.studio_unlock_required));
             } else if (record.active) {
-                new AlertDialog.Builder(this).setTitle(R.string.pack_editor_restore_title)
+                com.subhub.app.util.ThemedDialogs.builder(this).setTitle(R.string.pack_editor_restore_title)
                         .setMessage(R.string.pack_editor_restore_body)
                         .setNegativeButton(android.R.string.cancel, null)
                         .setPositiveButton(android.R.string.ok, (dialog, which) -> storageAction(
@@ -673,7 +673,7 @@ public final class StudioActivity extends AppCompatActivity {
         Button duplicate = outlineButton(getString(R.string.studio_duplicate));
         duplicate.setOnClickListener(view -> loadRecord(record, this::duplicatePack));
         Button delete = outlineButton(getString(R.string.studio_delete));
-        delete.setOnClickListener(view -> new AlertDialog.Builder(this)
+        delete.setOnClickListener(view -> com.subhub.app.util.ThemedDialogs.builder(this)
                 .setTitle(R.string.studio_delete_title)
                 .setMessage(record.pack.getName())
                 .setNegativeButton(android.R.string.cancel, null)
@@ -699,7 +699,7 @@ public final class StudioActivity extends AppCompatActivity {
         java.util.Arrays.fill(selected, true);
         CharSequence[] labels = new CharSequence[included.size()];
         for (int index = 0; index < labels.length; index++) labels[index] = sectionTitle(included.get(index));
-        new AlertDialog.Builder(this).setTitle(R.string.studio_review_title)
+        com.subhub.app.util.ThemedDialogs.builder(this).setTitle(R.string.studio_review_title)
                 .setMultiChoiceItems(labels, selected, (dialog, which, checked) -> selected[which] = checked)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.studio_apply, (dialog, which) -> {
@@ -714,7 +714,7 @@ public final class StudioActivity extends AppCompatActivity {
     private void showDiff(SubHubPack pack, Set<String> sections) {
         if (sections.isEmpty()) { toast(getString(R.string.studio_no_sections)); return; }
         String message = String.join("\n\n", manager.diff(pack, sections));
-        new AlertDialog.Builder(this).setTitle(pack.getName()).setMessage(message)
+        com.subhub.app.util.ThemedDialogs.builder(this).setTitle(pack.getName()).setMessage(message)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.studio_apply_confirm, (dialog, which) -> {
                     if (pack.hasEncryptedPayPal() && sections.contains(SubHubPackSchema.WALLET)) {
@@ -730,7 +730,7 @@ public final class StudioActivity extends AppCompatActivity {
 
     private void duplicatePack(SubHubPack source) {
         if (source.hasEncryptedPayPal()) {
-            new AlertDialog.Builder(this).setTitle(R.string.pack_editor_duplicate_title)
+            com.subhub.app.util.ThemedDialogs.builder(this).setTitle(R.string.pack_editor_duplicate_title)
                     .setMessage(R.string.pack_editor_duplicate_body)
                     .setNegativeButton(android.R.string.cancel, null)
                     .setPositiveButton(R.string.studio_duplicate, (d, w) -> {

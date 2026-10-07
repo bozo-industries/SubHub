@@ -59,7 +59,7 @@ public final class CommitmentActivity extends AppCompatActivity {
     }
 
     private void confirmEmergencyRelease() {
-        new AlertDialog.Builder(this)
+        com.subhub.app.util.ThemedDialogs.builder(this)
                 .setTitle(R.string.commitment_emergency_title)
                 .setMessage(R.string.commitment_emergency_body)
                 .setNegativeButton(android.R.string.cancel, null)

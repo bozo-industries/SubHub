@@ -136,7 +136,7 @@ final class PackSectionEditor {
             group.addField(row, fullWidth);
         }
         refreshApplicability();
-        AlertDialog dialog = new AlertDialog.Builder(activity)
+        AlertDialog dialog = com.subhub.app.util.ThemedDialogs.builder(activity)
                 .setTitle(activity.getString(R.string.pack_editor_title, title))
                 .setView(scroll)
                 .setNegativeButton(android.R.string.cancel, null)
@@ -290,7 +290,7 @@ final class PackSectionEditor {
             labels[index] = activity.getString(PackSettingCatalog.choiceLabel(field, value));
             checked[index] = selected.contains(value);
         }
-        new AlertDialog.Builder(activity).setTitle(field.label)
+        com.subhub.app.util.ThemedDialogs.builder(activity).setTitle(field.label)
                 .setMultiChoiceItems(labels, checked, (dialog, position, on) -> checked[position] = on)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {

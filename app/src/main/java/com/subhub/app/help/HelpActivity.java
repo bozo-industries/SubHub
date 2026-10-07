@@ -174,7 +174,7 @@ public final class HelpActivity extends AppCompatActivity {
                 getString(R.string.language_chinese_traditional), getString(R.string.language_korean),
                 getString(R.string.language_russian)};
         int selected = Math.max(0, codes.indexOf(LocaleHelper.getLanguage(this)));
-        new AlertDialog.Builder(this)
+        com.subhub.app.util.ThemedDialogs.builder(this)
                 .setTitle(R.string.settings_language)
                 .setSingleChoiceItems(labels, selected, (dialog, which) -> {
                     LocaleHelper.setLanguage(this, codes.get(which));

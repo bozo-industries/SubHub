@@ -4,6 +4,7 @@ import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withTagValue;
+import static androidx.test.espresso.matcher.RootMatchers.isDialog;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.*;
 
@@ -28,7 +29,7 @@ public final class ColorPickerDialogTest {
         AtomicInteger accepted = new AtomicInteger(Color.BLACK);
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> ColorPickerDialog.show(activity, "Test RGB", Color.BLACK, accepted::set));
-            onView(withTagValue(is((Object) "color_channel:1"))).perform(
+            onView(withTagValue(is((Object) "color_channel:1"))).inRoot(isDialog()).perform(
                     androidx.test.espresso.action.ViewActions.scrollTo(), new ViewAction() {
                         @Override public Matcher<View> getConstraints() { return ViewMatchers.isDisplayed(); }
                         @Override public String getDescription() { return "choose RGB red=1 with native keyboard input"; }
@@ -46,7 +47,7 @@ public final class ColorPickerDialogTest {
                             assertEquals(1, ((android.widget.SeekBar) view).getProgress());
                         }
                     });
-            onView(withId(android.R.id.button1)).perform(click());
+            onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click());
             assertEquals(Color.rgb(1, 0, 0), accepted.get());
         }
     }
@@ -55,12 +56,12 @@ public final class ColorPickerDialogTest {
         AtomicInteger accepted = new AtomicInteger(Color.BLUE);
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> ColorPickerDialog.show(activity, "Test color", Color.BLUE, accepted::set));
-            onView(withTagValue(is((Object) "color_wheel"))).perform(redEdge());
-            onView(withId(android.R.id.button2)).perform(click());
+            onView(withTagValue(is((Object) "color_wheel"))).inRoot(isDialog()).perform(redEdge());
+            onView(withId(android.R.id.button2)).inRoot(isDialog()).perform(click());
             assertEquals(Color.BLUE, accepted.get());
             scenario.onActivity(activity -> ColorPickerDialog.show(activity, "Test color", Color.BLUE, accepted::set));
-            onView(withTagValue(is((Object) "color_wheel"))).perform(redEdge());
-            onView(withId(android.R.id.button1)).perform(click());
+            onView(withTagValue(is((Object) "color_wheel"))).inRoot(isDialog()).perform(redEdge());
+            onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click());
             assertEquals(Color.RED, accepted.get());
         }
     }

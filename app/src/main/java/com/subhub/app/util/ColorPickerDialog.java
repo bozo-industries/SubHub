@@ -28,10 +28,13 @@ public final class ColorPickerDialog {
         LinearLayout body = new LinearLayout(context);
         body.setOrientation(LinearLayout.VERTICAL);
         int padding = Math.round(20 * context.getResources().getDisplayMetrics().density);
-        body.setPadding(padding, 0, padding, padding);
+        body.setPadding(padding, padding / 2, padding, padding);
         TextView preview = new TextView(context);
         preview.setMinHeight(padding * 3);
         preview.setGravity(android.view.Gravity.CENTER);
+        preview.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
+        preview.setTextSize(18);
+        preview.setTag("color_preview");
         body.addView(preview);
         Wheel wheel = new Wheel(context);
         wheel.setTag("color_wheel");
@@ -55,9 +58,14 @@ public final class ColorPickerDialog {
                 captions[index].setText(labels[index] + " · " + values[index]);
             }
             preview.setText(String.format(Locale.ROOT, "#%06X", selected[0] & 0xffffff));
-            preview.setBackgroundColor(selected[0]);
-            preview.setTextColor(Color.red(selected[0]) * 299 + Color.green(selected[0]) * 587
-                    + Color.blue(selected[0]) * 114 > 150000 ? Color.BLACK : Color.WHITE);
+            android.graphics.drawable.GradientDrawable swatch = new android.graphics.drawable.GradientDrawable();
+            swatch.setColor(selected[0]);
+            swatch.setCornerRadius(padding * .7f);
+            swatch.setStroke(Math.max(1, padding / 20), context.getColor(R.color.outline_default));
+            preview.setBackground(swatch);
+            preview.setTextColor(androidx.core.graphics.ColorUtils.calculateContrast(Color.BLACK, selected[0])
+                    >= androidx.core.graphics.ColorUtils.calculateContrast(Color.WHITE, selected[0])
+                    ? Color.BLACK : Color.WHITE);
             updating[0] = false;
         };
         for (int index = 0; index < 4; index++) {
@@ -72,6 +80,9 @@ public final class ColorPickerDialog {
             slider.setFocusable(true);
             slider.setFocusableInTouchMode(true);
             slider.setMinimumHeight(padding * 3);
+            slider.setProgressTintList(android.content.res.ColorStateList.valueOf(context.getColor(R.color.accent)));
+            slider.setThumbTintList(android.content.res.ColorStateList.valueOf(context.getColor(R.color.accent_text)));
+            slider.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(context.getColor(R.color.outline_subtle)));
             slider.setContentDescription(labels[index]);
             slider.setTag("color_channel:" + index);
             body.addView(slider);
@@ -93,7 +104,7 @@ public final class ColorPickerDialog {
         wheel.listener = color -> { selected[0] = color; render.run(); };
         render.run();
         ScrollView scroll = new ScrollView(context); scroll.addView(body);
-        new AlertDialog.Builder(context).setTitle(title).setView(scroll)
+        com.subhub.app.util.ThemedDialogs.builder(context).setTitle(title).setView(scroll)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> accepted.accept(selected[0]))
                 .show();

@@ -600,7 +600,7 @@ public final class PenanceActivity extends AppCompatActivity {
     }
 
     private void confirmClearUnpaid() {
-        new AlertDialog.Builder(this)
+        com.subhub.app.util.ThemedDialogs.builder(this)
                 .setTitle(R.string.penance_clear_title)
                 .setMessage(R.string.penance_clear_body)
                 .setNegativeButton(android.R.string.cancel, null)

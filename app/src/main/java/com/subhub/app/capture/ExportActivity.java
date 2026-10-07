@@ -94,7 +94,7 @@ public final class ExportActivity extends AppCompatActivity {
         suppressDeleteListener = true;
         button.setChecked(false);
         suppressDeleteListener = false;
-        new AlertDialog.Builder(this)
+        com.subhub.app.util.ThemedDialogs.builder(this)
                 .setTitle(R.string.export_delete_warning_title)
                 .setMessage(R.string.export_delete_warning_body)
                 .setNegativeButton(android.R.string.cancel, null)
