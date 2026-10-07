@@ -407,7 +407,7 @@ public final class CensorRenderer implements AutoCloseable {
             border.setStrokeWidth(3);
         } else if (appearance.getBorderEffect() == CensorAppearance.BorderEffect.GRADIENT) {
             border.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
-                    appearance.getBorderColor(), Color.WHITE, Shader.TileMode.CLAMP));
+                    appearance.getGradientStart(), appearance.getGradientEnd(), Shader.TileMode.CLAMP));
         } else if (appearance.getBorderEffect() == CensorAppearance.BorderEffect.RAINBOW) {
             border.setShader(new SweepGradient(rect.centerX(), rect.centerY(), new int[]{
                     Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN, Color.BLUE,

@@ -22,18 +22,15 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.subhub.app.R;
 import com.subhub.app.capture.CustomImagesActivity;
+import com.subhub.app.capture.ExportActivity;
 import com.subhub.app.databinding.ActivitySettingsBinding;
 import com.subhub.app.detection.DetectionPreset;
 import com.subhub.app.detection.DetectorConfig;
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.overlay.CensorPhrases;
-import com.subhub.app.pack.LockedSettings;
-import com.subhub.app.pack.SubHubPackLocks;
-import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.ControllerEditMode;
-import com.subhub.app.pack.PackManager;
 import com.subhub.app.studio.StudioActivity;
 import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.util.PrimaryHeader;
@@ -56,12 +53,12 @@ public final class SettingsActivity extends AppCompatActivity {
         binding = ActivitySettingsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_nav_censor,
-                R.string.censor_header_title, R.string.settings_subtitle);
+                R.string.censor_header_title, 0);
         binding.getRoot().setFocusableInTouchMode(true);
         binding.getRoot().requestFocus();
         repository = new SettingsRepository(this);
         stats = new StatsRepository(this);
-        new PackManager(this);
+        adaptBorderChoices();
         bindValues();
         attachListeners();
         applyLockState();
@@ -76,6 +73,27 @@ public final class SettingsActivity extends AppCompatActivity {
             ControllerEditMode.enterSubMode(this);
         } else {
             ControllerPinGate.require(this, this::applyLockState, false);
+        }
+    }
+
+    private void adaptBorderChoices() {
+        android.content.res.Configuration config = getResources().getConfiguration();
+        boolean stack = config.screenWidthDp < 480 || config.fontScale >= 1.3f;
+        binding.borderEffectGroup.setOrientation(stack ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        for (int index = 0; index < binding.borderEffectGroup.getChildCount(); index++) {
+            RadioButton choice = (RadioButton) binding.borderEffectGroup.getChildAt(index);
+            android.widget.RadioGroup.LayoutParams params = (android.widget.RadioGroup.LayoutParams) choice.getLayoutParams();
+            params.width = stack ? ViewGroup.LayoutParams.MATCH_PARENT : 0;
+            params.weight = stack ? 0f : 1f;
+            choice.setLayoutParams(params);
+            choice.setTextSize(14f);
+            if (stack) {
+                android.graphics.drawable.Drawable icon = choice.getCompoundDrawables()[1];
+                choice.setCompoundDrawablesWithIntrinsicBounds(icon, null, null, null);
+                choice.setGravity(Gravity.CENTER_VERTICAL);
+                choice.setPadding(dp(12), dp(8), dp(12), dp(8));
+                choice.setCompoundDrawablePadding(dp(8));
+            }
         }
     }
 
@@ -102,6 +120,8 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.reverseStrengthValue.setText(percent(appearance.getReverseStrength()));
         renderPaletteControls();
         renderColorButton(binding.borderColor, appearance.getBorderColor());
+        renderColorButton(binding.gradientStart, appearance.getGradientStart());
+        renderColorButton(binding.gradientEnd, appearance.getGradientEnd());
         binding.borderPreview.setAppearance(appearance);
 
         DetectionPreset preset = repository.loadDetectionPreset();
@@ -243,9 +263,13 @@ public final class SettingsActivity extends AppCompatActivity {
         });
         binding.buttonCustomImages.setOnClickListener(view ->
                 startActivity(new Intent(this, CustomImagesActivity.class)));
+        binding.buttonExport.setOnClickListener(view -> ControllerPinGate.require(this,
+                () -> startActivity(new Intent(this, ExportActivity.class)), false));
         binding.buttonPacks.setOnClickListener(view ->
                 startActivity(new Intent(this, StudioActivity.class)));
         binding.paletteColorOne.setOnClickListener(view -> pickEffectColor(1));
+        binding.gradientStart.setOnClickListener(view -> pickGradientColor(true));
+        binding.gradientEnd.setOnClickListener(view -> pickGradientColor(false));
         binding.paletteColorTwo.setOnClickListener(view -> pickEffectColor(2));
         binding.paletteColorThree.setOnClickListener(view -> pickEffectColor(3));
         binding.borderColor.setOnClickListener(view -> showColorDialog(
@@ -261,39 +285,38 @@ public final class SettingsActivity extends AppCompatActivity {
     }
 
     private void applyLockState() {
-        boolean editing = ControllerPinManager.isSessionUnlocked()
-                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.CENSOR);
+        boolean editing = ControllerPinManager.isSessionUnlocked();
         ControllerEditMode.renderButton(this, PrimaryHeader.editLockButton(binding.getRoot()));
         setEnabledRecursive(binding.styleGroup,
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE));
+                editing);
         setEnabledRecursive(binding.captureMethodGroup,
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CAPTURE_METHOD));
+                editing);
         setEnabledRecursive(binding.coverageGroup,
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_COVERAGE));
+                editing);
         binding.intensitySeek.setEnabled(
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_INTENSITY));
+                editing);
         binding.paddingSeek.setEnabled(
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_SIZE_PADDING));
+                editing);
         binding.switchBorder.setEnabled(
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_BORDER));
-        boolean paletteEnabled = editing
-                && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_TYPE);
+                editing);
+        boolean paletteEnabled = editing;
         setEnabledRecursive(binding.effectPaletteGroup, paletteEnabled);
         binding.switchText.setEnabled(
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_SHOW_TEXT));
+                editing);
         syncBorderControlState();
         binding.switchReverse.setEnabled(
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_REVERSE_MODE));
+                editing);
         binding.reverseStrengthSeek.setEnabled(
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_REVERSE_STRENGTH));
+                editing);
         binding.buttonCustomImages.setEnabled(
-                editing && !LockedSettings.isLocked(com.subhub.app.capture.CustomImageManager.PREFS_KEY));
+                editing);
+        binding.buttonExport.setEnabled(editing);
         setEnabledRecursive(binding.presetGroup,
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_DETECTION_PRESET));
+                editing);
         binding.confidenceSeek.setEnabled(
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CONFIDENCE));
+                editing);
         boolean categoriesEnabled =
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_ENABLED_CATEGORIES);
+                editing;
         CompoundButton[] categories = {
                 binding.switchGenitalsFemale, binding.switchGenitalsMale, binding.switchBreasts,
                 binding.switchButtocks, binding.switchAnus, binding.switchFaces,
@@ -301,44 +324,41 @@ public final class SettingsActivity extends AppCompatActivity {
                 binding.switchArmpits, binding.switchCovered};
         for (CompoundButton category : categories) category.setEnabled(categoriesEnabled);
         binding.switchSmutText.setEnabled(
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_TEXT_SMUT_ENABLED));
+                editing);
         boolean smutDetailsEnabled = editing && binding.switchSmutText.isChecked();
-        setEnabledRecursive(binding.smutSensitivityGroup, smutDetailsEnabled
-                && !LockedSettings.isLocked(SettingsRepository.KEY_TEXT_SMUT_SENSITIVITY));
-        boolean smutCategoriesEnabled = smutDetailsEnabled
-                && !LockedSettings.isLocked(SettingsRepository.KEY_TEXT_SMUT_CATEGORIES);
+        setEnabledRecursive(binding.smutSensitivityGroup, smutDetailsEnabled);
+        boolean smutCategoriesEnabled = smutDetailsEnabled;
         binding.switchSmutExplicit.setEnabled(smutCategoriesEnabled);
         binding.switchSmutFetish.setEnabled(smutCategoriesEnabled);
         binding.switchSmutSolicitation.setEnabled(smutCategoriesEnabled);
         boolean phrasesEnabled =
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_ENABLED_PHRASE_CATEGORIES);
+                editing;
         CompoundButton[] phraseCategories = {
                 binding.switchPhraseShort, binding.switchPhraseDenial,
                 binding.switchPhraseHumiliation, binding.switchPhraseEdge,
                 binding.switchPhraseFindom, binding.switchPhraseNtr, binding.switchPhraseGooner};
         for (CompoundButton category : phraseCategories) category.setEnabled(phrasesEnabled);
         boolean customPhrasesEnabled =
-                editing && !LockedSettings.isLocked(SettingsRepository.KEY_CUSTOM_PHRASES);
+                editing;
         binding.customPhrases.setEnabled(customPhrasesEnabled);
         binding.buttonSavePhrases.setEnabled(customPhrasesEnabled && phrasesEnabled);
-        int lockCount = LockedSettings.snapshot().size();
-        binding.packLockStatus.setVisibility(lockCount > 0 ? View.VISIBLE : View.GONE);
-        binding.packLockStatus.setText(getString(R.string.pack_lock_status, lockCount));
     }
 
     private void syncBorderControlState() {
-        boolean editing = ControllerPinManager.isSessionUnlocked()
-                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.CENSOR);
+        boolean editing = ControllerPinManager.isSessionUnlocked();
         boolean active = binding.switchBorder.isChecked();
         binding.borderPreview.setAlpha(active ? 1f : .55f);
-        binding.borderColor.setEnabled(active && editing
-                && !LockedSettings.isLocked(SettingsRepository.KEY_BORDER_COLOR));
+        binding.borderColor.setEnabled(active && editing);
         binding.borderColorField.setAlpha(active ? 1f : .5f);
-        binding.switchAnimateBorder.setEnabled(active && editing
-                && !LockedSettings.isLocked(SettingsRepository.KEY_ANIMATE_BORDER));
+        boolean gradient = binding.borderEffectGroup.getCheckedRadioButtonId() == R.id.radio_border_gradient;
+        binding.borderColorField.setVisibility(gradient ? View.GONE : View.VISIBLE);
+        binding.gradientColors.setVisibility(gradient ? View.VISIBLE : View.GONE);
+        binding.gradientStart.setEnabled(active && editing);
+        binding.gradientEnd.setEnabled(active && editing);
+        binding.gradientColors.setAlpha(active ? 1f : .5f);
+        binding.switchAnimateBorder.setEnabled(active && editing);
         binding.switchAnimateBorder.setAlpha(active ? 1f : .5f);
-        setEnabledRecursive(binding.borderEffectGroup, active && editing
-                && !LockedSettings.isLocked(SettingsRepository.KEY_BORDER_EFFECT));
+        setEnabledRecursive(binding.borderEffectGroup, active && editing);
         binding.borderEffectGroup.setAlpha(active ? 1f : .5f);
     }
 
@@ -375,79 +395,22 @@ public final class SettingsActivity extends AppCompatActivity {
         });
     }
 
+    private void pickGradientColor(boolean start) {
+        CensorAppearance appearance = repository.loadAppearance();
+        showColorDialog(getString(start ? R.string.gradient_start : R.string.gradient_end),
+                start ? appearance.getGradientStart() : appearance.getGradientEnd(), color -> {
+                    repository.preferences().edit().putString(start ? SettingsRepository.KEY_GRADIENT_START
+                            : SettingsRepository.KEY_GRADIENT_END, SettingsRepository.colorString(color)).apply();
+                    renderColorButton(start ? binding.gradientStart : binding.gradientEnd, color);
+                    binding.borderPreview.setAppearance(repository.loadAppearance());
+                    stats.setBorderColorChanged();
+                });
+    }
+
     private void showColorDialog(String title, int current, IntConsumer accepted) {
-        int padding = Math.round(16 * getResources().getDisplayMetrics().density);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(padding, 0, padding, 0);
-
-        TextView fieldLabel = new TextView(this);
-        fieldLabel.setText(R.string.color_hex_label);
-        fieldLabel.setTextColor(getColor(R.color.text_primary));
-        fieldLabel.setTextSize(12f);
-        content.addView(fieldLabel);
-
-        EditText hex = new EditText(this);
-        hex.setSingleLine(true);
-        hex.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
-        hex.setText(SettingsRepository.colorString(current).substring(3));
-        hex.setSelection(hex.length());
-        hex.setTextColor(getColor(R.color.text_primary));
-        hex.setHintTextColor(getColor(R.color.text_muted));
-        content.addView(hex, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
-
-        TextView presetsLabel = new TextView(this);
-        presetsLabel.setText(R.string.color_picker_presets);
-        presetsLabel.setTextColor(getColor(R.color.text_primary));
-        presetsLabel.setTextSize(12f);
-        presetsLabel.setPadding(0, dp(8), 0, dp(4));
-        content.addView(presetsLabel);
-
-        GridLayout presets = new GridLayout(this);
-        presets.setColumnCount(4);
-        int[] colors = {Color.BLACK, Color.WHITE, Color.rgb(255, 0, 128),
-                Color.rgb(169, 76, 255), Color.rgb(215, 38, 48),
-                Color.rgb(243, 211, 59), Color.rgb(0, 180, 255), Color.rgb(18, 18, 22)};
-        for (int index = 0; index < colors.length; index++) {
-            int color = colors[index];
-            TextView swatch = new TextView(this);
-            swatch.setContentDescription(SettingsRepository.colorString(color));
-            swatch.setBackground(swatchBackground(color));
-            swatch.setOnClickListener(view -> {
-                hex.setText(SettingsRepository.colorString(color).substring(3));
-                hex.setSelection(hex.length());
-            });
-            GridLayout.LayoutParams params = new GridLayout.LayoutParams(
-                    GridLayout.spec(index / 4), GridLayout.spec(index % 4, 1f));
-            params.width = 0;
-            params.height = dp(42);
-            params.setMargins(dp(3), dp(3), dp(3), dp(3));
-            presets.addView(swatch, params);
-        }
-        content.addView(presets, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(title)
-                .setView(content)
-                .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(android.R.string.ok, null)
-                .create();
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                .setOnClickListener(view -> {
-                    try {
-                        String raw = hex.getText().toString().trim();
-                        if (!raw.startsWith("#")) raw = "#" + raw;
-                        int color = Color.parseColor(raw);
-                        accepted.accept(Color.argb(255, Color.red(color),
-                                Color.green(color), Color.blue(color)));
-                        dialog.dismiss();
-                    } catch (IllegalArgumentException error) {
-                        hex.setError(getString(R.string.color_invalid));
-                    }
-                }));
-        dialog.show();
+        com.subhub.app.util.ColorPickerDialog.show(this, title, current, color -> {
+            if (ControllerPinManager.isSessionUnlocked()) accepted.accept(color);
+        });
     }
 
     private void renderColorButton(TextView button, int color) {
@@ -458,7 +421,10 @@ public final class SettingsActivity extends AppCompatActivity {
     }
 
     private void refreshBorderPreview() {
-        if (binding != null) binding.borderPreview.setAppearance(repository.loadAppearance());
+        if (binding != null) {
+            binding.borderPreview.setAppearance(repository.loadAppearance());
+            syncBorderControlState();
+        }
     }
 
     private GradientDrawable swatchBackground(int color) {
@@ -520,9 +486,7 @@ public final class SettingsActivity extends AppCompatActivity {
 
     private void saveAll() {
         if (bindingValues) return;
-        if (ControllerPinManager.isSessionUnlocked()
-                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.CENSOR)
-                && !LockedSettings.isLocked(SettingsRepository.KEY_CENSOR_COVERAGE)) {
+        if (ControllerPinManager.isSessionUnlocked()) {
             repository.preferences().edit().putString(SettingsRepository.KEY_CENSOR_COVERAGE,
                     binding.radioCoveragePerson.isChecked() ? "whole_person" : "detected_areas").apply();
         }
@@ -730,7 +694,6 @@ public final class SettingsActivity extends AppCompatActivity {
         }
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.CENSOR);
         if (binding != null) {
-            new PackManager(this);
             bindValues();
             applyLockState();
         }

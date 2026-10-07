@@ -28,6 +28,8 @@ public final class SettingsRepository {
     public static final String KEY_SHOW_BORDER = "show_border";
     public static final String KEY_SHOW_TEXT = "show_text";
     public static final String KEY_BORDER_COLOR = "border_color";
+    public static final String KEY_GRADIENT_START = "border_gradient_start";
+    public static final String KEY_GRADIENT_END = "border_gradient_end";
     public static final String KEY_DETECTION_PRESET = "detection_preset";
     public static final String KEY_CENSOR_SIZE_PADDING = "censor_size_padding";
     public static final String KEY_ANIMATE_BORDER = "animate_border";
@@ -148,7 +150,9 @@ public final class SettingsRepository {
                 Math.round(preferences.getFloat(KEY_REVERSE_STRENGTH, 1f) * 100),
                 preferences.getString(KEY_REVERSE_CUTOUT_SHAPE, "rectangle"),
                 preferences.getString(KEY_ERROR_TITLE, "SubHub"),
-                preferences.getString(KEY_ERROR_TEXT, "Access blocked."));
+                preferences.getString(KEY_ERROR_TEXT, "Access blocked."),
+                readColor(KEY_GRADIENT_START, borderColor),
+                readColor(KEY_GRADIENT_END, Color.rgb(76, 216, 235)));
     }
 
     public EffectPalette loadEffectPalette(CensorAppearance.Type type) {

@@ -23,8 +23,6 @@ import com.subhub.app.R;
 import com.subhub.app.databinding.ActivityAppModeBinding;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
-import com.subhub.app.pack.SubHubPackLocks;
-import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.util.PrimaryHeader;
 import com.subhub.app.util.SubHubNavigation;
@@ -58,7 +56,7 @@ public final class AppModeActivity extends AppCompatActivity {
         binding = ActivityAppModeBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_nav_limits,
-                R.string.app_mode_title, R.string.app_mode_subtitle);
+                R.string.app_mode_title, 0);
         if (SubHubNavigation.redirectIfDisabled(this, SubHubNavigation.Screen.LIMITS)) return;
         manager = new AppModeManager(this);
         timers = new AppTimerManager(this);
@@ -110,8 +108,7 @@ public final class AppModeActivity extends AppCompatActivity {
 
     private void applyEditState() {
         if (binding == null) return;
-        editingUnlocked = ControllerPinManager.isSessionUnlocked()
-                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.LIMITS);
+        editingUnlocked = ControllerPinManager.isSessionUnlocked();
         ControllerEditMode.renderButton(this, PrimaryHeader.editLockButton(binding.getRoot()));
         View[] editable = {binding.perAppLimitEnabled, binding.totalLimitEnabled};
         for (View view : editable) view.setEnabled(editingUnlocked);

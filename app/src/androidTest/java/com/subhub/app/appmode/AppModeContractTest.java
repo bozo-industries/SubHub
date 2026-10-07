@@ -148,6 +148,7 @@ public final class AppModeContractTest {
     }
 
     @Test public void globalSettingsOwnsRecognitionAndAppAssignments() {
+        ControllerPinManager.enterDomMode();
         new AppModeManager(context).save(false, AppModePolicy.Mode.ALWAYS, Set.of());
         try (ActivityScenario<GlobalSettingsActivity> scenario = ActivityScenario.launch(
                 GlobalSettingsActivity.class)) {
@@ -157,8 +158,43 @@ public final class AppModeContractTest {
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.app_list_card).getVisibility());
                 ViewGroup sections = activity.findViewById(R.id.settings_sections);
-                assertEquals(activity.findViewById(R.id.hardcore_card), sections.getChildAt(1));
+                View protection = activity.findViewById(R.id.settings_group_protection);
+                View hardcore = activity.findViewById(R.id.hardcore_card);
+                assertEquals(sections, hardcore.getParent());
+                assertTrue(sections.indexOfChild(protection) < sections.indexOfChild(hardcore));
+                View apps = activity.findViewById(R.id.apps_card);
+                assertEquals(sections, apps.getParent());
+                for (int id : new int[] {R.id.recognition_card, R.id.app_list_card,
+                        R.id.android_access_card}) {
+                    assertEquals(apps, activity.findViewById(id).getParent());
+                }
+                assertEquals(View.GONE, activity.findViewById(R.id.armed).getVisibility());
             });
+        }
+    }
+
+    @Test public void censorScopeChangesPreserveServiceAndIndependentAssignments() {
+        ControllerPinManager.enterDomMode();
+        for (boolean armed : new boolean[] {false, true}) {
+            AppModeManager manager = new AppModeManager(context);
+            manager.saveAppSelections(Set.of("com.example.censor"),
+                    Set.of("com.example.limited"), Set.of("com.example.messages"));
+            manager.save(armed, AppModePolicy.Mode.SELECTED_APPS,
+                    Set.of("com.example.censor"));
+            try (ActivityScenario<GlobalSettingsActivity> scenario = ActivityScenario.launch(
+                    GlobalSettingsActivity.class)) {
+                scenario.onActivity(activity -> {
+                    // Use the live scope listener before the asynchronous launcher refresh.
+                    activity.findViewById(R.id.mode_always).performClick();
+                    assertEquals(armed, manager.isArmed());
+                    assertEquals(AppModePolicy.Mode.ALWAYS, manager.getMode());
+                    assertEquals(Set.of("com.example.limited"), manager.getTimerPackages());
+                    assertEquals(Set.of("com.example.messages"), manager.getSubliminalPackages());
+                    activity.findViewById(R.id.mode_selected).performClick();
+                    assertEquals(armed, manager.isArmed());
+                    assertEquals(AppModePolicy.Mode.SELECTED_APPS, manager.getMode());
+                });
+            }
         }
     }
 
@@ -179,6 +215,7 @@ public final class AppModeContractTest {
     }
 
     @Test public void launcherPickerUsesACompactVerticalGrid() throws Exception {
+        ControllerPinManager.enterDomMode();
         try (ActivityScenario<GlobalSettingsActivity> scenario =
                      ActivityScenario.launch(GlobalSettingsActivity.class)) {
             scenario.onActivity(activity ->

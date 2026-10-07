@@ -12,7 +12,7 @@ import androidx.core.view.ViewCompat;
 
 import com.subhub.app.R;
 
-/** Configures the single visual contract used by every primary destination header. */
+/** Shared, accessible header geometry for primary destinations and secondary pages. */
 public final class PrimaryHeader {
     private PrimaryHeader() {}
 
@@ -26,11 +26,19 @@ public final class PrimaryHeader {
         icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         ViewCompat.setAccessibilityHeading(title, true);
         title.setText(titleRes);
-        subtitle.setText(subtitleRes);
-        fitHeader(root, icon, title);
+        subtitle.setText(subtitleRes == 0 ? "" : root.getResources().getString(subtitleRes));
+        subtitle.setVisibility(subtitleRes == 0 ? View.GONE : View.VISIBLE);
+        fitHeader(root, icon, title, iconRes != 0);
     }
 
-    private static void fitHeader(View root, ImageView icon, TextView title) {
+    public static void bindSecondary(View root, @StringRes int titleRes,
+            boolean controllerControl) {
+        backButton(root).setVisibility(View.VISIBLE);
+        editLockButton(root).setVisibility(controllerControl ? View.VISIBLE : View.GONE);
+        bind(root, 0, titleRes, 0);
+    }
+
+    private static void fitHeader(View root, ImageView icon, TextView title, boolean hasIcon) {
         TextView control = editLockButton(root);
         ViewGroup header = (ViewGroup) view(root);
         float density = root.getResources().getDisplayMetrics().density;
@@ -42,22 +50,28 @@ public final class PrimaryHeader {
         control.setMinimumWidth(controlMinimum);
         int headerWidth = Math.round(widthDp * density) - 2 * root.getResources()
                 .getDimensionPixelSize(R.dimen.page_margin);
-        int controlWidth = Math.max(control.getMinWidth(), (int) Math.ceil(
+        int controlWidth = control.getVisibility() == View.GONE ? 0
+                : Math.max(control.getMinWidth(), (int) Math.ceil(
                 control.getPaint().measureText(control.getText().toString()))
                 + control.getPaddingLeft() + control.getPaddingRight());
+        TextView back = backButton(root);
+        int backWidth = back.getVisibility() == View.GONE ? 0
+                : Math.max(back.getMinWidth(), (int) Math.ceil(
+                        back.getPaint().measureText(back.getText().toString())));
         ViewGroup.MarginLayoutParams bodyParams =
                 (ViewGroup.MarginLayoutParams) ((View) title.getParent()).getLayoutParams();
         int iconWidth = root.getResources().getDimensionPixelSize(R.dimen.primary_header_icon_size);
         int textWidth = headerWidth - header.getPaddingLeft() - header.getPaddingRight()
-                - iconWidth - Math.round(19 * density) - controlWidth;
+                - backWidth - iconWidth - Math.round(19 * density) - controlWidth;
         boolean stacked = root.getResources().getConfiguration().fontScale >= 1.3f;
         if (stacked) {
             textWidth = headerWidth - header.getPaddingLeft() - header.getPaddingRight()
-                    - iconWidth - Math.round(11 * density);
+                    - backWidth - iconWidth - Math.round(11 * density);
         }
-        boolean showIcon = title.getPaint().measureText(title.getText().toString()) <= textWidth;
+        boolean showIcon = hasIcon
+                && title.getPaint().measureText(title.getText().toString()) <= textWidth;
         icon.setVisibility(showIcon ? View.VISIBLE : View.GONE);
-        bodyParams.setMarginStart(showIcon ? Math.round(11 * density) : 0);
+        bodyParams.setMarginStart(showIcon || backWidth > 0 ? Math.round(11 * density) : 0);
         View body = (View) title.getParent();
         body.setLayoutParams(bodyParams);
         if (stacked && body.getParent() == header) {
@@ -69,10 +83,12 @@ public final class PrimaryHeader {
             row.setGravity(android.view.Gravity.CENTER_VERTICAL);
             column.removeView(icon);
             column.removeView(body);
+            column.removeView(back);
+            row.addView(back);
             row.addView(icon);
             row.addView(body);
             column.setOrientation(LinearLayout.VERTICAL);
-            column.addView(row, 1, new LinearLayout.LayoutParams(
+            column.addView(row, 0, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             LinearLayout.LayoutParams controlParams = (LinearLayout.LayoutParams)
                     control.getLayoutParams();

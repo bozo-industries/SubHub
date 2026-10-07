@@ -5,12 +5,14 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.subhub.app.penance.PenanceActivity;
@@ -22,6 +24,32 @@ import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
 public final class UiComponentContractTest {
+    @Test public void subliminalChoicesAndDialogCloseHaveFullTouchTargets() {
+        android.content.Context context = new android.view.ContextThemeWrapper(
+                ApplicationProvider.getApplicationContext(), R.style.Theme_SubHub);
+        View page = LayoutInflater.from(context).inflate(
+                R.layout.activity_subliminal_settings, null, false);
+        int[] ids = {R.id.preset_gentle, R.id.preset_normal, R.id.preset_strict,
+                R.id.preset_ultra, R.id.pack_obedience, R.id.pack_focus,
+                R.id.pack_beta, R.id.pack_findom, R.id.pack_custom};
+        int minimum = context.getResources().getDimensionPixelSize(R.dimen.control_min_height);
+        for (int id : ids) {
+            View choice = page.findViewById(id);
+            choice.measure(View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            assertTrue(choice.getMeasuredHeight() >= minimum);
+        }
+        int[][] dialogs = {{R.layout.dialog_arrangement_details, R.id.arrangement_detail_close},
+                {R.layout.dialog_achievement_details, R.id.achievement_detail_close}};
+        for (int[] dialog : dialogs) {
+            View close = LayoutInflater.from(context).inflate(dialog[0], null, false)
+                    .findViewById(dialog[1]);
+            close.measure(View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            assertTrue(close.getMeasuredHeight() >= minimum);
+        }
+    }
+
     @Test public void atmosphereActionsHaveReadableTextAndFullTouchTargets() {
         ControllerPinManager.enterDomMode();
         try (ActivityScenario<AtmosphereActivity> scenario =

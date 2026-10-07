@@ -5396,6 +5396,8 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 + " settingsPackage=" + settingsPackage);
         if (shouldRun && !recognitionActive) activateRecognition();
         else if (!shouldRun && recognitionActive) deactivateRecognition();
+        PopupStormManager.get().syncServiceParticipation(this,
+                !settingsPackage && appMode.shouldShowPopups(foregroundPackage));
     }
 
     private void reevaluateSubliminals() {
@@ -5613,7 +5615,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             LatestFrameBroker<PendingScenePresentation> oldPresenter = scenePresenter;
             if (oldPresenter != null) oldPresenter.close();
             scenePresenter = createScenePresenter();
-            PopupStormManager.get().start(this);
             // Publish active only after every synchronous authority surface exists. A failed
             // overlay/window setup must remain retryable on the next foreground window event.
             recognitionActive = true;
@@ -5635,7 +5636,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             if (presenter != null) presenter.close();
             if (overlay != null) overlay.close();
             overlay = null;
-            PopupStormManager.get().stop();
             DiagnosticsRepository.fail(DIAGNOSTICS_MODE, failure);
             Log.e(TAG, "Recognition activation failed", failure);
         }
@@ -5662,7 +5662,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         DiagnosticsRepository.stop(DIAGNOSTICS_MODE);
         if (overlay != null) overlay.close();
         overlay = null;
-        PopupStormManager.get().stop();
+        PopupStormManager.get().updateDetections(Collections.emptyList());
         dwellTracker.clear();
         tapTracker.clear();
         resetTextSnapshots();
@@ -6271,6 +6271,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         running = false;
         main.removeCallbacks(timerTick);
         deactivateRecognition();
+        PopupStormManager.get().stop();
         if (settings != null) {
             settings.preferences().unregisterOnSharedPreferenceChangeListener(listener);
         }

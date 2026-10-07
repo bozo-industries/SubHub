@@ -36,7 +36,7 @@ public final class SubHubPackManagerTest {
         new SubHubPackManager(context).deactivate();
     }
 
-    @Test public void activationLocksSelectedGroupAndDeactivationRestoresPreviousValue()
+    @Test public void activationDoesNotLockSettingsAndDeactivationRestoresPreviousValue()
             throws Exception {
         SettingsRepository repository = new SettingsRepository(context);
         repository.preferences().edit().putString(SettingsRepository.KEY_CENSOR_TYPE, "blur")
@@ -50,12 +50,14 @@ public final class SubHubPackManagerTest {
         assertTrue(manager.activate(pack, Set.of(SubHubPackSchema.CENSOR)));
         assertEquals("box", repository.preferences().getString(
                 SettingsRepository.KEY_CENSOR_TYPE, ""));
-        assertTrue(SubHubPackLocks.isLocked(context, SubHubPackSchema.CENSOR));
+        assertTrue(pack.getLockGroups().isEmpty());
+        assertFalse(context.getSharedPreferences("subhub_pack_state_v1", Context.MODE_PRIVATE)
+                .contains("active_lock_groups"));
 
         assertTrue(manager.deactivate());
         assertEquals("blur", repository.preferences().getString(
                 SettingsRepository.KEY_CENSOR_TYPE, ""));
-        assertFalse(SubHubPackLocks.isLocked(context, SubHubPackSchema.CENSOR));
+        assertTrue(pack.getLockGroups().isEmpty());
     }
 
     @Test public void subSpaceCanApplyOnlyMatchingActivePackUpdate() throws Exception {

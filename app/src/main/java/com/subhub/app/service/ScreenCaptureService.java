@@ -26,6 +26,7 @@ import androidx.core.app.NotificationCompat;
 
 import com.subhub.app.MainActivity;
 import com.subhub.app.R;
+import com.subhub.app.settings.FeatureModuleManager;
 import com.subhub.app.appmode.ProtectionSessionManager;
 import com.subhub.app.appmode.AppModeManager;
 import com.subhub.app.appmode.ResumeNotificationManager;
@@ -220,6 +221,13 @@ public final class ScreenCaptureService extends Service {
 
     private void reloadSettings() {
         if (overlay != null) overlay.clearPersonCoverage();
+        if (!censorConfigured()) {
+            if (overlay != null) overlay.clear();
+            if (tracker != null) tracker.clear();
+            tapTracker.clear();
+            dwellTracker.clear();
+            PopupStormManager.get().updateDetections(java.util.Collections.emptyList());
+        }
         CensorAppearance appearance = settings.loadAppearance();
         overlayNeedsSourceFrame = appearance.requiresSourceFrame();
         if (overlay != null) overlay.setAppearance(appearance);
@@ -230,10 +238,12 @@ public final class ScreenCaptureService extends Service {
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
         PopupStormManager.get().reloadSettings(this);
+        PopupStormManager.get().syncServiceParticipation(this,
+                running && new AppModeManager(this).isArmed());
     }
 
     private void captureLatestFrame() {
-        if (!running || capture == null) return;
+        if (!running || capture == null || !censorConfigured()) return;
         DetectorConfig currentConfig = detectorConfig;
         if (loadGovernor != null && !loadGovernor.shouldCapture(
                 SystemClock.uptimeMillis(),
@@ -255,8 +265,9 @@ public final class ScreenCaptureService extends Service {
     private void processFrame(ProjectionFrame candidate) {
         Bitmap frame = candidate.bitmap();
         try {
-            if (!running || frame == null || frame.isRecycled()) return;
+            if (!running || !censorConfigured() || frame == null || frame.isRecycled()) return;
             List<Detection> detections = detector.detect(frame);
+            if (!censorConfigured()) return;
             List<TrackedObject> tracks = tracker.update(detections);
             DetectorConfig currentConfig = detectorConfig;
             int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
@@ -303,7 +314,7 @@ public final class ScreenCaptureService extends Service {
                         + width + "x" + height);
             }
             mainHandler.post(() -> {
-                if (overlay != null) {
+                if (overlay != null && censorConfigured()) {
                     overlay.setDiagnostics(diagnosticText);
                     if (overlayFrameRelease == null) {
                         overlay.update(tracks, width, height, overlayFrame);
@@ -383,6 +394,10 @@ public final class ScreenCaptureService extends Service {
     @Nullable
     @Override
     public IBinder onBind(Intent intent) { return null; }
+
+    private boolean censorConfigured() {
+        return settings != null && settings.preferences().getBoolean(FeatureModuleManager.KEY_CENSOR_ENABLED, true);
+    }
 
     @Override
     public void onDestroy() {

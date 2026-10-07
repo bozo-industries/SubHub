@@ -1,0 +1,126 @@
+package com.subhub.app.settings;
+
+import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.action.ViewActions.scrollTo;
+import static com.subhub.app.NativeUiActions.revealAboveNavigation;
+import static androidx.test.espresso.matcher.ViewMatchers.withId;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+import android.app.Activity;
+import android.view.View;
+import android.view.ViewGroup;
+
+import androidx.test.core.app.ActivityScenario;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
+import androidx.test.runner.lifecycle.Stage;
+
+import com.subhub.app.R;
+import com.subhub.app.capture.ExportActivity;
+import com.subhub.app.security.ControllerPinManager;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+@RunWith(AndroidJUnit4.class)
+public final class CensorEditorStructureContractTest {
+    private android.content.SharedPreferences preferences;
+    private boolean originallyPresent;
+    private boolean originallyEnabled;
+    @Before public void enterDomMode() {
+        android.content.Context context = androidx.test.core.app.ApplicationProvider.getApplicationContext();
+        preferences = new SettingsRepository(context).preferences();
+        originallyPresent = preferences.contains(FeatureModuleManager.KEY_CENSOR_ENABLED);
+        originallyEnabled = preferences.getBoolean(FeatureModuleManager.KEY_CENSOR_ENABLED, true);
+        preferences.edit().putBoolean(FeatureModuleManager.KEY_CENSOR_ENABLED, true).commit();
+        ControllerPinManager.enterDomMode();
+    }
+
+    @After public void leaveDomMode() {
+        android.content.SharedPreferences.Editor restore = preferences.edit();
+        if (originallyPresent) restore.putBoolean(FeatureModuleManager.KEY_CENSOR_ENABLED, originallyEnabled);
+        else restore.remove(FeatureModuleManager.KEY_CENSOR_ENABLED);
+        restore.commit();
+        ControllerPinManager.enterSubMode();
+    }
+
+    @Test public void rulesAppearanceAndToolsContainTheirRelatedControls() {
+        try (ActivityScenario<SettingsActivity> scenario =
+                     ActivityScenario.launch(SettingsActivity.class)) {
+            scenario.onActivity(activity -> {
+                View rules = activity.findViewById(R.id.censor_filter_rules);
+                View appearance = activity.findViewById(R.id.censor_appearance);
+                View tools = activity.findViewById(R.id.censor_tools);
+                ViewGroup page = (ViewGroup) rules.getParent();
+                assertEquals(page, appearance.getParent());
+                assertEquals(page, tools.getParent());
+                assertTrue(page.indexOfChild(rules) < page.indexOfChild(appearance));
+                assertTrue(page.indexOfChild(appearance) < page.indexOfChild(tools));
+                for (int id : new int[] {R.id.capture_method_group, R.id.preset_group,
+                        R.id.coverage_group, R.id.switch_breasts, R.id.switch_smut_text}) {
+                    assertInside(rules, activity.findViewById(id));
+                }
+                for (int id : new int[] {R.id.style_group, R.id.effect_palette_group,
+                        R.id.border_effect_group, R.id.switch_text, R.id.custom_phrases}) {
+                    assertInside(appearance, activity.findViewById(id));
+                }
+                int minimum = activity.getResources()
+                        .getDimensionPixelSize(R.dimen.control_min_height);
+                for (int id : new int[] {R.id.button_custom_images,
+                        R.id.button_export, R.id.button_packs}) {
+                    View action = activity.findViewById(id);
+                    assertInside(tools, action);
+                    assertTrue(action.isShown());
+                    assertTrue(action.getWidth() >= minimum);
+                    assertTrue(action.getHeight() >= minimum);
+                }
+            });
+        }
+    }
+
+    @Test public void censorPhotosIsReachableThroughTheVisibleToolsAction() {
+        try (ActivityScenario<SettingsActivity> scenario =
+                     ActivityScenario.launch(SettingsActivity.class)) {
+            onView(withId(R.id.button_export)).perform(revealAboveNavigation(), click());
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                Activity export = null;
+                for (Activity activity : ActivityLifecycleMonitorRegistry.getInstance()
+                        .getActivitiesInStage(Stage.RESUMED)) {
+                    if (activity instanceof ExportActivity) export = activity;
+                }
+                assertNotNull("Tools must open the existing photo export screen", export);
+                assertNotNull(export.findViewById(R.id.switch_delete_originals));
+                export.finish();
+            });
+        }
+    }
+
+    @Test public void subModeCannotUseThePhotoToolOrChangeCensorConfiguration() {
+        ControllerPinManager.enterSubMode();
+        try (ActivityScenario<SettingsActivity> scenario =
+                     ActivityScenario.launch(SettingsActivity.class)) {
+            scenario.onActivity(activity -> {
+                assertFalse(activity.findViewById(R.id.button_export).isEnabled());
+                assertFalse(activity.findViewById(R.id.radio_coverage_person).isEnabled());
+                assertFalse(activity.findViewById(R.id.switch_smut_text).isEnabled());
+            });
+        }
+    }
+
+    private static void assertInside(View expectedGroup, View child) {
+        assertNotNull(child);
+        View current = child;
+        while (current != expectedGroup && current.getParent() instanceof View) {
+            current = (View) current.getParent();
+        }
+        assertEquals(expectedGroup, current);
+    }
+}

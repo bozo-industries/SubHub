@@ -62,6 +62,8 @@ public final class CensorAppearance {
     private final BorderEffect borderEffect;
     private final boolean showText;
     private final int borderColor;
+    private final int gradientStart;
+    private final int gradientEnd;
     private final EffectPalette effectPalette;
     private final List<String> phrases;
     private final boolean reverseMode;
@@ -118,6 +120,16 @@ public final class CensorAppearance {
             String reverseCutoutShape,
             String errorTitle,
             String errorMessage) {
+        this(type, intensity, sizePadding, showBorder, animateBorder, borderEffect, showText,
+                borderColor, effectPalette, phrases, reverseMode, reverseStrength, reverseCutoutShape,
+                errorTitle, errorMessage, borderColor, 0xff4cd8eb);
+    }
+
+    public CensorAppearance(Type type, int intensity, float sizePadding, boolean showBorder,
+            boolean animateBorder, BorderEffect borderEffect, boolean showText, int borderColor,
+            EffectPalette effectPalette, List<String> phrases, boolean reverseMode, int reverseStrength,
+            String reverseCutoutShape, String errorTitle, String errorMessage,
+            int gradientStart, int gradientEnd) {
         this.type = type == null ? Type.BOX : type;
         this.intensity = clamp(intensity, 0, 100);
         this.sizePadding = Math.max(0f, Math.min(1f, sizePadding));
@@ -126,6 +138,8 @@ public final class CensorAppearance {
         this.borderEffect = borderEffect == null ? BorderEffect.CLASSIC : borderEffect;
         this.showText = showText;
         this.borderColor = borderColor;
+        this.gradientStart = gradientStart;
+        this.gradientEnd = gradientEnd;
         this.effectPalette = effectPalette == null
                 ? EffectPalette.defaultsFor(this.type) : effectPalette;
         List<String> safePhrases = phrases == null ? Collections.emptyList() : phrases;
@@ -149,6 +163,8 @@ public final class CensorAppearance {
     public BorderEffect getBorderEffect() { return borderEffect; }
     public boolean isShowText() { return showText; }
     public int getBorderColor() { return borderColor; }
+    public int getGradientStart() { return gradientStart; }
+    public int getGradientEnd() { return gradientEnd; }
     public EffectPalette getEffectPalette() { return effectPalette; }
     public List<String> getPhrases() { return phrases; }
     public boolean isReverseMode() { return reverseMode; }

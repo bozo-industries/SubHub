@@ -129,6 +129,14 @@ public final class AppModeManager {
                 foregroundPackage, context.getPackageName(), inputMethodPackage());
     }
 
+    /** Popup Storm participates independently of Censor and its app/capture scope. */
+    public boolean shouldShowPopups(String foregroundPackage) {
+        if (!com.subhub.app.popup.PopupStormSettings.load(context).isEnabled()) return false;
+        return AppModePolicy.shouldRecognize(isEffectivelyArmed(System.currentTimeMillis()),
+                AppModePolicy.Mode.ALWAYS, Set.of(), foregroundPackage,
+                context.getPackageName(), inputMethodPackage());
+    }
+
     public boolean isEffectivelyArmed(long nowMillis) {
         return isArmed();
     }

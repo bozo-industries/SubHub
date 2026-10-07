@@ -1,5 +1,7 @@
 package com.subhub.app.popup;
 
+import com.subhub.app.util.PrimaryHeader;
+
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -10,9 +12,11 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -29,8 +33,6 @@ import com.subhub.app.R;
 import com.subhub.app.databinding.ActivityPopupStormBinding;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.ControllerPinManager;
-import com.subhub.app.pack.SubHubPackLocks;
-import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.service.ScreenCaptureService;
 import com.subhub.app.service.ScreenshotAccessibilityService;
 import com.google.android.material.switchmaterial.SwitchMaterial;
@@ -67,9 +69,10 @@ public final class PopupStormActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityPopupStormBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PrimaryHeader.bindSecondary(binding.getRoot(), R.string.popup_title, true);
         preferences = PopupStormSettings.preferences(this);
         PopupStormManager.get().reloadSettings(this);
-        binding.buttonBack.setOnClickListener(view -> finish());
+        PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
         binding.buttonAddFolder.setOnClickListener(view -> folderPicker.launch(null));
         binding.buttonStop.setOnClickListener(view -> {
             PopupStormManager.get().stop();
@@ -78,6 +81,10 @@ public final class PopupStormActivity extends AppCompatActivity {
         binding.buttonPreview.setOnClickListener(view -> preview());
         binding.switchEnabled.setOnCheckedChangeListener((button, checked) -> {
             if (bindingEnabled) return;
+            if (!ControllerPinManager.isSessionUnlocked()) {
+                refreshStatus();
+                return;
+            }
             if (checked) requestEnable();
             else {
                 preferences.edit().putBoolean(PopupStormSettings.K_ENABLED, false).apply();
@@ -89,7 +96,7 @@ public final class PopupStormActivity extends AppCompatActivity {
         buildPresetButtons();
         rebuildSettings();
         editMode = ControllerEditMode.bind(
-                this, binding.buttonEditLock, editing -> applyEditState());
+                this, PrimaryHeader.editLockButton(binding.getRoot()), editing -> applyEditState());
     }
 
     @Override protected void onResume() {
@@ -135,33 +142,43 @@ public final class PopupStormActivity extends AppCompatActivity {
     private void completeEnable() {
         preferences.edit().putBoolean(PopupStormSettings.K_ENABLED, true).apply();
         PopupStormManager.get().reloadSettings(this);
-        if (PopupStormActivationPolicy.shouldStart(
-                ScreenCaptureService.isRunning(),
-                ScreenshotAccessibilityService.isRecognitionActive())) {
-            PopupStormManager.get().start(this);
-        }
         refreshStatus();
     }
 
     private void preview() {
+        if (!ControllerPinManager.isSessionUnlocked()) return;
         PopupStormSettings current = PopupStormSettings.load(this);
         if (!current.isEnabled() || !current.isAcknowledged() || !Settings.canDrawOverlays(this)) {
             Toast.makeText(this, R.string.popup_preview_unavailable, Toast.LENGTH_SHORT).show();
             return;
         }
-        PopupStormManager.get().start(this);
-        binding.getRoot().postDelayed(this::refreshStatus, 350);
+        PopupStormManager.PreviewResult result = PopupStormManager.get().preview(this);
+        if (result == PopupStormManager.PreviewResult.ALREADY_RUNNING) {
+            Toast.makeText(this, R.string.popup_preview_already_running, Toast.LENGTH_SHORT).show();
+        } else if (result == PopupStormManager.PreviewResult.UNAVAILABLE) {
+            Toast.makeText(this, R.string.popup_preview_unavailable, Toast.LENGTH_SHORT).show();
+        }
+        refreshStatus();
     }
 
     private void buildPresetButtons() {
         binding.presetContainer.removeAllViews();
+        int columns = getResources().getConfiguration().screenWidthDp >= 480
+                && getResources().getConfiguration().fontScale < 1.3f ? 4 : 2;
+        binding.presetContainer.setColumnCount(columns);
         String selectedPreset = preferences.getString(
                 PopupStormSettings.K_PRESET, IntensityPresets.MEDIUM.name());
         for (IntensityPresets preset : IntensityPresets.values()) {
             Button button = new Button(this, null, 0, R.style.Widget_SubHub_SegmentedButton);
             button.setText(preset.getDisplayName());
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1);
-            if (binding.presetContainer.getChildCount() > 0) params.setMarginStart(dp(4));
+            button.setMinHeight(dp(48));
+            button.setMinimumHeight(dp(48));
+            int index = binding.presetContainer.getChildCount();
+            GridLayout.LayoutParams params = new GridLayout.LayoutParams(
+                    GridLayout.spec(index / columns), GridLayout.spec(index % columns, 1f));
+            params.width = 0;
+            params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            params.setMargins(dp(3), dp(3), dp(3), dp(3));
             button.setLayoutParams(params);
             boolean selected = preset.name().equals(selectedPreset);
             button.setSelected(selected);
@@ -237,8 +254,7 @@ public final class PopupStormActivity extends AppCompatActivity {
 
     private void applyEditState() {
         if (binding == null) return;
-        boolean editing = ControllerPinManager.isSessionUnlocked()
-                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.POPUP);
+        boolean editing = ControllerPinManager.isSessionUnlocked();
         binding.switchEnabled.setEnabled(editing);
         binding.buttonPreview.setEnabled(editing);
         binding.buttonAddFolder.setEnabled(editing);
@@ -261,13 +277,11 @@ public final class PopupStormActivity extends AppCompatActivity {
     private LinearLayout card(int title) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(18), dp(18), dp(18), dp(18));
-        card.setBackgroundResource(R.drawable.bg_card);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        if (binding.dynamicSettings.getChildCount() > 0) params.topMargin = dp(14);
+        params.topMargin = binding.dynamicSettings.getChildCount() == 0 ? dp(8) : dp(14);
         card.setLayoutParams(params);
-        TextView header = label(getString(title), 13, true, R.color.accent);
+        TextView header = label(getString(title), 12, true, R.color.text_primary);
         card.addView(header);
         binding.dynamicSettings.addView(card);
         return card;
@@ -278,8 +292,7 @@ public final class PopupStormActivity extends AppCompatActivity {
         toggle.setText(title);
         toggle.setTextColor(getColor(R.color.text_primary));
         toggle.setMinHeight(dp(50));
-        toggle.setEnabled(ControllerPinManager.isSessionUnlocked()
-                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.POPUP));
+        toggle.setEnabled(ControllerPinManager.isSessionUnlocked());
         toggle.setChecked(preferences.getBoolean(key, defaultValue));
         toggle.setOnCheckedChangeListener((button, checked) -> {
             preferences.edit().putBoolean(key, checked).apply();
@@ -295,10 +308,10 @@ public final class PopupStormActivity extends AppCompatActivity {
         value.setPadding(0, dp(10), 0, 0);
         parent.addView(value);
         SeekBar slider = new SeekBar(this);
+        slider.setMinimumHeight(dp(48));
         slider.setMax(maximum - minimum);
         slider.setProgress(stored - minimum);
-        slider.setEnabled(ControllerPinManager.isSessionUnlocked()
-                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.POPUP));
+        slider.setEnabled(ControllerPinManager.isSessionUnlocked());
         slider.setOnSeekBarChangeListener(new SimpleSeekListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int actual = minimum + progress;
@@ -319,6 +332,7 @@ public final class PopupStormActivity extends AppCompatActivity {
         value.setPadding(0, dp(10), 0, 0);
         parent.addView(value);
         SeekBar slider = new SeekBar(this);
+        slider.setMinimumHeight(dp(48));
         slider.setMax(steps);
         slider.setProgress(Math.round((stored - minimum) / step));
         slider.setEnabled(ControllerPinManager.isSessionUnlocked());
@@ -339,7 +353,11 @@ public final class PopupStormActivity extends AppCompatActivity {
         heading.setPadding(0, dp(10), 0, 0);
         parent.addView(heading);
         RadioGroup group = new RadioGroup(this);
-        group.setOrientation(RadioGroup.HORIZONTAL);
+        boolean stacked = getResources().getConfiguration().screenWidthDp < 480
+                || getResources().getConfiguration().fontScale >= 1.3f;
+        group.setOrientation(stacked ? RadioGroup.VERTICAL : RadioGroup.HORIZONTAL);
+        group.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         String selected = preferences.getString(key, defaultValue);
         for (int index = 0; index < values.length; index++) {
             RadioButton option = new RadioButton(this);
@@ -350,7 +368,11 @@ public final class PopupStormActivity extends AppCompatActivity {
             option.setTextSize(11);
             option.setEnabled(ControllerPinManager.isSessionUnlocked());
             option.setChecked(values[index].equals(selected));
-            group.addView(option, new RadioGroup.LayoutParams(0, dp(48), 1));
+            option.setMinHeight(dp(48));
+            option.setMinimumHeight(dp(48));
+            group.addView(option, new RadioGroup.LayoutParams(
+                    stacked ? ViewGroup.LayoutParams.MATCH_PARENT : 0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, stacked ? 0 : 1));
         }
         group.setOnCheckedChangeListener((radioGroup, checkedId) -> {
             View checked = radioGroup.findViewById(checkedId);
@@ -367,6 +389,9 @@ public final class PopupStormActivity extends AppCompatActivity {
         heading.setPadding(0, dp(10), 0, 0);
         parent.addView(heading);
         EditText input = new EditText(this);
+        input.setId(View.generateViewId());
+        heading.setLabelFor(input.getId());
+        input.setMinimumHeight(dp(48));
         input.setSingleLine(true);
         input.setMaxLines(1);
         input.setText(preferences.getString(key, defaultValue));
@@ -401,7 +426,6 @@ public final class PopupStormActivity extends AppCompatActivity {
         preferences.edit().remove(PopupStormSettings.K_PRESET).apply();
         buildPresetButtons();
         PopupStormManager.get().reloadSettings(this);
-        if (PopupStormManager.get().isRunning()) PopupStormManager.get().start(this);
         refreshStatus();
     }
 
@@ -435,7 +459,9 @@ public final class PopupStormActivity extends AppCompatActivity {
                 LinearLayout row = new LinearLayout(this);
                 row.setGravity(Gravity.CENTER_VERTICAL);
                 TextView name = label(prettyFolder(value), 11, false, R.color.text_secondary);
-                row.addView(name, new LinearLayout.LayoutParams(0, dp(48), 1));
+                name.setMinimumHeight(dp(48));
+                row.addView(name, new LinearLayout.LayoutParams(
+                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
                 Button remove = new Button(this);
                 remove.setText(R.string.popup_remove);
                 remove.setTextSize(11);
@@ -444,7 +470,10 @@ public final class PopupStormActivity extends AppCompatActivity {
                 remove.setTextColor(getColor(R.color.accent));
                 remove.setEnabled(ControllerPinManager.isSessionUnlocked());
                 remove.setOnClickListener(view -> removeFolder(value));
-                row.addView(remove, new LinearLayout.LayoutParams(dp(104), dp(44)));
+                remove.setMinHeight(dp(48));
+                remove.setMinimumHeight(dp(48));
+                row.addView(remove, new LinearLayout.LayoutParams(
+                        dp(104), ViewGroup.LayoutParams.WRAP_CONTENT));
                 binding.foldersList.addView(row);
             }
         }
@@ -479,7 +508,11 @@ public final class PopupStormActivity extends AppCompatActivity {
         bindingEnabled = true;
         binding.switchEnabled.setChecked(current.isEnabled());
         bindingEnabled = false;
-        if (PopupStormManager.get().isRunning()) binding.status.setText(R.string.popup_status_running);
+        if (PopupStormManager.get().isPreviewing()) {
+            long remaining = PopupStormManager.get().remainingPreviewMillis();
+            binding.status.setText(getString(R.string.popup_preview_active,
+                    (int) ((remaining + 999L) / 1000L)));
+        } else if (PopupStormManager.get().isRunning()) binding.status.setText(R.string.popup_status_running);
         else if (!current.isEnabled()) binding.status.setText(R.string.popup_status_off);
         else if (!current.isAcknowledged()) binding.status.setText(R.string.popup_status_ack);
         else if (!Settings.canDrawOverlays(this)) binding.status.setText(R.string.popup_status_permission);

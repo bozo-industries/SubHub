@@ -1,5 +1,7 @@
 package com.subhub.app.stats;
 
+import com.subhub.app.util.PrimaryHeader;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -27,7 +29,8 @@ public final class StatsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityStatsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        binding.buttonBack.setOnClickListener(view -> finish());
+        PrimaryHeader.bindSecondary(binding.getRoot(), R.string.statistics_title, false);
+        PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
         binding.buttonAchievements.setOnClickListener(view ->
                 startActivity(new Intent(this, AchievementsActivity.class)));
     }

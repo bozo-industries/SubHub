@@ -1,5 +1,7 @@
 package com.subhub.app.stats;
 
+import com.subhub.app.util.PrimaryHeader;
+
 import android.app.Dialog;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -36,7 +38,7 @@ import java.util.Set;
 public final class AchievementsActivity extends AppCompatActivity {
     private static final String[] CATEGORY_ORDER = {
             "blocks", "time", "sessions", "peaks", "streaks", "app_mode", "limits",
-            "pact", "hardcore", "censor", "custom", "profiles", "export",
+            "pact", "hardcore", "censor", "custom", "export",
             "wallet", "hidden", "special"
     };
     private ActivityAchievementsBinding binding;
@@ -47,7 +49,8 @@ public final class AchievementsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityAchievementsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        binding.buttonBack.setOnClickListener(view -> finish());
+        PrimaryHeader.bindSecondary(binding.getRoot(), R.string.achievements_title, false);
+        PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
     }
 
     @Override protected void onResume() {
@@ -397,7 +400,6 @@ public final class AchievementsActivity extends AppCompatActivity {
             case "peaks": return R.string.achievement_category_peaks;
             case "streaks": return R.string.achievement_category_streaks;
             case "custom": return R.string.achievement_category_custom;
-            case "profiles": return R.string.achievement_category_profiles;
             case "export": return R.string.achievement_category_export;
             case "app_mode": return R.string.achievement_category_app_mode;
             case "limits": return R.string.achievement_category_limits;

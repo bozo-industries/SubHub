@@ -62,15 +62,16 @@ Each module is independent. Disable one and it stops participating in service. S
 
 ## Studio
 
-Studio is the portable arrangement creator built into SubHub. It is always present in the bottom pill: Dom Space sees it beside the enabled feature areas and Settings; Sub Space keeps only Home and Studio.
+Studio is the portable pack creator built into SubHub, reachable from Settings in both Dom and Sub mode, and from Censor Tools in Dom mode. Sub mode keeps Home and Settings in the bottom navigation; drafting a pack never changes live settings.
 
 - Start with a blank draft, capture the current setup, or duplicate an existing arrangement.
-- Mix feature modules, Censor and smut settings, generic Limits, tribute rules and caps, Subliminal Messaging, Popup Storm settings, and embedded private images.
+- Use the four-step Details, Features, Images and Review editor. Configure each of the 115 transferable settings directly in the draft, copy a section from the current setup, or reset that section to defaults. Colors use a shared wheel and precise RGB sliders, with independent gradient endpoints.
+- Mix feature modules, Censor and text filters, generic Limits, tribute rules and caps, Subliminal Messaging, Popup Storm settings, and embedded private images. Preview/remove images and choose an optional cover.
 - Autosave drafts, preview the result, import or export `.subhubpack` files, and share them through Android’s standard share sheet.
 - Review selected sections and a before/after summary before activation. Previous values are backed up locally and restored when the arrangement is deactivated or replaced.
-- Optionally lock stable feature groups. One lock-bearing arrangement can be active at a time, and only Dom Space can activate, replace, or deactivate it.
+- One pack can be active at a time. Dom mode is required to apply or restore settings; packs do not add a second setting-lock system. Creating and editing a draft is also available in Sub mode.
 
-Security and duration fields are recommendations, never commands. Arrangements cannot contain PayPal credentials or saved payer IDs, controller PINs, Android permissions, Device Admin state, app package assignments, active service state, history, statistics, achievements, or updater state. Legacy `.bbpack` files remain supported as import-only censor packs.
+Security and duration fields are recommendations, never commands. Enter Service and Leave Service remain the master controls. Ordinary sections never carry credentials, saved payer IDs, controller PINs, Android permissions, Device Admin state, app package assignments, active service state, history, statistics, achievements, Wallet currency or automatic-payment consent. Dom mode can explicitly add passphrase-encrypted merchant details; recipients must review and authorize them locally. The old profile/backup and `.bbpack` interfaces are retired. Existing private saved files are not automatically deleted.
 
 See the [SubHub pack format](docs/subhubpack-format.md) for the schema and privacy boundary.
 

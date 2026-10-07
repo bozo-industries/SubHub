@@ -122,125 +122,129 @@
                 android:text="@string/global_settings_group_coverage" />
 
             <LinearLayout
-                android:id="@+id/android_access_card"
+                android:id="@+id/apps_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_card"
                 android:orientation="vertical"
                 android:padding="12dp">
-                <TextView style="@style/Widget.SubHub.SectionHeader"
-                    android:text="@string/app_mode_service_title" />
-                <TextView
-                    android:id="@+id/service_status"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="7dp"
-                    android:textColor="@color/text_primary"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-                <TextView style="@style/Widget.SubHub.FieldHelp"
-                    android:layout_marginTop="3dp"
-                    android:text="@string/app_mode_service_body" />
-                <Button
-                    android:id="@+id/button_accessibility_settings"
-                    style="@style/Widget.SubHub.PrimaryButton"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/app_mode_open_accessibility" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/recognition_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="9dp"
-                android:background="@drawable/bg_card"
-                android:orientation="vertical"
-                android:padding="12dp">
-                <TextView style="@style/Widget.SubHub.SectionHeader"
-                    android:text="@string/app_mode_rules_title" />
-                <CheckBox
-                    android:id="@+id/armed"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="48dp"
-                    android:layout_marginTop="4dp"
-                    android:buttonTint="@color/accent"
-                    android:text="@string/app_mode_armed"
-                    android:visibility="gone"
-                    android:textColor="@color/text_primary" />
-                <RadioGroup
-                    android:id="@+id/mode_group"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-                    <RadioButton
-                        android:id="@+id/mode_always"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minHeight="48dp"
-                        android:buttonTint="@color/accent"
-                        android:text="@string/app_mode_always"
-                        android:textColor="@color/text_primary" />
-                    <RadioButton
-                        android:id="@+id/mode_selected"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minHeight="48dp"
-                        android:buttonTint="@color/accent"
-                        android:text="@string/app_mode_selected"
-                        android:textColor="@color/text_primary" />
-                </RadioGroup>
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/app_list_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="9dp"
-                android:background="@drawable/bg_card"
-                android:orientation="vertical"
-                android:padding="12dp">
-                <TextView style="@style/Widget.SubHub.SectionHeader"
-                    android:text="@string/app_selection_title" />
-                <TextView style="@style/Widget.SubHub.FieldHelp"
-                    android:layout_marginTop="3dp"
-                    android:text="@string/app_selection_help" />
-                <TextView
-                    android:id="@+id/selected_count"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="5dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11sp" />
-                <Button
-                    android:id="@+id/button_toggle_apps"
-                    style="@style/Widget.SubHub.CompactOutlineButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="48dp"
-                    android:layout_marginTop="6dp"
-                    android:text="@string/app_selection_expand" />
                 <LinearLayout
-                    android:id="@+id/app_list_content"
+                    android:id="@+id/recognition_card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="0dp"
                     android:orientation="vertical"
-                    android:visibility="gone">
-                    <ProgressBar
-                        android:id="@+id/loading_apps"
-                        style="?android:attr/progressBarStyleSmall"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center"
-                        android:layout_marginTop="14dp" />
-                    <GridLayout
-                        android:id="@+id/app_list"
+                    android:padding="0dp">
+                    <TextView style="@style/Widget.SubHub.FieldLabel"
+                        android:layout_marginTop="0dp"
+                        android:text="@string/app_mode_rules_title" />
+                    <CheckBox
+                        android:id="@+id/armed"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:minHeight="48dp"
+                        android:layout_marginTop="4dp"
+                        android:buttonTint="@color/accent"
+                        android:text="@string/app_mode_armed"
+                        android:visibility="gone"
+                        android:textColor="@color/text_primary" />
+                    <RadioGroup
+                        android:id="@+id/mode_group"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+                        <RadioButton
+                            android:id="@+id/mode_always"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="48dp"
+                            android:buttonTint="@color/accent"
+                            android:text="@string/app_mode_always"
+                            android:textColor="@color/text_primary" />
+                        <RadioButton
+                            android:id="@+id/mode_selected"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="48dp"
+                            android:buttonTint="@color/accent"
+                            android:text="@string/app_mode_selected"
+                            android:textColor="@color/text_primary" />
+                    </RadioGroup>
+                </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/app_list_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical"
+                    android:padding="0dp">
+                    <TextView style="@style/Widget.SubHub.FieldLabel"
+                        android:layout_marginTop="0dp"
+                        android:text="@string/app_selection_title" />
+                    <TextView style="@style/Widget.SubHub.FieldHelp"
+                        android:layout_marginTop="3dp"
+                        android:text="@string/app_selection_help" />
+                    <TextView
+                        android:id="@+id/selected_count"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
+                    <Button
+                        android:id="@+id/button_toggle_apps"
+                        style="@style/Widget.SubHub.CompactOutlineButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
                         android:layout_marginTop="6dp"
-                        android:alignmentMode="alignMargins"
-                        android:columnCount="@integer/app_picker_columns"
-                        android:orientation="horizontal" />
+                        android:text="@string/app_selection_expand" />
+                    <LinearLayout
+                        android:id="@+id/app_list_content"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+                        <ProgressBar
+                            android:id="@+id/loading_apps"
+                            style="?android:attr/progressBarStyleSmall"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:layout_marginTop="14dp" />
+                        <GridLayout
+                            android:id="@+id/app_list"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:alignmentMode="alignMargins"
+                            android:columnCount="@integer/app_picker_columns"
+                            android:orientation="horizontal" />
+                    </LinearLayout>
+                </LinearLayout>
+                <LinearLayout
+                    android:id="@+id/android_access_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical">
+                    <TextView style="@style/Widget.SubHub.FieldLabel"
+                        android:layout_marginTop="0dp"
+                        android:text="@string/app_mode_service_title" />
+                    <TextView
+                        android:id="@+id/service_status"
+                        style="@style/Widget.SubHub.FieldHelp"
+                        android:textColor="@color/text_secondary" />
+                    <TextView style="@style/Widget.SubHub.FieldHelp"
+                        android:text="@string/app_mode_service_body" />
+                    <Button
+                        android:id="@+id/button_accessibility_settings"
+                        style="@style/Widget.SubHub.CompactOutlineButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="@dimen/control_min_height"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/app_mode_open_accessibility" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -267,7 +271,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="5dp"
                     android:columnCount="1">
-                    <TextView android:id="@+id/button_profiles"
+                    <TextView android:id="@+id/button_packs"
                         style="@style/Widget.SubHub.SettingsAction"
                         android:text="@string/global_arrangement_studio" />
                     <TextView android:id="@+id/button_help"

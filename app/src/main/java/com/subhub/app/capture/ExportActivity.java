@@ -1,5 +1,7 @@
 package com.subhub.app.capture;
 
+import com.subhub.app.util.PrimaryHeader;
+
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.graphics.Bitmap;
@@ -58,15 +60,16 @@ public final class ExportActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityExportBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PrimaryHeader.bindSecondary(binding.getRoot(), R.string.export_title, true);
         picker = registerForActivityResult(
                 new ActivityResultContracts.OpenMultipleDocuments(), this::startExport);
 
-        binding.buttonBack.setOnClickListener(view -> finish());
+        PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
         binding.buttonPickImages.setOnClickListener(
                 view -> picker.launch(new String[]{"image/*"}));
         binding.buttonCancelExport.setOnClickListener(view -> cancelled.set(true));
         binding.switchDeleteOriginals.setOnCheckedChangeListener(this::onDeleteOriginalsChanged);
-        editMode = ControllerEditMode.bind(this, binding.buttonEditLock, editing ->
+        editMode = ControllerEditMode.bind(this, PrimaryHeader.editLockButton(binding.getRoot()), editing ->
                 binding.switchDeleteOriginals.setEnabled(editing && !busy));
         refreshSummary();
     }

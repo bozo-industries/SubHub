@@ -1,5 +1,7 @@
 package com.subhub.app.capture;
 
+import com.subhub.app.util.PrimaryHeader;
+
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
@@ -39,14 +41,15 @@ public final class CustomImagesActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityCustomImagesBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PrimaryHeader.bindSecondary(binding.getRoot(), R.string.custom_images_title, true);
         manager = new CustomImageManager(this);
         executor = Executors.newSingleThreadExecutor();
         picker = registerForActivityResult(
                 new ActivityResultContracts.OpenMultipleDocuments(), this::importImages);
-        binding.buttonBack.setOnClickListener(view -> finish());
+        PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
         binding.buttonAdd.setOnClickListener(view -> picker.launch(new String[]{"image/*"}));
         editMode = ControllerEditMode.bind(
-                this, binding.buttonEditLock, editing -> applyEditState());
+                this, PrimaryHeader.editLockButton(binding.getRoot()), editing -> applyEditState());
         rebuild();
     }
 

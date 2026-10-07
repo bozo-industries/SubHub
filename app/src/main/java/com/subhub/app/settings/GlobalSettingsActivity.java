@@ -40,8 +40,6 @@ import com.subhub.app.studio.StudioActivity;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
-import com.subhub.app.pack.SubHubPackLocks;
-import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.security.HardcoreReadinessNotificationManager;
 import com.subhub.app.service.ScreenCaptureService;
@@ -61,7 +59,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Always-available home for app-wide feature, safety, backup, and support settings. */
+/** Always-available home for app-wide feature, safety, pack, and support settings. */
 public final class GlobalSettingsActivity extends AppCompatActivity {
     private ActivityGlobalSettingsBinding binding;
     private FeatureModuleManager modules;
@@ -92,7 +90,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding = ActivityGlobalSettingsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_tab_settings,
-                R.string.global_settings_title, R.string.global_settings_subtitle);
+                R.string.global_settings_title, 0);
         arrangeSettingsSections();
         modules = new FeatureModuleManager(this);
         hardcore = new HardcoreModeManager(this);
@@ -138,7 +136,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         updatingPaypalEnvironment = false;
         PrimaryHeader.editLockButton(binding.getRoot())
                 .setOnClickListener(view -> toggleEditSession());
-        binding.buttonProfiles.setOnClickListener(view ->
+        binding.buttonPacks.setOnClickListener(view ->
                 startActivity(new Intent(this, StudioActivity.class)));
         binding.buttonHelp.setOnClickListener(view ->
                 startActivity(new Intent(this, HelpActivity.class)));
@@ -212,9 +210,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
                 binding.hardcoreCard,
                 binding.featureAreasCard,
                 binding.settingsGroupCoverage,
-                binding.androidAccessCard,
-                binding.recognitionCard,
-                binding.appListCard,
+                binding.appsCard,
                 binding.settingsGroupServices,
                 binding.paypalCard,
                 binding.appSettingsCard
@@ -272,8 +268,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         editingUnlocked = ControllerPinManager.isSessionUnlocked();
         applySpaceVisibility();
         ControllerEditMode.renderButton(this, PrimaryHeader.editLockButton(binding.getRoot()));
-        boolean modulesEditable = editingUnlocked
-                && !SubHubPackLocks.isLocked(this, SubHubPackSchema.MODULES);
+        boolean modulesEditable = editingUnlocked;
         binding.switchModuleCensor.setEnabled(modulesEditable);
         binding.switchModuleLimits.setEnabled(modulesEditable);
         binding.switchModuleWallet.setEnabled(modulesEditable);
@@ -311,6 +306,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.hardcoreCard.setVisibility(domVisibility);
         binding.featureAreasCard.setVisibility(domVisibility);
         binding.settingsGroupCoverage.setVisibility(domVisibility);
+        binding.appsCard.setVisibility(domVisibility);
         binding.androidAccessCard.setVisibility(domVisibility);
         binding.recognitionCard.setVisibility(domVisibility);
         binding.appListCard.setVisibility(domVisibility);
@@ -320,10 +316,7 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         binding.buttonCommitment.setVisibility(View.GONE);
         binding.settingsGroupServices.setVisibility(View.VISIBLE);
         binding.appSettingsCard.setVisibility(View.VISIBLE);
-        binding.buttonProfiles.setVisibility(View.VISIBLE);
-        PrimaryHeader.subtitle(binding.getRoot()).setText(domSpace
-                ? R.string.global_settings_subtitle
-                : R.string.global_settings_subtitle_sub);
+        binding.buttonPacks.setVisibility(View.VISIBLE);
     }
 
     private void saveRecognition() {
@@ -340,13 +333,13 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
 
     private void saveAppAssignments() {
         if (!editingUnlocked) return;
+        AppModePolicy.Mode mode = binding.modeSelected.isChecked()
+                ? AppModePolicy.Mode.SELECTED_APPS : AppModePolicy.Mode.ALWAYS;
+        boolean armed = appMode.isArmed();
         appMode.saveAppSelections(censorPackages, timerPackages, subliminalPackages);
-        if (!censorPackages.isEmpty() && !binding.modeSelected.isChecked()) {
-            updatingRecognition = true;
-            binding.modeGroup.check(R.id.mode_selected);
-            updatingRecognition = false;
-            saveRecognition();
-        }
+        // Keep the explicit Censor scope; assignments never toggle the service or
+        // change the independent Limits and Subliminal app selections.
+        appMode.save(armed, mode, censorPackages);
         renderSelectedCount();
     }
 
@@ -745,12 +738,10 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
     private void refreshAccessState() {
         if (binding == null || appMode == null) return;
         int status;
-        if (!appMode.isAccessibilityEnabled()) status = R.string.app_mode_status_permission_off;
-        else if (ScreenshotAccessibilityService.isRecognitionActive()) {
-            status = R.string.app_mode_status_recognizing;
-        } else if (ScreenshotAccessibilityService.isRunning()) {
-            status = R.string.app_mode_status_waiting;
-        } else status = R.string.app_mode_status_reconnecting;
+        if (!appMode.isAccessibilityEnabled()) status = R.string.apps_accessibility_off;
+        else if (ScreenshotAccessibilityService.isRunning()) {
+            status = R.string.apps_accessibility_ready;
+        } else status = R.string.apps_accessibility_reconnecting;
         binding.serviceStatus.setText(status);
     }
 
@@ -828,10 +819,6 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         boolean censor = binding.switchModuleCensor.isChecked();
         modules.save(censor, binding.switchModuleLimits.isChecked(),
                 binding.switchModuleWallet.isChecked());
-        if (!modules.hasRuntimeFeature()) {
-            startService(ScreenCaptureService.stopIntent(this));
-            new AppModeManager(this).setArmed(false);
-        }
         SubHubNavigation.bind(this, binding.getRoot(), SubHubNavigation.Screen.SETTINGS);
     }
 
@@ -950,7 +937,8 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         check.setTextSize(10f);
         check.setChecked(checked);
         check.setEnabled(editingUnlocked);
-        check.setMinHeight(dp(32));
+        check.setMinHeight(dp(48));
+        check.setMinimumHeight(dp(48));
         check.setPadding(0, 0, 0, 0);
         CompoundButtonCompat.setButtonTintList(check,
                 ColorStateList.valueOf(getColor(R.color.accent)));

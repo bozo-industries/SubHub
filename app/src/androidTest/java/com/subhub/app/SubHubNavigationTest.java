@@ -58,6 +58,26 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Proves enabled product tabs plus the always-visible Settings tab navigate correctly. */
 @RunWith(AndroidJUnit4.class)
 public final class SubHubNavigationTest {
+    @Test public void achievementNoticeDoesNotCoverTheFloatingNavigation() throws Exception {
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(activity -> {
+                try {
+                    java.lang.reflect.Method notice = MainActivity.class.getDeclaredMethod("showAchievementUnlock",
+                            com.subhub.app.stats.AchievementManager.Achievement.class, int.class);
+                    notice.setAccessible(true);
+                    notice.invoke(activity, new com.subhub.app.stats.AchievementManager(activity).all().get(0), 0);
+                } catch (ReflectiveOperationException failure) { throw new AssertionError(failure); }
+            });
+            onView(withId(com.google.android.material.R.id.snackbar_text)).check((view, error) -> {
+                if (error != null) throw error;
+                Rect notice = new Rect(), navigation = new Rect();
+                assertTrue(((View) view.getParent().getParent()).getGlobalVisibleRect(notice));
+                assertTrue(view.getRootView().findViewById(R.id.bottom_navigation).getGlobalVisibleRect(navigation));
+                assertTrue("Achievement notices must not cover navigation", notice.bottom <= navigation.top);
+            });
+        }
+    }
+
     @Before public void enterDomMode() {
         android.content.Context context = ApplicationProvider.getApplicationContext();
         if (!ControllerPinManager.isConfigured(context)) {
@@ -121,7 +141,7 @@ public final class SubHubNavigationTest {
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.app_settings_card).getVisibility());
                 assertEquals(View.VISIBLE,
-                        activity.findViewById(R.id.button_profiles).getVisibility());
+                        activity.findViewById(R.id.button_packs).getVisibility());
                 assertEquals(View.VISIBLE,
                         activity.findViewById(R.id.button_diagnostics).getVisibility());
                 assertEquals(View.VISIBLE,

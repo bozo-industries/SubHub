@@ -114,7 +114,7 @@ public final class PackPayPalCipherTest {
         }
         SubHubPack decoded = SubHubPackArchive.read(new ByteArrayInputStream(out.toByteArray()));
         assertTrue(decoded.hasEncryptedPayPal());
-        assertEquals(2, decoded.manifestWithoutIntegrity(Map.of()).getInt("schemaVersion"));
+        assertEquals(3, decoded.manifestWithoutIntegrity(Map.of()).getInt("schemaVersion"));
         assertEquals(pack.getUpdatedAt(), decoded.getUpdatedAt());
         try (PackPayPalCipher.Payload value = PackPayPalCipher.decrypt(decoded.getId(),
                 decoded.getOriginDeviceId(), decoded.getEncryptedPayPal(), PASSWORD)) {
@@ -132,7 +132,7 @@ public final class PackPayPalCipherTest {
         PackPayPalCipher.validateEnvelope(pack.getEncryptedPayPal());
         pack.setSection(SubHubPackSchema.WALLET, null);
         assertFalse(pack.hasEncryptedPayPal());
-        assertEquals(1, pack.manifestWithoutIntegrity(Map.of()).getInt("schemaVersion"));
+        assertEquals(3, pack.manifestWithoutIntegrity(Map.of()).getInt("schemaVersion"));
         assertThrows(GeneralSecurityException.class, () -> pack.setEncryptedPayPal(returned));
     }
 

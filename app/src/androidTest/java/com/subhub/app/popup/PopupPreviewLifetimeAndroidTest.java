@@ -1,0 +1,150 @@
+package com.subhub.app.popup;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.ParcelFileDescriptor;
+import android.os.SystemClock;
+import android.provider.Settings;
+
+import androidx.test.core.app.ActivityScenario;
+import androidx.test.core.app.ApplicationProvider;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.subhub.app.appmode.AppModeManager;
+import com.subhub.app.security.ControllerPinManager;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/** Exercises the real manager timer after its requesting editor has been destroyed. */
+@RunWith(AndroidJUnit4.class)
+public final class PopupPreviewLifetimeAndroidTest {
+    private Context context;
+    private SharedPreferences preferences;
+    private Map<String, ?> original;
+    private boolean originallyArmed;
+    private boolean originallyDom;
+    private boolean overlayChanged;
+    private String overlayMode;
+
+    @Before public void setUp() throws Exception {
+        context = ApplicationProvider.getApplicationContext();
+        if (!ControllerPinManager.isConfigured(context)) {
+            assertTrue(ControllerPinManager.setPin(context, "2468"));
+        }
+        preferences = PopupStormSettings.preferences(context);
+        original = preferences.getAll();
+        originallyArmed = new AppModeManager(context).isArmed();
+        originallyDom = ControllerPinManager.isDomModeActive();
+        new AppModeManager(context).setArmed(false);
+        ControllerPinManager.enterDomMode();
+        PopupStormManager.get().stop();
+        if (!Settings.canDrawOverlays(context)) {
+            String current = shell("appops get " + context.getPackageName()
+                    + " SYSTEM_ALERT_WINDOW");
+            Matcher mode = Pattern.compile("SYSTEM_ALERT_WINDOW: (allow|deny|ignore|default|foreground)")
+                    .matcher(current);
+            if (mode.find()) overlayMode = mode.group(1);
+            else if (current.contains("No operations")) overlayMode = "default";
+            else throw new IllegalStateException("Unknown overlay test permission state");
+            overlayChanged = true;
+            shell("appops set " + context.getPackageName() + " SYSTEM_ALERT_WINDOW allow");
+            assertTrue("Overlay permission fixture must be ready", Settings.canDrawOverlays(context));
+        }
+        // Popup settings share the main preference file; never erase the PIN fixture.
+        preferences.edit().putBoolean(PopupStormSettings.K_ENABLED, true)
+                .putBoolean(PopupStormSettings.K_ACK, true).commit();
+    }
+
+    @After public void tearDown() throws Exception {
+        PopupStormManager.get().stop();
+        if (preferences != null && original != null) {
+            SharedPreferences.Editor restore = preferences.edit().clear();
+            for (Map.Entry<String, ?> entry : original.entrySet()) {
+                Object value = entry.getValue();
+                if (value instanceof Boolean) restore.putBoolean(entry.getKey(), (Boolean) value);
+                else if (value instanceof Integer) restore.putInt(entry.getKey(), (Integer) value);
+                else if (value instanceof Long) restore.putLong(entry.getKey(), (Long) value);
+                else if (value instanceof Float) restore.putFloat(entry.getKey(), (Float) value);
+                else if (value instanceof String) restore.putString(entry.getKey(), (String) value);
+                else if (value instanceof Set) {
+                    @SuppressWarnings("unchecked") Set<String> values = (Set<String>) value;
+                    restore.putStringSet(entry.getKey(), values);
+                }
+            }
+            restore.commit();
+        }
+        if (overlayChanged) shell("appops set " + context.getPackageName()
+                + " SYSTEM_ALERT_WINDOW " + overlayMode);
+        if (context != null) new AppModeManager(context).setArmed(originallyArmed);
+        if (originallyDom) ControllerPinManager.enterDomMode();
+        else ControllerPinManager.enterSubMode();
+    }
+
+    @Test public void previewOutlivesEditorAndExpiresWithoutEnteringService() {
+        PopupStormManager manager = PopupStormManager.get();
+        boolean pinConfigured = ControllerPinManager.isConfigured(context);
+        AtomicReference<PopupStormManager.PreviewResult> result = new AtomicReference<>();
+        try (ActivityScenario<PopupStormActivity> scenario =
+                     ActivityScenario.launch(PopupStormActivity.class)) {
+            scenario.onActivity(activity -> result.set(manager.preview(activity)));
+            assertEquals(PopupStormManager.PreviewResult.STARTED, result.get());
+            await(manager::isRunning, 3_000);
+            assertTrue(manager.isPreviewing());
+            assertFalse(new AppModeManager(context).isArmed());
+        }
+        assertTrue("Destroying the editor must leave the manager-owned deadline intact",
+                manager.isPreviewing());
+        await(() -> !manager.isPreviewing(), manager.remainingPreviewMillis() + 2_000);
+        assertFalse(manager.isRunning());
+        assertFalse(new AppModeManager(context).isArmed());
+        assertEquals(pinConfigured, ControllerPinManager.isConfigured(context));
+    }
+
+    @Test public void previewRequiresThePhotosensitivityAcknowledgement() {
+        preferences.edit().putBoolean(PopupStormSettings.K_ACK, false).commit();
+        AtomicReference<PopupStormManager.PreviewResult> result = new AtomicReference<>();
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(
+                () -> result.set(PopupStormManager.get().preview(context)));
+        assertEquals(PopupStormManager.PreviewResult.UNAVAILABLE, result.get());
+        assertFalse(PopupStormManager.get().isPreviewing());
+        assertFalse(new AppModeManager(context).isArmed());
+    }
+
+    private static void await(BooleanSupplier condition, long timeout) {
+        long deadline = SystemClock.uptimeMillis() + timeout;
+        while (!condition.getAsBoolean() && SystemClock.uptimeMillis() < deadline) {
+            SystemClock.sleep(40);
+        }
+        assertTrue("Popup preview lifecycle did not reach the expected state", condition.getAsBoolean());
+    }
+
+    private static String shell(String command) throws Exception {
+        try (ParcelFileDescriptor descriptor = InstrumentationRegistry.getInstrumentation()
+                .getUiAutomation().executeShellCommand(command);
+             FileInputStream input = new FileInputStream(descriptor.getFileDescriptor());
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[512];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        }
+    }
+}

@@ -1450,11 +1450,11 @@ final class CensorOverlayView extends View {
                 border.setAlpha(255);
                 break;
             case GRADIENT:
-                float pulse = phase <= 180f ? phase / 180f : (360f - phase) / 180f;
-                border.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
-                        blendColor(appearance.getBorderColor(), Color.WHITE, .12f + pulse * .24f),
-                        blendColor(appearance.getBorderColor(), Color.rgb(76, 216, 235),
-                                .30f - pulse * .16f), Shader.TileMode.CLAMP));
+                LinearGradient gradient = new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
+                        appearance.getGradientStart(), appearance.getGradientEnd(), Shader.TileMode.CLAMP);
+                borderShaderMatrix.setRotate(phase, rect.centerX(), rect.centerY());
+                gradient.setLocalMatrix(borderShaderMatrix);
+                border.setShader(gradient);
                 break;
             case RAINBOW:
                 SweepGradient rainbow = new SweepGradient(rect.centerX(), rect.centerY(),

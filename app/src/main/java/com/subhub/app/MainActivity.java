@@ -18,6 +18,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
@@ -122,11 +123,7 @@ public final class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_tab_home, R.string.app_name,
-                R.string.header_subtitle);
-        View homeHeader = PrimaryHeader.view(binding.getRoot());
-        homeHeader.setMinimumHeight(dp(64));
-        homeHeader.setPaddingRelative(dp(12), dp(8), dp(12), dp(8));
-        PrimaryHeader.subtitle(binding.getRoot()).setVisibility(View.GONE);
+                0);
         editLockButton = findViewById(R.id.button_edit_lock);
         projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
@@ -236,7 +233,9 @@ public final class MainActivity extends AppCompatActivity {
             boolean suppressPermissionReadiness = BuildConfig.DEBUG
                     && getIntent() != null
                     && getIntent().getBooleanExtra(EXTRA_SUPPRESS_PERMISSION_READINESS, false);
-            if (!shortcutStartsProtection && !suppressPermissionReadiness) {
+            // Let first-run setup explain the app before opening Android settings.
+            // Explicit Fix, Enter Service and shortcut actions keep their own flows.
+            if (seen && !shortcutStartsProtection && !suppressPermissionReadiness) {
                 binding.getRoot().postDelayed(
                         () -> beginPermissionReadinessFlow(false), 350L);
             }
@@ -271,13 +270,13 @@ public final class MainActivity extends AppCompatActivity {
             return;
         }
         FeatureModuleManager featureModules = new FeatureModuleManager(this);
-        if (!featureModules.hasRuntimeFeature()) {
-            startActivity(new Intent(this, GlobalSettingsActivity.class));
-            return;
-        }
         AppModeManager appMode = new AppModeManager(this);
         boolean stopping = ScreenCaptureService.isRunning() || appMode.isArmed()
                 || ScreenshotAccessibilityService.isRecognitionActive();
+        if (!stopping && !featureModules.hasRuntimeFeature()) {
+            startActivity(new Intent(this, GlobalSettingsActivity.class));
+            return;
+        }
         if (stopping) {
             ProtectionStopPolicy.Decision stopDecision = ProtectionStopPolicy.decision(this);
             if (stopDecision == ProtectionStopPolicy.Decision.TIMER_LOCKED) {
@@ -572,8 +571,7 @@ public final class MainActivity extends AppCompatActivity {
         int atmosphereCount = (subliminalEnabled ? 1 : 0) + (popupEnabled ? 1 : 0);
         binding.subAtmosphereStatus.setText(getResources().getQuantityString(
                 R.plurals.atmosphere_effects_active, atmosphereCount, atmosphereCount));
-        binding.buttonProtection.setVisibility(modules.hasRuntimeFeature()
-                ? View.VISIBLE : View.GONE);
+        binding.buttonProtection.setVisibility(View.VISIBLE);
         binding.protectionStatusRow.setVisibility(View.GONE);
         binding.runtimeStatus.setVisibility(View.GONE);
         binding.modeHint.setVisibility(View.GONE);
@@ -1078,6 +1076,9 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void renderMetricRows(LinearLayout container, List<Metric> metrics, int columns) {
+        android.content.res.Configuration config = getResources().getConfiguration();
+        if (config.fontScale >= 1.7f) columns = 1;
+        else if (config.screenWidthDp < 380 || config.fontScale >= 1.3f) columns = Math.min(columns, 2);
         container.removeAllViews();
         for (int offset = 0; offset < metrics.size(); offset += columns) {
             LinearLayout row = new LinearLayout(this);
@@ -1106,7 +1107,8 @@ public final class MainActivity extends AppCompatActivity {
         card.setGravity(android.view.Gravity.CENTER);
         card.setBackgroundResource(R.drawable.bg_home_metric);
         card.setPadding(dp(6), dp(8), dp(6), dp(8));
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(0, dp(70), 1f);
+        card.setMinimumHeight(dp(70));
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         if (column > 0) cardParams.leftMargin = dp(4);
         if (column < 2) cardParams.rightMargin = dp(4);
         card.setLayoutParams(cardParams);
@@ -1115,16 +1117,15 @@ public final class MainActivity extends AppCompatActivity {
         value.setText(metric.value);
         value.setTextAppearance(R.style.Widget_SubHub_HomeStatValue);
         value.setGravity(android.view.Gravity.CENTER);
-        value.setMaxLines(1);
-        value.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        value.setSingleLine(false);
         card.addView(value);
 
         TextView label = new TextView(this);
         label.setText(metric.label);
         label.setTextAppearance(R.style.Widget_SubHub_HomeStatLabel);
         label.setGravity(android.view.Gravity.CENTER);
-        label.setMaxLines(1);
-        label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        label.setTextSize(12f);
+        label.setSingleLine(false);
         card.addView(label);
         return card;
     }
@@ -1239,47 +1240,25 @@ public final class MainActivity extends AppCompatActivity {
         }
         MilestoneManager.Result milestone = MilestoneManager.takeUnseen(this, stats.getTotalBlocks());
         if (milestone != null) {
-            Snackbar.make(binding.getRoot(), milestone.getMessage(), Snackbar.LENGTH_LONG).show();
+            Snackbar notice = Snackbar.make(binding.getRoot(), milestone.getMessage(), Snackbar.LENGTH_LONG)
+                    .setAnchorView(binding.getRoot().findViewById(R.id.bottom_navigation));
+            notice.setAnchorViewLayoutListenerEnabled(true);
+            notice.show();
         }
     }
 
     private void showAchievementUnlock(AchievementManager.Achievement achievement,
             int additionalUnlocks) {
-        Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        View content = LayoutInflater.from(this).inflate(
-                R.layout.dialog_achievement_unlocked, null, false);
-        AchievementBadgeView badge = content.findViewById(R.id.achievement_unlock_badge);
-        badge.bind(achievement.getBadgeArtRes(), true, false,
-                getString(achievement.getName()));
-        ((TextView) content.findViewById(R.id.achievement_unlock_name))
-                .setText(achievement.getName());
-        ((TextView) content.findViewById(R.id.achievement_unlock_description))
-                .setText(achievement.getDescription());
-        TextView more = content.findViewById(R.id.achievement_unlock_more);
-        if (additionalUnlocks > 0) {
-            more.setText(getString(R.string.achievement_more_unlocked, additionalUnlocks));
-            more.setVisibility(View.VISIBLE);
-        }
-        content.findViewById(R.id.achievement_unlock_action).setOnClickListener(view -> {
-            dialog.dismiss();
-            startActivity(new Intent(this, AchievementsActivity.class));
-        });
-        dialog.setContentView(content);
-        dialog.setCanceledOnTouchOutside(true);
-        dialog.show();
-        Window window = dialog.getWindow();
-        if (window != null) {
-            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            WindowManager.LayoutParams attributes = window.getAttributes();
-            attributes.dimAmount = 0.58f;
-            window.setAttributes(attributes);
-            int availableWidth = getResources().getDisplayMetrics().widthPixels - dp(32);
-            window.setLayout(Math.min(availableWidth, dp(440)),
-                    WindowManager.LayoutParams.WRAP_CONTENT);
-        }
-        PremiumMotion.styleDialog(dialog);
+        int count = additionalUnlocks + 1;
+        String message = additionalUnlocks == 0
+                ? getString(R.string.achievement_notice_single, getString(achievement.getName()))
+                : getResources().getQuantityString(R.plurals.achievement_notice_count, count, count);
+        Snackbar notice = Snackbar.make(binding.getRoot(), message, Snackbar.LENGTH_LONG)
+                .setAnchorView(binding.getRoot().findViewById(R.id.bottom_navigation))
+                .setAction(R.string.achievement_notice_view,
+                        view -> startActivity(new Intent(this, AchievementsActivity.class)));
+        notice.setAnchorViewLayoutListenerEnabled(true);
+        notice.show();
     }
 
     @Override

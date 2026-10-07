@@ -62,14 +62,6 @@
             android:exported="false" />
 
         <activity
-            android:name=".profiles.ProfilesActivity"
-            android:exported="false" />
-
-        <activity
-            android:name=".pack.PacksActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".studio.StudioActivity"
             android:exported="false" />
 

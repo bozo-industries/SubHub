@@ -1,5 +1,7 @@
 package com.subhub.app.diagnostics;
 
+import com.subhub.app.util.PrimaryHeader;
+
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
@@ -28,7 +30,7 @@ import com.subhub.app.R;
 import com.subhub.app.databinding.ActivityDiagnosticsBinding;
 import com.subhub.app.detection.DetectorConfig;
 import com.subhub.app.capture.MediaProjectionLeaseRegistry;
-import com.subhub.app.pack.PackManager;
+import com.subhub.app.pack.SubHubPackManager;
 import com.subhub.app.security.ControllerEditMode;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.service.ScreenCaptureService;
@@ -106,10 +108,11 @@ public final class DiagnosticsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityDiagnosticsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        PrimaryHeader.bindSecondary(binding.getRoot(), R.string.diagnostics_title, true);
         settings = new SettingsRepository(this);
         projectionManager = (MediaProjectionManager)
                 getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        binding.buttonBack.setOnClickListener(view -> finish());
+        PrimaryHeader.backButton(binding.getRoot()).setOnClickListener(view -> finish());
         binding.buttonRefresh.setOnClickListener(view -> render());
         binding.buttonCensorLabStart.setOnClickListener(view -> startLabSession());
         binding.buttonCensorLabStop.setOnClickListener(view -> stopLabSession());
@@ -131,10 +134,10 @@ public final class DiagnosticsActivity extends AppCompatActivity {
                 settings.preferences().edit().putBoolean(
                         DiagnosticsRepository.PREF_OVERLAY, checked).apply());
         if (ControllerPinManager.isDomModeActive()) {
-            editMode = ControllerEditMode.bind(this, binding.buttonEditLock, editing ->
+            editMode = ControllerEditMode.bind(this, PrimaryHeader.editLockButton(binding.getRoot()), editing ->
                     binding.switchDiagnosticsOverlay.setEnabled(editing));
         } else {
-            binding.buttonEditLock.setVisibility(android.view.View.GONE);
+            PrimaryHeader.editLockButton(binding.getRoot()).setVisibility(android.view.View.GONE);
             binding.switchDiagnosticsOverlay.setEnabled(false);
         }
         render();
@@ -192,7 +195,7 @@ public final class DiagnosticsActivity extends AppCompatActivity {
                 config.getInferenceResolution(), config.getInferenceResolution(),
                 config.getCaptureScale() * 100f, config.getDetectionIntervalMs(),
                 config.getConfidenceThreshold() * 100f, config.getEnabledCategories().size(),
-                new PackManager(this).activePackId() == null ? "None" : "Active"));
+                new SubHubPackManager(this).activePackId() == null ? "None" : "Active"));
 
         boolean notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
                 || ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)

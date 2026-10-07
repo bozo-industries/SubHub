@@ -22,10 +22,8 @@ import com.subhub.app.capture.ExportActivity;
 import com.subhub.app.commitment.CommitmentActivity;
 import com.subhub.app.diagnostics.DiagnosticsActivity;
 import com.subhub.app.help.HelpActivity;
-import com.subhub.app.pack.PacksActivity;
 import com.subhub.app.penance.PenanceActivity;
 import com.subhub.app.popup.PopupStormActivity;
-import com.subhub.app.profiles.ProfilesActivity;
 import com.subhub.app.settings.SettingsActivity;
 import com.subhub.app.settings.GlobalSettingsActivity;
 import com.subhub.app.settings.FeatureModuleManager;
@@ -85,8 +83,6 @@ public final class PageMapScreenshotTest {
         capture("09-statistics", StatsActivity.class);
         capture("10-achievements", AchievementsActivity.class);
         capture("11-custom-images", CustomImagesActivity.class);
-        capture("12-profiles", ProfilesActivity.class);
-        capture("13-configuration-packs", PacksActivity.class);
         capture("14-atmosphere", AtmosphereActivity.class);
         capture("15-whispers", SubliminalSettingsActivity.class);
         capture("16-popup-storm", PopupStormActivity.class);
@@ -96,6 +92,72 @@ public final class PageMapScreenshotTest {
         capture("18-updates", UpdatesActivity.class);
         capture("19-diagnostics", DiagnosticsActivity.class);
         captureActiveServiceLock("20-service-lock");
+    }
+
+    @Test public void captureSharedColorWheel() throws Exception {
+        prepareFixture(false);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        File directory = new File(context.getExternalFilesDir(null), "page-map");
+        if (!directory.exists() && !directory.mkdirs()) throw new IllegalStateException("No screenshot directory");
+        try (ActivityScenario<SettingsActivity> scenario = ActivityScenario.launch(SettingsActivity.class)) {
+            scenario.onActivity(activity -> com.subhub.app.util.ColorPickerDialog.show(activity,
+                    activity.getString(R.string.gradient_start), android.graphics.Color.MAGENTA, color -> { }));
+            UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+            device.waitForIdle(750L);
+            if (!device.takeScreenshot(new File(directory, "21-color-wheel.png"))) {
+                throw new IllegalStateException("Could not capture color picker");
+            }
+            androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withId(android.R.id.button2))
+                    .perform(androidx.test.espresso.action.ViewActions.click());
+        }
+    }
+
+    @Test public void captureFirstClassPackWizard() throws Exception {
+        prepareFixture(false);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        File directory = new File(context.getExternalFilesDir(null), "page-map");
+        if (!directory.exists() && !directory.mkdirs()) throw new IllegalStateException("No screenshot directory");
+        try (ActivityScenario<StudioActivity> scenario = ActivityScenario.launch(StudioActivity.class)) {
+            scenario.onActivity(activity -> activity.findViewById(R.id.button_blank).performClick());
+            String[] names = {"22-wizard-details", "23-wizard-features", "24-wizard-images", "25-wizard-review"};
+            for (int step = 0; step < names.length; step++) {
+                final int selected = step;
+                scenario.onActivity(activity -> activity.getWindow().getDecorView()
+                        .findViewWithTag("pack_step:" + selected).performClick());
+                UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+                device.waitForIdle(750L);
+                if (!device.takeScreenshot(new File(directory, names[step] + ".png"))) {
+                    throw new IllegalStateException("Could not capture wizard step " + step);
+                }
+            }
+        }
+    }
+
+    @Test public void captureNativePackSectionEditor() throws Exception {
+        prepareFixture(false);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        File directory = new File(context.getExternalFilesDir(null), "page-map");
+        if (!directory.exists() && !directory.mkdirs()) throw new IllegalStateException("No screenshot directory");
+        try (ActivityScenario<StudioActivity> scenario = ActivityScenario.launch(StudioActivity.class)) {
+            scenario.onActivity(activity -> {
+                try {
+                    java.lang.reflect.Method show = Class.forName("com.subhub.app.studio.PackSectionEditor")
+                            .getDeclaredMethod("show", androidx.appcompat.app.AppCompatActivity.class,
+                                    String.class, String.class, org.json.JSONObject.class, java.util.function.Consumer.class);
+                    show.setAccessible(true);
+                    show.invoke(null, activity, "censor", "Censor",
+                            com.subhub.app.pack.PackSettingCatalog.defaults("censor"),
+                            (java.util.function.Consumer<org.json.JSONObject>) values -> { });
+                } catch (ReflectiveOperationException failure) { throw new AssertionError(failure); }
+            });
+            UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+            device.waitForIdle(750L);
+            if (!device.takeScreenshot(new File(directory, "26-pack-section-editor.png"))) {
+                throw new IllegalStateException("Could not capture section editor");
+            }
+            androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withId(android.R.id.button2))
+                    .perform(androidx.test.espresso.action.ViewActions.click());
+        }
     }
 
     private static void prepareFixture(boolean subSpace) throws Exception {
@@ -241,8 +303,6 @@ public final class PageMapScreenshotTest {
         } else {
             ControllerPinManager.enterSubMode();
         }
-        TextView studioMode = activity.findViewById(R.id.studio_mode);
-        if (studioMode != null) studioMode.setText(R.string.studio_sub_space);
     }
 
     private static void captureScrolled(

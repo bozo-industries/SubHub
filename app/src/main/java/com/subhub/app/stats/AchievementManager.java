@@ -9,7 +9,7 @@ import com.subhub.app.appmode.AppModePolicy;
 import com.subhub.app.appmode.AppTimerManager;
 import com.subhub.app.commitment.CommitmentManager;
 import com.subhub.app.detection.text.TextSmutConfig;
-import com.subhub.app.pack.PackManager;
+import com.subhub.app.pack.SubHubPackManager;
 import com.subhub.app.penance.PaidPauseManager;
 import com.subhub.app.penance.PayPalCredentialStore;
 import com.subhub.app.penance.PenanceInfraction;
@@ -57,7 +57,11 @@ public final class AchievementManager {
         if (!isUnlocked(id)) return 0L;
         return preferences.getLong(KEY_UNLOCKED_AT_PREFIX + id, legacyUnlockTimestamp());
     }
-    public int getUnlockedCount() { return unlocked.size(); }
+    public int getUnlockedCount() {
+        int count = 0;
+        for (Achievement value : ACHIEVEMENTS) if (unlocked.contains(value.id)) count++;
+        return count;
+    }
     public int getTotalCount() { return ACHIEVEMENTS.size(); }
 
     public Progress progress(Achievement value, StatsSnapshot stats) {
@@ -156,10 +160,9 @@ public final class AchievementManager {
             case "border_artist": return stats.getBorderEffectsTried().size();
             case "color_picker": return stats.isBorderColorChanged() ? 1 : 0;
             case "first_custom_phrase": case "phrase_library": return stats.getCustomPhrases();
-            case "profile_creator": case "profile_organizer": return stats.getProfiles();
             case "export_first": case "export_artist": return stats.getExportedImages();
             case "ntr_50": case "ntr_100": case "ntr_200": case "ntr_500": return stats.getAllCategoryCensors();
-            case "legend": return unlocked.size();
+            case "legend": return getUnlockedCount();
             case "app_mode_guardian":
                 return new AppModeManager(context).isArmed() ? 1 : 0;
             case "app_assignment_curator":
@@ -194,7 +197,7 @@ public final class AchievementManager {
                         ? config.getEnabledCategories().size() : 0;
             }
             case "pack_curator":
-                return new PackManager(context).activePackId() == null ? 0 : 1;
+                return new SubHubPackManager(context).activePackId() == null ? 0 : 1;
             case "wallet_keeper":
                 return new PenanceManager(context).isEnabled() ? 1 : 0;
             case "tribute_rulesmith": {
@@ -222,7 +225,7 @@ public final class AchievementManager {
 
     static long target(String id) {
         switch (id) {
-            case "first_block": case "first_session": case "first_custom_phrase": case "profile_creator":
+            case "first_block": case "first_session": case "first_custom_phrase":
             case "export_first": case "color_picker": return 1;
             case "sessions_10": case "phrase_library": return 10;
             case "sessions_100": case "blocks_10": return 100;
@@ -240,7 +243,6 @@ public final class AchievementManager {
             case "peak_500": return 5000;
             case "style_explorer": return 8;
             case "border_artist": return 4;
-            case "profile_organizer": return 3;
             case "ntr_100": return 100;
             case "ntr_200": return 200;
             case "app_mode_guardian": case "limits_setter": case "limits_dual_guard":
@@ -319,8 +321,6 @@ public final class AchievementManager {
                 a("first_custom_phrase", R.string.achievement_first_custom_phrase, R.string.achievement_desc_first_custom_phrase, "✎", "custom", R.drawable.achievement_badge_first_custom_phrase, false),
                 a("phrase_library", R.string.achievement_phrase_library, R.string.achievement_desc_phrase_library, "▤", "custom", R.drawable.achievement_badge_phrase_library, false),
                 a("pack_curator", R.string.achievement_pack_curator, R.string.achievement_desc_pack_curator, "▤", "custom", R.drawable.achievement_badge_pack_curator, false),
-                a("profile_creator", R.string.achievement_profile_creator, R.string.achievement_desc_profile_creator, "▣", "profiles", R.drawable.achievement_badge_profile_creator, false),
-                a("profile_organizer", R.string.achievement_profile_organizer, R.string.achievement_desc_profile_organizer, "▰", "profiles", R.drawable.achievement_badge_profile_organizer, false),
                 a("export_first", R.string.achievement_export_first, R.string.achievement_desc_export_first, "⇩", "export", R.drawable.achievement_badge_export_first, false),
                 a("export_artist", R.string.achievement_export_artist, R.string.achievement_desc_export_artist, "⇩", "export", R.drawable.achievement_badge_export_artist, false),
                 a("subliminal_1", R.string.achievement_subliminal_1, R.string.achievement_desc_subliminal_1, "◉", "subliminal", R.drawable.achievement_badge_subliminal_1, false),

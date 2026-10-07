@@ -68,7 +68,7 @@ public final class PrimaryHeaderContractTest {
                 ViewGroup header = (ViewGroup) LayoutInflater.from(themed)
                         .inflate(R.layout.view_primary_header, null, false);
                 PrimaryHeader.bind(header, R.drawable.ic_atmosphere,
-                        R.string.atmosphere_title, R.string.atmosphere_subtitle_dom);
+                        R.string.atmosphere_title, 0);
                 int pageMargin = themed.getResources().getDimensionPixelSize(R.dimen.page_margin);
                 int headerWidth = dp(themed, width) - 2 * pageMargin;
                 header.measure(View.MeasureSpec.makeMeasureSpec(headerWidth, View.MeasureSpec.EXACTLY),
@@ -78,17 +78,85 @@ public final class PrimaryHeaderContractTest {
                 assertEquals("Primary titles should not split a word at " + width
                                 + "dp / font " + fontScale, 1,
                         ((TextView) header.findViewById(R.id.primary_header_title)).getLineCount());
-                assertTextFits(header, header.findViewById(R.id.primary_header_subtitle));
+                assertEquals(View.GONE,
+                        header.findViewById(R.id.primary_header_subtitle).getVisibility());
                 assertTextFits(header, header.findViewById(R.id.button_edit_lock));
                 assertTrue(header.findViewById(R.id.button_edit_lock).getHeight()
                         >= dp(themed, 48));
                 assertTrue(header.getHeight() >= themed.getResources()
                         .getDimensionPixelSize(R.dimen.primary_header_height));
                 if (width == 411 && fontScale == 1f) {
-                    assertEquals(dp(themed, 92), header.getHeight());
+                    assertEquals(dp(themed, 64), header.getHeight());
                 }
             }
         }
+    }
+
+    @Test public void subModeKeepsCompactHeadersAndWalletCurrency() {
+        ControllerPinManager.enterSubMode();
+        try {
+            assertHeader(MainActivity.class, R.string.app_name);
+            assertHeader(GlobalSettingsActivity.class, R.string.global_settings_title);
+            assertHeader(PenanceActivity.class, R.string.penance_title);
+        } finally {
+            ControllerPinManager.enterDomMode();
+        }
+    }
+
+    @Test public void secondaryHeadersFitEveryPageTitleAndControllerState() {
+        int[] titles = {R.string.commitment_title, R.string.custom_images_title,
+                R.string.diagnostics_title, R.string.export_title, R.string.help_title,
+                R.string.popup_title,
+                R.string.statistics_title, R.string.achievements_title,
+                R.string.subliminal_title, R.string.update_title, R.string.studio_title};
+        for (int width : new int[] {320, 411, 600}) {
+            for (float fontScale : new float[] {1f, 1.3f, 2f}) {
+                Configuration configuration = new Configuration(context.getResources()
+                        .getConfiguration());
+                configuration.screenWidthDp = width;
+                configuration.fontScale = fontScale;
+                Context themed = new ContextThemeWrapper(
+                        context.createConfigurationContext(configuration), R.style.Theme_SubHub);
+                for (int title : titles) for (boolean controller : new boolean[] {false, true}) {
+                    ViewGroup root = (ViewGroup) LayoutInflater.from(themed)
+                            .inflate(R.layout.view_secondary_header, null, false);
+                    PrimaryHeader.bindSecondary(root, title, controller);
+                    int availableWidth = dp(themed, width) - 2 * themed.getResources()
+                            .getDimensionPixelSize(R.dimen.page_margin);
+                    root.measure(View.MeasureSpec.makeMeasureSpec(
+                                    availableWidth, View.MeasureSpec.EXACTLY),
+                            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                    root.layout(0, 0, availableWidth, root.getMeasuredHeight());
+                    ViewGroup header = (ViewGroup) PrimaryHeader.view(root);
+                    assertTextFits(header, root.findViewById(R.id.primary_header_title));
+                    assertTextFits(header, PrimaryHeader.backButton(root));
+                    assertTrue(PrimaryHeader.backButton(root).getHeight() >= dp(themed, 48));
+                    assertTrue(PrimaryHeader.backButton(root).getWidth() >= dp(themed, 48));
+                    assertEquals(View.GONE, PrimaryHeader.subtitle(root).getVisibility());
+                    if (controller) {
+                        assertTextFits(header, PrimaryHeader.editLockButton(root));
+                        assertTrue(PrimaryHeader.editLockButton(root).getHeight()
+                                >= dp(themed, 48));
+                    } else assertEquals(View.GONE,
+                            PrimaryHeader.editLockButton(root).getVisibility());
+                }
+            }
+        }
+    }
+
+    @Test public void informationalSubtitleRemainsVisibleAndReadable() {
+        Context themed = new ContextThemeWrapper(context, R.style.Theme_SubHub);
+        ViewGroup header = (ViewGroup) LayoutInflater.from(themed)
+                .inflate(R.layout.view_primary_header, null, false);
+        PrimaryHeader.bind(header, R.drawable.ic_nav_money,
+                R.string.penance_title, R.string.wallet_currency_label);
+        int width = context.getResources().getDisplayMetrics().widthPixels
+                - 2 * context.getResources().getDimensionPixelSize(R.dimen.page_margin);
+        header.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        header.layout(0, 0, width, header.getMeasuredHeight());
+        assertEquals(View.VISIBLE, PrimaryHeader.subtitle(header).getVisibility());
+        assertTextFits(header, PrimaryHeader.subtitle(header));
     }
 
     private static void assertTextFits(ViewGroup header, TextView text) {
@@ -138,6 +206,8 @@ public final class PrimaryHeaderContractTest {
                         activity.getResources().getDisplayMetrics()), title.getTextSize(), 0.3f);
                 assertEquals(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 12,
                         activity.getResources().getDisplayMetrics()), subtitle.getTextSize(), 0.3f);
+                assertEquals(activityClass == PenanceActivity.class ? View.VISIBLE : View.GONE,
+                        subtitle.getVisibility());
                 assertTrue(ViewCompat.isAccessibilityHeading(title));
                 assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO,
                         icon.getImportantForAccessibility());
