@@ -75,3 +75,22 @@ are zero. These are idealized synthetic results, not Pixel/X performance measure
 Require a fresh native X Lab and the user's verdict on alignment, lag, reversal/stop, text
 stability and false-positive flashes. Existing capture/inference performance evidence belongs
 to Pass 110; there is no new real-device latency claim for this candidate yet.
+
+## October 7 private signing and installation
+
+Private signing run [37594444886](https://github.com/confiteor48/SubHub/actions/runs/37594444886)
+passed release tests/lint/build and signature verification for exact source
+`e2b0b7a2614384804bbda22ad2bed154e101a610`, immediate quality enabled and public release
+disabled. Compact artifact `11470107231` was checked against its provenance, checksum
+and the existing signing lineage. ARM64 APK SHA-256:
+`14086169736e537b563c87d51a60f3140dcdfeb800a0bdc352017aecf2086385`.
+
+Replace-install on Pixel succeeded without clearing app data. The installed `base.apk`
+was independently pulled back and matched that exact hash. Version is 0.6.3/code19;
+device-local update time is October 7, 10:37:06. The previous Pass 110 APK was backed up
+locally before replacement. Accessibility remains enabled and the service rebound.
+The initial render diagnostic was inactive because the foreground app was outside the
+selected protection list; this is installation/binding evidence, not performance evidence.
+
+No tag or public release was created. The requested native X trial and fresh Lab remain
+required before declaring alignment or the broader goal successful.
