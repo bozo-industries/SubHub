@@ -21,13 +21,24 @@ public final class CensorLabelLayout {
         int start = Math.floorMod(stableId, candidates.size());
         String narrowest = normalized(candidates.get(start));
         float narrowestWidth = measurer.width(narrowest);
+        if (narrowestWidth <= maximumWidth) return narrowest;
+        int fitting = 0;
         for (int offset = 0; offset < candidates.size(); offset++) {
             String candidate = normalized(candidates.get((start + offset) % candidates.size()));
             float width = measurer.width(candidate);
-            if (width <= maximumWidth) return candidate;
+            if (width <= maximumWidth) fitting++;
             if (width < narrowestWidth) {
                 narrowest = candidate;
                 narrowestWidth = width;
+            }
+        }
+        // Only the fallback maps into the fitting pool, avoiding a preference for the
+        // first short phrase after long ones. The normal one-measurement path stays unchanged.
+        if (fitting > 0) {
+            int selected = Math.floorMod(stableId, fitting);
+            for (String phrase : candidates) {
+                String candidate = normalized(phrase);
+                if (measurer.width(candidate) <= maximumWidth && selected-- == 0) return candidate;
             }
         }
         return narrowest;

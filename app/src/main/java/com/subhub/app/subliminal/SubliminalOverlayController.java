@@ -35,7 +35,7 @@ public final class SubliminalOverlayController implements AutoCloseable {
     private List<String> phrases = Collections.emptyList();
     private boolean eligible;
     private boolean added;
-    private int lastPhrase = -1;
+    private String lastPhrase;
 
     private final Runnable showNext = this::showNextMessage;
 
@@ -113,9 +113,8 @@ public final class SubliminalOverlayController implements AutoCloseable {
 
     private void showNextMessage() {
         if (!eligible || phrases.isEmpty() || !added) return;
-        int index = random.nextInt(phrases.size());
-        if (phrases.size() > 1 && index == lastPhrase) index = (index + 1) % phrases.size();
-        lastPhrase = index;
+        int index = SubliminalPhraseSelection.nextIndex(phrases, lastPhrase, random);
+        lastPhrase = phrases.get(index);
         message.animate().cancel();
         message.setAlpha(0f);
         message.setText(phrases.get(index));

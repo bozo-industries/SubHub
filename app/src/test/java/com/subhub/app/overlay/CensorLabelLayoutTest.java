@@ -27,4 +27,18 @@ public final class CensorLabelLayoutTest {
         assertEquals("CUS…", CensorLabelLayout.ellipsize(
                 "CUSTOM PHRASE", 4f, String::length));
     }
+
+    @Test public void narrowBoxDistributesStableIdsAcrossFittingLabels() {
+        java.util.List<String> phrases = Arrays.asList("LONG LABEL ONE", "LONG LABEL TWO",
+                "NO", "WAIT");
+        for (int stableId = -8; stableId < 8; stableId++) {
+            assertEquals(Math.floorMod(stableId, 2) == 0 ? "NO" : "WAIT",
+                    CensorLabelLayout.selectPhrase(phrases, stableId, 4f, String::length));
+        }
+    }
+
+    @Test public void noFitStillChoosesNarrowestBeforeEllipsis() {
+        assertEquals("NO", CensorLabelLayout.selectPhrase(
+                Arrays.asList("TOO LONG", "WAIT", "NO"), 0, 1f, String::length));
+    }
 }
