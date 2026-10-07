@@ -308,12 +308,12 @@ final class PackSectionEditor {
         Object normalized = field.normalize(value);
         if (String.valueOf(working.opt(field.key)).equals(String.valueOf(normalized))) return;
         put(field.key, normalized);
-        if ("detection_preset".equals(field.key)) {
+        if ("detection_quality".equals(field.key)) {
             int confidence = switch (String.valueOf(normalized)) {
-                case "low" -> 38; case "high" -> 25; case "ultra" -> 18; default -> 30;
+                case "low" -> 30; case "high" -> 18; default -> 25;
             };
-            put("confidence_threshold_percent", confidence);
-            invalidInputs.remove("confidence_threshold_percent");
+            put("detection_confidence_percent", confidence);
+            invalidInputs.remove("detection_confidence_percent");
         }
         if ("subliminal_preset".equals(field.key) || "subliminal_advanced".equals(field.key)) {
             if (!working.optBoolean("subliminal_advanced")) presetSubliminal();

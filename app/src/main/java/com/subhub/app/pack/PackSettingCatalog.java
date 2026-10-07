@@ -35,8 +35,8 @@ public final class PackSettingCatalog {
         add("modules", "module_limits_enabled", R.string.pack_field_module_limits_enabled, R.string.pack_group_features, Kind.BOOLEAN, Boolean.TRUE, 0, 0, 0, List.of());
         add("modules", "module_wallet_enabled", R.string.pack_field_module_wallet_enabled, R.string.pack_group_features, Kind.BOOLEAN, Boolean.TRUE, 0, 0, 0, List.of());
         add("modules", "module_subliminal_enabled", R.string.pack_field_module_subliminal_enabled, R.string.pack_group_features, Kind.BOOLEAN, Boolean.FALSE, 0, 0, 0, List.of());
-        add("censor", "detection_preset", R.string.pack_field_detection_preset, R.string.pack_group_detection, Kind.CHOICE, "medium", 0, 0, 0, List.of("low", "medium", "high", "ultra"));
-        add("censor", "confidence_threshold_percent", R.string.pack_field_confidence_threshold_percent, R.string.pack_group_detection, Kind.INTEGER, 30, 10, 80, 0, List.of());
+        add("censor", "detection_quality", R.string.pack_field_detection_preset, R.string.pack_group_detection, Kind.CHOICE, "medium", 0, 0, 0, List.of("low", "medium", "high"));
+        add("censor", "detection_confidence_percent", R.string.pack_field_confidence_threshold_percent, R.string.pack_group_detection, Kind.INTEGER, 25, 10, 80, 0, List.of());
         add("censor", "capture_method", R.string.pack_field_capture_method, R.string.pack_group_detection, Kind.CHOICE, "app_mode", 0, 0, 0, List.of("app_mode", "screen_recording"));
         add("censor", "app_mode_kind", R.string.pack_field_app_mode_kind, R.string.pack_group_detection, Kind.CHOICE, "always", 0, 0, 0, List.of("always", "selected"));
         add("censor", "censor_coverage", R.string.pack_field_censor_coverage, R.string.pack_group_detection, Kind.CHOICE, "detected_areas", 0, 0, 0, List.of("detected_areas", "whole_person"));
@@ -188,10 +188,10 @@ public final class PackSettingCatalog {
         JSONObject result = defaults(section);
         JSONObject clean = sanitize(section, values);
         clean.keys().forEachRemaining(key -> put(result, key, clean.opt(key)));
-        if (SubHubPackSchema.CENSOR.equals(section) && !clean.has("confidence_threshold_percent")) {
-            String preset = result.optString("detection_preset", "medium");
-            put(result, "confidence_threshold_percent", switch (preset) {
-                case "low" -> 38; case "high" -> 25; case "ultra" -> 18; default -> 30;
+        if (SubHubPackSchema.CENSOR.equals(section) && !clean.has("detection_confidence_percent")) {
+            String preset = result.optString("detection_quality", "medium");
+            put(result, "detection_confidence_percent", switch (preset) {
+                case "low" -> 30; case "high" -> 18; default -> 25;
             });
         }
         return result;
@@ -200,31 +200,14 @@ public final class PackSettingCatalog {
     public static JSONObject sanitize(String section, JSONObject values) {
         JSONObject result = new JSONObject();
         if (values == null) return result;
-        // Earlier packs used two misspelled rule-key layouts. Verify archive integrity first,
-        // then migrate to the actual runtime names without changing the amount.
         values.keys().forEachRemaining(key -> {
-            if (SubHubPackSchema.WALLET.equals(section) && "strike_cents".equals(key)
-                    && (values.has("rule_new_detection_cents")
-                    || values.has("rule_cents_new_detection"))) return;
-            String canonical = canonicalWalletKey(section, key);
-            Field field = field(section, canonical);
-            if (field == null || SubHubPackSchema.isSecretOrRuntimeKey(canonical)) return;
+            Field field = field(section, key);
+            if (field == null || SubHubPackSchema.isSecretOrRuntimeKey(key)) return;
             Object value = field.normalize(values.opt(key));
-            if (result.has(canonical) && !same(result.opt(canonical), value)) {
-                throw new IllegalArgumentException("Conflicting pack setting: " + canonical);
-            }
-            put(result, canonical, value);
+            put(result, key, value);
         });
         validateRelationships(result);
         return result;
-    }
-
-    private static String canonicalWalletKey(String section, String key) {
-        if (!SubHubPackSchema.WALLET.equals(section)) return key;
-        if ("strike_cents".equals(key)) return "rule_new_detection_cents";
-        if (key.startsWith("rule_enabled_")) return "rule_" + key.substring(13) + "_enabled";
-        if (key.startsWith("rule_cents_")) return "rule_" + key.substring(11) + "_cents";
-        return key;
     }
 
     public static void validateRelationships(JSONObject values) {
@@ -259,10 +242,6 @@ public final class PackSettingCatalog {
         }
     }
 
-    private static boolean same(Object left, Object right) {
-        return String.valueOf(left).equals(String.valueOf(right));
-    }
-
     private static void put(JSONObject object, String key, Object value) {
         try { object.put(key, value); }
         catch (org.json.JSONException invalid) { throw new IllegalArgumentException("Invalid pack setting", invalid); }
@@ -270,10 +249,9 @@ public final class PackSettingCatalog {
 
     public static int choiceLabel(Field field, String value) {
         return switch (field.key + ":" + value) {
-            case "detection_preset:low" -> R.string.pack_choice_detection_preset_low;
-            case "detection_preset:medium" -> R.string.pack_choice_detection_preset_medium;
-            case "detection_preset:high" -> R.string.pack_choice_detection_preset_high;
-            case "detection_preset:ultra" -> R.string.pack_choice_detection_preset_ultra;
+            case "detection_quality:low" -> R.string.pack_choice_detection_preset_low;
+            case "detection_quality:medium" -> R.string.pack_choice_detection_preset_medium;
+            case "detection_quality:high" -> R.string.pack_choice_detection_preset_high;
             case "capture_method:app_mode" -> R.string.pack_choice_capture_method_app_mode;
             case "capture_method:screen_recording" -> R.string.pack_choice_capture_method_screen_recording;
             case "censor_coverage:detected_areas" -> R.string.pack_choice_censor_coverage_detected_areas;

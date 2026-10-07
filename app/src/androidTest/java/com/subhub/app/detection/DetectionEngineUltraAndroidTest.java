@@ -34,7 +34,7 @@ public final class DetectionEngineUltraAndroidTest {
 
     @Test public void warmedRealtimeLaneIsFasterThanSettledQuality() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
-        DetectorConfig qualityConfig = DetectionPreset.ULTRA
+        DetectorConfig qualityConfig = DetectionPreset.HIGH
                 .applyTo(DetectorConfig.builder()).build();
         DetectorConfig fastConfig = qualityConfig.toBuilder()
                 .inferenceResolution(320).detectionIntervalMs(0L).build();
@@ -68,7 +68,7 @@ public final class DetectionEngineUltraAndroidTest {
 
     @Test public void fastLanePreemptsInFlightQualityInsteadOfCompeting() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
-        DetectorConfig qualityConfig = DetectionPreset.ULTRA
+        DetectorConfig qualityConfig = DetectionPreset.HIGH
                 .applyTo(DetectorConfig.builder()).build();
         DetectorConfig fastConfig = qualityConfig.toBuilder()
                 .inferenceResolution(320).detectionIntervalMs(0L).build();
@@ -135,7 +135,7 @@ public final class DetectionEngineUltraAndroidTest {
 
     @Test public void staleAdmissionTokenCancelsQualityBeforeNativeExecution() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
-        DetectorConfig qualityConfig = DetectionPreset.ULTRA
+        DetectorConfig qualityConfig = DetectionPreset.HIGH
                 .applyTo(DetectorConfig.builder()).build();
         Bitmap frame = Bitmap.createBitmap(230, 512, Bitmap.Config.ARGB_8888);
         new Canvas(frame).drawColor(Color.rgb(74, 20, 95));
@@ -152,7 +152,7 @@ public final class DetectionEngineUltraAndroidTest {
 
     @Test public void benchmarksNnapiFp16RelaxationWithoutEnablingItBlindly() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
-        DetectorConfig qualityConfig = DetectionPreset.ULTRA
+        DetectorConfig qualityConfig = DetectionPreset.HIGH
                 .applyTo(DetectorConfig.builder()).build();
         Bitmap qualityFrame = Bitmap.createBitmap(230, 512, Bitmap.Config.ARGB_8888);
         new Canvas(qualityFrame).drawColor(Color.rgb(74, 20, 95));
@@ -211,7 +211,7 @@ public final class DetectionEngineUltraAndroidTest {
 
     @Test public void benchmarksAtomicSceneObservationTopologies() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
-        DetectorConfig qualityConfig = DetectionPreset.ULTRA
+        DetectorConfig qualityConfig = DetectionPreset.HIGH
                 .applyTo(DetectorConfig.builder()).build();
         DetectorConfig fastConfig = qualityConfig.toBuilder()
                 .inferenceResolution(320).detectionIntervalMs(0L).build();

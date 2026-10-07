@@ -38,8 +38,8 @@ public final class PackSettingCatalogTest {
         assertEquals(sections.keySet(), imported.getIncludedSections());
         for (String section : sections.keySet()) assertEquals(PackVerifier.canonicalize(sections.get(section)),
                 PackVerifier.canonicalize(imported.getSection(section)));
-        assertTrue(imported.getLockGroups().isEmpty());
-        assertEquals(3, imported.manifestWithoutIntegrity(Map.of()).getInt("schemaVersion"));
+        assertFalse(imported.manifestWithoutIntegrity(Map.of()).has("lockGroups"));
+        assertEquals(4, imported.manifestWithoutIntegrity(Map.of()).getInt("schemaVersion"));
     }
 
     @Test public void decimalMoneyAndPercentEditorsDoNotChangeUnitsOrPreferenceTypes() {
@@ -51,7 +51,7 @@ public final class PackSettingCatalogTest {
         PackSettingCatalog.Field percent = PackSettingCatalog.field("censor", "censor_size_padding");
         assertEquals(.25f, ((Number) percent.parseText("25")).floatValue(), .00001f);
         assertEquals("25", percent.displayText(.25f));
-        assertTrue(PackSettingCatalog.field("censor", "confidence_threshold_percent").normalize(30) instanceof Integer);
+        assertTrue(PackSettingCatalog.field("censor", "detection_confidence_percent").normalize(30) instanceof Integer);
         assertTrue(PackSettingCatalog.field("subliminal", "subliminal_visible_ms").normalize(2000) instanceof Long);
         assertTrue(PackSettingCatalog.field("popup", "popup_storm_spawn_rate").normalize(2) instanceof Float);
     }
@@ -77,17 +77,13 @@ public final class PackSettingCatalogTest {
                 .normalize(new JSONArray().put("two\nlines")));
     }
 
-    @Test public void oldWalletAliasesMigrateWithoutOverridingAnExplicitRulePrice() throws Exception {
+    @Test public void retiredWalletAliasesAreNotMigrated() throws Exception {
         JSONObject values = new JSONObject().put("rule_enabled_new_detection", true)
                 .put("rule_cents_new_detection", 123).put("strike_cents", 999);
         JSONObject clean = PackSettingCatalog.sanitize("wallet", values);
-        assertEquals(123, clean.getInt("rule_new_detection_cents"));
-        assertTrue(clean.getBoolean("rule_new_detection_enabled"));
-        assertFalse(clean.has("strike_cents"));
-        assertEquals(456, PackSettingCatalog.sanitize("wallet", new JSONObject().put("strike_cents", 456))
-                .getInt("rule_new_detection_cents"));
+        assertEquals(0, clean.length());
         values.put("rule_new_detection_cents", 789);
-        assertThrows(IllegalArgumentException.class, () -> PackSettingCatalog.sanitize("wallet", values));
+        assertEquals(789, PackSettingCatalog.sanitize("wallet", values).getInt("rule_new_detection_cents"));
     }
 
     @Test public void relationshipsAndCompletedDefaultsAreValidated() throws Exception {

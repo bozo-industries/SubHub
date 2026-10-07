@@ -15,7 +15,7 @@ import android.view.ViewGroup;
 import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.widget.EditText;
-import android.widget.RadioGroup;
+import android.widget.GridLayout;
 import android.widget.TextView;
 
 import androidx.test.core.app.ActivityScenario;
@@ -170,8 +170,6 @@ public final class PopupStormContractTest {
         try (ActivityScenario<PopupStormActivity> scenario =
                      ActivityScenario.launch(PopupStormActivity.class)) {
             scenario.onActivity(activity -> {
-                boolean stacked = activity.getResources().getConfiguration().screenWidthDp < 480
-                        || activity.getResources().getConfiguration().fontScale >= 1.3f;
                 ViewGroup settings = activity.findViewById(R.id.dynamic_settings);
                 int groups = 0;
                 int fields = 0;
@@ -179,10 +177,9 @@ public final class PopupStormContractTest {
                     ViewGroup card = (ViewGroup) settings.getChildAt(section);
                     for (int index = 0; index < card.getChildCount(); index++) {
                         View child = card.getChildAt(index);
-                        if (child instanceof RadioGroup) {
-                            RadioGroup group = (RadioGroup) child;
-                            assertEquals(stacked ? RadioGroup.VERTICAL : RadioGroup.HORIZONTAL,
-                                    group.getOrientation());
+                        if (child instanceof GridLayout) {
+                            GridLayout group = (GridLayout) child;
+                            assertEquals(Math.min(3, group.getChildCount()), group.getColumnCount());
                             for (int option = 0; option < group.getChildCount(); option++) {
                                 TextView choice = (TextView) group.getChildAt(option);
                                 assertTrue(choice.getHeight() >= activity.getResources()

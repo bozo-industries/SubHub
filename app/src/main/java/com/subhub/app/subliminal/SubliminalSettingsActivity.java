@@ -50,20 +50,11 @@ public final class SubliminalSettingsActivity extends AppCompatActivity {
         render(repository.load());
     }
 
-    private static void setEnabledRecursive(android.view.View view, boolean enabled) {
-        view.setEnabled(enabled);
-        if (view instanceof android.view.ViewGroup) {
-            android.view.ViewGroup group = (android.view.ViewGroup) view;
-            for (int index = 0; index < group.getChildCount(); index++) {
-                setEnabledRecursive(group.getChildAt(index), enabled);
-            }
-        }
-    }
-
     private void bindListeners() {
-        binding.presetGroup.setOnCheckedChangeListener((group, id) -> {
-            if (loading) return;
-            repository.savePreset(presetFor(id));
+        binding.presetSlider.setLabelFormatter(value -> presetLabel(Math.round(value)));
+        binding.presetSlider.addOnChangeListener((slider, value, fromUser) -> {
+            if (loading || !fromUser) return;
+            repository.savePreset(SubliminalSettings.Preset.values()[Math.round(value)]);
             render(repository.load());
         });
         binding.advancedEnabled.setOnCheckedChangeListener((button, checked) -> {
@@ -105,7 +96,8 @@ public final class SubliminalSettingsActivity extends AppCompatActivity {
     private void render(SubliminalSettings settings) {
         if (binding == null) return;
         loading = true;
-        binding.presetGroup.check(idFor(settings.getPreset()));
+        binding.presetSlider.setValue(settings.getPreset().ordinal());
+        binding.presetValue.setText(presetLabel(settings.getPreset().ordinal()));
         binding.advancedEnabled.setChecked(settings.isAdvanced());
         binding.advancedPanel.setVisibility(settings.isAdvanced() ? View.VISIBLE : View.GONE);
         binding.opacity.setProgress(settings.getOpacityPercent() - 1);
@@ -182,21 +174,10 @@ public final class SubliminalSettingsActivity extends AppCompatActivity {
                 binding.packFindom, binding.packCustom};
     }
 
-    private SubliminalSettings.Preset presetFor(int id) {
-        if (id == R.id.preset_gentle) return SubliminalSettings.Preset.GENTLE;
-        if (id == R.id.preset_strict) return SubliminalSettings.Preset.STRICT;
-        if (id == R.id.preset_ultra) return SubliminalSettings.Preset.ULTRA;
-        return SubliminalSettings.Preset.NORMAL;
-    }
-
-    private int idFor(SubliminalSettings.Preset preset) {
-        switch (preset) {
-            case GENTLE: return R.id.preset_gentle;
-            case STRICT: return R.id.preset_strict;
-            case ULTRA: return R.id.preset_ultra;
-            case NORMAL:
-            default: return R.id.preset_normal;
-        }
+    private String presetLabel(int step) {
+        int[] labels = {R.string.subliminal_preset_gentle, R.string.subliminal_preset_normal,
+                R.string.subliminal_preset_strict, R.string.subliminal_preset_ultra};
+        return getString(labels[step]);
     }
 
     @Override protected void onPause() {

@@ -972,7 +972,6 @@ public final class MainActivity extends AppCompatActivity {
         switch (resolved) {
             case LOW: return getString(R.string.preset_low);
             case HIGH: return getString(R.string.preset_high);
-            case ULTRA: return getString(R.string.preset_ultra);
             case MEDIUM:
             default: return getString(R.string.preset_medium);
         }

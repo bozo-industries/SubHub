@@ -21,7 +21,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.subhub.app.R;
-import com.subhub.app.capture.CustomImagesActivity;
+import com.subhub.app.capture.CensorImageEditor;
 import com.subhub.app.capture.ExportActivity;
 import com.subhub.app.databinding.ActivitySettingsBinding;
 import com.subhub.app.detection.DetectionPreset;
@@ -31,7 +31,6 @@ import com.subhub.app.overlay.CensorPhrases;
 import com.subhub.app.security.ControllerPinGate;
 import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.ControllerEditMode;
-import com.subhub.app.studio.StudioActivity;
 import com.subhub.app.stats.StatsRepository;
 import com.subhub.app.util.PrimaryHeader;
 import com.subhub.app.util.SubHubNavigation;
@@ -45,6 +44,7 @@ public final class SettingsActivity extends AppCompatActivity {
     private ActivitySettingsBinding binding;
     private SettingsRepository repository;
     private StatsRepository stats;
+    private CensorImageEditor images;
     private boolean bindingValues;
 
     @Override
@@ -58,6 +58,8 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.getRoot().requestFocus();
         repository = new SettingsRepository(this);
         stats = new StatsRepository(this);
+        images = new CensorImageEditor(this, binding.buttonAddCensorImages,
+                binding.censorImagesStatus, binding.censorImagesList);
         adaptBorderChoices();
         bindValues();
         attachListeners();
@@ -261,12 +263,8 @@ public final class SettingsActivity extends AppCompatActivity {
             saveAll();
             Toast.makeText(this, R.string.settings_saved, Toast.LENGTH_SHORT).show();
         });
-        binding.buttonCustomImages.setOnClickListener(view ->
-                startActivity(new Intent(this, CustomImagesActivity.class)));
         binding.buttonExport.setOnClickListener(view -> ControllerPinGate.require(this,
                 () -> startActivity(new Intent(this, ExportActivity.class)), false));
-        binding.buttonPacks.setOnClickListener(view ->
-                startActivity(new Intent(this, StudioActivity.class)));
         binding.paletteColorOne.setOnClickListener(view -> pickEffectColor(1));
         binding.gradientStart.setOnClickListener(view -> pickGradientColor(true));
         binding.gradientEnd.setOnClickListener(view -> pickGradientColor(false));
@@ -308,8 +306,7 @@ public final class SettingsActivity extends AppCompatActivity {
                 editing);
         binding.reverseStrengthSeek.setEnabled(
                 editing);
-        binding.buttonCustomImages.setEnabled(
-                editing);
+        images.refresh();
         binding.buttonExport.setEnabled(editing);
         setEnabledRecursive(binding.presetGroup,
                 editing);
@@ -645,7 +642,6 @@ public final class SettingsActivity extends AppCompatActivity {
         switch (preset) {
             case LOW: return R.id.radio_preset_low;
             case HIGH: return R.id.radio_preset_high;
-            case ULTRA: return R.id.radio_preset_ultra;
             default: return R.id.radio_preset_medium;
         }
     }
@@ -665,7 +661,6 @@ public final class SettingsActivity extends AppCompatActivity {
     private DetectionPreset presetFor(int id) {
         if (id == R.id.radio_preset_low) return DetectionPreset.LOW;
         if (id == R.id.radio_preset_high) return DetectionPreset.HIGH;
-        if (id == R.id.radio_preset_ultra) return DetectionPreset.ULTRA;
         return DetectionPreset.MEDIUM;
     }
 
@@ -701,6 +696,7 @@ public final class SettingsActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (images != null) images.close();
         binding = null;
         super.onDestroy();
     }

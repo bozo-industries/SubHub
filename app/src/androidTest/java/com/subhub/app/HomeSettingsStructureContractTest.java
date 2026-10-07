@@ -89,7 +89,7 @@ public final class HomeSettingsStructureContractTest {
                 .putString(SettingsRepository.KEY_CENSOR_TYPE, "box")
                 .putBoolean(SettingsRepository.KEY_SHOW_BORDER, true)
                 .putString(SettingsRepository.KEY_BORDER_EFFECT, "classic")
-                .putString(SettingsRepository.KEY_DETECTION_PRESET, "ultra")
+                .putString(SettingsRepository.KEY_DETECTION_PRESET, "high")
                 .putStringSet(SettingsRepository.KEY_ENABLED_CATEGORIES,
                         new LinkedHashSet<>(Arrays.asList(
                                 "genitals_female", "genitals_male", "breasts", "buttocks",
@@ -112,7 +112,7 @@ public final class HomeSettingsStructureContractTest {
             scenario.onActivity(activity -> {
                 String details = activity.censorArrangementDetails();
                 assertTrue(details.contains("Blackout · Classic Border"));
-                assertTrue(details.contains("Ultra · Maximum Coverage"));
+                assertTrue(details.contains("High · Maximum Coverage"));
                 assertTrue(details.contains(
                         "Vulva / Vagina, Penis / Balls, Breasts / Nipples, Butt / Cheeks, Anal, "
                                 + "Male Chest / Pecs, Stomach / Midriff"));

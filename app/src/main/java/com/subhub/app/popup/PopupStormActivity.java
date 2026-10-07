@@ -18,8 +18,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -352,35 +350,40 @@ public final class PopupStormActivity extends AppCompatActivity {
         TextView heading = label(getString(title), 11, false, R.color.text_secondary);
         heading.setPadding(0, dp(10), 0, 0);
         parent.addView(heading);
-        RadioGroup group = new RadioGroup(this);
-        boolean stacked = getResources().getConfiguration().screenWidthDp < 480
-                || getResources().getConfiguration().fontScale >= 1.3f;
-        group.setOrientation(stacked ? RadioGroup.VERTICAL : RadioGroup.HORIZONTAL);
+        GridLayout group = new GridLayout(this);
+        group.setTag("popup-choice:" + key);
+        int columns = Math.min(3, values.length);
+        group.setColumnCount(columns);
         group.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         String selected = preferences.getString(key, defaultValue);
         for (int index = 0; index < values.length; index++) {
-            RadioButton option = new RadioButton(this);
+            Button option = new Button(this, null, 0, R.style.Widget_SubHub_SegmentedButton);
             option.setId(View.generateViewId());
             option.setTag(values[index]);
             option.setText(labels[index]);
             option.setTextColor(getColor(R.color.text_primary));
             option.setTextSize(11);
             option.setEnabled(ControllerPinManager.isSessionUnlocked());
-            option.setChecked(values[index].equals(selected));
+            option.setSelected(values[index].equals(selected));
             option.setMinHeight(dp(48));
             option.setMinimumHeight(dp(48));
-            group.addView(option, new RadioGroup.LayoutParams(
-                    stacked ? ViewGroup.LayoutParams.MATCH_PARENT : 0,
-                    ViewGroup.LayoutParams.WRAP_CONTENT, stacked ? 0 : 1));
-        }
-        group.setOnCheckedChangeListener((radioGroup, checkedId) -> {
-            View checked = radioGroup.findViewById(checkedId);
-            if (checked != null) {
-                preferences.edit().putString(key, String.valueOf(checked.getTag())).apply();
+            GridLayout.LayoutParams params = new GridLayout.LayoutParams(
+                    GridLayout.spec(index / columns, GridLayout.FILL),
+                    GridLayout.spec(index % columns, 1f));
+            params.width = 0;
+            params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            params.setMargins(dp(2), dp(2), dp(2), dp(2));
+            group.addView(option, params);
+            option.setOnClickListener(view -> {
+                if (!ControllerPinManager.isSessionUnlocked()) return;
+                for (int child = 0; child < group.getChildCount(); child++) {
+                    group.getChildAt(child).setSelected(group.getChildAt(child) == view);
+                }
+                preferences.edit().putString(key, String.valueOf(view.getTag())).apply();
                 settingsChanged();
-            }
-        });
+            });
+        }
         parent.addView(group);
     }
 

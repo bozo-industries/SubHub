@@ -29,8 +29,7 @@ public final class UiComponentContractTest {
                 ApplicationProvider.getApplicationContext(), R.style.Theme_SubHub);
         View page = LayoutInflater.from(context).inflate(
                 R.layout.activity_subliminal_settings, null, false);
-        int[] ids = {R.id.preset_gentle, R.id.preset_normal, R.id.preset_strict,
-                R.id.preset_ultra, R.id.pack_obedience, R.id.pack_focus,
+        int[] ids = {R.id.preset_slider, R.id.pack_obedience, R.id.pack_focus,
                 R.id.pack_beta, R.id.pack_findom, R.id.pack_custom};
         int minimum = context.getResources().getDimensionPixelSize(R.dimen.control_min_height);
         for (int id : ids) {

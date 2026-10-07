@@ -22,14 +22,6 @@ public final class CensorAppearance {
         public static Type fromPreference(String value) {
             if (value == null) return BOX;
             String normalized = value.trim().toLowerCase(Locale.ROOT);
-            if (normalized.equals("solid") || normalized.equals("solid_box")
-                    || normalized.equals("bar")) return BOX;
-            if (normalized.equals("mosaic")) return PIXELATE;
-            if (normalized.equals("image") || normalized.equals("custom_image")) return CUSTOM;
-            if (normalized.equals("noise") || normalized.equals("tv_static")) return STATIC;
-            if (normalized.equals("privacy_tape")) return TAPE;
-            if (normalized.equals("error") || normalized.equals("errorbox")
-                    || normalized.equals("windows_error")) return ERROR_POPUP;
             for (Type type : values()) {
                 if (type.preferenceValue.equals(normalized)) return type;
             }

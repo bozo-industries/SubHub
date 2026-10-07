@@ -39,16 +39,13 @@ public final class CaptureEpochTest {
         DetectorConfig low = DetectionPreset.LOW.applyTo(DetectorConfig.builder()).build();
         DetectorConfig medium = DetectionPreset.MEDIUM.applyTo(DetectorConfig.builder()).build();
         DetectorConfig high = DetectionPreset.HIGH.applyTo(DetectorConfig.builder()).build();
-        DetectorConfig ultra = DetectionPreset.ULTRA.applyTo(DetectorConfig.builder()).build();
 
-        assertEquals(450L, ScreenshotAccessibilityService.captureDelayMs(low));
-        assertEquals(300L, ScreenshotAccessibilityService.captureDelayMs(medium));
-        assertEquals(240L, ScreenshotAccessibilityService.captureDelayMs(high));
-        assertEquals(180L, ScreenshotAccessibilityService.captureDelayMs(ultra));
+        assertEquals(300L, ScreenshotAccessibilityService.captureDelayMs(low));
+        assertEquals(240L, ScreenshotAccessibilityService.captureDelayMs(medium));
+        assertEquals(180L, ScreenshotAccessibilityService.captureDelayMs(high));
         assertEquals(334L, ScreenshotAccessibilityService.capturePollDelayMs(low));
         assertEquals(334L, ScreenshotAccessibilityService.capturePollDelayMs(medium));
         assertEquals(334L, ScreenshotAccessibilityService.capturePollDelayMs(high));
-        assertEquals(334L, ScreenshotAccessibilityService.capturePollDelayMs(ultra));
     }
 
     @Test public void settledCaptureHonorsMotionAndPlatformGates() {
@@ -335,7 +332,7 @@ public final class CaptureEpochTest {
     }
 
     @Test public void accessibilityTrackerDisablesCompetingVelocityPrediction() {
-        DetectorConfig configured = DetectionPreset.ULTRA.applyTo(
+        DetectorConfig configured = DetectionPreset.HIGH.applyTo(
                 DetectorConfig.builder()).build();
 
         DetectorConfig tracker = ScreenshotAccessibilityService
@@ -352,12 +349,10 @@ public final class CaptureEpochTest {
         DetectorConfig low = DetectionPreset.LOW.applyTo(DetectorConfig.builder()).build();
         DetectorConfig medium = DetectionPreset.MEDIUM.applyTo(DetectorConfig.builder()).build();
         DetectorConfig high = DetectionPreset.HIGH.applyTo(DetectorConfig.builder()).build();
-        DetectorConfig ultra = DetectionPreset.ULTRA.applyTo(DetectorConfig.builder()).build();
 
         assertFalse(ScreenshotAccessibilityService.usesAtomicScenePipeline(low));
-        assertFalse(ScreenshotAccessibilityService.usesAtomicScenePipeline(medium));
+        assertTrue(ScreenshotAccessibilityService.usesAtomicScenePipeline(medium));
         assertTrue(ScreenshotAccessibilityService.usesAtomicScenePipeline(high));
-        assertTrue(ScreenshotAccessibilityService.usesAtomicScenePipeline(ultra));
         assertEquals(320, ScreenshotAccessibilityService.fastInferenceFrameResolution(
                 high, true, false));
     }

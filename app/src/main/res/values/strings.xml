@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="censor_images_inline_help">Choose replacement images for the Image censor style. Add, enable, or remove them here; images stay on this device.</string>
+    <string name="censor_gallery_photos">Censor photos from gallery</string>
     <string name="apps_accessibility_ready">Accessibility connected</string>
     <string name="apps_accessibility_reconnecting">Accessibility enabled · reconnecting</string>
     <string name="apps_accessibility_off">Accessibility permission required</string>
@@ -160,17 +162,14 @@
     <string name="confidence">Confidence</string>
     <string name="performance_preset">Detection Level</string>
     <string name="performance_preset_help">Higher levels inspect more often and can use more battery.</string>
-    <string name="preset_low">Light · Battery Saver</string>
-    <string name="preset_medium">Balanced · Recommended</string>
-    <string name="preset_high">High · Thorough</string>
-    <string name="preset_ultra">Ultra · Maximum Coverage</string>
-    <string name="preset_low_card">Light
-Fastest · battery saver</string>
-    <string name="preset_medium_card">Balanced
-Recommended everyday coverage</string>
-    <string name="preset_high_card">High
+    <string name="preset_low">Low · Balanced</string>
+    <string name="preset_medium">Medium · Thorough</string>
+    <string name="preset_high">High · Maximum Coverage</string>
+    <string name="preset_low_card">Low
+Balanced everyday coverage</string>
+    <string name="preset_medium_card">Medium
 More small-region coverage</string>
-    <string name="preset_ultra_card">Ultra
+    <string name="preset_high_card">High
 Maximum coverage · flagship devices</string>
     <string name="categories_title">Body Areas to Hide</string>
     <string name="category_genitals_female">Vulva / Vagina</string>
@@ -186,7 +185,7 @@ Maximum coverage · flagship devices</string>
     <string name="category_covered">Clothed Matches</string>
     <string name="category_covered_help">Also hide model matches where a selected body area is covered by clothing or underwear.</string>
     <string name="text_smut_title">Text filter</string>
-    <string name="text_smut_description">Hide sexual posts and captions. High and Ultra add context recognition; Ultra can also read text inside images.</string>
+    <string name="text_smut_description">Hide sexual posts and captions. Medium and High add context recognition; High can also read text inside images.</string>
     <string name="text_smut_enable">Hide sexual text</string>
     <string name="text_smut_sensitivity">Text Coverage</string>
     <string name="text_smut_sensitivity_help">Explicit catches clear sexual words. Context also catches strongly sexual phrasing. Suggestive catches the widest range, with more false positives.</string>
@@ -596,7 +595,7 @@ Maximum coverage · flagship devices</string>
     <string name="help_body_service_timers">Enter Service starts the service and its session. Choose 1 hour, 24 hours, 7 days, 30 days, or Permanent before entering. The duration defines when Leave Service is allowed; Dom mode can release the lock earlier. After reboot, an active lock can resume App Mode when Android allows it. Screen Capture always needs fresh Android approval.</string>
     <string name="help_body_app_assignment">In Settings → Apps, choose All apps or Assigned apps only for Censor. Assign Censor, Limits, and Subliminal independently for each installed app. All apps affects Censor only; Limits and Subliminal still run only in their assigned apps. Feature switches and app assignments configure service, while Enter Service and Leave Service control whether it runs. Review assignments after apps are installed, removed, or renamed.</string>
     <string name="help_body_subliminal">Subliminal Messaging displays brief messages on this device. Configure it in Atmosphere, then assign Subliminal to apps in Settings → Apps. During service, Accessibility shows one faint, touch-through message at a random safe position and removes it smoothly. Messages do not appear in SubHub, the keyboard, Android Settings, or unassigned apps. Only aggregate impression counts are stored; message history and screen content are not.</string>
-    <string name="help_body_censoring">Censor settings select body areas, clothed matches, text categories, censor phrases, and appearance. Higher detection levels can use more battery. High and Ultra add context recognition for text; Ultra also supports reading text inside images. Censor photos creates copies on this device. Deleting originals always requires a separate confirmation.</string>
+    <string name="help_body_censoring">Censor settings select body areas, clothed matches, text categories, censor phrases, replacement images, and appearance. Higher detection levels can use more battery. Medium and High add context recognition for text; High also supports reading text inside images. Censor photos from gallery creates copies on this device. Deleting originals always requires a separate confirmation.</string>
     <string name="help_body_limits">Limits count foreground time only for apps marked Limit. Use a separate daily allowance for each app, one shared allowance across all limited apps, or both. Usage resets at local midnight. When either applicable allowance is exhausted, SubHub returns the limited app to Home. Limits require App Mode and Accessibility; Screen Capture alone cannot enforce foreground-app time.</string>
     <string name="help_body_wallet">Wallet is optional and local until checkout. Dom mode chooses the enabled events, prices, batching, grace/correction time, and daily and weekly caps. Manual checkout is payer-present. Saved-wallet auto-pay is separate, explicit, and runs only while Wallet, Hardcore Mode, an active service lock, and a verified saved PayPal wallet are all active. PayPal can still decline or require the payer to authorize again.</string>
     <string name="help_body_paypal_setup">Use a PayPal Business account and create or select a REST app in the PayPal Developer Dashboard. Start with Sandbox credentials and a sandbox personal buyer; Live credentials are separate and move real money. Enable Save payment methods/Vault for the same app and complete PayPal’s business-profile eligibility step under Account Settings › Payment Preferences. In Dom Settings, choose the matching environment, connect its Client ID and secret, then Link Payer Wallet and approve the billing agreement in PayPal. Linking itself creates no charge. PayPal’s dashboard may label the eligible wallet capability “PayPal and Venmo”; Venmo is US-only and is not a German/EUR payment option.</string>

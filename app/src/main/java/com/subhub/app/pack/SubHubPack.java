@@ -12,12 +12,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.nio.charset.StandardCharsets;
 
 /** Portable settings with an optional, opaque passphrase-encrypted merchant attachment. */
 public final class SubHubPack {
     public static final String FORMAT = "subhub-pack";
-    public static final int SCHEMA_VERSION = 3;
+    public static final int SCHEMA_VERSION = 4;
 
     private final String id;
     private final String originDeviceId;
@@ -33,18 +32,10 @@ public final class SubHubPack {
     private final Map<String, byte[]> assets;
     private JSONObject encryptedPayPal;
 
-    public SubHubPack(String id, String name, String author, String description,
-            String packVersion, long createdAt, long updatedAt, String minimumSubHubVersion,
-            Map<String, JSONObject> sections, Set<String> lockGroups,
-            JSONObject recommendations, Map<String, byte[]> assets) {
-        this(id, legacyOriginId(id), name, author, description, packVersion, createdAt, updatedAt,
-                minimumSubHubVersion, sections, lockGroups, recommendations, assets);
-    }
-
     public SubHubPack(String id, String originDeviceId, String name, String author,
             String description, String packVersion, long createdAt, long updatedAt,
             String minimumSubHubVersion, Map<String, JSONObject> sections,
-            Set<String> lockGroups, JSONObject recommendations, Map<String, byte[]> assets) {
+            JSONObject recommendations, Map<String, byte[]> assets) {
         this.id = cleanId(id);
         this.originDeviceId = cleanId(originDeviceId);
         this.name = clean(name, "Untitled arrangement", 80);
@@ -61,7 +52,6 @@ public final class SubHubPack {
                         item.getKey(), item.getValue()));
             }
         }
-        // Retired v1/v2 pack locks are intentionally ignored, including on imported packs.
         this.recommendations = SubHubPackSchema.sanitizeRecommendations(recommendations);
         this.assets = new LinkedHashMap<>();
         if (assets != null) for (Map.Entry<String, byte[]> item : assets.entrySet()) {
@@ -79,14 +69,14 @@ public final class SubHubPack {
         long now = System.currentTimeMillis();
         return new SubHubPack(UUID.randomUUID().toString(), originDeviceId,
                 "Untitled arrangement", "", "", "1.0.0", now, now, "0.6.0",
-                Map.of(), Set.of(), new JSONObject(), Map.of());
+                Map.of(), new JSONObject(), Map.of());
     }
 
     public SubHubPack duplicate() {
         long now = System.currentTimeMillis();
         // A new ID cannot authenticate the original attachment's AAD. UI explains its omission.
         return new SubHubPack(UUID.randomUUID().toString(), originDeviceId, name + " copy",
-                author, description, packVersion, now, now, minimumSubHubVersion, sections, Set.of(),
+                author, description, packVersion, now, now, minimumSubHubVersion, sections,
                 recommendations, assets);
     }
 
@@ -116,7 +106,6 @@ public final class SubHubPack {
     public Set<String> getIncludedSections() {
         return Collections.unmodifiableSet(new LinkedHashSet<>(sections.keySet()));
     }
-    public Set<String> getLockGroups() { return Set.of(); }
     public JSONObject getRecommendations() { return copy(recommendations); }
     public Map<String, byte[]> getAssets() {
         Map<String, byte[]> result = new LinkedHashMap<>();
@@ -144,7 +133,7 @@ public final class SubHubPack {
     /** Metadata and sections are copied; immutable image bytes are safely shared for background I/O. */
     public SubHubPack snapshot() {
         SubHubPack result = new SubHubPack(id, originDeviceId, name, author, description,
-                packVersion, createdAt, updatedAt, minimumSubHubVersion, sections, Set.of(),
+                packVersion, createdAt, updatedAt, minimumSubHubVersion, sections,
                 recommendations, Map.of());
         result.assets.putAll(assets);
         result.encryptedPayPal = encryptedPayPal == null ? null : copy(encryptedPayPal);
@@ -231,18 +220,19 @@ public final class SubHubPack {
             throw new JSONException("Not a SubHub pack");
         }
         int schema = manifest.optInt("schemaVersion", -1);
-        if ((schema != SCHEMA_VERSION && schema != 1 && schema != 2)
-                || (schema == 1 && manifest.has("encryptedPayPal"))
-                || (schema == 2 && !manifest.has("encryptedPayPal"))) {
+        if (schema != SCHEMA_VERSION) {
             throw new JSONException("Unsupported SubHub pack schema");
         }
-        String id = manifest.optString("id");
-        String origin = manifest.optString("originDeviceId", legacyOriginId(id));
+        String id = manifest.getString("id");
+        String origin = manifest.getString("originDeviceId");
+        if (!isCanonicalId(id) || !isCanonicalId(origin)) {
+            throw new JSONException("Invalid pack identity");
+        }
         SubHubPack pack = new SubHubPack(id, origin, manifest.optString("name"),
                 manifest.optString("author"), manifest.optString("description"),
                 manifest.optString("packVersion"), manifest.optLong("createdAt", 1L),
                 manifest.optLong("updatedAt", 1L),
-                manifest.optString("minimumSubHubVersion", "0.6.0"), sections, Set.of(),
+                manifest.optString("minimumSubHubVersion", "0.6.0"), sections,
                 manifest.optJSONObject("recommendations"), Map.of());
         // Archive validation owns these frozen bytes. Avoid a second full-size image allocation.
         pack.assets.putAll(assets);
@@ -259,24 +249,14 @@ public final class SubHubPack {
 
     private void touch() { updatedAt = System.currentTimeMillis(); }
 
-    private static Set<String> jsonStrings(JSONArray values) {
-        Set<String> result = new LinkedHashSet<>();
-        if (values != null) for (int index = 0; index < values.length(); index++) {
-            String value = values.optString(index, "");
-            if (!value.isBlank()) result.add(value);
-        }
-        return result;
-    }
-
     private static String cleanId(String value) {
         try { return UUID.fromString(value).toString(); }
         catch (Exception ignored) { return UUID.randomUUID().toString(); }
     }
 
-    private static String legacyOriginId(String packId) {
-        String value = packId == null ? "" : packId.trim();
-        return UUID.nameUUIDFromBytes(("subhub-pack-origin:" + value)
-                .getBytes(StandardCharsets.UTF_8)).toString();
+    private static boolean isCanonicalId(String value) {
+        try { return UUID.fromString(value).toString().equals(value); }
+        catch (IllegalArgumentException invalid) { return false; }
     }
 
     private static String clean(String value, String fallback, int maximum) {

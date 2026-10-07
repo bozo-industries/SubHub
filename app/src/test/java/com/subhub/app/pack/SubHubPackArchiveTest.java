@@ -28,9 +28,9 @@ public final class SubHubPackArchiveTest {
                 .put("hardcoreSuggested", true)
                 .put("serviceDurationMillis", 86_400_000L);
         byte[] art = "private-art".getBytes(StandardCharsets.UTF_8);
-        SubHubPack source = new SubHubPack(UUID.randomUUID().toString(), "Night Rules",
+        SubHubPack source = new SubHubPack(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "Night Rules",
                 "Keeper", "Portable scene", "2.0.0", 10L, 20L, "0.6.0",
-                Map.of(SubHubPackSchema.CENSOR, censor), Set.of(SubHubPackSchema.CENSOR),
+                Map.of(SubHubPackSchema.CENSOR, censor),
                 recommendations, Map.of("assets/censor/image-00.png", art));
 
         ByteArrayOutputStream encoded = new ByteArrayOutputStream();
@@ -42,7 +42,7 @@ public final class SubHubPackArchiveTest {
         assertEquals(source.getOriginDeviceId(), decoded.getOriginDeviceId());
         assertEquals("box", decoded.getSection(SubHubPackSchema.CENSOR)
                 .getString("censor_type"));
-        assertTrue(decoded.getLockGroups().isEmpty());
+        assertFalse(decoded.manifestWithoutIntegrity(Map.of()).has("lockGroups"));
         assertEquals(86_400_000L,
                 decoded.getRecommendations().getLong("serviceDurationMillis"));
         assertArrayEquals(art, decoded.getAssets().get("assets/censor/image-00.png"));
@@ -95,7 +95,7 @@ public final class SubHubPackArchiveTest {
         assertFalse(SubHubPackArchive.isSafeAssetPath("C:/secret"));
     }
 
-    @Test public void legacyIntegrityUsesRawFieldsBeforeMigrationAndDropsOldLocks() throws Exception {
+    @Test public void oldArchivesAreRejectedWithoutMigrationEvenWithValidIntegrity() throws Exception {
         SubHubPack identity = SubHubPack.blank("synthetic-old-creator");
         JSONObject manifest = identity.manifestWithoutIntegrity(Map.of());
         manifest.put("schemaVersion", 1);
@@ -116,12 +116,7 @@ public final class SubHubPackArchiveTest {
         for (byte value : digest) hex.append(String.format(java.util.Locale.ROOT, "%02x", value & 255));
         manifest.put("integrity", hex.toString());
         byte[] original = legacyArchive(manifest, sections);
-        SubHubPack imported = SubHubPackArchive.read(new ByteArrayInputStream(original));
-        assertEquals(321, imported.getSection("wallet").getInt("rule_new_detection_cents"));
-        assertEquals("Synthetic phrase", imported.getSection("censor").getJSONArray("custom_phrases").getString(0));
-        assertFalse(imported.getSection("censor").has("old_unknown_field"));
-        assertTrue(imported.getLockGroups().isEmpty());
-        assertFalse(imported.manifestWithoutIntegrity(Map.of()).has("lockGroups"));
+        assertThrows(java.io.IOException.class, () -> SubHubPackArchive.read(new ByteArrayInputStream(original)));
         sections.get("wallet").put("rule_cents_new_detection", 322);
         assertThrows(java.io.IOException.class, () -> SubHubPackArchive.read(
                 new ByteArrayInputStream(legacyArchive(manifest, sections))));

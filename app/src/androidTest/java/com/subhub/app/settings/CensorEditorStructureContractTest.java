@@ -51,32 +51,34 @@ public final class CensorEditorStructureContractTest {
         ControllerPinManager.enterSubMode();
     }
 
-    @Test public void rulesAppearanceAndToolsContainTheirRelatedControls() {
+    @Test public void imageManagementIsInsideAppearanceWithoutASeparateToolsCard() {
         try (ActivityScenario<SettingsActivity> scenario =
                      ActivityScenario.launch(SettingsActivity.class)) {
             scenario.onActivity(activity -> {
                 View rules = activity.findViewById(R.id.censor_filter_rules);
                 View appearance = activity.findViewById(R.id.censor_appearance);
-                View tools = activity.findViewById(R.id.censor_tools);
+                View photos = activity.findViewById(R.id.button_export);
                 ViewGroup page = (ViewGroup) rules.getParent();
                 assertEquals(page, appearance.getParent());
-                assertEquals(page, tools.getParent());
-                assertTrue(page.indexOfChild(rules) < page.indexOfChild(appearance));
-                assertTrue(page.indexOfChild(appearance) < page.indexOfChild(tools));
+                assertEquals(page, photos.getParent());
+                assertTrue(page.indexOfChild(appearance) < page.indexOfChild(rules));
+                assertTrue(page.indexOfChild(appearance) < page.indexOfChild(photos));
+                assertTrue(activity.findViewById(R.id.button_packs) == null);
+                assertEquals(activity.getString(R.string.censor_gallery_photos),
+                        ((android.widget.TextView) photos).getText().toString());
                 for (int id : new int[] {R.id.capture_method_group, R.id.preset_group,
                         R.id.coverage_group, R.id.switch_breasts, R.id.switch_smut_text}) {
                     assertInside(rules, activity.findViewById(id));
                 }
                 for (int id : new int[] {R.id.style_group, R.id.effect_palette_group,
-                        R.id.border_effect_group, R.id.switch_text, R.id.custom_phrases}) {
+                        R.id.border_effect_group, R.id.switch_text, R.id.custom_phrases,
+                        R.id.censor_images_section, R.id.button_add_censor_images, R.id.censor_images_list}) {
                     assertInside(appearance, activity.findViewById(id));
                 }
                 int minimum = activity.getResources()
                         .getDimensionPixelSize(R.dimen.control_min_height);
-                for (int id : new int[] {R.id.button_custom_images,
-                        R.id.button_export, R.id.button_packs}) {
+                for (int id : new int[] {R.id.button_add_censor_images, R.id.button_export}) {
                     View action = activity.findViewById(id);
-                    assertInside(tools, action);
                     assertTrue(action.isShown());
                     assertTrue(action.getWidth() >= minimum);
                     assertTrue(action.getHeight() >= minimum);
@@ -85,7 +87,7 @@ public final class CensorEditorStructureContractTest {
         }
     }
 
-    @Test public void censorPhotosIsReachableThroughTheVisibleToolsAction() {
+    @Test public void galleryPhotoActionOpensExistingExportWithSeparateDeletionChoice() {
         try (ActivityScenario<SettingsActivity> scenario =
                      ActivityScenario.launch(SettingsActivity.class)) {
             onView(withId(R.id.button_export)).perform(revealAboveNavigation(), click());
@@ -96,7 +98,7 @@ public final class CensorEditorStructureContractTest {
                         .getActivitiesInStage(Stage.RESUMED)) {
                     if (activity instanceof ExportActivity) export = activity;
                 }
-                assertNotNull("Tools must open the existing photo export screen", export);
+                assertNotNull("Gallery action must open the photo export screen", export);
                 assertNotNull(export.findViewById(R.id.switch_delete_originals));
                 export.finish();
             });
@@ -109,6 +111,7 @@ public final class CensorEditorStructureContractTest {
                      ActivityScenario.launch(SettingsActivity.class)) {
             scenario.onActivity(activity -> {
                 assertFalse(activity.findViewById(R.id.button_export).isEnabled());
+                assertFalse(activity.findViewById(R.id.button_add_censor_images).isEnabled());
                 assertFalse(activity.findViewById(R.id.radio_coverage_person).isEnabled());
                 assertFalse(activity.findViewById(R.id.switch_smut_text).isEnabled());
             });

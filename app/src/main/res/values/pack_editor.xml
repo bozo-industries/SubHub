@@ -200,10 +200,9 @@
     <string name="pack_field_popup_storm_click_dismisses_all">Tap dismisses all popups</string>
     <string name="pack_field_popup_storm_detection_mode">Detection interaction</string>
     <string name="pack_field_popup_storm_avoid_padding_px">Avoidance padding (px)</string>
-    <string name="pack_choice_detection_preset_low">Light</string>
-    <string name="pack_choice_detection_preset_medium">Balanced</string>
+    <string name="pack_choice_detection_preset_low">Low</string>
+    <string name="pack_choice_detection_preset_medium">Medium</string>
     <string name="pack_choice_detection_preset_high">High</string>
-    <string name="pack_choice_detection_preset_ultra">Ultra</string>
     <string name="pack_choice_capture_method_app_mode">Accessibility</string>
     <string name="pack_choice_capture_method_screen_recording">Screen recording</string>
     <string name="pack_choice_censor_coverage_detected_areas">Detected areas</string>

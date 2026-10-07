@@ -23,7 +23,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-/** Strict ZIP codec for current v3 and compatible v1/v2 .subhubpack archives. */
+/** Strict ZIP codec for the current .subhubpack format only. */
 public final class SubHubPackArchive {
     public static final String EXTENSION = ".subhubpack";
     private static final int MAX_MANIFEST_BYTES = 512 * 1024;
@@ -158,13 +158,16 @@ public final class SubHubPackArchive {
             if (!SubHubPack.FORMAT.equals(manifest.optString("format"))) {
                 throw new IOException("Not a .subhubpack archive");
             }
+            if (manifest.optInt("schemaVersion", -1) != SubHubPack.SCHEMA_VERSION) {
+                throw new IOException("Unsupported pack format; recreate the arrangement in Studio");
+            }
             Set<String> included = jsonStrings(manifest.optJSONArray("includedSections"));
             Map<String, JSONObject> sections = new LinkedHashMap<>();
             for (String section : included) {
                 if (!SubHubPackSchema.SECTIONS.contains(section)) throw new IOException("Unknown pack section");
                 byte[] bytes = entries.remove("sections/" + section + ".json");
                 if (bytes == null) throw new IOException("Pack section is missing: " + section);
-                // Validate original archive data before key/type migration.
+                // Validate original archive data before portable-field sanitization.
                 sections.put(section, new JSONObject(new String(bytes, StandardCharsets.UTF_8)));
             }
             Map<String, byte[]> assets = new LinkedHashMap<>();

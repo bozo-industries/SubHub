@@ -148,7 +148,7 @@
                         android:text="@string/app_mode_armed"
                         android:visibility="gone"
                         android:textColor="@color/text_primary" />
-                    <RadioGroup
+                    <com.subhub.app.util.CompactChoiceGroup
                         android:id="@+id/mode_group"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -169,7 +169,7 @@
                             android:buttonTint="@color/accent"
                             android:text="@string/app_mode_selected"
                             android:textColor="@color/text_primary" />
-                    </RadioGroup>
+                    </com.subhub.app.util.CompactChoiceGroup>
                 </LinearLayout>
                 <LinearLayout
                     android:id="@+id/app_list_card"
@@ -301,7 +301,7 @@
                     android:text="@string/paypal_settings_help" />
                 <TextView style="@style/Widget.SubHub.FieldLabel"
                     android:text="@string/paypal_environment_label" />
-                <RadioGroup
+                <com.subhub.app.util.CompactChoiceGroup
                     android:id="@+id/paypal_environment"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -322,7 +322,7 @@
                         android:layout_weight="1"
                         android:text="@string/paypal_environment_live"
                         android:textColor="@color/text_primary" />
-                </RadioGroup>
+                </com.subhub.app.util.CompactChoiceGroup>
                 <TextView style="@style/Widget.SubHub.FieldHelp"
                     android:text="@string/paypal_environment_help" />
                 <TextView
@@ -335,7 +335,7 @@
                     android:textStyle="bold" />
                 <TextView style="@style/Widget.SubHub.FieldLabel"
                     android:text="@string/wallet_currency_label" />
-                <RadioGroup
+                <com.subhub.app.util.CompactChoiceGroup
                     android:id="@+id/wallet_currency"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -348,7 +348,7 @@
                         android:layout_width="0dp" android:layout_weight="1"
                         android:layout_height="wrap_content" android:minHeight="48dp"
                         android:text="@string/wallet_currency_usd" />
-                </RadioGroup>
+                </com.subhub.app.util.CompactChoiceGroup>
                 <TextView android:id="@+id/wallet_currency_status"
                     style="@style/Widget.SubHub.FieldHelp"
                     android:text="@string/wallet_currency_help" />

@@ -35,8 +35,6 @@ public final class SubHubPackSchema {
     private static JSONObject capture(String section, Map<String, ?> all) {
         JSONObject stored = new JSONObject();
         for (String key : keysFor(section)) if (all.containsKey(key)) putJson(stored, key, all.get(key));
-        if (WALLET.equals(section) && !stored.has("rule_new_detection_cents")
-                && all.containsKey("strike_cents")) putJson(stored, "strike_cents", all.get("strike_cents"));
         return PackSettingCatalog.complete(section, stored);
     }
 

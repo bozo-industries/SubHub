@@ -83,8 +83,6 @@ public final class SubHubPackManager {
         ensureDirectory(library);
         state = this.context.getSharedPreferences(STATE_PREFS, Context.MODE_PRIVATE);
         recoverInterruptedActivation();
-        // Imported packs no longer impose editing locks. Existing settings and saved files stay.
-        state.edit().remove("active_lock_groups").commit();
     }
 
     public SubHubPack captureCurrent() {

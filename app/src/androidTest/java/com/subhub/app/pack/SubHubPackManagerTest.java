@@ -42,22 +42,22 @@ public final class SubHubPackManagerTest {
         repository.preferences().edit().putString(SettingsRepository.KEY_CENSOR_TYPE, "blur")
                 .commit();
         JSONObject section = new JSONObject().put(SettingsRepository.KEY_CENSOR_TYPE, "box");
-        SubHubPack pack = new SubHubPack(UUID.randomUUID().toString(), "Test", "", "", "1.0.0",
+        SubHubPack pack = new SubHubPack(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "Test", "", "", "1.0.0",
                 1L, 1L, "0.6.0", Map.of(SubHubPackSchema.CENSOR, section),
-                Set.of(SubHubPackSchema.CENSOR), new JSONObject(), Map.of());
+                new JSONObject(), Map.of());
         SubHubPackManager manager = new SubHubPackManager(context);
 
         assertTrue(manager.activate(pack, Set.of(SubHubPackSchema.CENSOR)));
         assertEquals("box", repository.preferences().getString(
                 SettingsRepository.KEY_CENSOR_TYPE, ""));
-        assertTrue(pack.getLockGroups().isEmpty());
+        assertFalse(pack.manifestWithoutIntegrity(Map.of()).has("lockGroups"));
         assertFalse(context.getSharedPreferences("subhub_pack_state_v1", Context.MODE_PRIVATE)
                 .contains("active_lock_groups"));
 
         assertTrue(manager.deactivate());
         assertEquals("blur", repository.preferences().getString(
                 SettingsRepository.KEY_CENSOR_TYPE, ""));
-        assertTrue(pack.getLockGroups().isEmpty());
+        assertFalse(pack.manifestWithoutIntegrity(Map.of()).has("lockGroups"));
     }
 
     @Test public void subSpaceCanApplyOnlyMatchingActivePackUpdate() throws Exception {
@@ -93,7 +93,7 @@ public final class SubHubPackManagerTest {
         JSONObject section = new JSONObject().put(SettingsRepository.KEY_CENSOR_TYPE, type);
         return new SubHubPack(id, deviceId, name, author, "", "1.0.0", 1L, updatedAt,
                 "0.6.0", Map.of(SubHubPackSchema.CENSOR, section),
-                Set.of(SubHubPackSchema.CENSOR), new JSONObject(), Map.of());
+                new JSONObject(), Map.of());
     }
 
     private Uri write(SubHubPack pack, String name) throws Exception {
