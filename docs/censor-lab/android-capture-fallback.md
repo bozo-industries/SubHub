@@ -26,6 +26,15 @@ On 8 September, a 24-second/30fps window recording produced719 frames with245 co
 
 ## Instrumentation taps and floating navigation
 
+For a guarded disposable emulator, pass an explicit virtual RAM and CPU budget rather than
+inheriting the AVD's stored configuration. For example, `-memory 2048 -cores 2` fits the UI-test
+workload under the established 8-GiB host job guard; an inherited 8-GiB guest configuration can
+consume the guard's entire budget before ADB becomes available. Use command-line overrides,
+preserve the AVD's saved settings and user data, record the guard counters and boot readiness,
+and stop only the verified test emulator before starting a heavy build. A peak near the limit
+alone does not prove the failure cause. Lightweight ADB control/observation uses the already
+guarded emulator lifecycle; do not launch a second heavy guarded workload concurrently.
+
 When reducing emulator resolution for bounded-memory UI testing, verify both `adb shell wm size`
 and `adb shell wm density`. Retaining 480 dpi at 720 pixels creates a 240-dp-wide surface, not a
 normal phone layout. Use a deliberate test density and record it; do not change the user's device.
