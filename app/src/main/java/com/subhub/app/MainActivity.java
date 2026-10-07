@@ -123,6 +123,10 @@ public final class MainActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
         PrimaryHeader.bind(binding.getRoot(), R.drawable.ic_tab_home, R.string.app_name,
                 R.string.header_subtitle);
+        View homeHeader = PrimaryHeader.view(binding.getRoot());
+        homeHeader.setMinimumHeight(dp(64));
+        homeHeader.setPaddingRelative(dp(12), dp(8), dp(12), dp(8));
+        PrimaryHeader.subtitle(binding.getRoot()).setVisibility(View.GONE);
         editLockButton = findViewById(R.id.button_edit_lock);
         projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
@@ -537,11 +541,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private void renderEditState() {
         if (binding == null) return;
-        boolean domMode = ControllerPinManager.isDomModeActive();
         ControllerEditMode.renderButton(this, editLockButton);
-        TextView headerSubtitle = findViewById(R.id.primary_header_subtitle);
-        if (headerSubtitle != null) headerSubtitle.setText(domMode
-                ? R.string.header_subtitle_dom : R.string.header_subtitle_sub);
         binding.domContent.setVisibility(View.GONE);
         binding.subDashboard.setVisibility(View.VISIBLE);
         // Both spaces use the floating bottom navigation. Keep the final home
@@ -572,11 +572,6 @@ public final class MainActivity extends AppCompatActivity {
         int atmosphereCount = (subliminalEnabled ? 1 : 0) + (popupEnabled ? 1 : 0);
         binding.subAtmosphereStatus.setText(getResources().getQuantityString(
                 R.plurals.atmosphere_effects_active, atmosphereCount, atmosphereCount));
-        binding.subAtmosphereSummary.setText(getString(R.string.atmosphere_home_summary,
-                getString(subliminalEnabled ? R.string.atmosphere_state_on
-                        : R.string.atmosphere_state_off),
-                getString(popupEnabled ? R.string.atmosphere_state_on
-                        : R.string.atmosphere_state_off)));
         binding.buttonProtection.setVisibility(modules.hasRuntimeFeature()
                 ? View.VISIBLE : View.GONE);
         binding.protectionStatusRow.setVisibility(View.GONE);
@@ -585,20 +580,13 @@ public final class MainActivity extends AppCompatActivity {
 
         long now = System.currentTimeMillis();
         if (censorEnabled) {
-            boolean active = ScreenCaptureService.isRunning()
-                    || ScreenshotAccessibilityService.isRecognitionActive();
-            boolean armed = new AppModeManager(this).isEffectivelyArmed(now);
-            binding.subCensorVoice.setText(active ? R.string.sub_censor_active
-                    : armed ? R.string.sub_censor_armed : R.string.sub_censor_idle);
             SettingsRepository settings = new SettingsRepository(this);
             DetectorConfig detector = settings.loadDetectorConfig();
             TextSmutConfig text = settings.loadTextSmutConfig();
-            String imageState = getString(detector.getEnabledCategories().isEmpty()
-                    ? R.string.sub_censor_images_off : R.string.sub_censor_images_on);
-            String textState = getString(text.isEnabled()
-                    ? R.string.sub_censor_text_on : R.string.sub_censor_text_off);
-            binding.subCensorSummary.setText(getString(R.string.sub_censor_summary,
-                    imageState, textState));
+            int censorCount = detector.getEnabledCategories().size()
+                    + (text.isEnabled() ? text.getEnabledCategories().size() : 0);
+            binding.subCensorVoice.setText(getResources().getQuantityString(
+                    R.plurals.sub_censors_active, censorCount, censorCount));
         }
 
         if (limitsEnabled) {
@@ -608,33 +596,11 @@ public final class MainActivity extends AppCompatActivity {
             Set<String> timerPackages = appMode.getTimerPackages();
             AppTimerManager.AllowanceSummary allowances =
                     timerManager.summarizeAllowances(timerPackages);
-            String limits;
-            String limitDetail;
-            if (!timer.anyEnabled()) {
-                limits = getString(R.string.sub_limits_none);
-                limitDetail = getString(R.string.sub_limits_sleeping);
-            } else if (allowances.isEmpty()) {
-                limits = getString(R.string.sub_limits_no_apps);
-                limitDetail = getString(R.string.sub_limits_sleeping);
-            } else {
-                String individual = allowances.isUniform()
-                        ? getString(R.string.sub_limits_per_app, allowances.minimumMinutes)
-                        : getString(R.string.sub_limits_individual_range,
-                                allowances.minimumMinutes, allowances.maximumMinutes);
-                if (timer.totalEnabled && timer.perAppEnabled) {
-                    limits = getString(R.string.sub_limits_shared_and_individual,
-                            timer.totalMinutes, individual);
-                } else if (timer.totalEnabled) {
-                    limits = getString(R.string.sub_limits_shared, timer.totalMinutes);
-                } else {
-                    limits = individual;
-                }
-                limitDetail = limits;
-                limits = getResources().getQuantityString(R.plurals.sub_limits_selected,
-                        allowances.appCount, allowances.appCount);
-            }
-            binding.subLimitsSummary.setText(limits);
-            binding.subLimitsDetail.setText(limitDetail);
+            int limitCount = allowances.isEmpty() ? 0
+                    : (timer.totalEnabled ? 1 : 0)
+                            + (timer.perAppEnabled ? allowances.appCount : 0);
+            binding.subLimitsSummary.setText(getResources().getQuantityString(
+                    R.plurals.sub_limits_selected, limitCount, limitCount));
         }
 
         if (walletEnabled) {
@@ -647,12 +613,8 @@ public final class MainActivity extends AppCompatActivity {
                             && walletManager.isInfractionEnabled(infraction)) activeRules++;
                 }
             }
-            binding.subWalletVoice.setText(wallet.isEnabled()
-                    ? getResources().getQuantityString(R.plurals.sub_wallet_active,
-                            activeRules, activeRules)
-                    : getString(R.string.sub_wallet_inactive));
-            binding.subWalletSummary.setText(getString(R.string.sub_wallet_summary,
-                    PenanceManager.formatMoney(wallet.getDueCents())));
+            binding.subWalletVoice.setText(getResources().getQuantityString(
+                    R.plurals.sub_wallet_active, activeRules, activeRules));
             boolean checkout = wallet.getCheckoutCents() > 0;
             binding.subWalletPay.setVisibility(wallet.getDueCents() > 0 || checkout
                     ? View.VISIBLE : View.GONE);

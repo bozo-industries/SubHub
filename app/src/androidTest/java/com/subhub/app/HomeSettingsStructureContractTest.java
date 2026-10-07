@@ -7,6 +7,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
@@ -17,10 +18,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.subhub.app.detection.text.TextSmutConfig;
 import com.subhub.app.settings.SettingsRepository;
+import com.subhub.app.settings.FeatureModuleManager;
 import com.subhub.app.settings.GlobalSettingsActivity;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -36,16 +40,45 @@ public final class HomeSettingsStructureContractTest {
         }
     }
 
-    @Test public void filterCardSummarizesOnlyImageAndTextState() {
+    @Test public void homeShowsConfiguredCountsWithoutSecondaryCaptions() {
+        Context context = ApplicationProvider.getApplicationContext();
+        SharedPreferences preferences = new SettingsRepository(context).preferences();
+        Map<String, ?> original = preferences.getAll();
+        String[] changedKeys = {FeatureModuleManager.KEY_CENSOR_ENABLED,
+                SettingsRepository.KEY_ENABLED_CATEGORIES,
+                SettingsRepository.KEY_TEXT_SMUT_ENABLED,
+                SettingsRepository.KEY_TEXT_SMUT_CATEGORIES};
+        preferences.edit()
+                .putBoolean(FeatureModuleManager.KEY_CENSOR_ENABLED, true)
+                .putStringSet(SettingsRepository.KEY_ENABLED_CATEGORIES,
+                        new LinkedHashSet<>(Arrays.asList("breasts", "buttocks")))
+                .putBoolean(SettingsRepository.KEY_TEXT_SMUT_ENABLED, true)
+                .putStringSet(SettingsRepository.KEY_TEXT_SMUT_CATEGORIES,
+                        new LinkedHashSet<>(Arrays.asList(TextSmutConfig.CATEGORY_EXPLICIT)))
+                .commit();
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> {
-                TextView summary = activity.findViewById(R.id.sub_censor_summary);
-                String value = summary.getText().toString();
-                assertTrue(value.startsWith("Image filter "));
-                assertTrue(value.contains(" · Text filter "));
-                assertFalse(value.contains("Box"));
-                assertFalse(value.contains("Assigned app"));
+                assertEquals("3 Censors active",
+                        ((TextView) activity.findViewById(R.id.sub_censor_voice))
+                                .getText().toString());
+                for (int id : new int[] {R.id.primary_header_subtitle,
+                        R.id.sub_censor_summary, R.id.sub_limits_detail,
+                        R.id.sub_wallet_summary, R.id.sub_atmosphere_summary}) {
+                    assertEquals(View.GONE, activity.findViewById(id).getVisibility());
+                }
+                assertTrue(activity.findViewById(R.id.sub_censor_card).isClickable());
             });
+        } finally {
+            SharedPreferences.Editor restore = preferences.edit();
+            for (String key : changedKeys) {
+                Object value = original.get(key);
+                if (value instanceof Boolean) restore.putBoolean(key, (Boolean) value);
+                else if (value instanceof Set) {
+                    @SuppressWarnings("unchecked") Set<String> values = (Set<String>) value;
+                    restore.putStringSet(key, values);
+                } else restore.remove(key);
+            }
+            restore.commit();
         }
     }
 

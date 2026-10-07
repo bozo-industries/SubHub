@@ -876,6 +876,10 @@ Maximum coverage · flagship devices</string>
     <string name="sub_censor_idle">Screen still yours.</string>
     <string name="sub_censor_armed">Censor armed.</string>
     <string name="sub_censor_active">Censor active.</string>
+    <plurals name="sub_censors_active">
+        <item quantity="one">%1$d Censor active</item>
+        <item quantity="other">%1$d Censors active</item>
+    </plurals>
     <string name="sub_censor_summary">%1$s · %2$s</string>
     <string name="sub_censor_images_on">Image filter on</string>
     <string name="sub_censor_images_off">Image filter off</string>
@@ -888,8 +892,8 @@ Maximum coverage · flagship devices</string>
     <string name="sub_limits_title">Today’s Limits</string>
     <string name="sub_limits_none">No daily limits.</string>
     <plurals name="sub_limits_selected">
-        <item quantity="one">%1$d watched app</item>
-        <item quantity="other">%1$d watched apps</item>
+        <item quantity="one">%1$d Limit active</item>
+        <item quantity="other">%1$d Limits active</item>
     </plurals>
     <string name="sub_limits_per_app">%1$dm each</string>
     <string name="sub_limits_individual_range">%1$d–%2$dm each</string>
@@ -924,8 +928,8 @@ Maximum coverage · flagship devices</string>
     <string name="stats_history_no_activity">No feature activity</string>
     <string name="sub_wallet_title">Tribute Ledger</string>
     <plurals name="sub_wallet_active">
-        <item quantity="one">%1$d tribute rule active.</item>
-        <item quantity="other">%1$d tribute rules active.</item>
+        <item quantity="one">%1$d Tribute active</item>
+        <item quantity="other">%1$d Tributes active</item>
     </plurals>
     <string name="sub_wallet_inactive">No tribute rules.</string>
     <string name="sub_wallet_summary">%1$s due</string>
@@ -1041,9 +1045,8 @@ Maximum coverage · flagship devices</string>
     <string name="atmosphere_home_summary">Whispers %1$s · Popup Storm %2$s</string>
     <string name="atmosphere_home_hint">Faint messages and visual disruption</string>
     <plurals name="atmosphere_effects_active">
-        <item quantity="zero">No effects active</item>
-        <item quantity="one">%1$d effect active</item>
-        <item quantity="other">%1$d effects active</item>
+        <item quantity="one">%1$d Effect active</item>
+        <item quantity="other">%1$d Effects active</item>
     </plurals>
     <string name="atmosphere_subtitle_dom">Dom Space · shape the effects surrounding service</string>
     <string name="atmosphere_subtitle_sub">Sub Space · see the effects surrounding your service</string>

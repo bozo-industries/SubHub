@@ -276,7 +276,7 @@
                     <LinearLayout
                         android:id="@+id/sub_censor_card"
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="88dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_home_module"
                         android:clickable="true"
@@ -302,6 +302,7 @@
                             android:gravity="center"
                             android:includeFontPadding="false"
                             android:text="@string/sub_censor_title"
+                            android:visibility="gone"
                             android:textColor="@color/text_secondary"
                             android:textSize="8sp"
                             android:textStyle="bold" />
@@ -318,14 +319,14 @@
                             android:ellipsize="end"
                             android:gravity="center"
                             android:includeFontPadding="false"
-                            android:maxLines="1"
-                            android:text="@string/sub_censor_idle"
+                            android:maxLines="2"
                             android:textColor="@color/text_primary"
                             android:textSize="10sp"
                             android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/sub_censor_summary"
+                            android:visibility="gone"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
@@ -343,7 +344,7 @@
                     <LinearLayout
                         android:id="@+id/sub_limits_card"
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="88dp"
                         android:layout_marginStart="7dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_home_module"
@@ -370,6 +371,7 @@
                             android:gravity="center"
                             android:includeFontPadding="false"
                             android:text="@string/sub_limits_title"
+                            android:visibility="gone"
                             android:textColor="@color/text_secondary"
                             android:textSize="8sp"
                             android:textStyle="bold" />
@@ -385,13 +387,14 @@
                             android:autoSizeTextType="uniform"
                             android:ellipsize="end"
                             android:gravity="center"
-                            android:maxLines="1"
+                            android:maxLines="2"
                             android:textColor="@color/text_primary"
                             android:textSize="10sp"
                             android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/sub_limits_detail"
+                            android:visibility="gone"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
@@ -409,7 +412,7 @@
                     <LinearLayout
                         android:id="@+id/sub_wallet_card"
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="88dp"
                         android:layout_marginStart="7dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_home_module"
@@ -436,6 +439,7 @@
                             android:gravity="center"
                             android:includeFontPadding="false"
                             android:text="@string/sub_wallet_title"
+                            android:visibility="gone"
                             android:textColor="@color/text_secondary"
                             android:textSize="8sp"
                             android:textStyle="bold" />
@@ -451,13 +455,14 @@
                             android:autoSizeTextType="uniform"
                             android:ellipsize="end"
                             android:gravity="center"
-                            android:maxLines="1"
+                            android:maxLines="2"
                             android:textColor="@color/text_primary"
                             android:textSize="10sp"
                             android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/sub_wallet_summary"
+                            android:visibility="gone"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
@@ -475,7 +480,7 @@
                     <LinearLayout
                         android:id="@+id/sub_atmosphere_card"
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="88dp"
                         android:layout_marginStart="7dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_home_module"
@@ -502,6 +507,7 @@
                             android:gravity="center"
                             android:includeFontPadding="false"
                             android:text="@string/atmosphere_title"
+                            android:visibility="gone"
                             android:textColor="@color/text_secondary"
                             android:textSize="8sp"
                             android:textStyle="bold" />
@@ -517,13 +523,14 @@
                             android:autoSizeTextType="uniform"
                             android:ellipsize="end"
                             android:gravity="center"
-                            android:maxLines="1"
+                            android:maxLines="2"
                             android:textColor="@color/text_primary"
                             android:textSize="10sp"
                             android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/sub_atmosphere_summary"
+                            android:visibility="gone"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="3dp"
