@@ -134,8 +134,8 @@ public final class PenanceActivity extends AppCompatActivity {
         PrimaryHeader.editLockButton(binding.getRoot())
                 .setVisibility(editing ? View.VISIBLE : View.GONE);
         PrimaryHeader.backButton(binding.getRoot()).setVisibility(View.GONE);
-        PrimaryHeader.subtitle(binding.getRoot()).setText(editing
-                ? R.string.penance_subtitle : R.string.penance_sub_checkout_subtitle);
+        PrimaryHeader.subtitle(binding.getRoot()).setText(
+                getString(R.string.wallet_currency_label) + ": " + manager.getCurrency());
         binding.ruleConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
         binding.safetyConfigCard.setVisibility(editing ? View.VISIBLE : View.GONE);
         // Dom mode must always expose the buyout setup. The Wallet master switch still
@@ -326,9 +326,9 @@ public final class PenanceActivity extends AppCompatActivity {
         int progress = batch == manager.getDetectionBatch()
                 ? manager.getDetectionRemainder() : 0;
         binding.ruleMathPreview.setText(getString(R.string.penance_rule_math_preview,
-                batch, exampleRegions, PenanceManager.formatMoney(cents),
-                PenanceManager.formatMoney(cents * 5), PenanceManager.formatMoney(daily),
-                PenanceManager.formatMoney(weekly), progress));
+                batch, exampleRegions, manager.money(cents),
+                manager.money(cents * 5), manager.money(daily),
+                manager.money(weekly), progress));
     }
 
     private boolean saveRules(boolean showInvalid) {
@@ -442,7 +442,8 @@ public final class PenanceActivity extends AppCompatActivity {
         }
         if (paypalReady) createPayPalOrder(settlement);
         else {
-            String approvalUrl = paymentUrl(manager.getPayPalLink(), settlement.getAmountCents());
+            String approvalUrl = paymentUrl(manager.getPayPalLink(), settlement.getAmountCents(),
+                    settlement.getCurrency());
             manager.bindOrder(settlement.getId(), settlement.getId(), approvalUrl);
             render();
             openApprovalUrl();
@@ -454,7 +455,7 @@ public final class PenanceActivity extends AppCompatActivity {
         render();
         PayPalCredentialStore.Credentials credentials = paypalCredentials.load();
         paypalClient.createOrder(credentials, settlement.getId(),
-                settlement.getAmountCents(), false,
+                settlement.getAmountCents(), settlement.getCurrency(), false,
                 PayPalOrderDetails.from(this, settlement), result -> {
                     checkoutBusy = false;
                     if (binding == null) return;
@@ -539,7 +540,7 @@ public final class PenanceActivity extends AppCompatActivity {
         checkoutBusy = true;
         render();
         paypalClient.captureOrder(credentials, orderId, settlementId,
-                snapshot.getCheckoutCents(), activeClientMetadataId, result -> {
+                snapshot.getCheckoutCents(), manager.getCurrency(), activeClientMetadataId, result -> {
                     checkoutBusy = false;
                     if (binding == null) return;
                     if (!result.isSuccess()) {
@@ -608,10 +609,10 @@ public final class PenanceActivity extends AppCompatActivity {
         if (binding == null) return;
         long now = System.currentTimeMillis();
         PenanceSnapshot snapshot = manager.snapshot(now);
-        binding.dueAmount.setText(PenanceManager.formatMoney(snapshot.getDueCents()));
-        binding.mercyAmount.setText(PenanceManager.formatMoney(snapshot.getMercyCents()));
-        binding.checkoutAmount.setText(PenanceManager.formatMoney(snapshot.getCheckoutCents()));
-        binding.paidAmount.setText(PenanceManager.formatMoney(snapshot.getPaidCents()));
+        binding.dueAmount.setText(manager.money(snapshot.getDueCents()));
+        binding.mercyAmount.setText(manager.money(snapshot.getMercyCents()));
+        binding.checkoutAmount.setText(manager.money(snapshot.getCheckoutCents()));
+        binding.paidAmount.setText(manager.money(snapshot.getPaidCents()));
         boolean checkout = snapshot.getCheckoutCents() > 0;
         boolean automaticCheckout = checkout && manager.getActiveCheckoutMode()
                 == PenanceManager.CheckoutMode.HARDCORE_AUTO;
@@ -670,7 +671,7 @@ public final class PenanceActivity extends AppCompatActivity {
             text.append(getString(R.string.penance_history_item,
                     date.format(new Date(event.getCreatedAtMillis())),
                     infractionLabel(event.getInfraction()), event.getStrikeCount(),
-                    PenanceManager.formatMoney(event.getAmountCents()), status));
+                    WalletCurrency.format(event.getCurrency(), event.getAmountCents()), status));
         }
         binding.history.setText(text.toString());
     }
@@ -707,13 +708,13 @@ public final class PenanceActivity extends AppCompatActivity {
         }
     }
 
-    private static String paymentUrl(String baseUrl, int amountCents) {
+    private static String paymentUrl(String baseUrl, int amountCents, String currency) {
         URI uri = URI.create(baseUrl);
         if (!"paypal.me".equalsIgnoreCase(uri.getHost())) return baseUrl;
         String trimmed = baseUrl;
         while (trimmed.endsWith("/")) trimmed = trimmed.substring(0, trimmed.length() - 1);
         return trimmed + "/" + String.format(Locale.ROOT, "%.2f", amountCents / 100.0)
-                + PenanceManager.CURRENCY;
+                + WalletCurrency.requireSupported(currency);
     }
 
     private static Integer parseEuros(String value) {

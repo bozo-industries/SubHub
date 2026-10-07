@@ -64,14 +64,14 @@ final class HardcoreAutoPayEngine {
         penance.markAutomaticSettlement(settlement.getId(), credentials.boundaryId());
         PayPalOrdersClient client = new PayPalOrdersClient(app);
         client.createStoredWalletPayment(credentials, settlement.getId(),
-                settlement.getAmountCents(), vault.vaultId(), result -> {
+                settlement.getAmountCents(), settlement.getCurrency(), vault.vaultId(), result -> {
                     try {
                         if (result.isSuccess()) {
                             if (penance.completeSettlement(
                                     settlement.getId(), settlement.getAmountCents())) {
                                 policy.markPaid();
                                 notify(app, true, "Wallet payment completed · "
-                                        + PenanceManager.formatMoney(
+                                        + WalletCurrency.format(settlement.getCurrency(),
                                                 settlement.getAmountCents()));
                             } else {
                                 policy.pause("The local settlement no longer matched");
