@@ -17,7 +17,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CheckBox;
+import com.subhub.app.util.StateToggle;
 import android.widget.LinearLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -87,7 +87,7 @@ public final class StudioActivity extends AppCompatActivity {
     private long assetRequest;
     private final List<Button> stepButtons = new ArrayList<>();
     private final Map<View, Boolean> busyStates = new LinkedHashMap<>();
-    private final Map<String, CheckBox> includes = new LinkedHashMap<>();
+    private final Map<String, StateToggle> includes = new LinkedHashMap<>();
     private final Map<String, TextView> sectionSummaries = new LinkedHashMap<>();
     private final Map<String, JSONObject> sectionDrafts = new LinkedHashMap<>();
 
@@ -296,7 +296,7 @@ public final class StudioActivity extends AppCompatActivity {
             card.setLayoutParams(cardParams);
             card.setBackgroundResource(R.drawable.bg_sub_module_card);
 
-            CheckBox include = new CheckBox(this);
+            StateToggle include = new StateToggle(this);
             include.setText(getString(R.string.pack_editor_include_section, sectionTitle(section)));
             include.setTextColor(getColor(R.color.text_primary));
             include.setTextSize(14f);

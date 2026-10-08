@@ -16,7 +16,7 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.SystemClock;
 import android.view.View;
-import android.widget.CheckBox;
+import com.subhub.app.util.StateToggle;
 import android.widget.TextView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -57,6 +57,7 @@ public final class StudioCreatorAndroidTest {
                     .check((view, missing) -> {
                         if (missing != null) throw missing;
                         View checkbox = view.getRootView().findViewWithTag("rule_new_detection_enabled");
+                        assertTrue(checkbox instanceof StateToggle);
                         View amountRow = (View) view.getParent();
                         View toggleRow = (View) checkbox.getParent();
                         assertEquals(toggleRow.getParent(), amountRow.getParent());
@@ -65,9 +66,13 @@ public final class StudioCreatorAndroidTest {
                         assertTrue(toggleRow.getRight() <= amountRow.getLeft());
                     })
                     .perform(scrollTo(), replaceText("2.25"), closeSoftKeyboard());
+            onView(withTagValue(is((Object) "rule_new_detection_enabled")))
+                    .inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog())
+                    .perform(scrollTo(), click());
             onView(withId(android.R.id.button1)).inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(click());
             assertNotNull(saved.get());
             assertEquals(225, saved.get().optInt("rule_new_detection_cents"));
+            assertFalse(saved.get().optBoolean("rule_new_detection_enabled"));
             assertEquals(before, walletPrefs().getAll());
         }
     }
@@ -193,7 +198,10 @@ public final class StudioCreatorAndroidTest {
                 createdId = draft(activity).getId();
                 ((TextView) activity.findViewById(R.id.pack_name)).setText("Rotation draft");
                 activity.findViewById(R.id.editor_next).performClick();
-                ((CheckBox) activity.findViewById(R.id.section_list).findViewWithTag("pack_include:censor")).setChecked(true);
+                StateToggle include = activity.findViewById(R.id.section_list).findViewWithTag("pack_include:censor");
+                assertFalse(include.isChecked());
+                include.performClick(); // CompoundButton toggles even without an OnClickListener.
+                assertTrue(include.isChecked());
                 activity.findViewById(R.id.editor_next).performClick();
             });
             scenario.recreate();
@@ -219,12 +227,23 @@ public final class StudioCreatorAndroidTest {
         java.util.concurrent.atomic.AtomicReference<JSONObject> result = new java.util.concurrent.atomic.AtomicReference<>();
         try (ActivityScenario<StudioActivity> scenario = ActivityScenario.launch(StudioActivity.class)) {
             scenario.onActivity(activity -> PackSectionEditor.show(activity, "censor", "Censor", values, result::set));
-            onView(withTagValue(is((Object) ("pack_group:censor:" + R.string.pack_group_border)))).perform(scrollTo(), click());
-            onView(withTagValue(is((Object) "border_gradient_start"))).perform(scrollTo(), click());
-            onView(withTagValue(is((Object) "color_wheel"))).perform(com.subhub.app.ColorPickerDialogTest.redEdge());
-            onView(withId(android.R.id.button1)).perform(click());
+            onView(withTagValue(is((Object) ("pack_group:censor:" + R.string.pack_group_border))))
+                    .inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(scrollTo(), click());
+            onView(withTagValue(is((Object) "border_gradient_start")))
+                    .inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(scrollTo(), click());
+            org.hamcrest.Matcher<androidx.test.espresso.Root> picker = org.hamcrest.Matchers.allOf(
+                    androidx.test.espresso.matcher.RootMatchers.isDialog(),
+                    androidx.test.espresso.matcher.RootMatchers.withDecorView(
+                            androidx.test.espresso.matcher.ViewMatchers.hasDescendant(withTagValue(is((Object) "color_wheel")))));
+            onView(withTagValue(is((Object) "color_wheel"))).inRoot(picker)
+                    .perform(com.subhub.app.ColorPickerDialogTest.redEdge());
+            onView(withId(android.R.id.button1)).inRoot(picker).perform(click());
             assertEquals(liveBefore, new com.subhub.app.settings.SettingsRepository(context).loadAppearance().getGradientStart());
-            onView(withId(android.R.id.button1)).perform(click());
+            onView(withId(android.R.id.button1)).inRoot(org.hamcrest.Matchers.allOf(
+                    androidx.test.espresso.matcher.RootMatchers.isDialog(),
+                    androidx.test.espresso.matcher.RootMatchers.withDecorView(
+                            androidx.test.espresso.matcher.ViewMatchers.hasDescendant(withTagValue(is((Object) "border_gradient_start"))))))
+                    .perform(click());
             assertNotNull(result.get());
             assertEquals("#FFFF0000", result.get().getString("border_gradient_start"));
             assertEquals("#00FF00", result.get().getString("border_gradient_end"));
@@ -247,7 +266,15 @@ public final class StudioCreatorAndroidTest {
                         if (error != null) throw error;
                         assertNotNull(view);
                         assertNotNull(view.getTag());
-                        if (field.kind == PackSettingCatalog.Kind.BOOLEAN) assertTrue(view instanceof CheckBox);
+                        if (field.kind == PackSettingCatalog.Kind.BOOLEAN) {
+                            assertTrue(field.key, view instanceof StateToggle);
+                            StateToggle toggle = (StateToggle) view;
+                            assertNull(toggle.getThumbDrawable());
+                            assertNull(toggle.getTrackDrawable());
+                            assertEquals(context.getString(R.string.control_state_on), toggle.getTextOn());
+                            assertEquals(context.getString(R.string.control_state_off), toggle.getTextOff());
+                            assertEquals(PackSettingCatalog.defaults(section).optBoolean(field.key), toggle.isChecked());
+                        }
                     });
                     count++;
                 }

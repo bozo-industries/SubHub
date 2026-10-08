@@ -8,7 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CheckBox;
+import com.subhub.app.util.StateToggle;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -102,7 +102,7 @@ final class PackSectionEditor {
             row.setPadding(0, dp(5), 0, dp(5));
             rows.put(field.key, row);
             if (field.kind == PackSettingCatalog.Kind.BOOLEAN) {
-                CheckBox check = new CheckBox(activity);
+                StateToggle check = new StateToggle(activity);
                 check.setText(field.label);
                 check.setTextColor(activity.getColor(R.color.text_primary));
                 check.setTextSize(14f);
@@ -378,8 +378,8 @@ final class PackSectionEditor {
             View control = controls.get(field.key);
             if (control instanceof Spinner) {
                 ((Spinner) control).setSelection(Math.max(0, field.choices.indexOf(String.valueOf(working.opt(field.key)))));
-            } else if (control instanceof CheckBox) {
-                ((CheckBox) control).setChecked(working.optBoolean(field.key));
+            } else if (control instanceof StateToggle) {
+                ((StateToggle) control).setChecked(working.optBoolean(field.key));
             } else if (control instanceof Button && field.kind == PackSettingCatalog.Kind.COLOR) {
                 ((Button) control).setText(field.displayText(working.opt(field.key)));
             } else if (control instanceof EditText && !control.hasFocus() && !invalidInputs.contains(field.key)) {
