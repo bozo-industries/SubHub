@@ -127,8 +127,8 @@ public final class SettingsActivity extends AppCompatActivity {
                     : getString(R.string.censor_areas_selected, selected)) + (expanded ? "  −" : "  +"));
         androidx.core.view.ViewCompat.setStateDescription(binding.buttonOtherAreas,
                 getString(expanded ? R.string.section_expanded : R.string.section_collapsed));
-        RadioButton chosen = binding.getRoot().findViewById(checkedStyleId());
-        binding.appearanceSummary.setText(chosen == null ? "" : chosen.getText());
+        binding.censorImagesSection.setVisibility(typeFor(checkedStyleId()) == CensorAppearance.Type.CUSTOM
+                && !binding.switchReverse.isChecked() ? View.VISIBLE : View.GONE);
     }
 
     private void renderDetectionLabels() {

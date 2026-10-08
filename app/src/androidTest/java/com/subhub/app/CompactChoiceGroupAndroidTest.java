@@ -28,7 +28,7 @@ public final class CompactChoiceGroupAndroidTest {
                             base.createConfigurationContext(config), R.style.Theme_SubHub);
                     View page = LayoutInflater.from(themed).inflate(R.layout.activity_settings, null, false);
                     CompactChoiceGroup group = page.findViewById(R.id.preset_group);
-                    String[] text = {"Low\nBalanced coverage", "Medium\nMore small-region coverage", "High\nMaximum coverage"};
+                    String[] text = {"Low\nBalanced Coverage", "Medium\nMore Coverage", "High\nMaximum Coverage"};
                     for (int index = 0; index < 3; index++) {
                         TextView choice = (TextView) group.getChildAt(index);
                         assertEquals("Shared taller cards retain the same content top alignment",

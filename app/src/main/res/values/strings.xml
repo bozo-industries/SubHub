@@ -23,9 +23,9 @@
     <string name="detection_level_low">Low</string>
     <string name="detection_level_medium">Medium</string>
     <string name="detection_level_high">High</string>
-    <string name="detection_low_help">Balanced coverage</string>
-    <string name="detection_medium_help">More small-region coverage</string>
-    <string name="detection_high_help">Maximum coverage</string>
+    <string name="detection_low_help">Balanced Coverage</string>
+    <string name="detection_medium_help">More Coverage</string>
+    <string name="detection_high_help">Maximum Coverage</string>
     <string name="censor_images_inline_help">Choose replacement images for the Image censor style. Add, enable, or remove them here; images stay on this device.</string>
     <string name="censor_gallery_photos">Censor photos from gallery</string>
     <string name="apps_accessibility_ready">Accessibility connected</string>

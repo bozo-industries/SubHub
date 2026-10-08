@@ -83,7 +83,6 @@ public final class CensorUxRedesignAndroidTest {
                 ViewGroup page = (ViewGroup) rules.getParent();
                 assertTrue(page.indexOfChild(rules) < page.indexOfChild(appearance));
                 assertEquals(View.GONE, activity.findViewById(R.id.appearance_content).getVisibility());
-                assertFalse(activity.findViewById(R.id.appearance_summary).isShown());
                 assertEquals(View.GONE, activity.findViewById(R.id.capture_options_content).getVisibility());
                 ViewGroup filters = (ViewGroup) rules;
                 assertEquals(filters.getChildAt(filters.getChildCount() - 1), activity.findViewById(R.id.censor_capture_section));
@@ -101,10 +100,13 @@ public final class CensorUxRedesignAndroidTest {
             onView(withId(R.id.button_appearance_details)).perform(revealAboveNavigation(), click());
             scenario.onActivity(activity -> {
                 assertTrue(activity.findViewById(R.id.appearance_content).isShown());
-                assertTrue(activity.findViewById(R.id.appearance_summary).isShown());
+                assertEquals(1, countText(activity.findViewById(R.id.appearance_content), activity.getString(R.string.style_box)));
+                assertFalse(containsText(activity.findViewById(R.id.appearance_content),
+                        activity.getString(R.string.changes_saved_automatically)));
             });
             onView(withId(R.id.button_appearance_details)).perform(revealAboveNavigation(), click());
-            scenario.onActivity(activity -> assertFalse(activity.findViewById(R.id.appearance_summary).isShown()));
+            scenario.onActivity(activity -> assertEquals(View.GONE,
+                    activity.findViewById(R.id.appearance_content).getVisibility()));
         }
     }
 
@@ -229,6 +231,15 @@ public final class CensorUxRedesignAndroidTest {
             }
         }
         return false;
+    }
+
+    private static int countText(View root, String expected) {
+        int count = root instanceof TextView && expected.equals(((TextView) root).getText().toString()) ? 1 : 0;
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int index = 0; index < group.getChildCount(); index++) count += countText(group.getChildAt(index), expected);
+        }
+        return count;
     }
 
     private static void assertTextFits(TextView text) {

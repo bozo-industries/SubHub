@@ -38,7 +38,6 @@
             <LinearLayout android:id="@+id/appearance_content"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical">
-            <TextView android:id="@+id/appearance_summary" style="@style/Widget.SubHub.FieldHelp" />
             <LinearLayout android:id="@+id/censor_style_section"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -56,14 +55,14 @@
 
                     <FrameLayout
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="130dp"
                         android:layout_columnWeight="1"
                         android:layout_gravity="fill_horizontal"
                         android:layout_margin="3dp"
                         android:background="@drawable/bg_style_tile">
                         <com.subhub.app.settings.CensorPreviewView
                             android:layout_width="match_parent"
-                            android:layout_height="66dp"
+                            android:layout_height="88dp"
                             android:layout_margin="6dp"
                             android:tag="box" />
                         <RadioButton
@@ -81,14 +80,14 @@
 
                     <FrameLayout
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="130dp"
                         android:layout_columnWeight="1"
                         android:layout_gravity="fill_horizontal"
                         android:layout_margin="3dp"
                         android:background="@drawable/bg_style_tile">
                         <com.subhub.app.settings.CensorPreviewView
                             android:layout_width="match_parent"
-                            android:layout_height="66dp"
+                            android:layout_height="88dp"
                             android:layout_margin="6dp"
                             android:tag="pixelate" />
                         <RadioButton
@@ -106,14 +105,14 @@
 
                     <FrameLayout
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="130dp"
                         android:layout_columnWeight="1"
                         android:layout_gravity="fill_horizontal"
                         android:layout_margin="3dp"
                         android:background="@drawable/bg_style_tile">
                         <com.subhub.app.settings.CensorPreviewView
                             android:layout_width="match_parent"
-                            android:layout_height="66dp"
+                            android:layout_height="88dp"
                             android:layout_margin="6dp"
                             android:tag="blur" />
                         <RadioButton
@@ -131,14 +130,14 @@
 
                     <FrameLayout
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="130dp"
                         android:layout_columnWeight="1"
                         android:layout_gravity="fill_horizontal"
                         android:layout_margin="3dp"
                         android:background="@drawable/bg_style_tile">
                         <com.subhub.app.settings.CensorPreviewView
                             android:layout_width="match_parent"
-                            android:layout_height="66dp"
+                            android:layout_height="88dp"
                             android:layout_margin="6dp"
                             android:tag="custom" />
                         <RadioButton
@@ -156,14 +155,14 @@
 
                     <FrameLayout
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="130dp"
                         android:layout_columnWeight="1"
                         android:layout_gravity="fill_horizontal"
                         android:layout_margin="3dp"
                         android:background="@drawable/bg_style_tile">
                         <com.subhub.app.settings.CensorPreviewView
                             android:layout_width="match_parent"
-                            android:layout_height="66dp"
+                            android:layout_height="88dp"
                             android:layout_margin="6dp"
                             android:tag="static" />
                         <RadioButton
@@ -181,14 +180,14 @@
 
                     <FrameLayout
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="130dp"
                         android:layout_columnWeight="1"
                         android:layout_gravity="fill_horizontal"
                         android:layout_margin="3dp"
                         android:background="@drawable/bg_style_tile">
                         <com.subhub.app.settings.CensorPreviewView
                             android:layout_width="match_parent"
-                            android:layout_height="66dp"
+                            android:layout_height="88dp"
                             android:layout_margin="6dp"
                             android:tag="glitch" />
                         <RadioButton
@@ -206,14 +205,14 @@
 
                     <FrameLayout
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="130dp"
                         android:layout_columnWeight="1"
                         android:layout_gravity="fill_horizontal"
                         android:layout_margin="3dp"
                         android:background="@drawable/bg_style_tile">
                         <com.subhub.app.settings.CensorPreviewView
                             android:layout_width="match_parent"
-                            android:layout_height="66dp"
+                            android:layout_height="88dp"
                             android:layout_margin="6dp"
                             android:tag="tape" />
                         <RadioButton
@@ -231,14 +230,14 @@
 
                     <FrameLayout
                         android:layout_width="0dp"
-                        android:layout_height="108dp"
+                        android:layout_height="130dp"
                         android:layout_columnWeight="1"
                         android:layout_gravity="fill_horizontal"
                         android:layout_margin="3dp"
                         android:background="@drawable/bg_style_tile">
                         <com.subhub.app.settings.CensorPreviewView
                             android:layout_width="match_parent"
-                            android:layout_height="66dp"
+                            android:layout_height="88dp"
                             android:layout_margin="6dp"
                             android:tag="error" />
                         <RadioButton
@@ -610,7 +609,6 @@
                     style="@style/Widget.SubHub.PrimaryButton"
                     android:layout_marginTop="10dp"
                     android:text="@string/save_phrases" android:visibility="gone" />
-                <TextView style="@style/Widget.SubHub.FieldHelp" android:text="@string/changes_saved_automatically" />
             </LinearLayout>
             </LinearLayout>
         </LinearLayout>

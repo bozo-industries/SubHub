@@ -47,11 +47,11 @@ public final class CensorEditorStructureContractTest {
                     assertEquals(1, size.length);
                     assertTrue(size[0].getSizeChange() < 1f);
                 }
-                assertEquals("Medium\nMore small-region coverage",
+                assertEquals("Medium\nMore Coverage",
                         ((android.widget.TextView) activity.findViewById(R.id.radio_preset_medium)).getText().toString());
-                assertEquals("Low\nBalanced coverage",
+                assertEquals("Low\nBalanced Coverage",
                         ((android.widget.TextView) activity.findViewById(R.id.radio_preset_low)).getText().toString());
-                assertEquals("High\nMaximum coverage",
+                assertEquals("High\nMaximum Coverage",
                         ((android.widget.TextView) activity.findViewById(R.id.radio_preset_high)).getText().toString());
                 float density = activity.getResources().getDisplayMetrics().density;
                 for (int id : ids) {
@@ -69,26 +69,23 @@ public final class CensorEditorStructureContractTest {
         }
     }
     private android.content.SharedPreferences preferences;
-    private boolean originallyPresent;
-    private boolean originallyEnabled;
+    private java.util.Map<String, ?> originalPreferences;
     @Before public void enterDomMode() {
         android.content.Context context = androidx.test.core.app.ApplicationProvider.getApplicationContext();
         preferences = new SettingsRepository(context).preferences();
-        originallyPresent = preferences.contains(FeatureModuleManager.KEY_CENSOR_ENABLED);
-        originallyEnabled = preferences.getBoolean(FeatureModuleManager.KEY_CENSOR_ENABLED, true);
+        originalPreferences = new java.util.LinkedHashMap<>(preferences.getAll());
         preferences.edit().putBoolean(FeatureModuleManager.KEY_CENSOR_ENABLED, true).commit();
         ControllerPinManager.enterDomMode();
     }
 
     @After public void leaveDomMode() {
-        android.content.SharedPreferences.Editor restore = preferences.edit();
-        if (originallyPresent) restore.putBoolean(FeatureModuleManager.KEY_CENSOR_ENABLED, originallyEnabled);
-        else restore.remove(FeatureModuleManager.KEY_CENSOR_ENABLED);
-        restore.commit();
+        SharedPreferenceTestRestore.restore(preferences, originalPreferences);
         ControllerPinManager.enterSubMode();
     }
 
     @Test public void imageManagementIsInsideAppearanceWithoutASeparateToolsCard() {
+        preferences.edit().putString(SettingsRepository.KEY_CENSOR_TYPE, "custom")
+                .putBoolean(SettingsRepository.KEY_REVERSE_MODE, false).commit();
         try (ActivityScenario<SettingsActivity> scenario =
                      ActivityScenario.launch(SettingsActivity.class)) {
             onView(withId(R.id.button_appearance_details)).perform(revealAboveNavigation(), click());
