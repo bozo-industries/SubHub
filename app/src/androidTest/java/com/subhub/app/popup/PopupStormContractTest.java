@@ -150,8 +150,7 @@ public final class PopupStormContractTest {
                 assertTrue(activity.findViewById(R.id.button_stop).isEnabled());
                 assertFalse(activity.findViewById(R.id.button_preview).isEnabled());
                 activity.findViewById(R.id.button_preview).performClick();
-                ((com.google.android.material.switchmaterial.SwitchMaterial)
-                        activity.findViewById(R.id.switch_enabled)).setChecked(true);
+                assertEquals(0, activity.getResources().getIdentifier("switch_enabled", "id", activity.getPackageName()));
                 assertFalse(PopupStormSettings.load(context).isEnabled());
                 assertFalse(PopupStormManager.get().isPreviewing());
                 assertEquals(armed, new AppModeManager(context).isArmed());

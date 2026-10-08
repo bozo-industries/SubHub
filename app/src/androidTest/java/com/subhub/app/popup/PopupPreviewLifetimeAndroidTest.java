@@ -16,6 +16,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.subhub.app.appmode.AppModeManager;
+import com.subhub.app.R;
 import com.subhub.app.security.ControllerPinManager;
 
 import org.junit.After;
@@ -126,6 +127,45 @@ public final class PopupPreviewLifetimeAndroidTest {
         assertEquals(PopupStormManager.PreviewResult.UNAVAILABLE, result.get());
         assertFalse(PopupStormManager.get().isPreviewing());
         assertFalse(new AppModeManager(context).isArmed());
+    }
+
+    @Test public void disabledStormPreviewsFromTheButtonSurvivesReloadAndExpiresWithoutEnablingService() {
+        preferences.edit().putBoolean(PopupStormSettings.K_ENABLED, false).commit();
+        PopupStormManager manager = PopupStormManager.get();
+        try (ActivityScenario<PopupStormActivity> scenario = ActivityScenario.launch(PopupStormActivity.class)) {
+            scenario.onActivity(activity -> {
+                activity.findViewById(R.id.button_preview).performClick();
+                assertTrue(manager.isPreviewing());
+                assertFalse(PopupStormSettings.load(context).isEnabled());
+            });
+            await(manager::isRunning, 3_000);
+            scenario.onActivity(activity -> {
+                manager.reloadSettings(activity);
+                assertTrue(manager.isRunning());
+                assertFalse("Live service must still reject disabled Storm", manager.canStart(activity));
+            });
+            SystemClock.sleep(300); // Prove multiple rendering frames survive, not just startup.
+            assertTrue(manager.isRunning());
+            assertFalse(new AppModeManager(context).isArmed());
+        }
+        await(() -> !manager.isPreviewing(), manager.remainingPreviewMillis() + 2_000);
+        assertFalse(manager.isRunning());
+        assertFalse(PopupStormSettings.load(context).isEnabled());
+        assertFalse(new AppModeManager(context).isArmed());
+    }
+
+    @Test public void previewWarningCanBeCancelledWithoutEnablingOrAcknowledgingStorm() {
+        preferences.edit().putBoolean(PopupStormSettings.K_ENABLED, false)
+                .putBoolean(PopupStormSettings.K_ACK, false).commit();
+        try (ActivityScenario<PopupStormActivity> scenario = ActivityScenario.launch(PopupStormActivity.class)) {
+            scenario.onActivity(activity -> activity.findViewById(R.id.button_preview).performClick());
+            androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withId(android.R.id.button2))
+                    .inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog())
+                    .perform(androidx.test.espresso.action.ViewActions.click());
+            assertFalse(PopupStormManager.get().isPreviewing());
+            assertFalse(PopupStormSettings.load(context).isEnabled());
+            assertFalse(PopupStormSettings.load(context).isAcknowledged());
+        }
     }
 
     private static void await(BooleanSupplier condition, long timeout) {

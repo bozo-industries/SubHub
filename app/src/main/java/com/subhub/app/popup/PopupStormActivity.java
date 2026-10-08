@@ -45,7 +45,6 @@ import java.util.Set;
 public final class PopupStormActivity extends AppCompatActivity {
     private ActivityPopupStormBinding binding;
     private SharedPreferences preferences;
-    private boolean bindingEnabled;
     private ControllerEditMode editMode;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable statusUpdater = new Runnable() {
@@ -59,7 +58,7 @@ public final class PopupStormActivity extends AppCompatActivity {
             new ActivityResultContracts.OpenDocumentTree(), this::onFolderPicked);
     private final ActivityResultLauncher<Intent> overlayPermission = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(), result -> {
-                if (Settings.canDrawOverlays(this)) completeEnable();
+                if (Settings.canDrawOverlays(this)) preview();
                 else refreshStatus();
             });
 
@@ -77,20 +76,6 @@ public final class PopupStormActivity extends AppCompatActivity {
             refreshStatus();
         });
         binding.buttonPreview.setOnClickListener(view -> preview());
-        binding.switchEnabled.setOnCheckedChangeListener((button, checked) -> {
-            if (bindingEnabled) return;
-            if (!ControllerPinManager.isSessionUnlocked()) {
-                refreshStatus();
-                return;
-            }
-            if (checked) requestEnable();
-            else {
-                preferences.edit().putBoolean(PopupStormSettings.K_ENABLED, false).apply();
-                PopupStormManager.get().stop();
-                PopupStormManager.get().reloadSettings(this);
-                refreshStatus();
-            }
-        });
         binding.presetSlider.setLabelFormatter(value -> IntensityPresets.values()[Math.round(value)].getDisplayName());
         binding.presetSlider.addOnChangeListener((slider, value, fromUser) -> {
             if (fromUser) applyPreset(Math.round(value));
@@ -134,43 +119,37 @@ public final class PopupStormActivity extends AppCompatActivity {
         super.onPause();
     }
 
-    private void requestEnable() {
+    private void requestPreview() {
+        if (!ControllerPinManager.isSessionUnlocked()) return;
         if (!preferences.getBoolean(PopupStormSettings.K_ACK, false)) {
-            bindingEnabled = true;
-            binding.switchEnabled.setChecked(false);
-            bindingEnabled = false;
             com.subhub.app.util.ThemedDialogs.builder(this)
                     .setTitle(R.string.popup_photosensitivity_title)
                     .setMessage(R.string.popup_photosensitivity_body)
                     .setNegativeButton(android.R.string.cancel, null)
                     .setPositiveButton(R.string.popup_acknowledge, (dialog, which) -> {
+                        if (!ControllerPinManager.isSessionUnlocked()) return;
                         preferences.edit().putBoolean(PopupStormSettings.K_ACK, true).apply();
-                        requestOverlayOrComplete();
+                        requestOverlayOrPreview();
                     }).show();
             return;
         }
-        requestOverlayOrComplete();
+        requestOverlayOrPreview();
     }
 
-    private void requestOverlayOrComplete() {
+    private void requestOverlayOrPreview() {
+        if (!ControllerPinManager.isSessionUnlocked()) return;
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(this, R.string.popup_overlay_permission, Toast.LENGTH_LONG).show();
             overlayPermission.launch(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + getPackageName())));
-        } else completeEnable();
-    }
-
-    private void completeEnable() {
-        preferences.edit().putBoolean(PopupStormSettings.K_ENABLED, true).apply();
-        PopupStormManager.get().reloadSettings(this);
-        refreshStatus();
+        } else preview();
     }
 
     private void preview() {
         if (!ControllerPinManager.isSessionUnlocked()) return;
         PopupStormSettings current = PopupStormSettings.load(this);
-        if (!current.isEnabled() || !current.isAcknowledged() || !Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, R.string.popup_preview_unavailable, Toast.LENGTH_SHORT).show();
+        if (!current.isAcknowledged() || !Settings.canDrawOverlays(this)) {
+            requestPreview();
             return;
         }
         PopupStormManager.PreviewResult result = PopupStormManager.get().preview(this);
@@ -263,7 +242,6 @@ public final class PopupStormActivity extends AppCompatActivity {
     private void applyEditState() {
         if (binding == null) return;
         boolean editing = ControllerPinManager.isSessionUnlocked();
-        binding.switchEnabled.setEnabled(editing);
         binding.buttonPreview.setEnabled(editing);
         binding.buttonAddFolder.setEnabled(editing);
         binding.presetSlider.setEnabled(editing);
@@ -517,19 +495,11 @@ public final class PopupStormActivity extends AppCompatActivity {
     }
 
     private void refreshStatus() {
-        PopupStormSettings current = PopupStormSettings.load(this);
-        bindingEnabled = true;
-        binding.switchEnabled.setChecked(current.isEnabled());
-        bindingEnabled = false;
         if (PopupStormManager.get().isPreviewing()) {
             long remaining = PopupStormManager.get().remainingPreviewMillis();
-            binding.status.setText(getString(R.string.popup_preview_active,
+            binding.buttonPreview.setText(getString(R.string.popup_preview_active,
                     (int) ((remaining + 999L) / 1000L)));
-        } else if (PopupStormManager.get().isRunning()) binding.status.setText(R.string.popup_status_running);
-        else if (!current.isEnabled()) binding.status.setText(R.string.popup_status_off);
-        else if (!current.isAcknowledged()) binding.status.setText(R.string.popup_status_ack);
-        else if (!Settings.canDrawOverlays(this)) binding.status.setText(R.string.popup_status_permission);
-        else binding.status.setText(R.string.popup_status_ready);
+        } else binding.buttonPreview.setText(R.string.popup_preview);
     }
 
     private void mainDelayRefresh() {

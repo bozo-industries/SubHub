@@ -89,13 +89,18 @@ public final class PopupStormManager {
         initialize(source);
         settings = PopupStormSettings.load(source);
         rescanAsync();
-        if (!settings.isEnabled() && running) stop();
+        if (!settings.isEnabled() && !ownership.isPreview() && running) stop();
     }
 
     public boolean canStart(Context source) {
         initialize(source);
         PopupStormSettings current = settings == null ? PopupStormSettings.load(source) : settings;
-        return current.isEnabled() && current.isAcknowledged()
+        return current.isEnabled() && canRender(source);
+    }
+
+    private boolean canRender(Context source) {
+        PopupStormSettings current = settings == null ? PopupStormSettings.load(source) : settings;
+        return current.isAcknowledged()
                 && Settings.canDrawOverlays(source) && library != null && !library.isEmpty();
     }
 
@@ -126,7 +131,7 @@ public final class PopupStormManager {
         }
         initialize(source);
         settings = PopupStormSettings.load(source);
-        if (!settings.isEnabled() || !settings.isAcknowledged()
+        if (!settings.isAcknowledged()
                 || !Settings.canDrawOverlays(source)) return PreviewResult.UNAVAILABLE;
         synchronized (ownership) {
             if (running || ownership.hasOwner()) return PreviewResult.ALREADY_RUNNING;
@@ -242,7 +247,8 @@ public final class PopupStormManager {
                 return;
             }
             if (running || !startRequested || !ownership.hasOwner()
-                    || context == null || !canStart(context)) return;
+                    || context == null || (!ownership.isPreview() && !settings.isEnabled())
+                    || !canRender(context)) return;
             updateDisplayBounds();
             long now = System.currentTimeMillis();
             lastTick = now;
@@ -271,7 +277,8 @@ public final class PopupStormManager {
         float seconds = Math.max(0, Math.min(.1f, (now - lastTick) / 1000f));
         lastTick = now;
         PopupStormSettings current = settings;
-        if (current == null || !current.isEnabled()) { stop(); return; }
+        if (current == null || (!ownership.isPreview() && !current.isEnabled())
+                || !current.isAcknowledged()) { stop(); return; }
         for (LivePopup live : popups) {
             if (now >= live.popup.expiresAt()) {
                 popups.remove(live);

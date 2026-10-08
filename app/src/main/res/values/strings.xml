@@ -519,7 +519,7 @@
     <string name="popup_image_window_title">SubHub Popup Storm image</string>
     <string name="popup_stop_window_title">SubHub Popup Storm stop control</string>
     <string name="popup_overlay_permission">SubHub needs Android’s display-over-other-apps permission to show Popup Storm and its persistent stop control.</string>
-    <string name="popup_preview_unavailable">Enable Popup Storm and allow overlay access first.</string>
+    <string name="popup_preview_unavailable">Acknowledge the rapid-motion warning and allow overlay access to preview.</string>
     <string name="popup_photosensitivity_title">Rapid-motion warning</string>
     <string name="popup_photosensitivity_body">Popup Storm spawns moving images at random screen positions, sometimes in quick bursts. If you have epilepsy, photosensitive seizures, migraines, or feel unwell from rapid visual changes, do not enable it.\n\nA persistent Stop Storm control remains above every popup. Android’s notification can also stop protection.</string>
     <string name="popup_acknowledge">I Understand, Continue</string>

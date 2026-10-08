@@ -30,22 +30,6 @@
                 android:accessibilityHeading="true"
                 android:text="@string/popup_configuration" />
 
-            <com.subhub.app.util.StateToggle
-                android:id="@+id/switch_enabled"
-                style="@style/Widget.SubHub.Switch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="@dimen/control_min_height"
-                android:text="@string/popup_enable"
-                android:textColor="@color/text_primary"
-                android:textStyle="bold" />
-            <TextView
-                android:id="@+id/status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
-
             <TextView style="@style/Widget.SubHub.FieldLabel"
                 android:text="@string/popup_presets" />
             <TextView android:id="@+id/preset_value" style="@style/Widget.SubHub.FieldLabel"
