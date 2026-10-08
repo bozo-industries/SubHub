@@ -185,6 +185,12 @@ public final class UxFlowRegressionAndroidTest {
                 for (View section : order) {
                     assertEquals(sections, section.getParent());
                     assertTrue(sections.indexOfChild(section) > previous);
+                    ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) section.getLayoutParams();
+                    int expectedMargin = activity.getResources().getDimensionPixelSize(R.dimen.page_margin);
+                    assertEquals(expectedMargin, margins.leftMargin);
+                    assertEquals(expectedMargin, margins.rightMargin);
+                    assertEquals(balance.getLeft(), section.getLeft());
+                    assertEquals(balance.getRight(), section.getRight());
                     previous = sections.indexOfChild(section);
                 }
                 assertEquals(1, ((ViewGroup) sections.getParent()).getChildCount());
