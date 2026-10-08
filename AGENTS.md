@@ -42,7 +42,20 @@ For Windows 10 emulator setup when the bundled screenshot helper fails, follow
 keyboard-only control before declaring all UI automation unavailable; never fabricate screenshot
 IDs or bypass denied permission/input operations.
 
-## Diagnostic trace evidence
+## Documentation scope
+
+Do not create or retain numbered Censor pass writeups, pass registries, or internal experiment
+diaries in project documentation. Keep reusable developer instructions and product documentation;
+temporary test evidence belongs in ignored build reports, not GitHub.
+
+## Documentation screenshots
+
+Use meaningful synthetic feature configurations, not empty/default-only screens. Every Limits
+capture must show one or two selected installed apps with distinct custom daily allowances.
+Seed and assert that fixture in the capture test so future passes retain it. Never use personal
+phone data or live payment credentials for documentation or marketing screenshots.
+
+## Diagnostic trace verification
 
 For main-thread sampling, follow [live Accessibility profiling](docs/censor-lab/main-thread-profiling.md).
 Instrumentation setup must not be mistaken for a live, bound Accessibility pipeline.
