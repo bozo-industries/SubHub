@@ -1,6 +1,6 @@
 # Generated visual assets
 
-These tracked files were created with Codex's built-in image-generation mode on 2026-08-22 and 2026-08-24. The user's Twitter banner was used only as broad style inspiration for the header and Popup Storm sample; its character, wording, money/card imagery, smoking objects, and composition were explicitly excluded.
+These tracked files were originally created with Codex's built-in image-generation mode on 2026-08-22 and 2026-08-24; later palette edits are dated below. The user's Twitter banner was used only as broad style inspiration for the header and Popup Storm sample; its character, wording, money/card imagery, smoking objects, and composition were explicitly excluded.
 
 | Project file | Final prompt summary |
 | --- | --- |
@@ -11,7 +11,8 @@ These tracked files were created with Codex's built-in image-generation mode on 
 | `docs/brand/subhub-hero.jpg` | Clean 2:1 editorial brand banner with broad plum geometry, the SubHub shield-eye, restrained magenta light, and a fully clothed demoness rendered in large graphic shapes. |
 | `docs/brand/subhub-social-preview.jpg` | Minimal 1280×640 repository preview card with a geometric shield-eye, large SubHub wordmark, one-line positioning statement, and a flat violet demoness silhouette. |
 | `docs/brand/achievement-badge-atlas.png` | Original visual seed for the achievement system: censoring, protected time, sessions, streaks, App Mode, limits, service locks, Hardcore, Wallet, personalisation, and the final badge. |
-| `app/src/main/res/drawable-nodpi/achievement_badge_<achievement-id>.webp` | Fifty-eight distinct transparent gothic medallions, one for every achievement. Related milestones preserve a shared central motif while their tiers progress through richer rings, materials, jewels, rays, chains, or crowns. The four cumulative-payment badges form a purse-and-token family that progresses through silver, gold, gems, and a crown. Deep plum, ultraviolet, silver, gold, and hot-magenta enamel; readable at small UI sizes; no copied characters, text, nudity, logos, or currency marks. |
+| `app/src/main/res/drawable-nodpi/achievement_badge_<achievement-id>.webp` | Fifty-eight distinct transparent gothic medallions, recolored with Codex's built-in image-generation tool on 2026-10-08. Preserve each existing subject, silhouette, filigree, ring, metallic depth, and tier ornamentation. Harmonize the set around near-black aubergine, dark plum-purple metal, violet enamel, and restrained mauve highlights; replace gold, bright silver, cyan, and orange accents. Related milestones retain their original geometric tier differences. See [the recoloring brief](brand/achievement-plum-brief.md) for the shared prompt and reference roles. |
 | `docs/brand/achievement-badge-catalog.png` | Deterministic contact sheet rendered from the 58 final app resources by `scripts/render_achievement_badge_catalog.py`; also validates catalog coverage, unique file hashes, 192×192 dimensions, and transparent corners. |
+| `docs/brand/achievement-plum-comparison.png` | Before/after comparison of all 58 active achievement resources at 48 pixels on the app's dark card surface, used to review the 2026-10-08 palette refresh at normal display size. |
 
 The tracked artwork is original to SubHub. Optional detector models and user-created configuration packs remain separate from these brand files.
