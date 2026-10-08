@@ -94,6 +94,9 @@ public final class CensorUxRedesignAndroidTest {
                 assertEquals("Tits", ((TextView) activity.findViewById(R.id.switch_breasts)).getText().toString());
                 assertEquals("Ass", ((TextView) activity.findViewById(R.id.switch_buttocks)).getText().toString());
                 assertEquals("Abs / Tummy", ((TextView) activity.findViewById(R.id.switch_belly)).getText().toString());
+                assertEquals("Dressed matches", ((TextView) activity.findViewById(R.id.switch_covered)).getText().toString());
+                assertFalse(containsText(activity.findViewById(android.R.id.content),
+                        activity.getString(R.string.text_smut_description)));
             });
             onView(withId(R.id.button_appearance_details)).perform(revealAboveNavigation(), click());
             scenario.onActivity(activity -> {
@@ -215,6 +218,17 @@ public final class CensorUxRedesignAndroidTest {
             onView(withId(R.id.pack_custom)).perform(click());
             scenario.onActivity(activity -> assertEquals(View.VISIBLE, activity.findViewById(R.id.custom_phrases_section).getVisibility()));
         }
+    }
+
+    private static boolean containsText(View root, String expected) {
+        if (root instanceof TextView && expected.equals(((TextView) root).getText().toString())) return true;
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int index = 0; index < group.getChildCount(); index++) {
+                if (containsText(group.getChildAt(index), expected)) return true;
+            }
+        }
+        return false;
     }
 
     private static void assertTextFits(TextView text) {

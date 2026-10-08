@@ -196,7 +196,7 @@
     <string name="category_belly">Abs / Tummy</string>
     <string name="category_feet">Feet</string>
     <string name="category_armpits">Armpits</string>
-    <string name="category_covered">Include Covered Areas</string>
+    <string name="category_covered">Dressed matches</string>
     <string name="text_smut_title">Text filter</string>
     <string name="text_smut_description">Hide sexual posts and captions. Medium and High add context recognition; High can also read text inside images.</string>
     <string name="text_smut_enable">Hide sexual text</string>

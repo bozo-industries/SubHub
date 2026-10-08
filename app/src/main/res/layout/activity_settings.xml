@@ -730,7 +730,7 @@
                         android:button="@null"
                         android:drawablePadding="6dp"
                         android:drawableTop="@drawable/ic_quality_low"
-                        android:gravity="center"
+                        android:gravity="top|center_horizontal"
                         android:padding="10dp"
                         android:text="@string/detection_level_low"
                         android:textColor="@color/text_primary"
@@ -747,7 +747,7 @@
                         android:button="@null"
                         android:drawablePadding="6dp"
                         android:drawableTop="@drawable/ic_quality_medium"
-                        android:gravity="center"
+                        android:gravity="top|center_horizontal"
                         android:padding="10dp"
                         android:text="@string/detection_level_medium"
                         android:textColor="@color/text_primary"
@@ -764,7 +764,7 @@
                         android:button="@null"
                         android:drawablePadding="6dp"
                         android:drawableTop="@drawable/ic_quality_high"
-                        android:gravity="center"
+                        android:gravity="top|center_horizontal"
                         android:padding="10dp"
                         android:text="@string/detection_level_high"
                         android:textColor="@color/text_primary"
@@ -861,14 +861,6 @@
                 <TextView style="@style/Widget.SubHub.FieldLabel"
                     android:layout_marginTop="0dp"
                     android:text="@string/text_smut_title" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/text_smut_description"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11sp" />
 
                 <GridLayout
                     android:layout_width="match_parent"

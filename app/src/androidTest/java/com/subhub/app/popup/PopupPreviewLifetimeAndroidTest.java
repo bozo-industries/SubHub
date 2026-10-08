@@ -37,6 +37,73 @@ import java.util.regex.Pattern;
 /** Exercises the real manager timer after its requesting editor has been destroyed. */
 @RunWith(AndroidJUnit4.class)
 public final class PopupPreviewLifetimeAndroidTest {
+    @Test public void expiryKeepsEditorOnNaturalHomeAtmosphereBackStack() {
+        PopupStormManager manager = PopupStormManager.get();
+        android.content.Intent intent = new android.content.Intent(context, com.subhub.app.MainActivity.class)
+                .setAction(android.content.Intent.ACTION_MAIN)
+                .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                .putExtra(com.subhub.app.MainActivity.EXTRA_SUPPRESS_PERMISSION_READINESS, true);
+        try (ActivityScenario<com.subhub.app.MainActivity> home = ActivityScenario.launch(intent)) {
+            home.onActivity(activity -> activity.startActivity(new android.content.Intent(activity,
+                    com.subhub.app.atmosphere.AtmosphereActivity.class)));
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            AtomicReference<PopupStormActivity> editor = new AtomicReference<>();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                for (android.app.Activity activity : androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+                        .getInstance().getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED)) {
+                    if (activity instanceof com.subhub.app.atmosphere.AtmosphereActivity) {
+                        activity.findViewById(R.id.button_popup_storm).performClick();
+                        break;
+                    }
+                }
+            });
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                for (android.app.Activity activity : androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+                        .getInstance().getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED)) {
+                    if (activity instanceof PopupStormActivity) editor.set((PopupStormActivity) activity);
+                }
+                org.junit.Assert.assertNotNull("Natural navigation must reach the popup editor", editor.get());
+                editor.get().findViewById(R.id.button_preview).performClick();
+            });
+            await(manager::isRunning, 3_000);
+            await(() -> !manager.isPreviewing(), manager.remainingPreviewMillis() + 2_000);
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                assertTrue("Expiry must not surface the underlying Home activity",
+                        androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+                        .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).contains(editor.get()));
+                editor.get().finish();
+            });
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+                for (android.app.Activity activity : androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+                        .getInstance().getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED)) {
+                    if (activity instanceof com.subhub.app.atmosphere.AtmosphereActivity) activity.finish();
+                }
+            });
+        }
+    }
+    @Test public void previewExpiryLeavesItsEditorResumedInsteadOfReturningHome() {
+        PopupStormManager manager = PopupStormManager.get();
+        try (ActivityScenario<PopupStormActivity> scenario = ActivityScenario.launch(PopupStormActivity.class)) {
+            AtomicReference<PopupStormActivity> editor = new AtomicReference<>();
+            scenario.onActivity(activity -> {
+                editor.set(activity);
+                activity.findViewById(R.id.button_preview).performClick();
+                assertTrue(manager.isPreviewing());
+            });
+            await(manager::isRunning, 3_000);
+            await(() -> !manager.isPreviewing(), manager.remainingPreviewMillis() + 2_000);
+            assertFalse(manager.isRunning());
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            scenario.onActivity(activity -> {
+                assertEquals(editor.get(), activity);
+                assertFalse(activity.isFinishing());
+                assertTrue(androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+                        .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).contains(activity));
+            });
+        }
+    }
     private Context context;
     private SharedPreferences preferences;
     private Map<String, ?> original;

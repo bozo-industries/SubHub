@@ -10,12 +10,54 @@ import android.widget.RadioButton;
 import android.widget.TextView;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
 import com.subhub.app.util.CompactChoiceGroup;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
 public final class CompactChoiceGroupAndroidTest {
+    @Test public void detectionCardsShareRowHeightWhenMediumSubtitleWraps() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            Context base = ApplicationProvider.getApplicationContext();
+            for (int width : new int[]{320, 360, 411, 480}) {
+                for (float scale : new float[]{1f, 1.3f, 1.7f, 2f}) {
+                    Configuration config = new Configuration(base.getResources().getConfiguration());
+                    config.fontScale = scale;
+                    Context themed = new android.view.ContextThemeWrapper(
+                            base.createConfigurationContext(config), R.style.Theme_SubHub);
+                    View page = LayoutInflater.from(themed).inflate(R.layout.activity_settings, null, false);
+                    CompactChoiceGroup group = page.findViewById(R.id.preset_group);
+                    String[] text = {"Low\nBalanced coverage", "Medium\nMore small-region coverage", "High\nMaximum coverage"};
+                    for (int index = 0; index < 3; index++) {
+                        TextView choice = (TextView) group.getChildAt(index);
+                        assertEquals("Shared taller cards retain the same content top alignment",
+                                android.view.Gravity.TOP, choice.getGravity() & android.view.Gravity.VERTICAL_GRAVITY_MASK);
+                        android.text.SpannableString label = new android.text.SpannableString(text[index]);
+                        label.setSpan(new android.text.style.RelativeSizeSpan(.8f),
+                                text[index].indexOf('\n') + 1, text[index].length(), 0);
+                        choice.setTextSize(14);
+                        choice.setText(label);
+                    }
+                    for (int direction : new int[]{View.LAYOUT_DIRECTION_LTR, View.LAYOUT_DIRECTION_RTL}) {
+                        group.setLayoutDirection(direction);
+                        int pixels = Math.round((width - 40) * themed.getResources().getDisplayMetrics().density);
+                        group.measure(View.MeasureSpec.makeMeasureSpec(pixels, View.MeasureSpec.EXACTLY),
+                                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                        group.layout(0, 0, pixels, group.getMeasuredHeight());
+                        assertEquals(1, check(group));
+                        for (int i = 0; i < 3; i++) for (int j = i + 1; j < 3; j++) {
+                            View a = group.getChildAt(i), b = group.getChildAt(j);
+                            if (a.getTop() == b.getTop()) {
+                                assertEquals("Card bottoms in the same row must align", a.getBottom(), b.getBottom());
+                                assertEquals(a.getHeight(), b.getHeight());
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
     @Test public void choicesWrapWithoutClippingAtNarrowWideAndLargeTextSizes() {
         Context base = ApplicationProvider.getApplicationContext();
         for (int width : new int[]{320, 480}) for (float scale : new float[]{1f, 1.7f}) {
@@ -53,6 +95,7 @@ public final class CompactChoiceGroupAndroidTest {
                 for (int j = i + 1; j < group.getChildCount(); j++) {
                     View other = group.getChildAt(j);
                     if (other.getVisibility() == View.GONE) continue;
+                    if (choice.getTop() == other.getTop()) assertEquals(choice.getBottom(), other.getBottom());
                     assertFalse(android.graphics.Rect.intersects(new android.graphics.Rect(choice.getLeft(), choice.getTop(), choice.getRight(), choice.getBottom()),
                             new android.graphics.Rect(other.getLeft(), other.getTop(), other.getRight(), other.getBottom())));
                 }

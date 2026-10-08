@@ -5,6 +5,9 @@ import static org.junit.Assert.*;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.view.ContextThemeWrapper;
 import android.view.View;
 import android.widget.CheckBox;
@@ -26,6 +29,42 @@ import org.junit.runner.RunWith;
 /** Native geometry and assignment contracts; fixture preferences are restored, no screenshots. */
 @RunWith(AndroidJUnit4.class)
 public final class AppAssignmentRowAndroidTest {
+    @Test public void nativeCheckboxGlyphIsCenteredInHighlightForLtrAndRtl() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            for (int direction : new int[]{View.LAYOUT_DIRECTION_LTR, View.LAYOUT_DIRECTION_RTL}) {
+                AppAssignmentRow row = row(1);
+                row.setLayoutDirection(direction);
+                int width = dp(row.getContext(), 320);
+                row.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                row.layout(0, 0, width, row.getMeasuredHeight());
+                for (int index = 0; index < 3; index++) {
+                    CheckBox check = row.choice(index);
+                    check.setChecked(true);
+                    check.jumpDrawablesToCurrentState();
+                    Bitmap pixels = Bitmap.createBitmap(check.getWidth(), check.getHeight(), Bitmap.Config.ARGB_8888);
+                    check.draw(new Canvas(pixels));
+                    int tint = check.getContext().getColor(R.color.control_checked_indicator);
+                    int minX = pixels.getWidth(), maxX = -1, minY = pixels.getHeight(), maxY = -1;
+                    for (int y = 0; y < pixels.getHeight(); y++) for (int x = 0; x < pixels.getWidth(); x++) {
+                        int color = pixels.getPixel(x, y);
+                        if (Color.alpha(color) > 240 && Math.abs(Color.red(color) - Color.red(tint)) < 4
+                                && Math.abs(Color.green(color) - Color.green(tint)) < 4
+                                && Math.abs(Color.blue(color) - Color.blue(tint)) < 4) {
+                            minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+                            minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                        }
+                    }
+                    assertTrue("Native checked glyph must render", maxX >= minX);
+                    assertEquals("Glyph and highlight horizontal centers", (pixels.getWidth() - 1) / 2f,
+                            (minX + maxX) / 2f, 1f);
+                    assertEquals("Glyph and highlight vertical centers", (pixels.getHeight() - 1) / 2f,
+                            (minY + maxY) / 2f, 1f);
+                    pixels.recycle();
+                }
+            }
+        });
+    }
     @Test public void appAssignmentsPersistIndependentlyOnReopenAndDenySubModeEditing() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         AppModeManager manager = new AppModeManager(context);
@@ -39,10 +78,22 @@ public final class AppAssignmentRowAndroidTest {
         AtomicReference<String> selectedPackage = new AtomicReference<>();
         try {
             try (ActivityScenario<GlobalSettingsActivity> scenario = ActivityScenario.launch(GlobalSettingsActivity.class)) {
+                scenario.onActivity(activity -> activity.findViewById(R.id.button_toggle_apps).performClick());
                 awaitRows(scenario);
+                InstrumentationRegistry.getInstrumentation().waitForIdleSync();
                 scenario.onActivity(activity -> {
                     LinearLayout list = activity.findViewById(R.id.app_list);
                     AppAssignmentRow row = (AppAssignmentRow) list.getChildAt(1);
+                    assertTrue("Header alignment requires measured visible rows", row.getWidth() > 0);
+                    LinearLayout header = (LinearLayout) list.getChildAt(0);
+                    for (int index = 0; index < 3; index++) {
+                        Rect bounds = new Rect(0, 0, row.choice(index).getWidth(), row.choice(index).getHeight());
+                        list.offsetDescendantRectToMyCoords(row.choice(index), bounds);
+                        View title = header.getChildAt(index + 1);
+                        float titleCenter = header.getLeft() + title.getLeft() + title.getWidth() / 2f;
+                        assertEquals("Column label must align with the centered checkbox/highlight",
+                                titleCenter, bounds.exactCenterX(), 1f);
+                    }
                     String tag = row.choice(0).getTag().toString();
                     String packageName = tag.substring("assignment:".length(), tag.lastIndexOf(':'));
                     selectedPackage.set(packageName);

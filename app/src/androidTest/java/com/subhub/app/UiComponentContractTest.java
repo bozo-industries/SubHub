@@ -27,7 +27,11 @@ public final class UiComponentContractTest {
     @Test public void statsHasNoAchievementButtonAndHomePlacesAchievementsAfterLifetimeStats() {
         try (ActivityScenario<com.subhub.app.stats.StatsActivity> scenario =
                      ActivityScenario.launch(com.subhub.app.stats.StatsActivity.class)) {
-            scenario.onActivity(activity -> org.junit.Assert.assertNull(activity.findViewById(R.id.button_achievements)));
+            scenario.onActivity(activity -> {
+                org.junit.Assert.assertNull(activity.findViewById(R.id.button_achievements));
+                org.junit.Assert.assertNull("Achievement counts belong on Achievements, not Stats",
+                        activity.findViewById(R.id.achievement_progress));
+            });
         }
         ControllerPinManager.enterSubMode();
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {

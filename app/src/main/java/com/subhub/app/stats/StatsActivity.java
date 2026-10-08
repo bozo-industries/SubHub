@@ -71,9 +71,6 @@ public final class StatsActivity extends AppCompatActivity {
             binding.historyList.addView(row);
         }
         binding.historyEmpty.setVisibility(history.isEmpty() ? View.VISIBLE : View.GONE);
-        AchievementManager achievements = new AchievementManager(this);
-        binding.achievementProgress.setText(getString(R.string.achievements_progress_fmt,
-                achievements.getUnlockedCount(), achievements.getTotalCount()));
     }
 
     @Override protected void onDestroy() {

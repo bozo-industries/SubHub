@@ -5,7 +5,7 @@ import android.util.AttributeSet;
 import android.view.View;
 import android.widget.RadioGroup;
 
-/** Radio semantics with a space-conscious, equal-width wrapping layout. */
+/** Radio semantics with equal-width wrapping and equal-height cards within each row. */
 public final class CompactChoiceGroup extends RadioGroup {
     private int columns = 1;
     private int[] rowHeights = new int[0];
@@ -41,6 +41,18 @@ public final class CompactChoiceGroup extends RadioGroup {
             int row = visible++ / columns;
             rowHeights[row] = Math.max(rowHeights[row],
                     child.getMeasuredHeight() + params.topMargin + params.bottomMargin);
+        }
+        // A multiline subtitle can make one choice taller. Stretch its row siblings
+        // after natural measurement rather than only reserving an invisible tall row.
+        visible = 0;
+        for (int i = 0; i < getChildCount(); i++) {
+            View child = getChildAt(i);
+            if (child.getVisibility() == GONE) continue;
+            LayoutParams params = (LayoutParams) child.getLayoutParams();
+            int row = visible++ / columns;
+            child.measure(MeasureSpec.makeMeasureSpec(child.getMeasuredWidth(), MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(Math.max(0,
+                            rowHeights[row] - params.topMargin - params.bottomMargin), MeasureSpec.EXACTLY));
         }
         int height = getPaddingTop() + getPaddingBottom();
         for (int row : rowHeights) height += row;

@@ -3,6 +3,7 @@ package com.subhub.app.settings;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.InsetDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.view.Gravity;
@@ -64,14 +65,20 @@ public final class AppAssignmentRow extends LinearLayout {
             captions[index] = caption;
             slot.addView(caption, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
             CheckBox check = new CheckBox(context);
+            android.graphics.drawable.Drawable indicator = check.getButtonDrawable();
+            if (indicator != null) {
+                int extra = Math.max(0, dp(48) - indicator.getIntrinsicWidth());
+                // Detach before wrapping so CompoundButton cannot clear the inner callback.
+                check.setButtonDrawable(null);
+                check.setButtonDrawable(new InsetDrawable(indicator, extra / 2, 0,
+                        extra - extra / 2, 0));
+            }
             check.setMinWidth(dp(48));
             check.setMinHeight(dp(48));
             check.setMinimumWidth(dp(48));
             check.setMinimumHeight(dp(48));
-            // Keep the themed native indicator centered without assuming a platform drawable size.
-            android.graphics.drawable.Drawable indicator = CompoundButtonCompat.getButtonDrawable(check);
-            int indicatorWidth = indicator == null ? dp(24) : indicator.getIntrinsicWidth();
-            check.setPaddingRelative(Math.max(0, (dp(48) - indicatorWidth) / 2), 0, 0, 0);
+            check.setGravity(Gravity.CENTER_VERTICAL);
+            check.setPadding(0, 0, 0, 0);
             check.setContentDescription(appName + ", " + context.getString(modules[index]));
             check.setTag("assignment:" + packageName + ":" + index);
             CompoundButtonCompat.setButtonTintList(check, context.getColorStateList(R.color.toggle_tint));
