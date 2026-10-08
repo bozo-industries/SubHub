@@ -1,6 +1,6 @@
 # Architecture map
 
-This map is statically derived from Beta Blocker Android 1.67. JADX paths are readable navigation aids; APKTool smali is authoritative when the reconstructions disagree.
+This comparison map is statically derived from the Beta Blocker Android 1.67 feature source. JADX paths are readable navigation aids; APKTool smali is authoritative when the reconstructions disagree.
 
 ## Runtime pipeline
 
@@ -79,7 +79,7 @@ The clean source reconstruction intentionally omits that diagnostics server. The
 
 `PenanceManager` is the retained internal class name for the user-facing Money Rules feature. It stores opt-in rules, capped entries, correction-window state, settlement state, payment history, and the remainder toward an Every-N threshold in private app preferences. Both capture services forward only newly confirmed stable tracker IDs; repeated frames and the lifetime Blocks statistic do not backfill a rule. Editing unrelated costs or caps retains threshold progress, while changing Every-N resets it. Daily and weekly caps may reduce an otherwise eligible event to zero; the UI now reports that state explicitly while Stats continues counting the detection. The UI can remove a false positive during its correction window or clear every unpaid entry at any time.
 
-`PayPalOrdersClient` selects only one of two compiled origins: `api-m.sandbox.paypal.com` or `api-m.paypal.com`. The Dom-only environment control is an authorization boundary: changing it clears credentials and saved-wallet state and cancels any active checkout. Dom Settings accepts the matching Client ID and secret, encrypts them with an Android Keystore AES-GCM key, and never compiles credentials into the APK. The app creates an Orders v2 order, opens PayPal approval, and captures only when the active boundary, local settlement ID, EUR amount, PayPal order, and returned capture all match. The official Magnes collector supplies a transaction-scoped client metadata ID under the same selected environment.
+`PayPalOrdersClient` selects only one of two compiled origins: `api-m.sandbox.paypal.com` or `api-m.paypal.com`. The Dom-only environment control is an authorization boundary: changing it clears credentials and saved-wallet state and cancels any active checkout. Dom Settings accepts the matching Client ID and secret, encrypts them with an Android Keystore AES-GCM key, and never compiles credentials into the APK. The app creates an Orders v2 order, opens PayPal approval, and captures only when the active boundary, local settlement ID, EUR/USD denomination and amount, PayPal order, and returned capture all match. The official Magnes collector supplies a transaction-scoped client metadata ID under the same selected environment.
 
 Saved-wallet authorization uses a no-charge Payment Method Tokens v3 setup token. Settings persists the pending setup token, opens PayPal's approval page, and on every resume reads the server-side token state before exchanging an approved setup token for a permanent payment token. This callback-independent path handles PayPal's HTTPS fallback completion page; the Android custom URI remains an optional fast path. Permanent payment-token and customer IDs are accepted only when both are returned, encrypted, and bound to the environment and Client ID. Vault capability errors become unavailable. An optional PayPal.Me or PayPal-hosted link remains available without API credentials. Because this design intentionally runs the merchant client on the phone, Keystore protects secrets at rest but does not provide the isolation or webhook reachability of a separate merchant service.
 
@@ -91,8 +91,9 @@ JADX emitted method-level errors in application code including `MainActivity`, `
 
 SubHub now has one product-wide Dom/Sub presentation boundary. Sub mode is the
 default after process start and shows one aggregate dashboard containing only
-enabled modules and their active state. It exposes Start/Stop Protection but no
-bottom navigation, configuration links, or editable controls. Dom mode requires
+enabled modules and their active state. Its safe Home/Settings navigation exposes
+service controls, arrangement drafting, updates and help, but not protected feature
+configuration. Dom mode requires
 the controller PIN and restores the full feature-aware navigation and settings
 until the user explicitly returns to Sub mode or the process ends.
 
