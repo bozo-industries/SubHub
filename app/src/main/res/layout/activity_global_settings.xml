@@ -144,7 +144,7 @@
                         android:layout_height="wrap_content"
                         android:minHeight="48dp"
                         android:layout_marginTop="4dp"
-                        android:buttonTint="@color/accent"
+                    android:buttonTint="@color/toggle_tint"
                         android:text="@string/app_mode_armed"
                         android:visibility="gone"
                         android:textColor="@color/text_primary" />
@@ -158,7 +158,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:minHeight="48dp"
-                            android:buttonTint="@color/accent"
+                            android:buttonTint="@color/toggle_tint"
                             android:text="@string/app_mode_always"
                             android:textColor="@color/text_primary" />
                         <RadioButton
@@ -166,7 +166,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:minHeight="48dp"
-                            android:buttonTint="@color/accent"
+                            android:buttonTint="@color/toggle_tint"
                             android:text="@string/app_mode_selected"
                             android:textColor="@color/text_primary" />
                     </com.subhub.app.util.CompactChoiceGroup>
@@ -212,14 +212,12 @@
                             android:layout_height="wrap_content"
                             android:layout_gravity="center"
                             android:layout_marginTop="14dp" />
-                        <GridLayout
+                        <LinearLayout
                             android:id="@+id/app_list"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="6dp"
-                            android:alignmentMode="alignMargins"
-                            android:columnCount="@integer/app_picker_columns"
-                            android:orientation="horizontal" />
+                            android:orientation="vertical" />
                     </LinearLayout>
                 </LinearLayout>
                 <LinearLayout

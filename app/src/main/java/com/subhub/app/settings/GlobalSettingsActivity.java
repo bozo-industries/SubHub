@@ -3,7 +3,6 @@ package com.subhub.app.settings;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.content.res.ColorStateList;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -11,8 +10,6 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.FrameLayout;
-import android.widget.GridLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -21,7 +18,6 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.widget.CompoundButtonCompat;
 
 import com.subhub.app.R;
 import com.subhub.app.databinding.ActivityGlobalSettingsBinding;
@@ -871,74 +867,35 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         if (binding == null) return;
         binding.loadingApps.setVisibility(View.GONE);
         binding.appList.removeAllViews();
+        binding.appList.addView(assignmentHeader());
         Set<String> installed = new LinkedHashSet<>();
-        int columns = Math.max(2, getResources().getInteger(R.integer.app_picker_columns));
         for (int index = 0; index < entries.size(); index++) {
             AppEntry entry = entries.get(index);
             installed.add(entry.packageName);
-            LinearLayout tile = new LinearLayout(this);
-            tile.setOrientation(LinearLayout.VERTICAL);
-            tile.setGravity(Gravity.CENTER);
-            tile.setPadding(dp(6), dp(7), dp(6), dp(6));
-            tile.setContentDescription(entry.label + ", " + entry.packageName);
-
-            ImageView icon = new ImageView(this);
-            icon.setImageDrawable(entry.icon);
-            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            tile.addView(icon, new LinearLayout.LayoutParams(dp(36), dp(36)));
-
-            TextView label = new TextView(this);
-            label.setText(entry.label);
-            label.setTextColor(getColor(R.color.text_primary));
-            label.setTextSize(11f);
-            label.setGravity(Gravity.CENTER);
-            label.setMaxLines(2);
-            label.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            tile.addView(label, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(34)));
-
-            LinearLayout choices = new LinearLayout(this);
-            choices.setOrientation(LinearLayout.VERTICAL);
-            CheckBox censor = assignmentCheck(R.string.app_selection_censor,
-                    censorPackages.contains(entry.packageName));
-            CheckBox limit = assignmentCheck(R.string.app_selection_limit,
-                    timerPackages.contains(entry.packageName));
-            CheckBox subliminal = assignmentCheck(R.string.app_selection_subliminal,
-                    subliminalPackages.contains(entry.packageName));
-            choices.addView(censor);
-            choices.addView(limit);
-            choices.addView(subliminal);
-            tile.addView(choices, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-
-            Runnable updateTile = () -> tile.setBackgroundResource(
-                    censor.isChecked() || limit.isChecked() || subliminal.isChecked()
-                            ? R.drawable.bg_app_picker_tile_selected
-                            : R.drawable.bg_app_picker_tile);
+            AppAssignmentRow tile = new AppAssignmentRow(this, entry.label, entry.packageName,
+                    entry.icon, new boolean[]{censorPackages.contains(entry.packageName),
+                    timerPackages.contains(entry.packageName), subliminalPackages.contains(entry.packageName)});
+            CheckBox censor = tile.choice(0);
+            CheckBox limit = tile.choice(1);
+            CheckBox subliminal = tile.choice(2);
             censor.setOnCheckedChangeListener((button, checked) -> {
                 if (checked) censorPackages.add(entry.packageName);
                 else censorPackages.remove(entry.packageName);
-                updateTile.run();
                 saveAppAssignments();
             });
             limit.setOnCheckedChangeListener((button, checked) -> {
                 if (checked) timerPackages.add(entry.packageName);
                 else timerPackages.remove(entry.packageName);
-                updateTile.run();
                 saveAppAssignments();
             });
             subliminal.setOnCheckedChangeListener((button, checked) -> {
                 if (checked) subliminalPackages.add(entry.packageName);
                 else subliminalPackages.remove(entry.packageName);
-                updateTile.run();
                 saveAppAssignments();
             });
-            updateTile.run();
-            GridLayout.LayoutParams tileParams = new GridLayout.LayoutParams(
-                    GridLayout.spec(index / columns), GridLayout.spec(index % columns, 1f));
-            tileParams.width = 0;
-            tileParams.height = GridLayout.LayoutParams.WRAP_CONTENT;
-            tileParams.setMargins(dp(3), dp(3), dp(3), dp(3));
+            LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            tileParams.setMargins(0, dp(3), 0, dp(3));
             binding.appList.addView(tile, tileParams);
         }
         censorPackages.retainAll(installed);
@@ -948,19 +905,38 @@ public final class GlobalSettingsActivity extends AppCompatActivity {
         applyEditState();
     }
 
-    private CheckBox assignmentCheck(int label, boolean checked) {
-        CheckBox check = new CheckBox(this);
-        check.setText(label);
-        check.setTextColor(getColor(R.color.text_secondary));
-        check.setTextSize(10f);
-        check.setChecked(checked);
-        check.setEnabled(editingUnlocked);
-        check.setMinHeight(dp(48));
-        check.setMinimumHeight(dp(48));
-        check.setPadding(0, 0, 0, 0);
-        CompoundButtonCompat.setButtonTintList(check,
-                ColorStateList.valueOf(getColor(R.color.accent)));
-        return check;
+    private LinearLayout assignmentHeader() {
+        LinearLayout header = new LinearLayout(this) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                boolean stacked = View.MeasureSpec.getSize(widthSpec) < dp(280)
+                        || getResources().getConfiguration().fontScale > 1.4f;
+                // Stacked rows name each checkbox themselves; do not squeeze a redundant legend.
+                for (int index = 1; index < getChildCount(); index++) {
+                    getChildAt(index).setVisibility(stacked ? View.GONE : View.VISIBLE);
+                }
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(4), dp(4), dp(4), dp(4));
+        TextView app = new TextView(this);
+        app.setText(R.string.app_assignment_app);
+        app.setTextColor(getColor(R.color.text_secondary));
+        app.setTextSize(11);
+        header.addView(app, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        int[] labels = {R.string.app_selection_censor, R.string.app_selection_limit,
+                R.string.app_selection_subliminal};
+        for (int label : labels) {
+            TextView title = new TextView(this);
+            title.setText(label);
+            title.setTextSize(10);
+            title.setGravity(Gravity.CENTER);
+            title.setTextColor(getColor(R.color.text_secondary));
+            header.addView(title, new LinearLayout.LayoutParams(dp(56),
+                    LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+        return header;
     }
 
     private void renderSelectedCount() {

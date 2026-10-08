@@ -13,7 +13,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.GridLayout;
+import android.widget.LinearLayout;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -26,6 +26,7 @@ import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.security.HardcoreModeManager;
 import com.subhub.app.settings.SettingsRepository;
 import com.subhub.app.settings.GlobalSettingsActivity;
+import com.subhub.app.settings.AppAssignmentRow;
 
 import org.junit.After;
 import org.junit.Before;
@@ -290,7 +291,7 @@ public final class AppModeContractTest {
         }
     }
 
-    @Test public void launcherPickerUsesACompactVerticalGrid() throws Exception {
+    @Test public void launcherPickerUsesCompactRowsWithIndependentModuleTargets() throws Exception {
         ControllerPinManager.enterDomMode();
         try (ActivityScenario<GlobalSettingsActivity> scenario =
                      ActivityScenario.launch(GlobalSettingsActivity.class)) {
@@ -299,13 +300,19 @@ public final class AppModeContractTest {
             Thread.sleep(750L);
             InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             scenario.onActivity(activity -> {
-                GridLayout grid = activity.findViewById(R.id.app_list);
-                int expected = activity.getResources().getInteger(R.integer.app_picker_columns);
-                assertTrue(expected >= 3 && expected <= 5);
-                assertEquals(expected, grid.getColumnCount());
-                assertTrue(grid.getChildCount() > expected);
-                assertEquals(grid.getChildAt(0).getTop(), grid.getChildAt(1).getTop());
-                assertTrue(grid.getChildAt(expected).getTop() > grid.getChildAt(0).getTop());
+                LinearLayout list = activity.findViewById(R.id.app_list);
+                assertEquals(LinearLayout.VERTICAL, list.getOrientation());
+                assertTrue(list.getChildCount() > 2);
+                AppAssignmentRow first = (AppAssignmentRow) list.getChildAt(1);
+                AppAssignmentRow second = (AppAssignmentRow) list.getChildAt(2);
+                assertTrue(second.getTop() > first.getTop());
+                assertEquals(list.getWidth(), first.getWidth());
+                int minimum = Math.round(48 * activity.getResources().getDisplayMetrics().density);
+                for (int index = 0; index < 3; index++) {
+                    assertTrue(first.choice(index).getWidth() >= minimum);
+                    assertTrue(first.choice(index).getHeight() >= minimum);
+                    assertTrue(first.choice(index).getContentDescription().toString().contains(", "));
+                }
             });
         }
     }
