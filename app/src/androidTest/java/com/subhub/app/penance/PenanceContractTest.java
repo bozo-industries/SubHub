@@ -373,6 +373,14 @@ public final class PenanceContractTest {
         assertEquals(0, manager.getDetectionRemainder());
     }
 
+    @Test public void validRulesHaveNoExtraFormulaCaption() {
+        manager.configure(true, 100, 500, 2_000, 0);
+        try (ActivityScenario<PenanceActivity> scenario = ActivityScenario.launch(PenanceActivity.class)) {
+            scenario.onActivity(activity -> assertEquals(android.view.View.GONE,
+                    activity.findViewById(R.id.rule_math_preview).getVisibility()));
+        }
+    }
+
     @Test public void reachedDailyCapIsVisibleAndExplainsWhyNoMoneyWasAdded() {
         long now = System.currentTimeMillis();
         manager.configure(true, 100, 500, 2_000, 0);
@@ -422,13 +430,54 @@ public final class PenanceContractTest {
                         .getLocationOnScreen(detectionLocation);
                 activity.findViewById(R.id.rule_dwell_amount)
                         .getLocationOnScreen(dwellLocation);
-                assertEquals(detectionLocation[1], dwellLocation[1]);
+                android.widget.LinearLayout detectionTile = (android.widget.LinearLayout) rules.getChildAt(0);
+                android.widget.LinearLayout dwellTile = (android.widget.LinearLayout) rules.getChildAt(1);
+                assertEquals("Rule rows: toggle=" + detectionTile.getChildAt(0).getHeight()
+                        + "/" + dwellTile.getChildAt(0).getHeight()
+                        + ", help=" + detectionTile.getChildAt(1).getHeight()
+                        + "/" + dwellTile.getChildAt(1).getHeight(),
+                        detectionLocation[1], dwellLocation[1]);
             });
         }
         ControllerPinManager.enterSubMode();
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> assertEquals(View.VISIBLE,
                     activity.findViewById(R.id.sub_wallet_card).getVisibility()));
+        }
+    }
+
+    @Test public void ruleInputsStayAlignedWithLargeWrappedHelpAndWidthChanges() {
+        ControllerPinManager.enterDomMode();
+        try (ActivityScenario<PenanceActivity> scenario = ActivityScenario.launch(PenanceActivity.class)) {
+            scenario.onActivity(activity -> {
+                android.widget.GridLayout grid = activity.findViewById(R.id.rule_grid);
+                for (int index = 0; index < grid.getChildCount(); index++) {
+                    android.view.ViewGroup tile = (android.view.ViewGroup) grid.getChildAt(index);
+                    for (int row = 0; row < 2; row++) {
+                        android.widget.TextView text = (android.widget.TextView) tile.getChildAt(row);
+                        text.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, text.getTextSize() * 1.5f);
+                    }
+                }
+                float density = activity.getResources().getDisplayMetrics().density;
+                for (int widthDp : new int[] {320, 200, 320}) {
+                    int width = Math.round(widthDp * density);
+                    grid.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                    grid.layout(0, 0, width, grid.getMeasuredHeight());
+                    int[] first = new int[2];
+                    int[] second = new int[2];
+                    activity.findViewById(R.id.rule_detection_amount).getLocationOnScreen(first);
+                    activity.findViewById(R.id.rule_dwell_amount).getLocationOnScreen(second);
+                    assertEquals("Aligned cost inputs at " + widthDp + "dp", first[1], second[1]);
+                    for (int index = 0; index < grid.getChildCount(); index++) {
+                        android.view.ViewGroup tile = (android.view.ViewGroup) grid.getChildAt(index);
+                        android.widget.TextView help = (android.widget.TextView) tile.getChildAt(1);
+                        assertTrue("Wrapped help must not be clipped", help.getHeight()
+                                >= help.getLayout().getHeight() + help.getCompoundPaddingTop()
+                                + help.getCompoundPaddingBottom());
+                    }
+                }
+            });
         }
     }
 

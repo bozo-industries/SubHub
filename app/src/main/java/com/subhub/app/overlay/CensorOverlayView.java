@@ -238,10 +238,15 @@ final class CensorOverlayView extends View {
             drawEffect(canvas, drawRect, track.getId(), appearance.getType(),
                     appearance.getIntensity());
             if (appearance.isShowBorder()) drawBorder(canvas, drawRect);
-            if (appearance.isShowText() && drawRect.height() >= dp(22)
-                    && drawRect.width() >= dp(44)
+        }
+        // Finished appearance labels stay above overlapping artwork; tracking is unchanged.
+        for (TrackedObject track : tracks) {
+            setPaddedRect(track.getBox(), scaleX, scaleY, "text_smut".equals(track.getCategory()));
+            drawRect.offset(contentOffsetX, contentOffsetY);
+            if (appearance.isShowText() && drawRect.height() >= dp(16)
+                    && drawRect.width() >= dp(32)
                     && appearance.getType() != CensorAppearance.Type.ERROR_POPUP) {
-                drawLabel(canvas, drawRect, appearance.phraseFor(track.getId()));
+                drawLabel(canvas, drawRect, track.getId());
             }
         }
     }
@@ -631,8 +636,8 @@ final class CensorOverlayView extends View {
             case GRADIENT:
                 float pulse = phase <= 180f ? phase / 180f : (360f - phase) / 180f;
                 border.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
-                        blendColor(appearance.getBorderColor(), Color.WHITE, .12f + pulse * .24f),
-                        blendColor(appearance.getBorderColor(), Color.rgb(76, 216, 235),
+                        blendColor(appearance.getGradientStart(), Color.WHITE, .12f + pulse * .24f),
+                        blendColor(appearance.getGradientEnd(), Color.rgb(76, 216, 235),
                                 .30f - pulse * .16f), Shader.TileMode.CLAMP));
                 break;
             case RAINBOW:
@@ -663,9 +668,18 @@ final class CensorOverlayView extends View {
         } else canvas.drawRoundRect(rect, dp(8), dp(8), paint);
     }
 
-    private void drawLabel(Canvas canvas, RectF rect, String text) {
+    private void drawLabel(Canvas canvas, RectF rect, int stableId) {
         resetLabelPaint();
-        label.setTextSize(Math.min(dp(11), Math.max(dp(8), rect.height() * 0.20f)));
+        float maximumWidth = Math.max(dp(18), rect.width() - dp(10));
+        float minimumSize = dp(7);
+        float maximumSize = Math.min(dp(11), Math.max(minimumSize, rect.height() * 0.20f));
+        label.setTextSize(minimumSize);
+        String text = CensorLabelLayout.selectPhrase(
+                appearance.getPhrases(), stableId, maximumWidth, label::measureText);
+        label.setTextSize(maximumSize);
+        float measured = label.measureText(text);
+        label.setTextSize(measured <= maximumWidth || measured <= 0f ? maximumSize
+                : Math.max(minimumSize, maximumSize * maximumWidth / measured));
         fill.setShader(null);
         fill.setColor(Color.BLACK);
         fill.setAlpha(205);
@@ -674,7 +688,8 @@ final class CensorOverlayView extends View {
                 rect.right, rect.centerY() + bandHeight / 2f);
         canvas.drawRoundRect(band, dp(5), dp(5), fill);
         float baseline = rect.centerY() - (label.ascent() + label.descent()) / 2f;
-        drawText(canvas, rect.centerX(), baseline, text, rect.width() - dp(12));
+        canvas.drawText(CensorLabelLayout.ellipsize(text, maximumWidth, label::measureText),
+                rect.centerX(), baseline, label);
     }
 
     private void drawText(

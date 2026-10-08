@@ -17,17 +17,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Typed access to preference keys retained for compatibility with the original app. */
+/** Typed access to current detector and appearance preferences. */
 public final class SettingsRepository {
     public static final String PREFERENCES_NAME = "betablocker_settings";
     public static final String KEY_ENABLED_CATEGORIES = "enabled_categories";
-    public static final String KEY_CONFIDENCE = "confidence_threshold_percent";
+    public static final String KEY_CONFIDENCE = "detection_confidence_percent";
     public static final String KEY_CENSOR_TYPE = "censor_type";
     public static final String KEY_CENSOR_INTENSITY = "censor_intensity";
     public static final String KEY_SHOW_BORDER = "show_border";
     public static final String KEY_SHOW_TEXT = "show_text";
     public static final String KEY_BORDER_COLOR = "border_color";
-    public static final String KEY_DETECTION_PRESET = "detection_preset";
+    public static final String KEY_GRADIENT_START = "border_gradient_start";
+    public static final String KEY_GRADIENT_END = "border_gradient_end";
+    public static final String KEY_DETECTION_PRESET = "detection_quality";
     public static final String KEY_CENSOR_SIZE_PADDING = "censor_size_padding";
     public static final String KEY_ANIMATE_BORDER = "animate_border";
     public static final String KEY_BORDER_EFFECT = "border_effect";
@@ -137,7 +139,9 @@ public final class SettingsRepository {
                 Math.round(preferences.getFloat(KEY_REVERSE_STRENGTH, 1f) * 100),
                 preferences.getString(KEY_REVERSE_CUTOUT_SHAPE, "rectangle"),
                 preferences.getString(KEY_ERROR_TITLE, "SubHub"),
-                preferences.getString(KEY_ERROR_TEXT, "Access blocked."));
+                preferences.getString(KEY_ERROR_TEXT, "Access blocked."),
+                readColor(KEY_GRADIENT_START, Color.rgb(152, 96, 190)),
+                readColor(KEY_GRADIENT_END, Color.rgb(76, 216, 235)));
     }
 
     public EffectPalette loadEffectPalette(CensorAppearance.Type type) {

@@ -23,7 +23,7 @@ public final class DetectionEngineUltraAndroidTest {
 
     @Test public void warmedUltraInferenceReportsMedian() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
-        DetectorConfig config = DetectionPreset.ULTRA
+        DetectorConfig config = DetectionPreset.HIGH
                 .applyTo(DetectorConfig.builder()).build();
         Bitmap frame = Bitmap.createBitmap(230, 512, Bitmap.Config.ARGB_8888);
         new Canvas(frame).drawColor(Color.rgb(74, 20, 95));

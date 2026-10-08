@@ -158,7 +158,7 @@ public final class ScreenCaptureService extends Service {
         overlayNeedsSourceFrame = appearance.requiresSourceFrame();
         overlay.setAppearance(appearance);
         overlay.show();
-        PopupStormManager.get().start(this);
+        PopupStormManager.get().syncServiceParticipation(this, true);
         executor.execute(this::startPipeline);
         return START_NOT_STICKY;
     }
@@ -196,6 +196,13 @@ public final class ScreenCaptureService extends Service {
     }
 
     private void reloadSettings() {
+        if (!censorConfigured()) {
+            if (overlay != null) overlay.clear();
+            if (tracker != null) tracker.clear();
+            tapTracker.clear();
+            dwellTracker.clear();
+            PopupStormManager.get().updateDetections(java.util.Collections.emptyList());
+        }
         CensorAppearance appearance = settings.loadAppearance();
         overlayNeedsSourceFrame = appearance.requiresSourceFrame();
         if (overlay != null) overlay.setAppearance(appearance);
@@ -205,15 +212,18 @@ public final class ScreenCaptureService extends Service {
         if (detector != null) detector.setConfig(config);
         if (tracker != null) tracker.setConfig(config);
         PopupStormManager.get().reloadSettings(this);
+        PopupStormManager.get().syncServiceParticipation(this,
+                running && new AppModeManager(this).isArmed());
     }
 
     private void processFrame() {
-        if (!running || !processing.compareAndSet(false, true)) return;
+        if (!running || !censorConfigured() || !processing.compareAndSet(false, true)) return;
         Bitmap frame = null;
         try {
             frame = capture.acquireLatestFrame();
             if (frame == null) return;
             List<Detection> detections = detector.detect(frame);
+            if (!censorConfigured()) return;
             List<TrackedObject> tracks = tracker.update(detections);
             DetectorConfig currentConfig = detectorConfig;
             int recordedBlocks = stats.recordTracks(tracks, currentConfig == null
@@ -250,7 +260,7 @@ public final class ScreenCaptureService extends Service {
                         + width + "x" + height);
             }
             mainHandler.post(() -> {
-                if (overlay != null) {
+                if (overlay != null && censorConfigured()) {
                     overlay.setDiagnostics(diagnosticText);
                     overlay.update(tracks, width, height, overlayFrame);
                 }
@@ -263,6 +273,11 @@ public final class ScreenCaptureService extends Service {
             if (frame != null && !frame.isRecycled()) frame.recycle();
             processing.set(false);
         }
+    }
+
+    private boolean censorConfigured() {
+        return settings != null && settings.preferences().getBoolean(
+                com.subhub.app.settings.FeatureModuleManager.KEY_CENSOR_ENABLED, true);
     }
 
     private DisplayInfo displayInfo() {

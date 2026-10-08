@@ -15,6 +15,7 @@ import com.subhub.app.security.ControllerPinManager;
 import com.subhub.app.settings.SettingsRepository;
 
 import org.json.JSONObject;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -28,34 +29,51 @@ import java.io.FileOutputStream;
 @RunWith(AndroidJUnit4.class)
 public final class SubHubPackManagerTest {
     private Context context;
+    private Set<String> legacyLocks;
 
     @Before public void setup() {
         context = ApplicationProvider.getApplicationContext();
         if (!ControllerPinManager.isConfigured(context)) ControllerPinManager.setPin(context, "2468");
         ControllerPinManager.enterDomMode();
         new SubHubPackManager(context).deactivate();
+        android.content.SharedPreferences state = context.getSharedPreferences(
+                "subhub_pack_state_v1", Context.MODE_PRIVATE);
+        legacyLocks = state.contains("active_lock_groups")
+                ? new java.util.HashSet<>(state.getStringSet("active_lock_groups", Set.of())) : null;
+        // Start this no-new-locks contract independently of an earlier V2 fixture.
+        assertTrue(state.edit().remove("active_lock_groups").commit());
     }
 
-    @Test public void activationLocksSelectedGroupAndDeactivationRestoresPreviousValue()
+    @After public void restoreLegacyFixture() {
+        android.content.SharedPreferences.Editor restore = context.getSharedPreferences(
+                "subhub_pack_state_v1", Context.MODE_PRIVATE).edit();
+        if (legacyLocks == null) restore.remove("active_lock_groups");
+        else restore.putStringSet("active_lock_groups", legacyLocks);
+        assertTrue(restore.commit());
+    }
+
+    @Test public void activationDoesNotLockSettingsAndDeactivationRestoresPreviousValue()
             throws Exception {
         SettingsRepository repository = new SettingsRepository(context);
         repository.preferences().edit().putString(SettingsRepository.KEY_CENSOR_TYPE, "blur")
                 .commit();
         JSONObject section = new JSONObject().put(SettingsRepository.KEY_CENSOR_TYPE, "box");
-        SubHubPack pack = new SubHubPack(UUID.randomUUID().toString(), "Test", "", "", "1.0.0",
+        SubHubPack pack = new SubHubPack(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "Test", "", "", "1.0.0",
                 1L, 1L, "0.6.0", Map.of(SubHubPackSchema.CENSOR, section),
-                Set.of(SubHubPackSchema.CENSOR), new JSONObject(), Map.of());
+                new JSONObject(), Map.of());
         SubHubPackManager manager = new SubHubPackManager(context);
 
         assertTrue(manager.activate(pack, Set.of(SubHubPackSchema.CENSOR)));
         assertEquals("box", repository.preferences().getString(
                 SettingsRepository.KEY_CENSOR_TYPE, ""));
-        assertTrue(SubHubPackLocks.isLocked(context, SubHubPackSchema.CENSOR));
+        assertFalse(pack.manifestWithoutIntegrity(Map.of()).has("lockGroups"));
+        assertFalse(context.getSharedPreferences("subhub_pack_state_v1", Context.MODE_PRIVATE)
+                .contains("active_lock_groups"));
 
         assertTrue(manager.deactivate());
         assertEquals("blur", repository.preferences().getString(
                 SettingsRepository.KEY_CENSOR_TYPE, ""));
-        assertFalse(SubHubPackLocks.isLocked(context, SubHubPackSchema.CENSOR));
+        assertFalse(pack.manifestWithoutIntegrity(Map.of()).has("lockGroups"));
     }
 
     @Test public void subSpaceCanApplyOnlyMatchingActivePackUpdate() throws Exception {
@@ -91,7 +109,7 @@ public final class SubHubPackManagerTest {
         JSONObject section = new JSONObject().put(SettingsRepository.KEY_CENSOR_TYPE, type);
         return new SubHubPack(id, deviceId, name, author, "", "1.0.0", 1L, updatedAt,
                 "0.6.0", Map.of(SubHubPackSchema.CENSOR, section),
-                Set.of(SubHubPackSchema.CENSOR), new JSONObject(), Map.of());
+                new JSONObject(), Map.of());
     }
 
     private Uri write(SubHubPack pack, String name) throws Exception {

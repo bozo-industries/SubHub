@@ -1060,7 +1060,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 || !appTimerRuntimeActive(nowMillis)) return;
         AppModeManager mode = new AppModeManager(this);
         timers.recordUsage(foregroundPackage, nowMillis - started,
-                mode.getTimerPackages(), nowMillis);
+                mode.timerScopeForForeground(foregroundPackage), nowMillis);
     }
 
     /** Returns true when the current foreground app was dismissed for a spent budget. */
@@ -1072,7 +1072,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
             return false;
         }
         AppModeManager mode = new AppModeManager(this);
-        Set<String> selected = mode.getTimerPackages();
+        Set<String> selected = mode.timerScopeForForeground(foregroundPackage);
         AppTimerManager.LimitStatus status = timers.limitStatus(
                 foregroundPackage, selected, nowMillis);
         if (status == AppTimerManager.LimitStatus.NONE) return false;
@@ -1112,6 +1112,10 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
                 && new AppModeManager(this).shouldRecognize(foregroundPackage);
         if (shouldRun && !recognitionActive) activateRecognition();
         else if (!shouldRun && recognitionActive) deactivateRecognition();
+        AppModeManager appMode = new AppModeManager(this);
+        PopupStormManager.get().syncServiceParticipation(this,
+                !HardcoreSettingsGuard.isSettingsPackage(foregroundPackage)
+                        && appMode.shouldShowPopups(foregroundPackage));
     }
 
     private void reevaluateSubliminals() {
@@ -1192,7 +1196,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         overlay.setAppearance(appearance);
         overlay.setDiagnostics(diagnosticsOverlayText());
         overlay.show();
-        PopupStormManager.get().start(this);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             worker.execute(this::initializePipeline);
         }
@@ -1213,7 +1216,6 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         DiagnosticsRepository.stop(DIAGNOSTICS_MODE);
         if (overlay != null) overlay.close();
         overlay = null;
-        PopupStormManager.get().stop();
         dwellTracker.clear();
         tapTracker.clear();
         resetTextSnapshots();
@@ -1358,6 +1360,7 @@ public final class ScreenshotAccessibilityService extends AccessibilityService {
         running = false;
         main.removeCallbacks(timerTick);
         deactivateRecognition();
+        PopupStormManager.get().syncServiceParticipation(this, false);
         if (settings != null) {
             settings.preferences().unregisterOnSharedPreferenceChangeListener(listener);
         }
