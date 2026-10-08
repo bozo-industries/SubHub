@@ -1,6 +1,6 @@
 # Current UI gallery
 
-Real Android UI captures from October 8, 2026. These use synthetic emulator data, not a personal phone or live payment account. They show development build 0.6.4 (20), based on `eb60a8fa`, and may differ from the latest published APK.
+Real Android UI captures from October 8, 2026. These use synthetic emulator data, not a personal phone or live payment account. They show development build 0.6.4 (20), based on `64ba54df`, and may differ from the latest published APK.
 
 The capture suite covers 42 screenshots: 34 distinct page/state captures below and eight repeated foundation/navigation checks. Screenshots document appearance and navigation, not live detection accuracy, scrolling performance, or payment execution.
 
@@ -74,6 +74,8 @@ The capture suite covers 42 screenshots: 34 distinct page/state captures below a
 </p>
 
 ## Capture verification
+
+Use meaningful synthetic configurations in every future documentation pass. Limits must show one or two selected installed apps with distinct custom daily allowances, seeded and asserted by the reusable capture test. This set shows Chrome at 20 minutes, Instagram at 10 minutes, and a 45-minute shared allowance.
 
 Both the application and instrumentation APK were built together from an exact, isolated source snapshot. The capture runner asserts named panels/dialogs, waits for asynchronous app rows and compositor settling, and scrolls to named sections. Each published image was visually reviewed. See [capture provenance](capture-provenance.json) for the source tree, emulator, dimensions, capture checks, and SHA-256 inventory.
 
