@@ -134,6 +134,36 @@ public final class ControlThemeAndroidTest {
         sheet.recycle();
     }
 
+    @Test public void coverageTiersAddIntimateFeetAndFaceMasksWithoutCoveringHair() {
+        Context context = themed();
+        Bitmap low = render(context.getDrawable(R.drawable.ic_quality_low), 44, 64);
+        Bitmap medium = render(context.getDrawable(R.drawable.ic_quality_medium), 44, 64);
+        Bitmap high = render(context.getDrawable(R.drawable.ic_quality_high), 44, 64);
+        int mask = context.getColor(R.color.control_checked_indicator);
+        try {
+            for (int x : new int[]{13, 30}) {
+                assertEquals("Low already covers intimate areas", mask, low.getPixel(x, 38));
+                assertEquals(mask, medium.getPixel(x, 38));
+                assertEquals(mask, high.getPixel(x, 38));
+            }
+            for (int x : new int[]{9, 16, 27, 32}) {
+                assertNotEquals("Low leaves feet visible", mask, low.getPixel(x, 50));
+                assertEquals("Medium adds feet", mask, medium.getPixel(x, 50));
+                assertEquals(mask, high.getPixel(x, 50));
+            }
+            for (int x : new int[]{13, 30}) {
+                assertNotEquals(mask, medium.getPixel(x, 14));
+                assertEquals("High uses face-only masks", mask, high.getPixel(x, 14));
+                assertEquals("Hair remains unchanged", low.getPixel(x, 10), high.getPixel(x, 10));
+            }
+            assertEquals("Long hair remains visible beside the face", low.getPixel(26, 15), high.getPixel(26, 15));
+            assertNotEquals(mask, medium.getPixel(8, 29));
+            assertEquals("High retains small armpit coverage", mask, high.getPixel(8, 29));
+        } finally {
+            low.recycle(); medium.recycle(); high.recycle();
+        }
+    }
+
     private static Bitmap render(Drawable drawable, int width, int height) {
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         drawable.setBounds(0, 0, width, height);

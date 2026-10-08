@@ -17,5 +17,5 @@
         android:pathData="M29.5,5.4a0.7,0.7 0,1 0,0,1.4a0.7,0.7 0,1 0,0,-1.4Z" />
     <path android:fillColor="@color/control_checked_indicator"
         android:strokeColor="@color/control_checked_text" android:strokeWidth="0.7"
-        android:pathData="M8,20h10v6H8Z M25.5,20h9v6h-9Z M8.5,35h9v7h-9Z M25,35h10v7H25Z" />
+        android:pathData="M8,20h10v6H8Z M25.5,20h9v6h-9Z M8.5,35h9v7h-9Z M25,35h10v7H25Z M7.5,48.5h4v4h-4Z M14.5,48.5h4v4h-4Z M25.5,48.5h4v4h-4Z M30.5,48.5h4v4h-4Z" />
 </vector>

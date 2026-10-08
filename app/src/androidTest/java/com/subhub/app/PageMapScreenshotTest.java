@@ -17,6 +17,8 @@ import androidx.test.uiautomator.UiDevice;
 
 import com.subhub.app.appmode.AppModeActivity;
 import com.subhub.app.appmode.AppModeManager;
+import com.subhub.app.appmode.AppModePolicy;
+import com.subhub.app.appmode.AppTimerManager;
 import com.subhub.app.atmosphere.AtmosphereActivity;
 import com.subhub.app.capture.CustomImagesActivity;
 import com.subhub.app.capture.ExportActivity;
@@ -189,6 +191,7 @@ public final class PageMapScreenshotTest {
                 .remove("commitment_started_at").remove("commitment_ends_at")
                 .remove("commitment_duration").commit();
         new FeatureModuleManager(context).save(true, true, true);
+        prepareLimitsFixture(context);
         if (!ControllerPinManager.isConfigured(context)) {
             ControllerPinManager.setPin(context, "2468");
         }
@@ -268,6 +271,25 @@ public final class PageMapScreenshotTest {
         }
     }
 
+    /** Documentation must demonstrate real per-app settings, never an empty Limits list. */
+    private static void prepareLimitsFixture(Context context) {
+        java.util.Map<String, Integer> examples = new java.util.LinkedHashMap<>();
+        String[] candidates = {"com.android.chrome", "com.instagram.android",
+                "com.twitter.android", "org.chromium.chrome.stable", "com.google.android.youtube"};
+        for (String packageName : candidates) {
+            if (context.getPackageManager().getLaunchIntentForPackage(packageName) == null) continue;
+            examples.put(packageName, examples.isEmpty() ? 20 : 10);
+            if (examples.size() == 2) break;
+        }
+        if (examples.isEmpty()) throw new AssertionError("Install one or two demo apps before documentation capture");
+        AppModeManager mode = new AppModeManager(context);
+        mode.saveAppSelections(mode.getSelectedPackages(), examples.keySet(), mode.getSubliminalPackages());
+        mode.save(false, AppModePolicy.Mode.SELECTED_APPS, mode.getSelectedPackages());
+        AppTimerManager timers = new AppTimerManager(context);
+        timers.saveSettings(true, 30, true, 45);
+        timers.saveAllowances(examples.keySet(), examples);
+    }
+
     private static void captureAfterClick(String name, Class<? extends Activity> activityClass,
             int viewId) throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
@@ -298,6 +320,25 @@ public final class PageMapScreenshotTest {
             UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
             device.waitForIdle(750L);
             Thread.sleep(350L);
+            if (activityClass == AppModeActivity.class) {
+                scenario.onActivity(activity -> {
+                    ViewGroup rows = activity.findViewById(R.id.per_app_allowances_list);
+                    int expected = new AppModeManager(activity).getTimerPackages().size();
+                    if (expected < 1 || expected > 2 || rows.getChildCount() != expected) {
+                        throw new AssertionError("Limits screenshot must show one or two selected demo apps");
+                    }
+                    java.util.Set<String> values = new java.util.LinkedHashSet<>();
+                    for (int index = 0; index < rows.getChildCount(); index++) {
+                        ViewGroup row = (ViewGroup) rows.getChildAt(index);
+                        android.widget.EditText allowance = (android.widget.EditText) row.getChildAt(1);
+                        if (!allowance.isShown()) throw new AssertionError("Custom allowance is not visible");
+                        values.add(allowance.getText().toString());
+                    }
+                    if (!values.contains("20") || (expected == 2 && !values.contains("10"))) {
+                        throw new AssertionError("Custom demo allowances were not bound");
+                    }
+                });
+            }
             if (!device.takeScreenshot(new File(directory, name + ".png"))) {
                 throw new IllegalStateException("Could not capture " + name);
             }

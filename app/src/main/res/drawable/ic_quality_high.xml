@@ -18,4 +18,7 @@
     <path android:fillColor="@color/control_checked_indicator"
         android:strokeColor="@color/control_checked_text" android:strokeWidth="0.7"
         android:pathData="M8,20h10v6H8Z M25.5,20h9v6h-9Z M8.5,35h9v7h-9Z M25,35h10v7H25Z M6.5,27.5h4v4h-4Z M15.5,27.5h4v4h-4Z M24,27.5h4v4h-4Z M32,27.5h4v4h-4Z M7.5,48.5h4v4h-4Z M14.5,48.5h4v4h-4Z M25.5,48.5h4v4h-4Z M30.5,48.5h4v4h-4Z" />
+    <path android:fillColor="@color/control_checked_indicator"
+        android:strokeColor="@color/control_checked_text" android:strokeWidth="0.55"
+        android:pathData="M10.6,13.25Q13,12.6 15.4,13.25V14.25Q15.4,16.25 13,16.7Q10.6,16.25 10.6,14.25Z M28.25,13.4Q30,12.8 31.5,13.4V14.4Q31.5,16.3 30,16.65Q28.25,16.3 28.25,14.4Z" />
 </vector>
