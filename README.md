@@ -9,12 +9,12 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Android-8.0%2B-b64bd2?style=flat-square&logo=android&logoColor=white" alt="Android 8.0+" />
-  <img src="https://img.shields.io/badge/release-v0.6.0-68339b?style=flat-square" alt="v0.6.0" />
+  <img src="https://img.shields.io/badge/release-v0.6.3-68339b?style=flat-square" alt="v0.6.3" />
   <img src="https://img.shields.io/badge/detection-on--device-e32b90?style=flat-square" alt="On-device detection" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/bozo-industries/SubHub/releases/latest"><strong>Download</strong></a>
+  <a href="https://github.com/confiteor48/SubHub/releases/latest"><strong>Download</strong></a>
   &nbsp;·&nbsp;
   <a href="#control-suite"><strong>Features</strong></a>
   &nbsp;·&nbsp;
@@ -75,6 +75,14 @@ Security and duration fields are recommendations, never commands. Enter Service 
 
 See the [SubHub pack format](docs/subhubpack-format.md) for the schema and privacy boundary.
 
+<p align="center">
+  <img src="docs/screenshots/ui-map/page-map/22-wizard-details.png" alt="Pack Maker details step" width="30%" />
+  &nbsp;
+  <img src="docs/screenshots/ui-map/page-map/23-wizard-features.png" alt="Configure feature settings directly in a draft" width="30%" />
+  &nbsp;
+  <img src="docs/screenshots/ui-map/page-map/26-pack-section-editor.png" alt="Native settings editor for a draft Censor section" width="30%" />
+</p>
+
 <p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
 
 ## Live censoring
@@ -88,25 +96,31 @@ See the [SubHub pack format](docs/subhubpack-format.md) for the schema and priva
 - **App Mode by default.** Accessibility supplies foreground-app awareness and visible-text geometry without a new capture prompt every session.
 - **Screen Capture when wanted.** MediaProjection remains an explicit alternate path.
 - **Assigned means assigned.** Filtering sleeps outside the configured app scope.
-- **Tracked means stable.** Censors follow scrolling and ordinary motion; repeated frames do not create new events.
+- **Tracked overlays.** Detected regions use temporal tracking. Live stability and responsiveness depend on the workload and device; UI screenshots are not performance benchmarks.
 - **One render system.** Blackout, Blur, Pixelate, Custom Image, TV Static, Glitch, Privacy Tape, and Error Popup share the tracked overlay pipeline.
 
-Low through Ultra presets trade battery for analysis frequency. High and Ultra keep the local pipelines warm and run image and text work concurrently.
+Three detection levels—Low, Medium, and High—offer Balanced Coverage, More Coverage, and Maximum Coverage. Appearance stays separate: choose one of eight phone-previewed styles, customize colors and borders, and manage images when Custom Image is selected.
+
+<p align="center">
+  <img src="docs/screenshots/ui-map/page-map/05-censor-settings.png" alt="Three detection levels and body-area choices" width="42%" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/ui-map/page-map/05a-settings-appearance.png" alt="Eight Censor appearance styles with phone previews" width="42%" />
+</p>
 
 <p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
 
 ## Limits & Wallet
 
-Assign Censor, Limit, or both to each app. Per-app allowances may differ, and an optional shared allowance can govern the whole set. Usage resets at local midnight.
+Choose All apps or Assigned apps only, with independent Censor, Limits, and Subliminal assignments in compact app rows. Per-app allowances may differ, and an optional shared allowance can govern the whole set. Usage resets at local midnight.
 
 Wallet rules can count only deliberately enabled events: a new stable temptation, lingering on one still screen, tapping a visible censor, opening an assigned app, or a rate-limited Hardcore tamper signal. Every event is gated behind active service and the Wallet master switch.
 
 The Dom sets prices, batching, grace, correction time, and daily or weekly caps. PayPal merchant credentials and saved-wallet tokens are encrypted with Android Keystore and stay bound to the selected Sandbox or Live environment.
 
 <p align="center">
-  <img src="docs/screenshots/ui-map/page-map/03b-wallet-rules-and-safety.png" alt="Tribute rules and caps" width="45%" />
+  <img src="docs/screenshots/ui-map/page-map/03b-wallet-rules-and-safety.png" alt="Tribute rules and safety options" width="45%" />
   &nbsp;&nbsp;
-  <img src="docs/screenshots/ui-map/page-map/03c-wallet-checkout-and-history.png" alt="PayPal settlement and ledger" width="45%" />
+  <img src="docs/screenshots/ui-map/page-map/03c-wallet-checkout-and-history.png" alt="Paid-pause configuration and tribute history" width="45%" />
 </p>
 
 <p align="center"><img src="docs/brand/subhub-divider.svg" width="100%" alt="" /></p>
@@ -142,6 +156,12 @@ Requirements: JDK 17, Android SDK 35, and Android 8.0 or newer.
 ```
 
 Editable source lives under `app/src/main/java/com/subhub/app/`. Versioned tags build, sign, verify, and publish universal and ABI-specific APKs with checksums.
+
+## Screenshots & sharing
+
+Browse the [complete current UI gallery](docs/screenshots/ui-map/README.md), including Dom/Sub navigation, app assignments, Appearance, Wallet, Atmosphere, and all four Pack Maker steps. Captures use synthetic data on an Android emulator and show the development build; the published APK may differ.
+
+Ready-to-share feature collages: [square PNG](docs/marketing/subhub-social-square.png) · [portrait PNG](docs/marketing/subhub-social-portrait.png). Both use genuine app screenshots. [Editable sources and regeneration instructions](docs/marketing/README.md) are included.
 
 <details>
 <summary><strong>Project documentation</strong></summary>

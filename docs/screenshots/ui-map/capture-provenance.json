@@ -1,0 +1,286 @@
+{
+  "capturedOn": "2026-10-08",
+  "appSourceCommit": "eb60a8fa9d5d5df2757867dd7b8ff3a45e4cf8fa",
+  "captureSourceCommit": "f86a0452fdd730a7771c8e8caee0500d3d90f07d",
+  "captureSourceTree": "538aea5cf0f19d144846f8398b968fa68d928f1d",
+  "versionName": "0.6.4",
+  "versionCode": 20,
+  "packageName": "com.subhub.app",
+  "emulator": {
+    "apiLevel": 35,
+    "model": "sdk_gphone64_x86_64",
+    "captureWidth": 1080,
+    "captureHeight": 2400,
+    "densityDpi": 420,
+    "fixture": "synthetic; no personal phone or live payment credentials"
+  },
+  "build": {
+    "pairedAppAndTestApks": true,
+    "immediateQualityExperiment": true,
+    "appApkSha256": "ee57a20fc4aff2ea3b0b5df54556030471bd5d2734b7996e5c1530c13ca9346a",
+    "testApkSha256": "20dfaa69808cbcff1f21954754697e31eeff93819afbbc5d00889afd95a6c53c"
+  },
+  "verification": {
+    "captureCasesPassed": 6,
+    "screenshotCount": 42,
+    "additionalUiCasesPassed": 6,
+    "assignmentGeometryConfigurations": 18,
+    "allCapturesVisuallyReviewed": true,
+    "performanceBenchmark": false,
+    "paymentExecutionProof": false
+  },
+  "captures": [
+    {
+      "file": "00-sub-home.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "339a01fe09c0020171e8e2ff3fcc3a7680eb17a71f108efa9766a82975be7f9f"
+    },
+    {
+      "file": "00b-sub-settings.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "2b9dfb18923fbe6d3301ce8343986fa4e89233ae9c406940c7af4c53239d7b3a"
+    },
+    {
+      "file": "00c-sub-arrangements.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "24a0770f8b3a43348f1cbb6643faf0cada6b6f91f90c5fe68c9f0fa3d81f4be7"
+    },
+    {
+      "file": "01-dom-home.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "a046f713db03cb0eac37075c685bb36d023808c4f59a4b2dd27762956ab3959e"
+    },
+    {
+      "file": "02-limits.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "f29ed389f4b82adbda860923b276fda491cf163e1b8ade001960894d78f233d4"
+    },
+    {
+      "file": "03-wallet.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "8d4797e7032a8aeae0e84188a1a053cc6894b9040e39fffb7c52c96bcf4d1119"
+    },
+    {
+      "file": "03b-wallet-rules-and-safety.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "64b755a28377251aa81eead224e5e9860f92a0daccee673cb0f381a88ae8a54c"
+    },
+    {
+      "file": "03c-wallet-checkout-and-history.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "8a574aa87288f2bde7660495cd501537aaa861f1efa74636e5731a383154df5f"
+    },
+    {
+      "file": "04-global-settings.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "797c24bab7ab37abf47fa4022c84f6d3b7ed5ce0607b9260c448ab5acbd7d3e3"
+    },
+    {
+      "file": "04b-app-assignments.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "077d2886b83ab9c61661d81de6796e72bbad43a9d73d13b1ae4f0bcb575b5617"
+    },
+    {
+      "file": "05-censor-settings.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "baca74b5370719559431b261e9b4c72a931d19842ed34c9d41662ea7a06faf07"
+    },
+    {
+      "file": "05a-settings-appearance.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "1f329489091c187e45494914e5869a54242589f2812a15e01031631d2cec5f52"
+    },
+    {
+      "file": "05b-settings-detection-categories.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "47199ef5b4e2ec173da10936e291d0a40d1b1edd5dd35702d317a385bc7bfaaf"
+    },
+    {
+      "file": "05c-settings-phrases-and-tools.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "22b332b217baf09b3a5a940e41028d8b6701a60058dd7598f810e6346d10e0e4"
+    },
+    {
+      "file": "07-censor-photos.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "5552e87561c71feeeda9d2bc430a11324d1eeeb9ca09f076fa33fbfbfd894585"
+    },
+    {
+      "file": "08-help-safety.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "e89ef1bb9bcc92787f4e8e33ba4f384ab8ee76d6556660f5230faff10b8964fc"
+    },
+    {
+      "file": "09-statistics.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "edc0c534275b1cf7dd8858f44bfc9b90164d55ee513018a34b9d65e89f1f5520"
+    },
+    {
+      "file": "10-achievements.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "b2bbeac88039b85fdd417e7613a0e15a7457f6ca0b32ffb5723624212e1538bb"
+    },
+    {
+      "file": "11-custom-images.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "3792364dc0a4cb8d5dde248d63b3937b49fd006ec7dfeacba4db578ef84166fa"
+    },
+    {
+      "file": "14-atmosphere.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "42b9cb8a69c142e8e76b6a790ce01f1ee19385acf139e11b5b9f40d55d0cd613"
+    },
+    {
+      "file": "15-whispers.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "b2bbc19a732fc6ecefa2aa929b2657c5b83fbd1dc450667917fe8866ce502988"
+    },
+    {
+      "file": "16-popup-storm.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "41da68438cfdb6da89ed98ef87faff3e275f986414f100ac0bc15bd640b907a5"
+    },
+    {
+      "file": "17-studio-library.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "169a741da8c36045a476bb9c704868b5b19454fee9945208f36f09d84156da0f"
+    },
+    {
+      "file": "17b-studio-drafts.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "b9ad2bae3bf8a837b9a5f30afdbcf11309bcbbadb5cf8db71188946cd43e78e0"
+    },
+    {
+      "file": "17c-studio-create.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "99aaf00c2b956b5bf3f638d131af9ee0339c5a73109fd06cee1dd3474afb3465"
+    },
+    {
+      "file": "18-updates.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "4900a159f3de8ec65c00ec0a47fc4a5d6ae98f99b8fc3b89444a7fdebf048002"
+    },
+    {
+      "file": "19-diagnostics.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "be5784a1113b2e727a6533e6736c85f0feb53261c01cda925a9a00f09942104f"
+    },
+    {
+      "file": "20-service-lock.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "fdfb327c1f7a9fc9cee35acc4ad4531d3444d18e47a3474532cfb6ddbcdf6a46"
+    },
+    {
+      "file": "21-color-wheel.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "3cb5edebf197cfdf8a99ae5c75943b45a444eeee8166046e0a474783541fc91d"
+    },
+    {
+      "file": "22-wizard-details.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "0e671bd3c1191d22e57515f99efa1deef0d4afc97df2b2ee1746aac251c1a205"
+    },
+    {
+      "file": "23-wizard-features.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "eb29f5130bfdbcfeb440264f409c013282f42dab9a7ead18842b038a0ef554f6"
+    },
+    {
+      "file": "24-wizard-images.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "9c5efe51a42eccf695c339416db95b7c27bba2c3b8f8f823b8777abfd74fc411"
+    },
+    {
+      "file": "25-wizard-review.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "6204580d0b560b02e33d9dc33e79bbe8c318d5af892ffbf03d2a101fe7dfcca4"
+    },
+    {
+      "file": "26-pack-section-editor.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "d6b610af547e0806b154448cde5db1f9ce5a631a103417631154df5f19422fb1"
+    },
+    {
+      "file": "foundation-01-dom-home.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "3d8d72587a62f4770dde439d706f2151221e850c571b329c08a353b95ed61848"
+    },
+    {
+      "file": "foundation-02-censor.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "763b590c8553b18a689ae4bd46809a10a8e339546fc135e9dbf56139c6673118"
+    },
+    {
+      "file": "foundation-03-limits.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "422c278f369b2607736d7c0e917f78b2d107604b2192e060561633223a54bb9a"
+    },
+    {
+      "file": "foundation-04-wallet.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "391353c38fc9e4ecb85d3a5e6b432d7f94fddf35b238542ddb16c97962b54961"
+    },
+    {
+      "file": "foundation-05-atmosphere.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "31f78371a9806c8e1c5173bb949642fec1d0b436837c68dac74eea32083e2665"
+    },
+    {
+      "file": "foundation-06-settings.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "d53318edb4db3ce13166750cb6d9a95654985da05b38490ed7910f911c890bb2"
+    },
+    {
+      "file": "foundation-07-sub-home.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "339a01fe09c0020171e8e2ff3fcc3a7680eb17a71f108efa9766a82975be7f9f"
+    },
+    {
+      "file": "foundation-08-sub-settings.png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "1011dfa507b8d31df30682e88eb3a638dcee0098e8ab43794e20c22cb7bdf840"
+    }
+  ]
+}
