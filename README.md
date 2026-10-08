@@ -195,6 +195,10 @@ Requirements: JDK 17, Android SDK 35, and Android 8.0 or newer.
 
 Editable source lives under `app/src/main/java/com/subhub/app/`. Versioned tags build, sign, verify, and publish universal and ABI-specific APKs with checksums.
 
+Every push to a non-`master` branch also publishes a signed [GitHub prerelease](https://github.com/confiteor48/SubHub/releases), with a unique `-dev.<run>` version and the same APK/checksum/updater assets. Stable releases remain explicitly tagged from `master`; development builds never replace GitHub’s latest stable release.
+
+In the app, open **Updates → Dev updates** in Dom mode to opt in. It is off by default. Checks follow the selected channel, and downloads and Android installation still require your approval. Turning Dev updates off keeps the installed app and waits for a newer stable build—no uninstall, ADB, or external file host is needed for subsequent updates.
+
 ## Screenshots & media kit
 
 Browse the [complete current UI gallery](docs/screenshots/ui-map/README.md), including Dom/Sub navigation, app assignments, Appearance, Wallet, Atmosphere, and all four Pack Maker steps. Captures use synthetic data on an Android emulator and show the development build; the published APK may differ.
