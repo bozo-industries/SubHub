@@ -106,26 +106,26 @@ public final class StateToggle extends SwitchMaterial {
         statusBounds.set(left, top, left + width, top + height);
         statusPaint.setStyle(Paint.Style.FILL);
         statusPaint.setColor(getContext().getColor(isChecked()
-                ? R.color.accent_glow : R.color.surface_card_raised));
+                ? R.color.control_checked_surface : R.color.surface_card_raised));
         statusPaint.setAlpha(isEnabled() ? 255 : 110);
         canvas.drawRoundRect(statusBounds, dp(10), dp(10), statusPaint);
         statusPaint.setStyle(Paint.Style.STROKE);
         statusPaint.setStrokeWidth(dp(1));
         statusPaint.setColor(getContext().getColor(isChecked()
-                ? R.color.accent : R.color.text_muted));
+                ? R.color.control_checked_outline : R.color.text_muted));
         statusPaint.setAlpha(isEnabled() ? 255 : 110);
         canvas.drawRoundRect(statusBounds, dp(10), dp(10), statusPaint);
         statusPaint.setStyle(Paint.Style.FILL);
         statusPaint.setTextAlign(Paint.Align.CENTER);
         statusPaint.setColor(getContext().getColor(isChecked()
-                ? R.color.text_primary : R.color.text_secondary));
+                ? R.color.control_checked_text : R.color.text_secondary));
         statusPaint.setAlpha(isEnabled() ? 255 : 110);
         Paint.FontMetrics metrics = statusPaint.getFontMetrics();
         float baseline = statusBounds.centerY() - (metrics.ascent + metrics.descent) / 2f;
         canvas.drawText((isChecked() ? getTextOn() : getTextOff()).toString(),
                 statusBounds.centerX(), baseline, statusPaint);
         if (isEnabled() && (isFocused() || isHovered())) {
-            feedbackPaint.setColor(getContext().getColor(R.color.accent));
+            feedbackPaint.setColor(getContext().getColor(R.color.control_focus));
             feedbackPaint.setAlpha(170);
             feedbackPaint.setStyle(Paint.Style.STROKE);
             feedbackPaint.setStrokeWidth(dp(1));
@@ -133,7 +133,7 @@ public final class StateToggle extends SwitchMaterial {
                     dp(10), dp(10), feedbackPaint);
         }
         if (isEnabled() && touchFeedback) {
-            feedbackPaint.setColor(getContext().getColor(R.color.accent));
+            feedbackPaint.setColor(getContext().getColor(R.color.control_focus));
             feedbackPaint.setStyle(Paint.Style.FILL);
             feedbackPaint.setAlpha(Math.round(40 * (1 - feedbackProgress)));
             int saved = canvas.save();

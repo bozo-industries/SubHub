@@ -88,19 +88,19 @@
             <GridLayout android:id="@+id/message_packs_grid" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:columnCount="2">
             <CheckBox android:id="@+id/pack_obedience" style="@style/Widget.SubHub.GridSelectionTile" android:layout_width="0dp" android:layout_columnWeight="1"
-                android:layout_height="wrap_content" android:minHeight="@dimen/control_min_height" android:buttonTint="@color/accent"
+                android:layout_height="wrap_content" android:minHeight="@dimen/control_min_height" android:buttonTint="@color/toggle_tint"
                 android:text="@string/subliminal_pack_obedience" android:textColor="@color/text_primary" />
             <CheckBox android:id="@+id/pack_focus" style="@style/Widget.SubHub.GridSelectionTile" android:layout_width="0dp" android:layout_columnWeight="1"
-                android:layout_height="wrap_content" android:minHeight="@dimen/control_min_height" android:buttonTint="@color/accent"
+                android:layout_height="wrap_content" android:minHeight="@dimen/control_min_height" android:buttonTint="@color/toggle_tint"
                 android:text="@string/subliminal_pack_focus" android:textColor="@color/text_primary" />
             <CheckBox android:id="@+id/pack_beta" style="@style/Widget.SubHub.GridSelectionTile" android:layout_width="0dp" android:layout_columnWeight="1"
-                android:layout_height="wrap_content" android:minHeight="@dimen/control_min_height" android:buttonTint="@color/accent"
+                android:layout_height="wrap_content" android:minHeight="@dimen/control_min_height" android:buttonTint="@color/toggle_tint"
                 android:text="@string/subliminal_pack_beta" android:textColor="@color/text_primary" />
             <CheckBox android:id="@+id/pack_findom" style="@style/Widget.SubHub.GridSelectionTile" android:layout_width="0dp" android:layout_columnWeight="1"
-                android:layout_height="wrap_content" android:minHeight="@dimen/control_min_height" android:buttonTint="@color/accent"
+                android:layout_height="wrap_content" android:minHeight="@dimen/control_min_height" android:buttonTint="@color/toggle_tint"
                 android:text="@string/subliminal_pack_findom" android:textColor="@color/text_primary" />
             <CheckBox android:id="@+id/pack_custom" style="@style/Widget.SubHub.GridSelectionTile" android:layout_width="0dp" android:layout_columnWeight="1"
-                android:layout_height="wrap_content" android:minHeight="@dimen/control_min_height" android:buttonTint="@color/accent"
+                android:layout_height="wrap_content" android:minHeight="@dimen/control_min_height" android:buttonTint="@color/toggle_tint"
                 android:text="@string/subliminal_pack_custom" android:textColor="@color/text_primary" />
             </GridLayout>
             <LinearLayout android:id="@+id/custom_phrases_section"

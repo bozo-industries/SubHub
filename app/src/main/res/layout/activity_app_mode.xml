@@ -33,7 +33,7 @@
             <CheckBox android:id="@+id/per_app_limit_enabled" android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:minHeight="48dp" android:layout_marginTop="8dp"
-                android:buttonTint="@color/accent" android:text="@string/app_timer_per_app"
+                android:buttonTint="@color/toggle_tint" android:text="@string/app_timer_per_app"
                 android:textColor="@color/text_primary" />
             <TextView style="@style/Widget.SubHub.FieldHelp"
                 android:text="@string/app_timer_per_app_allowances_help" />
@@ -53,7 +53,7 @@
             <CheckBox android:id="@+id/total_limit_enabled" android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:minHeight="48dp" android:layout_marginTop="8dp"
-                android:buttonTint="@color/accent" android:text="@string/app_timer_combined"
+                android:buttonTint="@color/toggle_tint" android:text="@string/app_timer_combined"
                 android:textColor="@color/text_primary" />
             <TextView android:labelFor="@id/total_limit_minutes" style="@style/Widget.SubHub.FieldLabel"
                 android:text="@string/app_timer_total_minutes_label" />

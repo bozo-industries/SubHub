@@ -53,7 +53,7 @@
                 <CheckBox android:id="@+id/ledger_enabled" android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:minHeight="48dp" android:layout_marginTop="4dp"
-                    android:buttonTint="@color/accent" android:text="@string/penance_enabled"
+                    android:buttonTint="@color/toggle_tint" android:text="@string/penance_enabled"
                     android:textColor="@color/text_primary" />
                 <GridLayout android:id="@+id/rule_grid" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:columnCount="2">
