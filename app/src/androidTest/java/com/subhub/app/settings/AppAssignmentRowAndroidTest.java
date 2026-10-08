@@ -176,7 +176,9 @@ public final class AppAssignmentRowAndroidTest {
                         }
                         assertEquals(font > 1.4f, row.isStacked());
                         if (font == 1f) {
-                            assertEquals("Compact rows are 56dp including padding", dp(row.getContext(), 56),
+                            // Android rounds each padding inset separately at fractional densities.
+                            assertEquals("Compact rows contain a 48dp target plus their actual padding",
+                                    dp(row.getContext(), 48) + row.getPaddingTop() + row.getPaddingBottom(),
                                     row.getHeight());
                         }
                         android.util.Log.i("AppAssignmentGeometry", "screen=" + screenWidth

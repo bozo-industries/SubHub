@@ -3,6 +3,7 @@ package com.subhub.app;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Rect;
 import android.os.ParcelFileDescriptor;
 import android.view.View;
 import android.view.ViewGroup;
@@ -76,8 +77,14 @@ public final class PageMapScreenshotTest {
     @Test public void captureSupportingPages() throws Exception {
         prepareFixture(false);
         capture("05-censor-settings", SettingsActivity.class);
-        captureScrolled("05b-settings-detection-categories", SettingsActivity.class, 4);
-        captureScrolled("05c-settings-phrases-and-tools", SettingsActivity.class, 7);
+        captureTarget("05a-settings-appearance", SettingsActivity.class,
+                R.id.censor_appearance, R.id.button_appearance_details);
+        captureTarget("05b-settings-detection-categories", SettingsActivity.class,
+                R.id.censor_text_section, 0);
+        captureTarget("05c-settings-phrases-and-tools", SettingsActivity.class,
+                R.id.censor_phrases_section, R.id.button_appearance_details);
+        captureTarget("04b-app-assignments", GlobalSettingsActivity.class,
+                R.id.app_list, R.id.button_toggle_apps);
         capture("07-censor-photos", ExportActivity.class);
         capture("08-help-safety", HelpActivity.class);
         capture("09-statistics", StatsActivity.class);
@@ -104,6 +111,7 @@ public final class PageMapScreenshotTest {
                     activity.getString(R.string.gradient_start), android.graphics.Color.MAGENTA, color -> { }));
             UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
             device.waitForIdle(750L);
+            settleDisplay();
             if (!device.takeScreenshot(new File(directory, "21-color-wheel.png"))) {
                 throw new IllegalStateException("Could not capture color picker");
             }
@@ -124,8 +132,15 @@ public final class PageMapScreenshotTest {
                 final int selected = step;
                 scenario.onActivity(activity -> activity.getWindow().getDecorView()
                         .findViewWithTag("pack_step:" + selected).performClick());
+                int[] panels = {R.id.details_step, R.id.features_step, R.id.images_step, R.id.review_step};
+                scenario.onActivity(activity -> {
+                    if (!activity.findViewById(panels[selected]).isShown()) {
+                        throw new AssertionError("Wrong wizard panel: " + selected);
+                    }
+                });
                 UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
                 device.waitForIdle(750L);
+                settleDisplay();
                 if (!device.takeScreenshot(new File(directory, names[step] + ".png"))) {
                     throw new IllegalStateException("Could not capture wizard step " + step);
                 }
@@ -152,6 +167,13 @@ public final class PageMapScreenshotTest {
             });
             UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
             device.waitForIdle(750L);
+            androidx.test.espresso.Espresso.onView(
+                    androidx.test.espresso.matcher.ViewMatchers.withText(
+                            context.getString(R.string.pack_editor_title, "Censor")))
+                    .inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog())
+                    .check(androidx.test.espresso.assertion.ViewAssertions.matches(
+                            androidx.test.espresso.matcher.ViewMatchers.isDisplayed()));
+            settleDisplay();
             if (!device.takeScreenshot(new File(directory, "26-pack-section-editor.png"))) {
                 throw new IllegalStateException("Could not capture section editor");
             }
@@ -162,6 +184,10 @@ public final class PageMapScreenshotTest {
 
     private static void prepareFixture(boolean subSpace) throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        context.getSharedPreferences(SettingsRepository.PREFERENCES_NAME, Context.MODE_PRIVATE)
+                .edit().putBoolean("has_seen_onboarding", true)
+                .remove("commitment_started_at").remove("commitment_ends_at")
+                .remove("commitment_duration").commit();
         new FeatureModuleManager(context).save(true, true, true);
         if (!ControllerPinManager.isConfigured(context)) {
             ControllerPinManager.setPin(context, "2468");
@@ -176,6 +202,58 @@ public final class PageMapScreenshotTest {
         Thread.sleep(500L);
         if (subSpace) ControllerPinManager.enterSubMode();
         else ControllerPinManager.enterDomMode();
+    }
+
+    /** UI idleness alone does not guarantee a newly selected panel reached the compositor. */
+    private static void settleDisplay() throws InterruptedException {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        Thread.sleep(450L);
+    }
+
+    private static void captureTarget(String name, Class<? extends Activity> activityClass,
+            int targetId, int expandId) throws Exception {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        File directory = new File(context.getExternalFilesDir(null), "page-map");
+        if (!directory.exists() && !directory.mkdirs()) throw new IllegalStateException("No screenshot directory");
+        try (ActivityScenario<? extends Activity> scenario = ActivityScenario.launch(activityClass)) {
+            scenario.onActivity(activity -> {
+                if (activityClass == GlobalSettingsActivity.class) {
+                    activity.findViewById(R.id.mode_selected).performClick();
+                }
+                if (expandId != 0) activity.findViewById(expandId).performClick();
+            });
+            if (targetId == R.id.app_list) {
+                java.util.concurrent.atomic.AtomicBoolean loaded = new java.util.concurrent.atomic.AtomicBoolean();
+                long deadline = android.os.SystemClock.uptimeMillis() + 5000L;
+                do {
+                    scenario.onActivity(activity -> loaded.set(
+                            ((ViewGroup) activity.findViewById(R.id.app_list)).getChildCount() > 1));
+                    if (loaded.get()) break;
+                    Thread.sleep(50L);
+                } while (android.os.SystemClock.uptimeMillis() < deadline);
+                if (!loaded.get()) throw new AssertionError("App assignments did not finish loading");
+            }
+            settleDisplay();
+            scenario.onActivity(activity -> {
+                View target = activity.findViewById(targetId);
+                if (target == null || !target.isShown()) throw new AssertionError("Capture target is hidden: " + name);
+                android.view.ViewParent parent = target.getParent();
+                while (parent != null && !(parent instanceof ScrollView)) parent = parent.getParent();
+                if (!(parent instanceof ScrollView)) throw new AssertionError("No scroll owner: " + name);
+                ScrollView scroll = (ScrollView) parent;
+                Rect bounds = new Rect(0, 0, target.getWidth(), target.getHeight());
+                ((ViewGroup) scroll.getChildAt(0)).offsetDescendantRectToMyCoords(target, bounds);
+                scroll.scrollTo(0, Math.max(0, bounds.top - 24));
+            });
+            settleDisplay();
+            androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withId(targetId))
+                    .check(androidx.test.espresso.assertion.ViewAssertions.matches(
+                            androidx.test.espresso.matcher.ViewMatchers.isDisplayed()));
+            if (!UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+                    .takeScreenshot(new File(directory, name + ".png"))) {
+                throw new IllegalStateException("Could not capture " + name);
+            }
+        }
     }
 
     private static void runShellCommand(String command) throws Exception {
