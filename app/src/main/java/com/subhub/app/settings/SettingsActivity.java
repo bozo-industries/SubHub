@@ -206,8 +206,7 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.switchGenitalsFemale.setChecked(categories.contains("genitals_female"));
         binding.switchGenitalsMale.setChecked(categories.contains("genitals_male"));
         binding.switchBreasts.setChecked(categories.contains("breasts"));
-        binding.switchButtocks.setChecked(categories.contains("buttocks"));
-        binding.switchAnus.setChecked(categories.contains("anus"));
+        binding.switchButtocks.setChecked(DetectionCategorySelection.isSelected(categories, "buttocks"));
         binding.switchFaces.setChecked(categories.contains("face"));
         binding.switchMaleChest.setChecked(categories.contains("male_chest"));
         binding.switchBelly.setChecked(categories.contains("belly"));
@@ -307,7 +306,6 @@ public final class SettingsActivity extends AppCompatActivity {
         binding.switchGenitalsMale.setOnCheckedChangeListener(changed);
         binding.switchBreasts.setOnCheckedChangeListener(changed);
         binding.switchButtocks.setOnCheckedChangeListener(changed);
-        binding.switchAnus.setOnCheckedChangeListener(changed);
         binding.switchFaces.setOnCheckedChangeListener(changed);
         binding.switchMaleChest.setOnCheckedChangeListener(changed);
         binding.switchBelly.setOnCheckedChangeListener(changed);
@@ -393,7 +391,7 @@ public final class SettingsActivity extends AppCompatActivity {
                 editing;
         CompoundButton[] categories = {
                 binding.switchGenitalsFemale, binding.switchGenitalsMale, binding.switchBreasts,
-                binding.switchButtocks, binding.switchAnus, binding.switchFaces,
+                binding.switchButtocks, binding.switchFaces,
                 binding.switchMaleChest, binding.switchBelly, binding.switchFeet,
                 binding.switchArmpits, binding.switchCovered};
         for (CompoundButton category : categories) category.setEnabled(categoriesEnabled);
@@ -597,8 +595,7 @@ public final class SettingsActivity extends AppCompatActivity {
         if (binding.switchGenitalsFemale.isChecked()) categories.add("genitals_female");
         if (binding.switchGenitalsMale.isChecked()) categories.add("genitals_male");
         if (binding.switchBreasts.isChecked()) categories.add("breasts");
-        if (binding.switchButtocks.isChecked()) categories.add("buttocks");
-        if (binding.switchAnus.isChecked()) categories.add("anus");
+        DetectionCategorySelection.setSelected(categories, "buttocks", binding.switchButtocks.isChecked());
         if (binding.switchFaces.isChecked()) categories.add("face");
         if (binding.switchMaleChest.isChecked()) categories.add("male_chest");
         if (binding.switchBelly.isChecked()) categories.add("belly");

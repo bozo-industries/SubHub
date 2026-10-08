@@ -114,12 +114,12 @@ public final class HomeSettingsStructureContractTest {
                 assertTrue(details.contains("Blackout · Classic Border"));
                 assertTrue(details.contains("High · Maximum Coverage"));
                 assertTrue(details.contains(
-                        "Vulva, Penis / Testicles, Breasts / Nipples, Buttocks, Anus, "
-                                + "Male Chest, Abdomen"));
+                        "Vagina, Dick & Balls, Tits, Ass, Male Chest, Abs / Tummy"));
                 assertTrue(details.contains(
                         "Context · Sexual Words, Kink / Fetish Talk, Sexual Invitations"));
                 assertTrue(details.contains("Beta / Cuck, Denial, Findom, Plain"));
-                assertFalse(details.contains(", Ass,"));
+                assertFalse(details.contains("Buttocks"));
+                assertFalse(details.contains("Anus"));
                 assertFalse(details.contains(", Anal,"));
                 assertFalse(details.contains("BLACKOUT"));
                 assertFalse(details.contains("ULTRA · MAXIMUM COVERAGE"));

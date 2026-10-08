@@ -11,8 +11,6 @@
     <string name="censor_other_areas">Other body areas</string>
     <string name="censor_areas_selected">%1$d selected</string>
     <string name="censor_no_areas_selected">None selected</string>
-    <string name="censor_area_labels_help">Buttocks covers the cheek region. Anus targets the opening separately. The model detects visible regions, not internal anatomy.</string>
-    <string name="censor_covered_help">Also match the model’s covered-area categories: genitals, breasts, buttocks, anus, abdomen, feet, and armpits. This is separate from the exposed-area choices.</string>
     <string name="censor_capture_options">Capture &amp; compatibility</string>
     <string name="censor_text_details">Text matching</string>
     <string name="atmosphere_whispers_all_apps">%1$s · All apps</string>
@@ -45,7 +43,6 @@
     <string name="censor_coverage_title">Image coverage</string>
     <string name="censor_coverage_areas">Detected areas (default)</string>
     <string name="censor_coverage_person">Whole person (requires body-capable model)</string>
-    <string name="censor_coverage_help">The bundled model covers detected body areas. Whole-person coverage needs a compatible model; your preference is retained until one is available.</string>
     <string name="app_name">SubHub</string>
     <string name="nav_home">Home</string>
     <string name="nav_censor">Censor</string>
@@ -123,7 +120,6 @@
     <string name="overlay_permission_needed">Allow SubHub to display censor blocks over other apps.</string>
     <string name="capture_cancelled">Screen capture was not granted.</string>
     <string name="capture_method_title">Capture Method</string>
-    <string name="capture_method_help">App Mode is persistent and app-aware. Screen Capture asks for Android approval at each start.</string>
     <string name="capture_method_app_mode">App Mode · Automatic</string>
     <string name="capture_method_recording">Screen Capture · Asks Each Start</string>
     <string name="capture_method_app_mode_button">App Mode · Change in Settings</string>
@@ -191,14 +187,13 @@
     <string name="preset_medium">Medium · Thorough</string>
     <string name="preset_high">High · Maximum Coverage</string>
     <string name="categories_title">Body Areas to Hide</string>
-    <string name="category_genitals_female">Vulva</string>
-    <string name="category_genitals_male">Penis / Testicles</string>
-    <string name="category_breasts">Breasts / Nipples</string>
-    <string name="category_buttocks">Buttocks</string>
-    <string name="category_anus">Anus</string>
+    <string name="category_genitals_female">Vagina</string>
+    <string name="category_genitals_male">Dick &amp; Balls</string>
+    <string name="category_breasts">Tits</string>
+    <string name="category_buttocks">Ass</string>
     <string name="category_faces">Faces</string>
     <string name="category_male_chest">Male Chest</string>
-    <string name="category_belly">Abdomen</string>
+    <string name="category_belly">Abs / Tummy</string>
     <string name="category_feet">Feet</string>
     <string name="category_armpits">Armpits</string>
     <string name="category_covered">Include Covered Areas</string>

@@ -35,10 +35,10 @@
                 android:accessibilityHeading="true"
                 android:minHeight="48dp" android:gravity="center_vertical"
                 android:text="@string/appearance_title" />
-            <TextView android:id="@+id/appearance_summary" style="@style/Widget.SubHub.FieldHelp" />
             <LinearLayout android:id="@+id/appearance_content"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:orientation="vertical">
+            <TextView android:id="@+id/appearance_summary" style="@style/Widget.SubHub.FieldHelp" />
             <LinearLayout android:id="@+id/censor_style_section"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -641,14 +641,6 @@
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:orientation="vertical">
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/capture_method_help"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11sp" />
-
                 <com.subhub.app.util.CompactChoiceGroup
                     android:id="@+id/capture_method_group"
                     android:layout_width="match_parent"
@@ -811,11 +803,7 @@
                         android:text="@string/category_breasts" />
                     <CheckBox android:id="@+id/switch_buttocks" style="@style/Widget.SubHub.SelectionTile"
                         android:text="@string/category_buttocks" />
-                    <CheckBox android:id="@+id/switch_anus" style="@style/Widget.SubHub.SelectionTile"
-                        android:text="@string/category_anus" />
                 </com.subhub.app.util.SelectionGrid>
-                <TextView style="@style/Widget.SubHub.FieldHelp"
-                    android:text="@string/censor_area_labels_help" />
                 <TextView android:id="@+id/button_other_areas"
                     style="@style/Widget.SubHub.OutlineAction"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -838,7 +826,6 @@
                     android:id="@+id/switch_covered" style="@style/Widget.SubHub.SettingsToggle"
                     android:layout_width="match_parent" android:layout_marginTop="8dp"
                     android:text="@string/category_covered" />
-                <TextView style="@style/Widget.SubHub.FieldHelp" android:text="@string/censor_covered_help" />
 
             </LinearLayout>
 
@@ -851,9 +838,6 @@
                 <TextView style="@style/Widget.SubHub.FieldLabel"
                     android:layout_marginTop="0dp"
                     android:text="@string/censor_coverage_title" />
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp" android:text="@string/censor_coverage_help"
-                    android:textColor="@color/text_secondary" android:textSize="11sp" />
                 <com.subhub.app.util.CompactChoiceGroup android:id="@+id/coverage_group" android:layout_width="match_parent"
                     android:layout_height="wrap_content">
                     <RadioButton android:id="@+id/radio_coverage_areas" android:layout_width="match_parent"

@@ -285,6 +285,54 @@ public final class StudioCreatorAndroidTest {
         }
     }
 
+    @Test public void categoryPickerShowsOneAssChoiceAndSavesBothInternalClasses() throws Exception {
+        JSONObject values = PackSettingCatalog.defaults("censor");
+        values.put("enabled_categories", new org.json.JSONArray(java.util.List.of("anus")));
+        AtomicReference<JSONObject> saved = new AtomicReference<>();
+        try (ActivityScenario<StudioActivity> scenario = ActivityScenario.launch(StudioActivity.class)) {
+            scenario.onActivity(activity -> PackSectionEditor.show(activity, "censor", "Censor", values, saved::set));
+            onView(withTagValue(is((Object) "enabled_categories")))
+                    .inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(scrollTo(), click());
+            org.hamcrest.Matcher<androidx.test.espresso.Root> picker = org.hamcrest.Matchers.allOf(
+                    androidx.test.espresso.matcher.RootMatchers.isDialog(),
+                    androidx.test.espresso.matcher.RootMatchers.withDecorView(
+                            androidx.test.espresso.matcher.ViewMatchers.hasDescendant(
+                                    androidx.test.espresso.matcher.ViewMatchers.withText("Ass"))));
+            onView(androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom(android.widget.ListView.class))
+                    .inRoot(picker).check((view, missing) -> {
+                if (missing != null) throw missing;
+                android.widget.ListView choices = (android.widget.ListView) view;
+                int assCount = 0;
+                for (int index = 0; index < choices.getAdapter().getCount(); index++) {
+                    String name = String.valueOf(choices.getAdapter().getItem(index));
+                    assertFalse(name.contains("Buttocks"));
+                    assertFalse(name.contains("Anus"));
+                    if ("Ass".equals(name)) {
+                        assCount++;
+                        assertTrue(choices.isItemChecked(index));
+                    }
+                }
+                assertEquals(1, assCount);
+            });
+            onView(androidx.test.espresso.matcher.ViewMatchers.withText("Ass")).inRoot(picker).perform(click());
+            onView(androidx.test.espresso.matcher.ViewMatchers.withText("Ass")).inRoot(picker).perform(click());
+            onView(withId(android.R.id.button1)).inRoot(picker).perform(click());
+            onView(withTagValue(is((Object) "enabled_categories")))
+                    .inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog())
+                    .check((view, missing) -> {
+                        if (missing != null) throw missing;
+                        assertEquals(context.getResources().getQuantityString(R.plurals.pack_editor_selection_count, 1, 1),
+                                ((TextView) view).getText().toString());
+                    });
+            onView(withId(android.R.id.button1)).inRoot(androidx.test.espresso.matcher.RootMatchers.isDialog()).perform(click());
+            assertNotNull(saved.get());
+            org.json.JSONArray categories = saved.get().getJSONArray("enabled_categories");
+            Set<String> raw = new java.util.LinkedHashSet<>();
+            for (int index = 0; index < categories.length(); index++) raw.add(categories.getString(index));
+            assertEquals(Set.of("buttocks", "anus"), raw);
+        }
+    }
+
     @Test public void nativeImageImportAndRemovalRoundTripThroughTheArchive() throws Exception {
         File imageFile = new File(context.getCacheDir(), "studio-synthetic-image.png");
         android.graphics.Bitmap image = android.graphics.Bitmap.createBitmap(4, 4, android.graphics.Bitmap.Config.ARGB_8888);

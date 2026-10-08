@@ -842,8 +842,9 @@ public final class MainActivity extends AppCompatActivity {
         addCategoryLabel(labels, categories, "genitals_female", R.string.category_genitals_female);
         addCategoryLabel(labels, categories, "genitals_male", R.string.category_genitals_male);
         addCategoryLabel(labels, categories, "breasts", R.string.category_breasts);
-        addCategoryLabel(labels, categories, "buttocks", R.string.category_buttocks);
-        addCategoryLabel(labels, categories, "anus", R.string.category_anus);
+        if (com.subhub.app.settings.DetectionCategorySelection.isSelected(categories, "buttocks")) {
+            labels.add(getString(R.string.category_buttocks));
+        }
         addCategoryLabel(labels, categories, "face", R.string.category_faces);
         addCategoryLabel(labels, categories, "male_chest", R.string.category_male_chest);
         addCategoryLabel(labels, categories, "belly", R.string.category_belly);

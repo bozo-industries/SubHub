@@ -22,6 +22,7 @@ import com.subhub.app.R;
 import com.subhub.app.pack.PackSettingCatalog;
 import com.subhub.app.pack.SubHubPackSchema;
 import com.subhub.app.util.CompactFieldLayout;
+import com.subhub.app.settings.DetectionCategorySelection;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.math.BigDecimal;
@@ -283,19 +284,25 @@ final class PackSectionEditor {
         JSONArray current = working.optJSONArray(field.key);
         Set<String> selected = new LinkedHashSet<>();
         if (current != null) for (int index = 0; index < current.length(); index++) selected.add(current.optString(index));
-        String[] labels = new String[field.choices.size()];
+        boolean bodyCategories = "enabled_categories".equals(field.key);
+        List<String> visibleChoices = bodyCategories
+                ? DetectionCategorySelection.choicesForDisplay(field.choices) : field.choices;
+        String[] labels = new String[visibleChoices.size()];
         boolean[] checked = new boolean[labels.length];
         for (int index = 0; index < labels.length; index++) {
-            String value = field.choices.get(index);
+            String value = visibleChoices.get(index);
             labels[index] = activity.getString(PackSettingCatalog.choiceLabel(field, value));
-            checked[index] = selected.contains(value);
+            checked[index] = bodyCategories ? DetectionCategorySelection.isSelected(selected, value) : selected.contains(value);
         }
         com.subhub.app.util.ThemedDialogs.builder(activity).setTitle(field.label)
                 .setMultiChoiceItems(labels, checked, (dialog, position, on) -> checked[position] = on)
                 .setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(android.R.string.ok, (dialog, which) -> {
-                    List<String> choices = new ArrayList<>();
-                    for (int index = 0; index < checked.length; index++) if (checked[index]) choices.add(field.choices.get(index));
+                    Set<String> choices = new LinkedHashSet<>();
+                    for (int index = 0; index < checked.length; index++) {
+                        if (bodyCategories) DetectionCategorySelection.setSelected(choices, visibleChoices.get(index), checked[index]);
+                        else if (checked[index]) choices.add(visibleChoices.get(index));
+                    }
                     changed(field, new JSONArray(choices));
                     button.setText(selectionSummary(field));
                 }).show();
@@ -304,6 +311,11 @@ final class PackSectionEditor {
     private String selectionSummary(PackSettingCatalog.Field field) {
         JSONArray array = working.optJSONArray(field.key);
         int count = array == null ? 0 : array.length();
+        if (array != null && "enabled_categories".equals(field.key)) {
+            List<String> categories = new ArrayList<>();
+            for (int index = 0; index < array.length(); index++) categories.add(array.optString(index));
+            count = DetectionCategorySelection.choicesForDisplay(categories).size();
+        }
         return activity.getResources().getQuantityString(R.plurals.pack_editor_selection_count, count, count);
     }
 

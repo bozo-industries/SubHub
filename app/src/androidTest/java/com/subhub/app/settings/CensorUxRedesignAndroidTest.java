@@ -83,16 +83,25 @@ public final class CensorUxRedesignAndroidTest {
                 ViewGroup page = (ViewGroup) rules.getParent();
                 assertTrue(page.indexOfChild(rules) < page.indexOfChild(appearance));
                 assertEquals(View.GONE, activity.findViewById(R.id.appearance_content).getVisibility());
+                assertFalse(activity.findViewById(R.id.appearance_summary).isShown());
                 assertEquals(View.GONE, activity.findViewById(R.id.capture_options_content).getVisibility());
                 ViewGroup filters = (ViewGroup) rules;
                 assertEquals(filters.getChildAt(filters.getChildCount() - 1), activity.findViewById(R.id.censor_capture_section));
                 assertTrue(activity.findViewById(R.id.switch_buttocks) instanceof android.widget.CheckBox);
-                assertTrue(activity.findViewById(R.id.switch_anus) instanceof android.widget.CheckBox);
-                assertEquals("Buttocks", ((TextView) activity.findViewById(R.id.switch_buttocks)).getText().toString());
-                assertEquals("Anus", ((TextView) activity.findViewById(R.id.switch_anus)).getText().toString());
+                assertEquals(4, ((ViewGroup) activity.findViewById(R.id.intimate_area_grid)).getChildCount());
+                assertEquals("Vagina", ((TextView) activity.findViewById(R.id.switch_genitals_female)).getText().toString());
+                assertEquals("Dick & Balls", ((TextView) activity.findViewById(R.id.switch_genitals_male)).getText().toString());
+                assertEquals("Tits", ((TextView) activity.findViewById(R.id.switch_breasts)).getText().toString());
+                assertEquals("Ass", ((TextView) activity.findViewById(R.id.switch_buttocks)).getText().toString());
+                assertEquals("Abs / Tummy", ((TextView) activity.findViewById(R.id.switch_belly)).getText().toString());
             });
             onView(withId(R.id.button_appearance_details)).perform(revealAboveNavigation(), click());
-            scenario.onActivity(activity -> assertTrue(activity.findViewById(R.id.appearance_content).isShown()));
+            scenario.onActivity(activity -> {
+                assertTrue(activity.findViewById(R.id.appearance_content).isShown());
+                assertTrue(activity.findViewById(R.id.appearance_summary).isShown());
+            });
+            onView(withId(R.id.button_appearance_details)).perform(revealAboveNavigation(), click());
+            scenario.onActivity(activity -> assertFalse(activity.findViewById(R.id.appearance_summary).isShown()));
         }
     }
 
@@ -104,9 +113,13 @@ public final class CensorUxRedesignAndroidTest {
                 assertTrue(((CompoundButton) activity.findViewById(R.id.switch_faces)).isChecked());
                 assertEquals(View.GONE, activity.findViewById(R.id.other_area_grid).getVisibility());
                 assertTrue(((TextView) activity.findViewById(R.id.button_other_areas)).getText().toString().contains("1 selected"));
-                assertFalse(((CompoundButton) activity.findViewById(R.id.switch_anus)).isChecked());
+                assertTrue(((CompoundButton) activity.findViewById(R.id.switch_buttocks)).isChecked());
             });
-            onView(withId(R.id.switch_anus)).perform(revealAboveNavigation(), click());
+            onView(withId(R.id.switch_buttocks)).perform(revealAboveNavigation(), click());
+            assertFalse(repository.loadDetectorConfig().getEnabledCategories().contains("anus"));
+            assertFalse(repository.loadDetectorConfig().getEnabledCategories().contains("buttocks"));
+            assertTrue(repository.loadDetectorConfig().getEnabledCategories().contains("face"));
+            onView(withId(R.id.switch_buttocks)).perform(revealAboveNavigation(), click());
             assertTrue(repository.loadDetectorConfig().getEnabledCategories().contains("anus"));
             assertTrue(repository.loadDetectorConfig().getEnabledCategories().contains("buttocks"));
             assertTrue(repository.loadDetectorConfig().getEnabledCategories().contains("face"));
@@ -125,6 +138,21 @@ public final class CensorUxRedesignAndroidTest {
             onView(withId(R.id.switch_smut_text)).perform(revealAboveNavigation(), click());
             scenario.onActivity(activity -> assertEquals(View.GONE, activity.findViewById(R.id.text_matching_details).getVisibility()));
             assertFalse(new SettingsRepository(context).loadTextSmutConfig().isEnabled());
+        }
+    }
+
+    @Test public void legacyAnusOnlyUsesTheCombinedAssTileAndSavesBothClassesOnEnable() {
+        SettingsRepository repository = new SettingsRepository(context);
+        repository.saveDetection(25, new LinkedHashSet<>(java.util.Arrays.asList("anus", "face")));
+        try (ActivityScenario<SettingsActivity> scenario = ActivityScenario.launch(SettingsActivity.class)) {
+            scenario.onActivity(activity -> assertTrue(((CompoundButton) activity.findViewById(R.id.switch_buttocks)).isChecked()));
+            onView(withId(R.id.switch_buttocks)).perform(revealAboveNavigation(), click());
+            assertEquals(Collections.singleton("face"), repository.loadDetectorConfig().getEnabledCategories());
+            onView(withId(R.id.switch_buttocks)).perform(revealAboveNavigation(), click());
+            assertEquals(new LinkedHashSet<>(java.util.Arrays.asList("face", "buttocks", "anus")),
+                    repository.loadDetectorConfig().getEnabledCategories());
+            scenario.recreate();
+            scenario.onActivity(activity -> assertTrue(((CompoundButton) activity.findViewById(R.id.switch_buttocks)).isChecked()));
         }
     }
 
