@@ -104,6 +104,30 @@ class ReleaseNotesTest(unittest.TestCase):
             MODULE.run_git = original
         self.assertEqual([["merge-base", "--is-ancestor", before, "HEAD"]], calls)
 
+    def test_imported_history_base_requires_exact_published_tree_identity(self):
+        original = MODULE.run_git
+        def run(arguments):
+            if arguments[0] == "describe":
+                raise subprocess.CalledProcessError(128, arguments)
+            if arguments[0] == "merge-base":
+                return ""
+            self.assertEqual("rev-parse", arguments[0])
+            return "tree-identity\ntree-identity\n"
+        MODULE.run_git = run
+        try:
+            self.assertEqual(MODULE.SOURCE_HISTORY_EQUIVALENTS["v0.6.3"], MODULE.previous_tag("HEAD"))
+        finally:
+            MODULE.run_git = original
+
+    def test_imported_history_base_rejects_a_different_tree(self):
+        original = MODULE.run_git
+        MODULE.run_git = lambda arguments: "old-tree\nchanged-tree\n" if arguments[0] == "rev-parse" else ""
+        try:
+            with self.assertRaisesRegex(ValueError, "published tree"):
+                MODULE.equivalent_source_base("HEAD")
+        finally:
+            MODULE.run_git = original
+
     def test_new_and_rewritten_branches_do_not_replay_unrelated_legacy_history(self):
         original = MODULE.run_git
         def run(arguments):

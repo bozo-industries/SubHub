@@ -94,6 +94,9 @@ must identify a tested commit on `master`; branch pushes never create a normal r
 Dev release notes cover the pushed commit range. For a first or rewritten branch push, describe
 the new snapshot's last commit instead of replaying unrelated legacy history. Stable changelogs
 remain cumulative since the previous stable tag; automatic dev tags must not truncate them.
+The normalized source history has a recorded equivalent for the historical `v0.6.3` release.
+Use that source-history base only when its full Git tree equals the published tag's tree;
+never move the tag, guess an equivalent, or disable strict commit-type validation.
 
 Dev updates are opt-in and off by default. Selection uses the compatible manifest's Android
 version code, not SemVer alone, and stable lookup must still work when dev builds fill the first

@@ -24,6 +24,11 @@ SUBJECT = re.compile(
     re.IGNORECASE,
 )
 SEMVER_TAG = re.compile(r"^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
+# The imported source history normalized commit identities, but retained this release's
+# exact tree. Bind the equivalent before using it; never move the published tag.
+SOURCE_HISTORY_EQUIVALENTS = {
+    "v0.6.3": "b04eb9233e530ad525d358df8438f55b086f7661",
+}
 RELEASE_HOUSEKEEPING = re.compile(
     r"^(?:bump|prepare|release)\b.*\b(?:version|subhub|v?\d+\.\d+\.\d+)",
     re.IGNORECASE,
@@ -78,9 +83,23 @@ def previous_tag(tag: str) -> str | None:
         value = run_git(["describe", "--tags", "--abbrev=0", "--match", "v[0-9]*",
                          "--exclude", "v*-dev.*", f"{tag}^"])
     except subprocess.CalledProcessError:
-        return None
+        return equivalent_source_base(tag)
     candidate = value.strip()
     return candidate if SEMVER_TAG.fullmatch(candidate) else None
+
+
+def equivalent_source_base(tag: str) -> str | None:
+    for released_tag, source_commit in SOURCE_HISTORY_EQUIVALENTS.items():
+        try:
+            run_git(["merge-base", "--is-ancestor", source_commit, f"{tag}^"])
+            trees = run_git(["rev-parse", f"{released_tag}^{{tree}}",
+                             f"{source_commit}^{{tree}}"]).splitlines()
+        except subprocess.CalledProcessError:
+            continue
+        if len(trees) != 2 or trees[0] != trees[1]:
+            raise ValueError("Release history equivalent does not match the published tree")
+        return source_commit
+    return None
 
 
 def read_commits(tag: str, base_tag: str | None = None) -> list[Commit]:
